@@ -1,0 +1,106 @@
+import React, { useEffect, useState } from 'react'
+import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
+import { supabase } from './lib/supabaseClient'
+
+import Auth from './pages/Auth'
+import MemberForm from './MemberForm'
+import SepaMandate from './SepaMandate'
+import AGB from './pages/AGB'
+import Certificate from './pages/Certificate'
+
+const dummyUser = {
+  id: '00000000-0000-0000-0000-000000000001',
+  email: 'debug@example.com',
+}
+
+export default function App() {
+  const isDev = import.meta.env.MODE === 'development'
+  const [user, setUser] = useState(isDev ? dummyUser : null)
+  const [loading, setLoading] = useState(!isDev)
+
+  useEffect(() => {
+    if (!isDev) {
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        setUser(session?.user ?? null)
+        setLoading(false)
+      })
+
+      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+        setUser(session?.user ?? null)
+      })
+
+      return () => {
+        listener.subscription.unsubscribe()
+      }
+    }
+  }, [])
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    setUser(null)
+  }
+
+  if (loading) return <div style={{ color: 'white', backgroundColor: 'black', minHeight: '100vh' }}>Loading...</div>
+
+  if (!user) return <Auth onLogin={setUser} />
+
+  return (
+    <Router>
+      <nav
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          padding: '1rem',
+          background: '#0000CD',
+          color: 'white',
+        }}
+      >
+        <div style={{ display: 'flex', gap: '1rem' }}>
+          <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>
+            Member Form
+          </Link>
+          <Link to="/sepa" style={{ color: 'white', textDecoration: 'none' }}>
+            SEPA
+          </Link>
+          <Link to="/agb" style={{ color: 'white', textDecoration: 'none' }}>
+            AGB
+          </Link>
+          <Link to="/certificate" style={{ color: 'white', textDecoration: 'none' }}>
+            Certificate
+          </Link>
+
+        </div>
+
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '2rem' }}>
+        <Link
+          to="#"
+          onClick={(e) => {
+            e.preventDefault()
+            handleLogout()
+          }}
+          style={{ color: 'white', cursor: 'pointer', textDecoration: 'none' }}
+        >
+          Logout
+        </Link>
+        <img
+          src="/img/logo.webp"
+          alt="Logo"
+          style={{ height: '30px' }}
+        />
+      </div>
+
+      </nav>
+
+
+      <div style={{ backgroundColor: 'black', color: 'white', minHeight: '100vh', padding: '1rem' }}>
+        <Routes>
+          <Route path="/" element={<MemberForm user={user} />} />
+          <Route path="/sepa" element={<SepaMandate />} />
+          <Route path="/agb" element={<AGB />} />
+          <Route path="/certificate" element={<Certificate user={user} />} />
+
+        </Routes>
+      </div>
+    </Router>
+  )
+}
