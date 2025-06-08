@@ -51,11 +51,11 @@ export default function App() {
           display: 'flex',
           alignItems: 'center',
           padding: '1rem',
-          background: '#0000CD',
+          background: ' #3c00b4  ',
           color: 'white',
         }}
       >
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '2rem' }}>
           <Link to="/" style={{ color: 'white', textDecoration: 'none' }}>
             Member Form
           </Link>
