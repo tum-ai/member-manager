@@ -186,7 +186,7 @@ export default function EngagementConfirmation({ user }) {
         style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}
       >
         <label>
-          Engagement Period Start Date:
+          Engagement Period Start Date: *
           <input
             type="date"
             value={startDate}
@@ -197,7 +197,7 @@ export default function EngagementConfirmation({ user }) {
         </label>
 
         <label>
-          Engagement Period End Date:
+          Engagement Period End Date: *
           <input
             type="date"
             value={endDate}
@@ -208,7 +208,7 @@ export default function EngagementConfirmation({ user }) {
         </label>
 
         <label>
-          Average Weekly Hours:
+          Average Weekly Hours: *
           <select
             value={weeklyHours}
             onChange={e => setWeeklyHours(e.target.value)}
@@ -227,7 +227,7 @@ export default function EngagementConfirmation({ user }) {
         </label>
 
         <label>
-          Department:
+          Department: *
           <select
             value={department}
             onChange={e => setDepartment(e.target.value)}
@@ -255,7 +255,7 @@ export default function EngagementConfirmation({ user }) {
         </label>
 
         <label>
-          Description of Tasks / Responsibilities:
+          Description of Tasks / Responsibilities : *
           <textarea
             value={tasksDescription}
             onChange={e => setTasksDescription(e.target.value)}
@@ -264,7 +264,9 @@ export default function EngagementConfirmation({ user }) {
             style={{ width: '100%' }}
           />
         </label>
-
+        <div style={{ marginTop: '1rem' }}>
+          <small style={{ color: 'lightgray' }}>* Required fields</small>
+        </div>
         <button type="submit" style={{ padding: '0.75rem', fontSize: '16px', cursor: 'pointer' }}>
           Download PDF
         </button>
