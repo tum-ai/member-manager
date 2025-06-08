@@ -3,9 +3,9 @@ import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom'
 import { supabase } from './lib/supabaseClient'
 
 import Auth from './pages/Auth'
-import MemberForm from './MemberForm'
-import SepaMandate from './SepaMandate'
-import AGB from './pages/AGB'
+import MemberForm from './pages/MemberForm'
+import SepaMandate from './pages/SepaMandate'
+import PrivacyPolicy from './pages/PrivacyPolicy'
 import Certificate from './pages/Certificate'
 
 const dummyUser = {
@@ -62,8 +62,8 @@ export default function App() {
           <Link to="/sepa" style={{ color: 'white', textDecoration: 'none' }}>
             SEPA
           </Link>
-          <Link to="/agb" style={{ color: 'white', textDecoration: 'none' }}>
-            AGB
+          <Link to="/privacy" style={{ color: 'white', textDecoration: 'none' }}>
+            Privacy Policy
           </Link>
           <Link to="/certificate" style={{ color: 'white', textDecoration: 'none' }}>
             Certificate
@@ -96,7 +96,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<MemberForm user={user} />} />
           <Route path="/sepa" element={<SepaMandate />} />
-          <Route path="/agb" element={<AGB />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/certificate" element={<Certificate user={user} />} />
 
         </Routes>
