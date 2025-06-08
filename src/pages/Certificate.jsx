@@ -7,11 +7,9 @@ export default function EngagementConfirmation({ user }) {
   const [memberData, setMemberData] = useState(null)
   const [error, setError] = useState(null)
 
-  // Fixed institution info (not editable)
   const institutionName = 'TUM.ai'
   const institutionGoals = 'to foster AI research and community collaboration'
 
-  // Departments, alphabetically sorted
   const departments = [
     'Applied Accelerated Computing',
     'Community',
@@ -27,7 +25,6 @@ export default function EngagementConfirmation({ user }) {
     'Venture',
   ].sort()
 
-  // User input states
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [weeklyHours, setWeeklyHours] = useState('')
@@ -59,93 +56,93 @@ export default function EngagementConfirmation({ user }) {
     fetchMemberData()
   }, [user])
 
-function downloadPdf() {
-  if (!memberData) return
+  function downloadPdf() {
+    if (!memberData) return
 
-  if (!startDate || !endDate || !weeklyHours || !department) {
-    alert(
-      'Please fill in start date, end date, average weekly hours, and select a department.'
+    if (!startDate || !endDate || !weeklyHours || !department) {
+      alert(
+        'Please fill in start date, end date, average weekly hours, and select a department.'
+      )
+      return
+    }
+
+    const doc = new jsPDF()
+    const today = new Date().toLocaleDateString()
+
+    try {
+      doc.addImage('/img/logo.webp', 'WEBP', 80, 10, 50, 20)
+    } catch (e) {
+      console.warn('Logo image could not be loaded in PDF.')
+    }
+
+    doc.setFontSize(26)
+    doc.setFont('helvetica', 'bold')
+    doc.text('Confirmation of Voluntary Engagement', 105, 50, null, null, 'center')
+
+    doc.setFontSize(14)
+    doc.setFont('helvetica', 'normal')
+
+    let y = 70
+    const lineHeight = 8
+    const marginLeft = 15
+    const maxTextWidth = 180
+
+    const addWrappedText = text => {
+      const wrapped = doc.splitTextToSize(text, maxTextWidth)
+      wrapped.forEach(line => {
+        doc.text(line, marginLeft, y)
+        y += lineHeight
+      })
+    }
+
+    addWrappedText(
+      `This is to confirm that ${memberData.given_name} ${memberData.surname}, born on ${new Date(
+        memberData.date_of_birth
+      ).toLocaleDateString()},`
     )
-    return
+
+    addWrappedText(
+      `has voluntarily engaged with our institution, ${institutionName}, during the period from ${new Date(
+        startDate
+      ).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}.`
+    )
+
+    addWrappedText(
+      `The average time commitment was approximately ${weeklyHours} hours per week during this period.`
+    )
+
+    addWrappedText(
+      `They were active in the ${department} department${isTeamLead ? ' as a team lead' : ''}.`
+    )
+
+    y += lineHeight / 2
+
+    addWrappedText(`Our institution, ${institutionName}, aims to ${institutionGoals}.`)
+
+    y += lineHeight / 2
+
+    addWrappedText(
+      `In the course of their engagement, ${memberData.given_name} ${memberData.surname} undertook the following tasks:`
+    )
+
+    addWrappedText(tasksDescription)
+
+    y += lineHeight / 2
+
+    addWrappedText(
+      `We thank ${memberData.given_name} ${memberData.surname} for their committed, reliable, and active participation in our institution and wish them all the best for the future.`
+    )
+
+    y += lineHeight * 4
+    doc.text('_________________________', 60, y)
+    doc.text('Date and Signature', 65, y + 8)
+    doc.text(`Authorized Representative of ${institutionName}`, 60, y + 16)
+
+    doc.setFontSize(12)
+    doc.text(`Issued on: ${today}`, 105, y + 40, null, null, 'center')
+
+    doc.save('engagement_confirmation.pdf')
   }
-
-  const doc = new jsPDF()
-  const today = new Date().toLocaleDateString()
-
-  // Add logo
-  doc.addImage('/img/logo.webp', 'WEBP', 80, 10, 50, 20)
-
-  // Title
-  doc.setFontSize(26)
-  doc.setFont('helvetica', 'bold')
-  doc.text('Confirmation of Voluntary Engagement', 105, 50, null, null, 'center')
-
-  doc.setFontSize(14)
-  doc.setFont('helvetica', 'normal')
-
-  let y = 70
-  const lineHeight = 8
-  const marginLeft = 15
-  const maxTextWidth = 180
-
-  // Utility function to add wrapped text and update y
-  function addWrappedText(text) {
-    const wrapped = doc.splitTextToSize(text, maxTextWidth)
-    wrapped.forEach(line => {
-      doc.text(line, marginLeft, y)
-      y += lineHeight
-    })
-  }
-
-  addWrappedText(
-    `This is to confirm that ${memberData.given_name} ${memberData.surname}, born on ${new Date(
-      memberData.date_of_birth
-    ).toLocaleDateString()},`
-  )
-
-  addWrappedText(
-    `has voluntarily engaged with our institution, ${institutionName}, during the period from ${new Date(
-      startDate
-    ).toLocaleDateString()} to ${new Date(endDate).toLocaleDateString()}.`
-  )
-
-  addWrappedText(
-    `The average time commitment was approximately ${weeklyHours} hours per week during this period.`
-  )
-
-  addWrappedText(
-    `They were active in the ${department} department${isTeamLead ? ' as a team lead' : ''}.`
-  )
-
-  y += lineHeight / 2
-
-  addWrappedText(`Our institution, ${institutionName}, aims to ${institutionGoals}.`)
-
-  y += lineHeight / 2
-
-  addWrappedText(
-    `In the course of their engagement, ${memberData.given_name} ${memberData.surname} undertook the following tasks:`
-  )
-
-  addWrappedText(tasksDescription)
-
-  y += lineHeight / 2
-
-  addWrappedText(
-    `We thank ${memberData.given_name} ${memberData.surname} for their committed, reliable, and active participation in our institution and wish them all the best for the future.`
-  )
-
-  y += lineHeight * 4
-  doc.text('_________________________', 60, y)
-  doc.text('Date and Signature', 65, y + 8)
-  doc.text(`Authorized Representative of ${institutionName}`, 60, y + 16)
-
-  doc.setFontSize(12)
-  doc.text(`Issued on: ${today}`, 105, y + 40, null, null, 'center')
-
-  doc.save('engagement_confirmation.pdf')
-}
-
 
   if (loading) return <div>Loading...</div>
   if (error) return <div>{error}</div>
@@ -153,12 +150,10 @@ function downloadPdf() {
   return (
     <div
       style={{
-        color: 'black',
+        color: 'white',
         maxWidth: 700,
         margin: 'auto',
         padding: '1rem',
-        backgroundColor: 'white',
-        borderRadius: '8px',
       }}
     >
       <h1 style={{ textAlign: 'center' }}>Confirmation of Voluntary Engagement</h1>
