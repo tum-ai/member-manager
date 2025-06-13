@@ -21,10 +21,13 @@ export default function Auth({ onLogin }) {
       setMessage(error.message)
     } else {
       if (isLogin) {
-        onLogin(data.user || data.session?.user)
-      } else {
-        setMessage('Check your inbox to confirm your email before logging in.')
-      }
+        const user = data.user || data.session?.user
+        if (user?.email === 'legal-finance@tum-ai.com') {
+          onLogin({ ...user, role: 'admin' }) //can access ibans and so on
+        } else {
+          onLogin({ ...user, role: 'user' })
+        }
+      } 
     }
   }
 

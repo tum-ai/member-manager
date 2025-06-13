@@ -7,6 +7,7 @@ import MemberForm from './pages/MemberForm'
 import SepaMandate from './pages/SepaMandate'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import Certificate from './pages/Certificate'
+import AdminDatabaseView from './pages/AdminDatabaseView'
 
 const dummyUser = {
   id: '00000000-0000-0000-0000-000000000001',
@@ -39,10 +40,27 @@ export default function App() {
     await supabase.auth.signOut()
     setUser(null)
   }
+  // database view
+  function DatabaseView() {
+    return (
+      <div style={{ padding: '2rem', color: 'white' }}>
+        <h1>Database Admin View</h1>
+        <p>Only visible to legal-finance@tum-ai.com</p>
+      </div>
+    )
+  }
 
   if (loading) return <div style={{ color: 'white', backgroundColor: 'black', minHeight: '100vh' }}>Loading...</div>
-
+  // TEMPORARY BYPASS — remove after testing
+  //return <AdminDatabaseView />
+  
   if (!user) return <Auth onLogin={setUser} />
+
+  // Show database view only to legal-finance@tum-ai.com
+  if (user.email === 'legal-finance@tum-ai.com') {
+    return <DatabaseView />
+  }
+
 
   return (
     <Router>
