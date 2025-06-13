@@ -53,7 +53,7 @@ export default function App() {
 
   if (loading) return <div style={{ color: 'white', backgroundColor: 'black', minHeight: '100vh' }}>Loading...</div>
   // TEMPORARY BYPASS — remove after testing
-  return <AdminDatabaseView />
+  //return <AdminDatabaseView />
   
   if (!user) return <Auth onLogin={setUser} />
 
