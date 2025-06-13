@@ -14,6 +14,15 @@ export default function AdminDatabaseView() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  function getRowStyle(member) {
+    if (member.sepa?.mandate_agreed) {
+      return { backgroundColor: '#28a745', color: 'white' } // green for SEPA enabled
+    } else if (member.active) {
+      return { backgroundColor: '#dc3545', color: 'white' } // red for active but SEPA disabled
+    } else {
+      return { backgroundColor: '#fd7e14', color: 'white' } // orange for inactive and SEPA disabled
+    }
+  }
   useEffect(() => {
     async function fetchData() {
       const { data: members, error: membersError } = await supabase.from('members').select('*')
@@ -177,7 +186,7 @@ export default function AdminDatabaseView() {
         </thead>
         <tbody>
           {filtered.map((row, i) => (
-            <tr key={i}>
+            <tr key={i} style={getRowStyle(row)}>
               <td>{row.surname}</td>
               <td>{row.given_name}</td>
               <td>{row.email}</td>
