@@ -85,7 +85,7 @@ export default function EngagementConfirmation({ user }) {
     setEngagements(engagements.filter((_, i) => i !== index))
   }
 
-  const downloadPdf = () => {
+  const downloadPdf = async () => {
     if (!memberData) return
 
     for (const engagement of engagements) {
@@ -114,9 +114,46 @@ export default function EngagementConfirmation({ user }) {
     let y = 50
 
     try {
-      doc.addImage('/img/logo_purple.webp', 'WEBP', pageWidth / 2 - 25, 10, 50, 15)
+      const logoPath = '/img/logo_black.png'
+      
+      // Load image as base64 to ensure proper loading
+      const loadImageAsBase64 = (src) => {
+        return new Promise((resolve, reject) => {
+          const img = new Image()
+          img.crossOrigin = 'anonymous'
+          img.onload = () => {
+            const canvas = document.createElement('canvas')
+            const ctx = canvas.getContext('2d')
+            canvas.width = img.width
+            canvas.height = img.height
+            ctx.drawImage(img, 0, 0)
+            resolve(canvas.toDataURL('image/png'))
+          }
+          img.onerror = reject
+          img.src = src
+        })
+      }
+  
+      try {
+        const base64Logo = await loadImageAsBase64(logoPath)
+        const logoWidth = 60
+        const logoHeight = 15 // Calculated to maintain aspect ratio
+        doc.addImage(
+          base64Logo, 
+          'PNG', 
+          pageWidth / 2 - logoWidth / 2, 
+          10, 
+          logoWidth, 
+          logoHeight,
+          undefined,
+          'MEDIUM' // compression - 'NONE' for best quality but for logo medium looks good enough
+        )
+      } catch (e) {
+        console.warn('Failed to load logo as base64, trying direct method')
+        doc.addImage('/img/logo_black.png', 'PNG', pageWidth / 2 - 30, 10, 60, 18)
+      }
     } catch (e) {
-      console.warn('Logo not found')
+      console.warn('Logo not found or failed to load:', e)
     }
 
     doc.setFont('helvetica', 'bold')
