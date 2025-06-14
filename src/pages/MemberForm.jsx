@@ -19,6 +19,8 @@ export default function MemberForm({ user }) {
     country: '',
     user_id: user.id,
   })
+  const [statusRequestMessage, setStatusRequestMessage] = useState('')
+
 
   const [sepa, setSepa] = useState({
     iban: '',
@@ -33,6 +35,7 @@ export default function MemberForm({ user }) {
   const [originalSepa, setOriginalSepa] = useState(null)
   const [isEditing, setIsEditing] = useState(false)
   const [message, setMessage] = useState('')
+  const [requestedStatus, setRequestedStatus] = useState(member.active ? 'inactive' : 'active');
 
   useEffect(() => {
     fetchData()
@@ -49,6 +52,7 @@ export default function MemberForm({ user }) {
     if (memberData) {
       setMember(memberData)
       setOriginalMember(memberData)
+      setRequestedStatus(memberData.active ? 'inactive' : 'active');
     }
 
     const { data: sepaData } = await supabase
@@ -119,6 +123,19 @@ export default function MemberForm({ user }) {
     setIsEditing(false)
     setMessage('Changes canceled.')
   }
+  function handleStatusChangeRequest() {
+    const confirmed = window.confirm(
+      `Are you sure you want to request a status change to ${requestedStatus}?\n\nThis will be a legally binding request and will be sent to legal-finance@tum-ai.com.`
+    );
+    if (confirmed) {
+      setStatusRequestMessage(
+        `A request to change your membership status to "${requestedStatus}" has been sent to legal-finance@tum-ai.com.`
+      );
+    }
+  }
+
+
+
 
   const personalFields = [
     { label: 'Active member', name: 'active' },
@@ -206,17 +223,33 @@ export default function MemberForm({ user }) {
               </label>
 
               <label style={{ display: 'block', marginBottom: '0.75rem' }}>
-                Active member:*{' '}
-                <input
-                  type="checkbox"
-                  name="active"
-                  checked={member.active}
-                  onChange={handleMemberChange}
+                Active member: <strong>{member.active ? 'Yes' : 'No'}</strong>
+                <br />
+                <button
+                  type="button"
+                  onClick={handleStatusChangeRequest}
                   disabled={loading}
-                  required
-                  style={{ marginLeft: '0.5rem' }}
-                />
+                  style={{
+                    marginTop: '0.5rem',
+                    padding: '0.4rem 0.8rem',
+                    backgroundColor: '#4EA1D3',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Request Status Change to {requestedStatus.charAt(0).toUpperCase() + requestedStatus.slice(1)}
+                </button>
+
+                {statusRequestMessage && (
+                  <p style={{ marginTop: '0.5rem', color: 'lightgreen' }}>
+                    {statusRequestMessage}
+                  </p>
+                )}
               </label>
+
+
 
               {personalFields.filter(f => !['title', 'salutation', 'active'].includes(f.name)).map(({ label, name, type }) => (
                 <label key={name} style={{ display: 'block', marginBottom: '0.75rem' }}>

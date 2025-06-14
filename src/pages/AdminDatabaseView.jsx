@@ -15,14 +15,41 @@ export default function AdminDatabaseView() {
   const [error, setError] = useState(null)
 
   function getRowStyle(member) {
-    if (member.sepa?.mandate_agreed) {
-      return { backgroundColor: '#28a745', color: 'white' } // green for SEPA enabled
-    } else if (member.active) {
-      return { backgroundColor: '#dc3545', color: 'white' } // red for active but SEPA disabled
+    if (member.sepa?.mandate_agreed && !member.active) {
+      return { backgroundColor: '#dc3545', color: 'white' } // red: SEPA enabled but inactive
+    } else if (member.sepa?.mandate_agreed && member.active) {
+      return { backgroundColor: '#28a745', color: 'white' } // green: SEPA enabled and active
     } else {
-      return { backgroundColor: '#fd7e14', color: 'white' } // orange for inactive and SEPA disabled
+      return { backgroundColor: '#fd7e14', color: 'white' } // orange: SEPA not enabled (and not one of the first two cases)
     }
   }
+
+
+  async function toggleMemberStatus(member) {
+    const newStatus = !member.active
+    const confirmation = window.confirm(
+      `Are you sure you want to change the status of ${member.given_name} ${member.surname} to ${newStatus ? 'active' : 'inactive'}?`
+    )
+
+    if (!confirmation) return
+
+    const { error } = await supabase
+      .from('members')
+      .update({ active: newStatus })
+      .eq('user_id', member.user_id)
+
+    if (error) {
+      alert('Failed to update status: ' + error.message)
+      return
+    }
+
+    setData(prev =>
+      prev.map(m =>
+        m.user_id === member.user_id ? { ...m, active: newStatus } : m
+      )
+    )
+  }
+
   useEffect(() => {
     async function fetchData() {
       const { data: members, error: membersError } = await supabase.from('members').select('*')
@@ -46,27 +73,22 @@ export default function AdminDatabaseView() {
     fetchData()
   }, [])
 
-  // Filter helper function
   function filterRow(row) {
     const { search, mandateAgreed, privacyAgreed, active } = filters
 
-    // Text search on all string fields
     const text = `${row.surname} ${row.given_name} ${row.email} ${row.phone} ${row.sepa.iban || ''} ${row.sepa.bic || ''} ${row.sepa.bank_name || ''}`.toLowerCase()
     if (search && !text.includes(search.toLowerCase())) return false
 
-    // Filter by mandateAgreed (expects 'true' or 'false' or '')
     if (mandateAgreed !== '') {
       const val = String(row.sepa.mandate_agreed)
       if (val !== mandateAgreed) return false
     }
 
-    // Filter by privacyAgreed
     if (privacyAgreed !== '') {
       const val = String(row.sepa.privacy_agreed)
       if (val !== privacyAgreed) return false
     }
 
-    // Filter by active (members.active is probably boolean or string)
     if (active !== '') {
       const val = String(row.active)
       if (val !== active) return false
@@ -86,7 +108,6 @@ export default function AdminDatabaseView() {
   if (loading) return <div style={{ color: 'white' }}>Loading data…</div>
   if (error) return <div style={{ color: 'red' }}>Error: {error}</div>
 
-  // Options for filtering
   const boolOptions = [
     { label: 'All', value: '' },
     { label: 'Yes', value: 'true' },
@@ -170,6 +191,7 @@ export default function AdminDatabaseView() {
               { key: 'mandate_agreed', label: 'SEPA Mandate' },
               { key: 'privacy_agreed', label: 'Privacy Agreed' },
               { key: 'active', label: 'Active' },
+              { key: 'actions', label: 'Actions' }
             ].map(({ key, label }) => (
               <th
                 key={key}
@@ -197,11 +219,26 @@ export default function AdminDatabaseView() {
               <td>{String(row.sepa?.mandate_agreed)}</td>
               <td>{String(row.sepa?.privacy_agreed)}</td>
               <td>{String(row.active)}</td>
+              <td>
+                <button
+                  onClick={() => toggleMemberStatus(row)}
+                  style={{
+                    padding: '0.25rem 0.5rem',
+                    backgroundColor: row.active ? '#dc3545' : '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {row.active ? 'Set Inactive' : 'Set Active'}
+                </button>
+              </td>
             </tr>
           ))}
           {filtered.length === 0 && (
             <tr>
-              <td colSpan={10} style={{ textAlign: 'center', padding: '1rem' }}>
+              <td colSpan={11} style={{ textAlign: 'center', padding: '1rem' }}>
                 No records found.
               </td>
             </tr>
