@@ -129,7 +129,7 @@ export default function MemberForm({ user }) {
     );
     if (confirmed) {
       setStatusRequestMessage(
-        `A request to change your membership status to "${requestedStatus}" has been sent to legal-finance@tum-ai.com.`
+        `A request to change your membership status to "${requestedStatus}" has been sent to legal-finance@tum-ai.com. You will receive a confirmation email once the request is processed.`
       );
     }
   }
