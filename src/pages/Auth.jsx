@@ -7,27 +7,108 @@ export default function Auth({ onLogin }) {
   const [isLogin, setIsLogin] = useState(true)
   const [message, setMessage] = useState('')
 
+  // Create or check member after login
+  async function handlePostLogin(user) {
+    try {
+      const { data: existingMember, error: fetchError } = await supabase
+        .from('members')
+        .select('user_id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (fetchError && fetchError.code !== 'PGRST116') {
+        console.error('Error checking member:', fetchError)
+        setMessage('Error verifying user profile. Please try again later.')
+        return
+      }
+
+      if (!existingMember) {
+        const { error: insertError } = await supabase.from('members').insert({
+          user_id: user.id,
+          email: user.email,
+          given_name: '',
+          surname: '',
+          date_of_birth: '1900-01-01',
+          street: '',
+          number: '',
+          postal_code: '',
+          city: '',
+          country: '',
+          active: true,
+          salutation: '',
+          role: 'user',
+        })
+
+        if (insertError) {
+          console.error('Error inserting member:', insertError)
+          setMessage('Failed to create user profile.')
+          return
+        }
+      }
+
+      const { data: memberData, error: roleError } = await supabase
+        .from('members')
+        .select('role')
+        .eq('user_id', user.id)
+        .single()
+
+      if (roleError) {
+        console.error('Error fetching role:', roleError)
+        setMessage('Failed to retrieve user role.')
+        return
+      }
+
+      const role = memberData?.role || 'user'
+      onLogin({ ...user, role })
+    } catch (err) {
+      console.error('Unexpected error in post-login:', err)
+      setMessage('Unexpected error occurred. Please try again.')
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault()
     setMessage('')
     console.log(isLogin ? 'Logging in...' : 'Registering...', { email, password })
 
-    const fn = isLogin ? supabase.auth.signInWithPassword : supabase.auth.signUp
-    const { data, error } = await fn({ email, password })
-
-    console.log('Auth result:', { data, error })
-
-    if (error) {
-      setMessage(error.message)
-    } else {
+    try {
       if (isLogin) {
-        const user = data.user || data.session?.user
-        if (user?.email === 'legal-finance@tum-ai.com') {
-          onLogin({ ...user, role: 'admin' }) //can access ibans and so on
-        } else {
-          onLogin({ ...user, role: 'user' })
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+
+        if (error) {
+          setMessage(error.message)
+          return
         }
-      } 
+
+        const user = data.user || data.session?.user
+        if (!user) {
+          setMessage('Login failed. No user returned.')
+          return
+        }
+
+        await handlePostLogin(user)
+      } else {
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            emailRedirectTo: `${window.location.origin}/`, // optional, can point to a login page or landing page
+          },
+        })
+
+        if (error) {
+          setMessage(error.message)
+          return
+        }
+
+        // Don't insert into `members` yet – wait until user confirms and logs in
+        setMessage(
+          'Registration successful. Please check your email to confirm your address before logging in.'
+        )
+      }
+    } catch (err) {
+      console.error('Unexpected error:', err)
+      setMessage('An unexpected error occurred.')
     }
   }
 
@@ -46,7 +127,6 @@ export default function Auth({ onLogin }) {
       }}
     >
       <div style={{ maxWidth: '400px', width: '100%', textAlign: 'center' }}>
-        {/* Logo */}
         <img
           src="/img/logo.webp"
           alt="TUM.ai Logo"
