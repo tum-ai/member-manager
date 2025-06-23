@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import * as XLSX from 'xlsx'
+
 
 export default function AdminDatabaseView() {
   const [data, setData] = useState([])
@@ -72,6 +74,41 @@ export default function AdminDatabaseView() {
 
     fetchData()
   }, [])
+
+  function exportToExcel() {
+    const exportData = filtered.map(member => ({
+      Surname: member.surname,
+      "Given Name": member.given_name,
+      Email: member.email,
+      Phone: member.phone,
+      IBAN: member.sepa?.iban || '',
+      BIC: member.sepa?.bic || '',
+      "Bank Name": member.sepa?.bank_name || '',
+      "SEPA Mandate": String(member.sepa?.mandate_agreed),
+      "Privacy Agreed": String(member.sepa?.privacy_agreed),
+      Active: String(member.active),
+    }))
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData)
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Members')
+
+    XLSX.writeFile(workbook, 'members_export.xlsx')
+  }
+
+  function downloadEmails() {
+    const emails = filtered.map(m => m.email).filter(Boolean).join(', ')
+    const blob = new Blob([emails], { type: 'text/plain;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'filtered_emails.txt'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
 
   function filterRow(row) {
     const { search, mandateAgreed, privacyAgreed, active } = filters
@@ -165,6 +202,36 @@ export default function AdminDatabaseView() {
             ))}
           </select>
         </label>
+      </div>
+      <div style={{ marginBottom: '1rem' }}>
+        <button
+          onClick={exportToExcel}
+          style={{
+            marginRight: '1rem',
+            padding: '0.5rem 1rem',
+            borderRadius: '4px',
+            border: 'none',
+            backgroundColor: '#007bff',
+            color: 'white',
+            cursor: 'pointer',
+          }}
+        >
+          Export to Excel
+        </button>
+
+        <button
+          onClick={downloadEmails}
+          style={{
+            padding: '0.5rem 1rem',
+            borderRadius: '4px',
+            border: 'none',
+            backgroundColor: '#17a2b8',
+            color: 'white',
+            cursor: 'pointer',
+          }}
+        >
+          Download Filtered Emails
+        </button>
       </div>
 
       <table
