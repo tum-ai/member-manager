@@ -46,7 +46,7 @@ export default function App() {
     return (
       <div style={{ padding: '2rem', color: 'white' }}>
         <h1>Database Admin View</h1>
-        <p>Only visible to legal-finance@tum-ai.com</p>
+        <p>Only visible to users with the admin role.</p>
       </div>
     )
   }
@@ -57,8 +57,8 @@ export default function App() {
   
   if (!user) return <Auth onLogin={setUser} />
 
-  // Show database view only to legal-finance@tum-ai.com
-  if (user.email === 'legal-finance@tum-ai.com') {
+  // Show database view only to admin role
+  if (user.role === 'admin') {
     return <DatabaseView />
   }
 
