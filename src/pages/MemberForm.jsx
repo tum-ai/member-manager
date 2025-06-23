@@ -125,11 +125,11 @@ export default function MemberForm({ user }) {
   }
   function handleStatusChangeRequest() {
     const confirmed = window.confirm(
-      `Are you sure you want to request a status change to ${requestedStatus}?\n\nThis will be a legally binding request and will be sent to legal-finance@tum-ai.com.`
+      `Are you sure you want to request a status change to ${requestedStatus}?\n\nThis will be a legally binding request and will be sent to finance@tum-ai.com.`
     );
     if (confirmed) {
       setStatusRequestMessage(
-        `A request to change your membership status to "${requestedStatus}" has been sent to legal-finance@tum-ai.com. You will receive a confirmation email once the request is processed.`
+        `A request to change your membership status to "${requestedStatus}" has been sent to finance@tum-ai.com. You will receive a confirmation email once the request is processed.`
       );
     }
   }
