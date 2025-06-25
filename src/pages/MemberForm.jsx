@@ -309,7 +309,11 @@ export default function MemberForm({ user }) {
                   onChange={handleSepaChange}
                   disabled={loading}
                 />{' '}
-                I agree to the <Link to="/sepa" style={{ color: '#4EA1D3', textDecoration: 'underline' }}>SEPA mandate</Link>
+                I agree to the 
+                <a href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent("open-sepa")); }} style={{ color: '#4EA1D3', textDecoration: 'underline' }}>
+                  SEPA mandate
+                </a>
+
               </label>
 
               <label style={{ display: 'block', marginBottom: '0.75rem' }}>
@@ -320,7 +324,10 @@ export default function MemberForm({ user }) {
                   onChange={handleSepaChange}
                   disabled={loading || sepa.privacy_agreed}
                 />{' '}
-                I agree to the <Link to="/privacy" style={{ color: '#4EA1D3', textDecoration: 'underline' }}>Privacy Policy</Link>*
+                I agree to the 
+                <a href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent("open-privacy")); }} style={{ color: '#4EA1D3', textDecoration: 'underline' }}>
+                  Privacy Policy *
+                </a>
               </label>
 
               <div style={{ marginTop: '1rem' }}>

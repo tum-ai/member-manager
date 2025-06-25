@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
 
-export default function PrivacyPolicy({ onCheckChange }) {
-  const [checked, setChecked] = useState(false);
+export default function PrivacyPolicy({ onCheckChange, privacyAgreed }) {
+  const [checked, setChecked] = useState(!!privacyAgreed);
+
+  useEffect(() => {
+    setChecked(!!privacyAgreed); // Sync prop change
+  }, [privacyAgreed]);
 
   useEffect(() => {
     onCheckChange?.(checked);
   }, [checked, onCheckChange]);
-
+  
   return (
     <div>
       <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '1rem' }}>
@@ -107,11 +111,21 @@ export default function PrivacyPolicy({ onCheckChange }) {
         </p>
       </div>
 
-      <div style={{ marginTop: '1rem' }}>
+       <div style={{ marginTop: '1rem' }}>
         <label>
-          <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} />{' '}
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={(e) => setChecked(e.target.checked)}
+            disabled={privacyAgreed}
+          />{' '}
           I have read and agree to the Privacy Policy.
         </label>
+        {privacyAgreed && (
+          <p style={{ fontSize: '0.9rem', color: 'gray', marginTop: '0.5rem' }}>
+            You have already agreed to the Privacy Policy.
+          </p>
+        )}
       </div>
     </div>
   );

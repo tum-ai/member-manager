@@ -95,6 +95,16 @@ export default function App() {
   const [privacyChecked, setPrivacyChecked] = useState(false)
 
   useEffect(() => {
+    const handleOpenSepa = () => setShowSepa(true)
+    const handleOpenPrivacy = () => setShowPrivacy(true)
+
+    window.addEventListener('open-sepa', handleOpenSepa)
+    window.addEventListener('open-privacy', handleOpenPrivacy)
+
+    return () => {
+      window.removeEventListener('open-sepa', handleOpenSepa)
+      window.removeEventListener('open-privacy', handleOpenPrivacy)
+    }
     if (!isDev) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         setUser(session?.user ?? null)
