@@ -94,6 +94,10 @@ export default function App() {
   const [sepaChecked, setSepaChecked] = useState(false)
   const [privacyChecked, setPrivacyChecked] = useState(false)
 
+  // Get current agreement states from user's data
+  const [currentSepaAgreed, setCurrentSepaAgreed] = useState(false)
+  const [currentPrivacyAgreed, setCurrentPrivacyAgreed] = useState(false)
+
   useEffect(() => {
     const handleOpenSepa = () => setShowSepa(true)
     const handleOpenPrivacy = () => setShowPrivacy(true)
@@ -105,6 +109,34 @@ export default function App() {
       window.removeEventListener('open-sepa', handleOpenSepa)
       window.removeEventListener('open-privacy', handleOpenPrivacy)
     }
+  }, [])
+
+  // Listen for updates from MemberForm
+  useEffect(() => {
+    const handleSepaUpdate = (event) => {
+      if (event.detail && typeof event.detail.mandate_agreed === 'boolean') {
+        setSepaChecked(event.detail.mandate_agreed)
+        setCurrentSepaAgreed(event.detail.mandate_agreed)
+      }
+    }
+
+    const handlePrivacyUpdate = (event) => {
+      if (event.detail && typeof event.detail.privacy_agreed === 'boolean') {
+        setPrivacyChecked(event.detail.privacy_agreed)
+        setCurrentPrivacyAgreed(event.detail.privacy_agreed)
+      }
+    }
+
+    window.addEventListener('sepa-updated', handleSepaUpdate)
+    window.addEventListener('privacy-updated', handlePrivacyUpdate)
+
+    return () => {
+      window.removeEventListener('sepa-updated', handleSepaUpdate)
+      window.removeEventListener('privacy-updated', handlePrivacyUpdate)
+    }
+  }, [])
+
+  useEffect(() => {
     if (!isDev) {
       supabase.auth.getSession().then(({ data: { session } }) => {
         setUser(session?.user ?? null)
@@ -121,9 +153,48 @@ export default function App() {
     }
   }, [])
 
+  // Fetch current agreement states when user changes
+  useEffect(() => {
+    if (user && !isDev) {
+      supabase
+        .from('sepa')
+        .select('mandate_agreed, privacy_agreed')
+        .eq('user_id', user.id)
+        .single()
+        .then(({ data, error }) => {
+          if (data) {
+            setCurrentSepaAgreed(data.mandate_agreed || false)
+            setCurrentPrivacyAgreed(data.privacy_agreed || false)
+            setSepaChecked(data.mandate_agreed || false)
+            setPrivacyChecked(data.privacy_agreed || false)
+          }
+        })
+    }
+  }, [user, isDev])
+
   async function handleLogout() {
     await supabase.auth.signOut()
     setUser(null)
+  }
+
+  const handleSepaModalClose = () => {
+    setShowSepa(false)
+    // Update the current state with the modal's state
+    setCurrentSepaAgreed(sepaChecked)
+    // Dispatch event to notify MemberForm
+    window.dispatchEvent(new CustomEvent('sepa-updated', { 
+      detail: { mandate_agreed: sepaChecked } 
+    }))
+  }
+
+  const handlePrivacyModalClose = () => {
+    setShowPrivacy(false)
+    // Update the current state with the modal's state
+    setCurrentPrivacyAgreed(privacyChecked)
+    // Dispatch event to notify MemberForm
+    window.dispatchEvent(new CustomEvent('privacy-updated', { 
+      detail: { privacy_agreed: privacyChecked } 
+    }))
   }
 
   if (loading) return <div style={{ color: 'white', backgroundColor: 'black', minHeight: '100vh' }}>Loading...</div>
@@ -166,11 +237,14 @@ export default function App() {
       {showSepa && (
         <Modal
           title="SEPA Mandate"
-          onClose={() => setShowSepa(false)}
-          onConfirm={() => setShowSepa(false)}
+          onClose={handleSepaModalClose}
+          onConfirm={handleSepaModalClose}
           confirmDisabled={!sepaChecked}
         >
-          <SepaMandate onCheckChange={setSepaChecked} />
+          <SepaMandate 
+            onCheckChange={setSepaChecked} 
+            sepaAgreed={currentSepaAgreed}
+          />
         </Modal>
       )}
 
@@ -178,11 +252,14 @@ export default function App() {
       {showPrivacy && (
         <Modal
           title="Privacy Policy"
-          onClose={() => setShowPrivacy(false)}
-          onConfirm={() => setShowPrivacy(false)}
+          onClose={handlePrivacyModalClose}
+          onConfirm={handlePrivacyModalClose}
           confirmDisabled={!privacyChecked}
         >
-          <PrivacyPolicy onCheckChange={setPrivacyChecked} />
+          <PrivacyPolicy 
+            onCheckChange={setPrivacyChecked} 
+            privacyAgreed={currentPrivacyAgreed}
+          />
         </Modal>
       )}
     </Router>

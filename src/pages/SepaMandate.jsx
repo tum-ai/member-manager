@@ -1,7 +1,11 @@
 import React, { useState, useEffect } from 'react';
 
-export default function SepaMandate({ onCheckChange }) {
-  const [checked, setChecked] = useState(false);
+export default function SepaMandate({ onCheckChange, sepaAgreed }) {
+  const [checked, setChecked] = useState(!!sepaAgreed);
+
+  useEffect(() => {
+    setChecked(!!sepaAgreed); // Sync prop change
+  }, [sepaAgreed]);
 
   useEffect(() => {
     onCheckChange?.(checked);
@@ -51,9 +55,19 @@ export default function SepaMandate({ onCheckChange }) {
 
       <div style={{ marginTop: '1rem' }}>
         <label>
-          <input type="checkbox" checked={checked} onChange={(e) => setChecked(e.target.checked)} />{' '}
+          <input 
+            type="checkbox" 
+            checked={checked} 
+            onChange={(e) => setChecked(e.target.checked)}
+            disabled={sepaAgreed}
+          />{' '}
           I have read and agree to the SEPA mandate.
         </label>
+        {sepaAgreed && (
+          <p style={{ fontSize: '0.9rem', color: 'gray', marginTop: '0.5rem' }}>
+            You have already agreed to the SEPA mandate.
+          </p>
+        )}
       </div>
     </div>
   );

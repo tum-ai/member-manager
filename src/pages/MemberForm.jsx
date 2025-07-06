@@ -41,6 +41,29 @@ export default function MemberForm({ user }) {
     fetchData()
   }, [])
 
+  // Listen for modal state changes
+  useEffect(() => {
+    const handleSepaUpdate = (event) => {
+      if (event.detail && typeof event.detail.mandate_agreed === 'boolean') {
+        setSepa(prev => ({ ...prev, mandate_agreed: event.detail.mandate_agreed }))
+      }
+    }
+
+    const handlePrivacyUpdate = (event) => {
+      if (event.detail && typeof event.detail.privacy_agreed === 'boolean') {
+        setSepa(prev => ({ ...prev, privacy_agreed: event.detail.privacy_agreed }))
+      }
+    }
+
+    window.addEventListener('sepa-updated', handleSepaUpdate)
+    window.addEventListener('privacy-updated', handlePrivacyUpdate)
+
+    return () => {
+      window.removeEventListener('sepa-updated', handleSepaUpdate)
+      window.removeEventListener('privacy-updated', handlePrivacyUpdate)
+    }
+  }, [])
+
   async function fetchData() {
     setLoading(true)
     const { data: memberData } = await supabase
@@ -111,10 +134,23 @@ export default function MemberForm({ user }) {
 
   function handleSepaChange(e) {
     const { name, type, checked, value } = e.target
+    const newValue = type === 'checkbox' ? checked : value
+    
     setSepa(prev => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: newValue,
     }))
+
+    // Dispatch events to keep modals synchronized
+    if (name === 'mandate_agreed') {
+      window.dispatchEvent(new CustomEvent('sepa-updated', { 
+        detail: { mandate_agreed: newValue } 
+      }))
+    } else if (name === 'privacy_agreed') {
+      window.dispatchEvent(new CustomEvent('privacy-updated', { 
+        detail: { privacy_agreed: newValue } 
+      }))
+    }
   }
 
   function handleCancel() {
@@ -176,8 +212,8 @@ export default function MemberForm({ user }) {
               <p><strong>IBAN:</strong> {sepa.iban || '-'}</p>
               <p><strong>BIC:</strong> {sepa.bic || '-'}</p>
               <p><strong>Bank name:</strong> {sepa.bank_name || '-'}</p>
-              <p><strong>SEPA Mandate Agreed:</strong> {sepa.mandate_agreed ? 'Yes' : 'No'}</p>
-              <p><strong>Privacy Policy Agreed:</strong> {sepa.privacy_agreed ? 'Yes' : 'No'}</p>
+              <p><strong>SEPA Mandate:</strong> {sepa.mandate_agreed ? 'Accepted' : 'Not Accepted'}</p>
+              <p><strong>Privacy Policy:</strong> {sepa.privacy_agreed ? 'Accepted' : 'Not Accepted'}</p>
             </div>
           </div>
 
