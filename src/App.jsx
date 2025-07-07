@@ -264,7 +264,6 @@ export default function App() {
           title="SEPA Mandate"
           onClose={handleSepaModalClose}
           onConfirm={handleSepaModalClose}
-          confirmDisabled={!sepaChecked}
         >
           <SepaMandate 
             onCheckChange={setSepaChecked} 

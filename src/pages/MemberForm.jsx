@@ -345,7 +345,7 @@ export default function MemberForm({ user }) {
                   onChange={handleSepaChange}
                   disabled={loading}
                 />{' '}
-                I agree to the 
+                I agree to the{' '}
                 <a href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent("open-sepa")); }} style={{ color: '#4EA1D3', textDecoration: 'underline' }}>
                   SEPA mandate
                 </a>
@@ -360,7 +360,7 @@ export default function MemberForm({ user }) {
                   onChange={handleSepaChange}
                   disabled={loading || sepa.privacy_agreed}
                 />{' '}
-                I agree to the 
+                I agree to the{' '}
                 <a href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent("open-privacy")); }} style={{ color: '#4EA1D3', textDecoration: 'underline' }}>
                   Privacy Policy *
                 </a>
