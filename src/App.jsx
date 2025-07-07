@@ -87,6 +87,7 @@ export default function App() {
   const isDev = import.meta.env.MODE === 'development'
   const [user, setUser] = useState(isDev ? dummyUser : null)
   const [loading, setLoading] = useState(!isDev)
+  const [userRole, setUserRole] = useState(null)
 
   const [showSepa, setShowSepa] = useState(false)
   const [showPrivacy, setShowPrivacy] = useState(false)
@@ -153,6 +154,23 @@ export default function App() {
     }
   }, [])
 
+  useEffect(() => {
+    if (user) {
+      // Fetch the role from the user_roles table
+      supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .single()
+        .then(({ data, error }) => {
+          if (data) setUserRole(data.role)
+          else setUserRole(null)
+        })
+    } else {
+      setUserRole(null)
+    }
+  }, [user])
+
   // Fetch current agreement states when user changes
   useEffect(() => {
     if (user && !isDev) {
@@ -199,7 +217,6 @@ export default function App() {
 
   if (loading) return <div style={{ color: 'white', backgroundColor: 'black', minHeight: '100vh' }}>Loading...</div>
   if (!user) return <Auth onLogin={setUser} />
-  if (user.role === 'admin') return <AdminDatabaseView />
 
   return (
     <Router>
@@ -209,6 +226,11 @@ export default function App() {
           <a href="#" onClick={() => setShowSepa(true)} style={{ color: 'white', textDecoration: 'none' }}>SEPA</a>
           <a href="#" onClick={() => setShowPrivacy(true)} style={{ color: 'white', textDecoration: 'none' }}>Privacy Policy</a>
           <Link to="/certificate" style={{ color: 'white', textDecoration: 'none' }}>Certificate</Link>
+          {userRole === 'admin' && (
+            <Link to="/admin" style={{ color: 'white', textDecoration: 'none' }}>
+              Admin
+            </Link>
+          )}
         </div>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '2rem' }}>
@@ -230,6 +252,9 @@ export default function App() {
         <Routes>
           <Route path="/" element={<MemberForm user={user} />} />
           <Route path="/certificate" element={<Certificate user={user} />} />
+          {userRole === 'admin' && (
+            <Route path="/admin" element={<AdminDatabaseView />} />
+          )}
         </Routes>
       </div>
 
