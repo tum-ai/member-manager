@@ -11,16 +11,14 @@ export default function EngagementConfirmation({ user }) {
   const institutionName = 'TUM.ai'
 
   const departments = [
-    'Applied Accelerated Computing',
+    'Board',
     'Community',
+    'Innovation',
     'Legal & Finance',
     'Makeathon',
     'Marketing',
-    'Med AI',
     'Partners & Sponsors',
-    'Quant Finance',
     'Research',
-    'Robotics',
     'Software Development',
     'Venture',
   ].sort()
@@ -32,6 +30,7 @@ export default function EngagementConfirmation({ user }) {
       weeklyHours: '',
       department: '',
       isTeamLead: false,
+      isStillActive: false, // Added isStillActive
       tasksDescription: 'List each responsibility on a new line',
     },
   ])
@@ -61,6 +60,10 @@ export default function EngagementConfirmation({ user }) {
   const updateEngagement = (index, key, value) => {
     const updated = [...engagements]
     updated[index][key] = value
+    // If isStillActive changes to true, clear endDate
+    if (key === 'isStillActive' && value === true) {
+      updated[index].endDate = ''
+    }
     setEngagements(updated)
   }
 
@@ -77,6 +80,7 @@ export default function EngagementConfirmation({ user }) {
         weeklyHours: '',
         department: '',
         isTeamLead: false,
+        isStillActive: false, // Reset isStillActive for new engagement
         tasksDescription: 'List each responsibility on a new line', // Reset description for new engagement
       },
     ])
@@ -94,11 +98,11 @@ export default function EngagementConfirmation({ user }) {
     for (const engagement of engagements) {
       if (
         !engagement.startDate ||
-        !engagement.endDate ||
+        (!engagement.isStillActive && !engagement.endDate) || // End date required only if not active
         !engagement.weeklyHours ||
         !engagement.department ||
         !engagement.tasksDescription ||
-        engagement.tasksDescription.trim() === '' // Ensure tasks are not just empty placeholder
+        engagement.tasksDescription.trim() === ''
       ) {
         alert('Please complete all required fields for each engagement before generating the PDF.')
         return null // Return null if validation fails
@@ -119,7 +123,7 @@ export default function EngagementConfirmation({ user }) {
 
     try {
       const logoPath = '/img/logo_black.png'
-      
+
       // Load image as base64 to ensure proper loading
       const loadImageAsBase64 = (src) => {
         return new Promise((resolve, reject) => {
@@ -137,17 +141,17 @@ export default function EngagementConfirmation({ user }) {
           img.src = src
         })
       }
-  
+
       try {
         const base64Logo = await loadImageAsBase64(logoPath)
         const logoWidth = 60
         const logoHeight = 15 // Calculated to maintain aspect ratio (based on original 60x18, now 60x15)
         doc.addImage(
-          base64Logo, 
-          'PNG', 
-          pageWidth / 2 - logoWidth / 2, 
-          10, 
-          logoWidth, 
+          base64Logo,
+          'PNG',
+          pageWidth / 2 - logoWidth / 2,
+          10,
+          logoWidth,
           logoHeight,
           undefined,
           'MEDIUM'
@@ -193,7 +197,7 @@ We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in an
     y += 8
 
     // Loop through engagements
-    engagements.forEach(({ startDate, endDate, department, isTeamLead, tasksDescription }) => {
+    engagements.forEach(({ startDate, endDate, department, isTeamLead, isStillActive, tasksDescription }) => {
       const formatMonthYear = (dateStr) => {
         const date = new Date(dateStr)
         // Ensure date is valid before formatting
@@ -205,7 +209,7 @@ We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in an
       }
 
       const start = formatMonthYear(startDate)
-      const end = formatMonthYear(endDate)
+      const end = isStillActive ? 'Present' : formatMonthYear(endDate)
 
       const period = `${start} - ${end}`
       const deptText = `${department}${isTeamLead ? ' (Team Lead)' : ''}`
@@ -220,7 +224,7 @@ We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in an
 
       const checkmark = '•'
       const checkmarkOffset = 5
-      const indentX = colX3 + checkmarkOffset 
+      const indentX = colX3 + checkmarkOffset
 
       const formattedTasks = []
       tasks.forEach(task => {
@@ -305,7 +309,7 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
     const rightX = pageWidth - margin - 60
     doc.text('Paul Schneider,', rightX, y)
     doc.text('TUM.ai president', rightX, y + 6)
-    doc.text(`Munich, ${today}`, rightX, y + 12)
+    doc.text(`Munich, ${today}`, rightX + 6, y + 12) // Adjusted x-coordinate for "Munich, today" on the right
     
     // Return the PDF as a Blob
     return doc.output('blob');
@@ -433,10 +437,28 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
             </div>
 
             <div>
-              <label><strong>End Date *</strong><br />
-                <input type="date" value={engagement.endDate} onChange={e => updateEngagement(index, 'endDate', e.target.value)} required />
+              <label>
+                <input 
+                  type="checkbox" 
+                  checked={engagement.isStillActive} 
+                  onChange={e => updateEngagement(index, 'isStillActive', e.target.checked)} 
+                />
+                {' '}<strong>I am still active in this role</strong>
               </label>
             </div>
+
+            {!engagement.isStillActive && ( // Conditionally render End Date
+              <div>
+                <label><strong>End Date *</strong><br />
+                  <input
+                    type="date"
+                    value={engagement.endDate}
+                    onChange={e => updateEngagement(index, 'endDate', e.target.value)}
+                    required // End date is required only if not active
+                  />
+                </label>
+              </div>
+            )}
 
             <div>
               <label><strong>Weekly Hours *</strong><br />
@@ -499,16 +521,16 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
         {/* Buttons */}
         <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
           <button 
-            type="button" // Change to type="button" to prevent form submission on click
+            type="button" 
             onClick={handleDownloadPdf} 
             style={{ flex: 1, padding: '0.75rem', fontSize: '16px', cursor: 'pointer', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}
           >
             Download PDF
           </button>
           <button 
-            type="button" // Change to type="button"
+            type="button" 
             onClick={handleSendPdfEmail} 
-            disabled={isSendingEmail} // Disable button while sending
+            disabled={isSendingEmail} 
             style={{ flex: 1, padding: '0.75rem', fontSize: '16px', cursor: 'pointer', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px' }}
           >
             {isSendingEmail ? 'Sending...' : 'Send PDF via Email'}
