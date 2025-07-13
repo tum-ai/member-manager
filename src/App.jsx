@@ -35,7 +35,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle'; // For Member
 import DescriptionIcon from '@mui/icons-material/Description'; // For SEPA
 import PolicyIcon from '@mui/icons-material/Policy'; // For Privacy Policy
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'; // For Certificate
-
+import PaidIcon from '@mui/icons-material/Paid'; // For Legal & Financial Admin View
 import Auth from './pages/Auth'
 import MemberForm from './pages/MemberForm'
 import Certificate from './pages/Certificate'
@@ -298,30 +298,38 @@ export default function App() {
         >
           <img src="/img/logo.webp" alt="TUM.ai Logo" style={{ height: '24px', mb: 4, pb: 4 }} />
           <List sx={{ width: '100%' }}>
+            {userRole === 'user' && (
             <ListItem disablePadding>
               <ListItemButton component={RouterLink} to="/">
                 <ListItemIcon><AccountCircleIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
                 <ListItemText primary="Member Form" />
               </ListItemButton>
             </ListItem>
+            )}
+            {userRole === 'user' && (
             <ListItem disablePadding>
               <ListItemButton component="a" onClick={() => setShowSepa(true)}>
                 <ListItemIcon><DescriptionIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
                 <ListItemText primary="SEPA" />
               </ListItemButton>
             </ListItem>
+            )}
+            {userRole === 'user' && (
             <ListItem disablePadding>
               <ListItemButton component="a" onClick={() => setShowPrivacy(true)}>
                 <ListItemIcon><PolicyIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
                 <ListItemText primary="Privacy Policy" />
               </ListItemButton>
             </ListItem>
+            )}
+            {userRole === 'user' && (
             <ListItem disablePadding>
               <ListItemButton component={RouterLink} to="/certificate">
                 <ListItemIcon><EmojiEventsIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
                 <ListItemText primary="Certificate" />
               </ListItemButton>
             </ListItem>
+            )}
             {userRole === 'admin' && (
               <ListItem disablePadding>
                 <ListItemButton component={RouterLink} to="/admin">
