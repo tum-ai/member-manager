@@ -51,22 +51,22 @@ export default function SepaMandate({ onCheckChange, sepaAgreed }) {
         <p>
           <strong>TUM.ai</strong> will inform me of the SEPA Core Direct Debit collection in this procedure at least 14 days before the debit takes place.
         </p>
-      </div>
 
-      <div style={{ marginTop: '1rem' }}>
-        <label>
-          <input 
-            type="checkbox" 
-            checked={checked} 
-            onChange={(e) => setChecked(e.target.checked)}
-          />{' '}
-          I have read and agree to the SEPA mandate.
-        </label>
-        {sepaAgreed && (
-          <p style={{ fontSize: '0.9rem', color: 'gray', marginTop: '0.5rem' }}>
-            You have already agreed to the SEPA mandate.
-          </p>
-        )}
+        <div style={{ marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
+          <label>
+            <input 
+              type="checkbox" 
+              checked={checked} 
+              onChange={(e) => setChecked(e.target.checked)}
+            />{' '}
+            I have read and agree to the SEPA mandate.
+          </label>
+          {sepaAgreed && (
+            <p style={{ fontSize: '0.9rem', color: 'gray', marginTop: '0.5rem' }}>
+              You have already agreed to the SEPA mandate.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

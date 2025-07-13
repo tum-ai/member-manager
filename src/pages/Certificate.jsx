@@ -10,16 +10,14 @@ export default function EngagementConfirmation({ user }) {
   const institutionName = 'TUM.ai'
 
   const departments = [
-    'Applied Accelerated Computing',
+    'Board',
     'Community',
+    'Innovation Department',
     'Legal & Finance',
     'Makeathon',
     'Marketing',
-    'Med AI',
     'Partners & Sponsors',
-    'Quant Finance',
     'Research',
-    'Robotics',
     'Software Development',
     'Venture',
   ].sort()
