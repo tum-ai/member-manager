@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf'
 
 export default function EngagementConfirmation({ user }) {
   const [loading, setLoading] = useState(true)
+  const [isSendingEmail, setIsSendingEmail] = useState(false) // New state for email sending status
   const [memberData, setMemberData] = useState(null)
   const [error, setError] = useState(null)
 
@@ -39,7 +40,7 @@ export default function EngagementConfirmation({ user }) {
     async function fetchMemberData() {
       const { data, error } = await supabase
         .from('members')
-        .select('salutation, given_name, surname, date_of_birth, active')
+        .select('salutation, given_name, surname, date_of_birth, active, email') // Added 'email'
         .eq('user_id', user.id)
         .single()
 
@@ -76,7 +77,7 @@ export default function EngagementConfirmation({ user }) {
         weeklyHours: '',
         department: '',
         isTeamLead: false,
-        tasksDescription: '',
+        tasksDescription: 'List each responsibility on a new line', // Reset description for new engagement
       },
     ])
   }
@@ -85,19 +86,22 @@ export default function EngagementConfirmation({ user }) {
     setEngagements(engagements.filter((_, i) => i !== index))
   }
 
-  const downloadPdf = async () => {
-    if (!memberData) return
+  // --- NEW FUNCTION: Generate PDF as Blob ---
+  const generatePdfBlob = async () => {
+    if (!memberData) return null
 
+    // Input validation
     for (const engagement of engagements) {
       if (
         !engagement.startDate ||
         !engagement.endDate ||
         !engagement.weeklyHours ||
         !engagement.department ||
-        !engagement.tasksDescription
+        !engagement.tasksDescription ||
+        engagement.tasksDescription.trim() === '' // Ensure tasks are not just empty placeholder
       ) {
-        alert('Please complete all required fields for each engagement.')
-        return
+        alert('Please complete all required fields for each engagement before generating the PDF.')
+        return null // Return null if validation fails
       }
     }
 
@@ -137,7 +141,7 @@ export default function EngagementConfirmation({ user }) {
       try {
         const base64Logo = await loadImageAsBase64(logoPath)
         const logoWidth = 60
-        const logoHeight = 15 // Calculated to maintain aspect ratio
+        const logoHeight = 15 // Calculated to maintain aspect ratio (based on original 60x18, now 60x15)
         doc.addImage(
           base64Logo, 
           'PNG', 
@@ -146,7 +150,7 @@ export default function EngagementConfirmation({ user }) {
           logoWidth, 
           logoHeight,
           undefined,
-          'MEDIUM' // compression - 'NONE' for best quality but for logo medium looks good enough
+          'MEDIUM'
         )
       } catch (e) {
         console.warn('Failed to load logo as base64, trying direct method')
@@ -176,7 +180,7 @@ We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in an
 
     const col1Width = 40
     const col2Width = 50
-    const col3Width = maxWidth - col1Width - col2Width - 2 * 5
+    const col3Width = maxWidth - col1Width - col2Width - 2 * 5 // Adjusted for spacing
 
     const colX1 = margin
     const colX2 = colX1 + col1Width + 5
@@ -192,6 +196,11 @@ We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in an
     engagements.forEach(({ startDate, endDate, department, isTeamLead, tasksDescription }) => {
       const formatMonthYear = (dateStr) => {
         const date = new Date(dateStr)
+        // Ensure date is valid before formatting
+        if (isNaN(date.getTime())) {
+          console.warn(`Invalid date string encountered: ${dateStr}`);
+          return 'Invalid Date';
+        }
         return date.toLocaleDateString('de-DE', { year: 'numeric', month: '2-digit' })
       }
 
@@ -252,7 +261,7 @@ We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in an
         }
       }
 
-      y += 4
+      y += 4 // Add some extra space after each engagement block
     })
 
     const valueText = `
@@ -297,9 +306,95 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
     doc.text('Paul Schneider,', rightX, y)
     doc.text('TUM.ai president', rightX, y + 6)
     doc.text(`Munich, ${today}`, rightX, y + 12)
-
-    doc.save(`TUMai_Certificate_${fullName}.pdf`)
+    
+    // Return the PDF as a Blob
+    return doc.output('blob');
   }
+
+  // --- Function to handle downloading the PDF ---
+  const handleDownloadPdf = async () => {
+    const pdfBlob = await generatePdfBlob();
+    if (pdfBlob) {
+      const fullName = `${memberData.given_name} ${memberData.surname}`;
+      const url = URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `TUMai_Certificate_${fullName}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+  };
+
+  // --- Function to handle sending the PDF via email ---
+  const handleSendPdfEmail = async () => {
+    if (isSendingEmail) return; // Prevent double clicks
+
+    const pdfBlob = await generatePdfBlob();
+    if (!pdfBlob) return; // If PDF generation failed (e.g., validation), stop
+
+    setIsSendingEmail(true); // Set loading state
+
+    const fullName = `${memberData.given_name} ${memberData.surname}`;
+    const recipientEmail = memberData.email; // Assuming user.email is the recipient
+
+    if (!recipientEmail) {
+        alert('Could not find recipient email. Please ensure your user data includes an email address.');
+        setIsSendingEmail(false);
+        return;
+    }
+
+    try {
+      const reader = new FileReader();
+      reader.readAsDataURL(pdfBlob);
+      reader.onloadend = async () => {
+        const base64Pdf = reader.result.split(',')[1]; // Get only the base64 part
+        const pdfFileName = `TUMai_Certificate_${fullName}.pdf`;
+
+        const { data, error } = await supabase.functions.invoke('email-test-m1', {
+          method: 'POST',
+          body: {
+            to: recipientEmail,
+            subject: `Your TUM.ai Engagement Certificate`,
+            html: `
+              <p>Dear ${memberData.salutation} ${memberData.surname},</p>
+              <p>Please find attached your Certificate of Voluntary Engagement with TUM.ai.</p>
+              <p>If you have any questions, please feel free to reach out.</p>
+              <p>Best regards,<br>The TUM.ai Team</p>
+              <br/>
+              <small>This is an automated email. Please do not reply to this address.</small>
+            `,
+            attachment: {
+              filename: pdfFileName,
+              content: base64Pdf,
+              encoding: 'base64',
+            },
+          },
+        });
+
+        if (error) {
+          console.error('Error invoking Supabase function:', error);
+          alert(`Failed to send email: ${error.message}`);
+        } else {
+          console.log('Email sent response:', data);
+          alert('Email sent successfully!');
+        }
+        setIsSendingEmail(false); // Reset loading state
+      };
+      reader.onerror = (err) => {
+        console.error('FileReader error:', err);
+        alert('Failed to read PDF file for sending.');
+        setIsSendingEmail(false);
+      };
+
+    } catch (callError) {
+      console.error('Error during function invocation:', callError);
+      alert('An unexpected error occurred while sending the email.');
+      setIsSendingEmail(false); // Reset loading state
+    }
+  };
+
 
   if (loading) return <div>Loading...</div>
   if (error) return <div>{error}</div>
@@ -323,10 +418,10 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
         <strong>
           {memberData.salutation} {memberData.given_name} {memberData.surname}
         </strong>, born on{' '}
-        <strong>{new Date(memberData.date_of_birth).toLocaleDateString()}</strong>, has voluntarily engaged with our institution <strong>{institutionName}</strong>.
+        <strong>{new Date(memberData.date_of_birth).toLocaleDateString('de-DE')}</strong>, has voluntarily engaged with our institution <strong>{institutionName}</strong>.
       </p>
 
-      <form onSubmit={e => { e.preventDefault(); downloadPdf(); }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+      <form onSubmit={e => { e.preventDefault(); /* Prevent default form submission on enter */ }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
         {engagements.map((engagement, index) => (
           <div key={index} style={{ border: '1px solid #555', padding: '1rem', borderRadius: 8, marginBottom: '1rem' }}>
             <h3 style={{ marginBottom: 8 }}>Engagement #{index + 1}</h3>
@@ -400,9 +495,25 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
         <div style={{ marginTop: '1rem' }}>
           <small style={{ color: 'lightgray' }}>* Required fields</small>
         </div>
-        <button type="submit" style={{ padding: '0.75rem', fontSize: '16px', cursor: 'pointer' }}>
-          Download PDF
-        </button>
+        
+        {/* Buttons */}
+        <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+          <button 
+            type="button" // Change to type="button" to prevent form submission on click
+            onClick={handleDownloadPdf} 
+            style={{ flex: 1, padding: '0.75rem', fontSize: '16px', cursor: 'pointer', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}
+          >
+            Download PDF
+          </button>
+          <button 
+            type="button" // Change to type="button"
+            onClick={handleSendPdfEmail} 
+            disabled={isSendingEmail} // Disable button while sending
+            style={{ flex: 1, padding: '0.75rem', fontSize: '16px', cursor: 'pointer', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px' }}
+          >
+            {isSendingEmail ? 'Sending...' : 'Send PDF via Email'}
+          </button>
+        </div>
       </form>
     </div>
   )
