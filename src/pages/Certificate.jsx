@@ -497,17 +497,10 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
         {/* Buttons */}
         <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
           <button 
-            type="button" // Change to type="button" to prevent form submission on click
-            onClick={handleDownloadPdf} 
-            style={{ flex: 1, padding: '0.75rem', fontSize: '16px', cursor: 'pointer', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}
-          >
-            Download PDF
-          </button>
-          <button 
             type="button" // Change to type="button"
             onClick={handleSendPdfEmail} 
             disabled={isSendingEmail} // Disable button while sending
-            style={{ flex: 1, padding: '0.75rem', fontSize: '16px', cursor: 'pointer', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px' }}
+            style={{ flex: 1, padding: '0.75rem', fontSize: '16px', cursor: 'pointer', backgroundColor: '#222222', color: 'white', border: 'none', borderRadius: '4px' }}
           >
             {isSendingEmail ? 'Sending...' : 'Send PDF via Email'}
           </button>

@@ -84,7 +84,7 @@ function Modal({ title, onClose, onConfirm, confirmDisabled, children }) {
 }
 
 export default function App() {
-  const isDev = import.meta.env.MODE === 'development' //&& false
+  const isDev = import.meta.env.MODE === 'development' && false
   const [user, setUser] = useState(isDev ? dummyUser : null)
   const [loading, setLoading] = useState(!isDev)
   const [userRole, setUserRole] = useState(null)
