@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import Modal from './Modal'
+import SepaMandate from './SepaMandate'
+import PrivacyPolicy from './PrivacyPolicy'
 
 export default function MemberForm({ user }) {
   const [loading, setLoading] = useState(true)
@@ -36,6 +39,10 @@ export default function MemberForm({ user }) {
   const [isEditing, setIsEditing] = useState(false)
   const [message, setMessage] = useState('')
   const [requestedStatus, setRequestedStatus] = useState(member.active ? 'inactive' : 'active');
+  const [showSepaModal, setShowSepaModal] = useState(false)
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false)
+  const [pendingSepaCheck, setPendingSepaCheck] = useState(false)
+  const [pendingPrivacyCheck, setPendingPrivacyCheck] = useState(false)
 
   useEffect(() => {
     fetchData()
@@ -150,6 +157,44 @@ export default function MemberForm({ user }) {
       window.dispatchEvent(new CustomEvent('privacy-updated', { 
         detail: { privacy_agreed: newValue } 
       }))
+    }
+  }
+
+  // Custom handler for SEPA checkbox
+  function handleSepaCheckbox(e) {
+    if (loading) return;
+    const checked = e.target.checked;
+    if (!sepa.mandate_agreed && checked) {
+      // Not agreed, trying to check: show modal
+      e.preventDefault();
+      setPendingSepaCheck(true);
+      setShowSepaModal(true);
+    } else if (sepa.mandate_agreed && !checked) {
+      // Already agreed, allow unchecking directly
+      setSepa(prev => ({ ...prev, mandate_agreed: false }));
+      window.dispatchEvent(new CustomEvent('sepa-updated', { detail: { mandate_agreed: false } }));
+    } else if (!sepa.mandate_agreed && !checked) {
+      // Not agreed, unchecking (shouldn't happen, but just in case)
+      setSepa(prev => ({ ...prev, mandate_agreed: false }));
+      window.dispatchEvent(new CustomEvent('sepa-updated', { detail: { mandate_agreed: false } }));
+    } else if (sepa.mandate_agreed && checked) {
+      // Already agreed, re-checking (shouldn't happen)
+      // Do nothing
+    }
+  }
+
+  // Custom handler for Privacy Policy checkbox
+  function handlePrivacyCheckbox(e) {
+    if (loading) return;
+    const checked = e.target.checked;
+    if (!sepa.privacy_agreed && checked) {
+      // Not agreed, trying to check: show modal
+      e.preventDefault();
+      setPendingPrivacyCheck(true);
+      setShowPrivacyModal(true);
+    } else if (sepa.privacy_agreed && !checked) {
+      // Already agreed, cannot uncheck
+      e.preventDefault();
     }
   }
 
@@ -342,14 +387,13 @@ export default function MemberForm({ user }) {
                   type="checkbox"
                   name="mandate_agreed"
                   checked={sepa.mandate_agreed}
-                  onChange={handleSepaChange}
+                  onChange={handleSepaCheckbox}
                   disabled={loading}
                 />{' '}
                 I agree to the{' '}
-                <a href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent("open-sepa")); }} style={{ color: '#4EA1D3', textDecoration: 'underline' }}>
+                <a href="#" onClick={(e) => { e.preventDefault(); setShowSepaModal(true); }} style={{ color: '#4EA1D3', textDecoration: 'underline' }}>
                   SEPA mandate
                 </a>
-
               </label>
 
               <label style={{ display: 'block', marginBottom: '0.75rem' }}>
@@ -357,11 +401,11 @@ export default function MemberForm({ user }) {
                   type="checkbox"
                   name="privacy_agreed"
                   checked={sepa.privacy_agreed}
-                  onChange={handleSepaChange}
+                  onChange={handlePrivacyCheckbox}
                   disabled={loading || sepa.privacy_agreed}
                 />{' '}
                 I agree to the{' '}
-                <a href="#" onClick={(e) => { e.preventDefault(); window.dispatchEvent(new CustomEvent("open-privacy")); }} style={{ color: '#4EA1D3', textDecoration: 'underline' }}>
+                <a href="#" onClick={(e) => { e.preventDefault(); setShowPrivacyModal(true); }} style={{ color: '#4EA1D3', textDecoration: 'underline' }}>
                   Privacy Policy *
                 </a>
               </label>
@@ -383,6 +427,34 @@ export default function MemberForm({ user }) {
         </form>
       )}
       {message && <p style={{ marginTop: '1rem', color: 'lightgreen' }}>{message}</p>}
+      {showSepaModal && (
+        <Modal
+          title="SEPA Mandate Agreement"
+          onClose={() => { setShowSepaModal(false); setPendingSepaCheck(false); }}
+          onConfirm={() => {
+            setSepa(prev => ({ ...prev, mandate_agreed: true }));
+            window.dispatchEvent(new CustomEvent('sepa-updated', { detail: { mandate_agreed: true } }));
+            setShowSepaModal(false);
+            setPendingSepaCheck(false);
+          }}
+        >
+          <SepaMandate sepaAgreed={sepa.mandate_agreed} />
+        </Modal>
+      )}
+      {showPrivacyModal && (
+        <Modal
+          title="Privacy Policy Agreement"
+          onClose={() => { setShowPrivacyModal(false); setPendingPrivacyCheck(false); }}
+          onConfirm={() => {
+            setSepa(prev => ({ ...prev, privacy_agreed: true }));
+            window.dispatchEvent(new CustomEvent('privacy-updated', { detail: { privacy_agreed: true } }));
+            setShowPrivacyModal(false);
+            setPendingPrivacyCheck(false);
+          }}
+        >
+          <PrivacyPolicy privacyAgreed={sepa.privacy_agreed} />
+        </Modal>
+      )}
     </div>
   )
 }

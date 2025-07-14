@@ -100,7 +100,7 @@ export default function PrivacyPolicy({ onCheckChange, privacyAgreed }) {
 
         <h3>What happens if you do not agree?</h3>
         <p>
-          If you do not sign the privacy policy, you cannot participate in TUM.ai’s online tools which are essential for membership.
+          If you do not sign the privacy policy, you cannot participate in TUM.ai's online tools which are essential for membership.
         </p>
 
         <h3>Written declaration of consent</h3>
@@ -109,23 +109,23 @@ export default function PrivacyPolicy({ onCheckChange, privacyAgreed }) {
           of the association. I consent to processing of my personal data for the other aforementioned purposes, in accordance with DSGVO Art. 6 S. 1 lit. a).
           I am aware that consent with the data processing is voluntary and can be revoked by me at any time in whole or in part with effect for the future.
         </p>
-      </div>
 
-       <div style={{ marginTop: '1rem' }}>
-        <label>
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={(e) => setChecked(e.target.checked)}
-            disabled={privacyAgreed}
-          />{' '}
-          I have read and agree to the Privacy Policy.
-        </label>
-        {privacyAgreed && (
-          <p style={{ fontSize: '0.9rem', color: 'gray', marginTop: '0.5rem' }}>
-            You have already agreed to the Privacy Policy.
-          </p>
-        )}
+        <div style={{ marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid #e5e7eb' }}>
+          <label>
+            <input
+              type="checkbox"
+              checked={checked}
+              onChange={(e) => setChecked(e.target.checked)}
+              disabled={privacyAgreed}
+            />{' '}
+            I have read and agree to the Privacy Policy.
+          </label>
+          {privacyAgreed && (
+            <p style={{ fontSize: '0.9rem', color: 'gray', marginTop: '0.5rem' }}>
+              You have already agreed to the Privacy Policy.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );

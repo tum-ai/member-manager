@@ -13,7 +13,7 @@ export default function EngagementConfirmation({ user }) {
   const departments = [
     'Board',
     'Community',
-    'Innovation',
+    'Innovation Department',
     'Legal & Finance',
     'Makeathon',
     'Marketing',
@@ -521,18 +521,10 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
         {/* Buttons */}
         <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
           <button 
-            type="button" 
-            onClick={handleDownloadPdf} 
-            style={{ flex: 1, padding: '0.75rem', fontSize: '16px', cursor: 'pointer', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}
-          >
-            Download PDF
-          </button>
-          <button 
-            type="button" 
+            type="button" // Change to type="button"
             onClick={handleSendPdfEmail} 
-            disabled={isSendingEmail} 
-            style={{ flex: 1, padding: '0.75rem', fontSize: '16px', cursor: 'pointer', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px' }}
-          >
+            disabled={isSendingEmail} // Disable button while sending
+            style={{ flex: 1, padding: '0.75rem', fontSize: '16px', cursor: 'pointer', backgroundColor: '#222222', color: 'white', border: 'none', borderRadius: '4px' }>
             {isSendingEmail ? 'Sending...' : 'Send PDF via Email'}
           </button>
         </div>
