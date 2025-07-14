@@ -152,7 +152,7 @@ export default function AdminDatabaseView() {
   ]
 
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', color: 'white', backgroundColor: 'black' }}>
+    <div style={{ minHeight: '100vh', padding: '2rem', color: 'white'}}>
       <h2>Admin Database View</h2>
 
       <div style={{ marginBottom: '1rem' }}>
