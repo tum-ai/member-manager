@@ -283,7 +283,7 @@ export default function MemberForm({ user }) {
                 >
                   <option value="">-- Please choose --</option>
                   <option value="Mr.">Mr.</option>
-                  <option value="Mrs.">Mrs.</option>
+                  <option value="Ms.">Ms.</option>
                   <option value="Mx.">Mx.</option>
                 </select>
               </label>
