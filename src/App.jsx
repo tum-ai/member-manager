@@ -361,10 +361,18 @@ export default function App() {
         }}
       >
         <Routes>
-          <Route path="/" element={<MemberForm user={user} />} />
-          <Route path="/certificate" element={<Certificate user={user} />} />
+          {userRole === 'user' && (
+            <>
+              <Route path="/" element={<MemberForm user={user} />} />
+              <Route path="/sepa" element={<SepaMandate user={user} />} />
+              <Route path="/privacy" element={<PrivacyPolicy user={user} />} />
+              <Route path="/certificate" element={<Certificate user={user} />} />
+            </>
+          )}
           {userRole === 'admin' && (
-            <Route path="/admin" element={<AdminDatabaseView />} />
+            <>
+            <Route path="/" element={<AdminDatabaseView />} />
+            </>
           )}
         </Routes>
       </Box>
