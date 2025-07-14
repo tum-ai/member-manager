@@ -232,18 +232,22 @@ export default function App() {
           </Box>
           {!isMobile && ( // Desktop navigation links
             <Box sx={{ display: 'flex', gap: 2, flexGrow: 1 }}>
-              <Button color="inherit" component={RouterLink} to="/">
+              {userRole === 'user' && (<Button color="inherit" component={RouterLink} to="/">
                 <AccountCircleIcon sx={{ mr: 0.5 }} /> Member Form
               </Button>
-              <Button color="inherit" component="a" onClick={() => setShowSepa(true)}>
+            )}
+              {userRole === 'user' && (<Button color="inherit" component="a" onClick={() => setShowSepa(true)}>
                 <DescriptionIcon sx={{ mr: 0.5 }} /> SEPA
               </Button>
-              <Button color="inherit" component="a" onClick={() => setShowPrivacy(true)}>
+            )}
+              {userRole === 'user' && (<Button color="inherit" component="a" onClick={() => setShowPrivacy(true)}>
                 <PolicyIcon sx={{ mr: 0.5 }} /> Privacy Policy
               </Button>
-              <Button color="inherit" component={RouterLink} to="/certificate">
+            )}
+              {userRole === 'user' && (<Button color="inherit" component={RouterLink} to="/certificate">
                 <EmojiEventsIcon sx={{ mr: 0.5 }} /> Certificate
               </Button>
+            )}
               {userRole === 'admin' && (
                 <Button color="inherit" component={RouterLink} to="/admin">
                   <AdminPanelSettingsIcon sx={{ mr: 0.5 }} /> Admin
@@ -361,11 +365,19 @@ export default function App() {
         }}
       >
         <Routes>
+          {userRole === 'user' && (
+            <>
               <Route path="/" element={<MemberForm user={user} />} />
               <Route path="/sepa" element={<SepaMandate user={user} />} />
               <Route path="/privacy" element={<PrivacyPolicy user={user} />} />
               <Route path="/certificate" element={<Certificate user={user} />} />
-             <Route path="/admin" element={<AdminDatabaseView />} />
+            </>
+          )}
+          {userRole === 'admin' && (
+            <>
+            <Route path="/" element={<AdminDatabaseView />} />
+            </>
+          )}
         </Routes>
       </Box>
 
@@ -397,8 +409,8 @@ export default function App() {
                     color: (theme) => theme.palette.grey[500],
                 }}
             >
-                ×
-            </IconButton>
+              
+              </IconButton>
         </DialogTitle>
         <DialogContent dividers>
           <SepaMandate
