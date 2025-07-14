@@ -35,6 +35,7 @@ import AccountCircleIcon from '@mui/icons-material/AccountCircle'; // For Member
 import DescriptionIcon from '@mui/icons-material/Description'; // For SEPA
 import PolicyIcon from '@mui/icons-material/Policy'; // For Privacy Policy
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'; // For Certificate
+import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'; // For Admin View
 import PaidIcon from '@mui/icons-material/Paid'; // For Legal & Financial Admin View
 import Auth from './pages/Auth'
 import MemberForm from './pages/MemberForm'
@@ -132,7 +133,7 @@ export default function App() {
   useEffect(() => {
     if (user) {
       supabase
-        .from('members')
+        .from('user_roles')
         .select('role')
         .eq('user_id', user.id)
         .single()
@@ -229,7 +230,6 @@ export default function App() {
               style={{ height: '24px' }} // Adjusted from 36px to 32px
             />
           </Box>
-
           {!isMobile && ( // Desktop navigation links
             <Box sx={{ display: 'flex', gap: 2, flexGrow: 1 }}>
               <Button color="inherit" component={RouterLink} to="/">
@@ -361,19 +361,11 @@ export default function App() {
         }}
       >
         <Routes>
-          {userRole === 'user' && (
-            <>
               <Route path="/" element={<MemberForm user={user} />} />
               <Route path="/sepa" element={<SepaMandate user={user} />} />
               <Route path="/privacy" element={<PrivacyPolicy user={user} />} />
               <Route path="/certificate" element={<Certificate user={user} />} />
-            </>
-          )}
-          {userRole === 'admin' && (
-            <>
-            <Route path="/" element={<AdminDatabaseView />} />
-            </>
-          )}
+             <Route path="/admin" element={<AdminDatabaseView />} />
         </Routes>
       </Box>
 
