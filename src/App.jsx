@@ -249,7 +249,7 @@ export default function App() {
               </Button>
             )}
               {userRole === 'admin' && (
-                <Button color="inherit" component={RouterLink} to="/admin">
+                <Button color="inherit" component={RouterLink} to="/">
                   <AdminPanelSettingsIcon sx={{ mr: 0.5 }} /> Admin
                 </Button>
               )}
@@ -336,7 +336,7 @@ export default function App() {
             )}
             {userRole === 'admin' && (
               <ListItem disablePadding>
-                <ListItemButton component={RouterLink} to="/admin">
+                <ListItemButton component={RouterLink} to="/">
                   <ListItemIcon><AdminPanelSettingsIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
                   <ListItemText primary="Admin" />
                 </ListItemButton>
