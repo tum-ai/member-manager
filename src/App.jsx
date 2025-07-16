@@ -37,7 +37,7 @@ import PolicyIcon from '@mui/icons-material/Policy'; // For Privacy Policy
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'; // For Certificate
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'; // For Admin View
 import PaidIcon from '@mui/icons-material/Paid'; // For Legal & Financial Admin View
-import Auth from './pages/Auth'
+import Auth from './pages/Auth' // Assuming Auth.js is in the ./pages directory
 import MemberForm from './pages/MemberForm'
 import Certificate from './pages/Certificate'
 import AdminDatabaseView from './pages/AdminDatabaseView'
@@ -204,6 +204,7 @@ export default function App() {
     );
   }
 
+  // If no user, render the Auth component. This will also handle the /update-password route internally.
   if (!user) return <Auth onLogin={setUser} />;
 
   return (
@@ -378,6 +379,8 @@ export default function App() {
             <Route path="/" element={<AdminDatabaseView />} />
             </>
           )}
+          {/* New route for password update */}
+          <Route path="/update-password" element={<Auth onLogin={setUser} />} />
         </Routes>
       </Box>
 
@@ -400,17 +403,17 @@ export default function App() {
         <DialogTitle variant="h5" sx={{ textAlign: 'center', pb: 2 }}>
             SEPA Mandate
             <IconButton
-                aria-label="close"
-                onClick={handleSepaModalClose}
-                sx={{
-                    position: 'absolute',
-                    right: 8,
-                    top: 8,
-                    color: (theme) => theme.palette.grey[500],
-                }}
+              aria-label="close"
+              onClick={handleSepaModalClose}
+              sx={{
+                  position: 'absolute',
+                  right: 8,
+                  top: 8,
+                  color: (theme) => theme.palette.grey[500],
+              }}
             >
-              
-              </IconButton>
+
+            </IconButton>
         </DialogTitle>
         <DialogContent dividers>
           <SepaMandate
@@ -444,14 +447,14 @@ export default function App() {
         <DialogTitle variant="h5" sx={{ textAlign: 'center', pb: 2 }}>
             Privacy Policy
             <IconButton
-                aria-label="close"
-                onClick={handlePrivacyModalClose}
-                sx={{
-                    position: 'absolute',
-                    right: 8,
-                    top: 8,
-                    color: (theme) => theme.palette.grey[500],
-                }}
+              aria-label="close"
+              onClick={handlePrivacyModalClose}
+              sx={{
+                  position: 'absolute',
+                  right: 8,
+                  top: 8,
+                  color: (theme) => theme.palette.grey[500],
+              }}
             >
                 ×
             </IconButton>
