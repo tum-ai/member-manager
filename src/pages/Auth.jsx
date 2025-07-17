@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { useNavigate } from 'react-router-dom';
 
 // Import MUI components and hooks
 import {
@@ -35,9 +36,11 @@ export default function Auth({ onLogin }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
+  const [isPasswordReset, setIsPasswordReset] = useState(false); // State for reset view
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false); // New loading state for auth actions
 
+  const navigate = useNavigate();
   const theme = useTheme();
   const isLargeScreen = useMediaQuery(theme.breakpoints.up('md')); // Check if screen is medium size or larger
 
@@ -81,7 +84,7 @@ export default function Auth({ onLogin }) {
       }
 
       const { data: memberData, error: roleError } = await supabase
-        .from('members')
+        .from('user_roles')
         .select('role')
         .eq('user_id', user.id)
         .single();
@@ -94,11 +97,35 @@ export default function Auth({ onLogin }) {
 
       const role = memberData?.role || 'user';
       onLogin({ ...user, role });
+      navigate('/'); 
     } catch (err) {
       console.error('Unexpected error in post-login:', err);
       setMessage('Unexpected error occurred. Please try again.');
     }
   }
+
+  async function handlePasswordReset(e) {
+    e.preventDefault();
+    setMessage('');
+    setLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${import.meta.env.VITE_SITE_URL}/update-password`,
+      });
+      if (error) {
+        setMessage(error.message);
+      } else {
+        setMessage(`Password reset link has been sent to ${email}, expect a redirect to ${import.meta.env.VITE_SITE_URL}.`);
+        setIsPasswordReset(false); // Go back to login view
+      }
+    } catch (err) {
+      console.error('Password reset error:', err);
+      setMessage('Failed to send password reset email.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -178,19 +205,19 @@ export default function Auth({ onLogin }) {
         />
         {/* Optional: Add a tagline or description for the logo section on larger screens */}
         {isLargeScreen && (
-            <Typography variant="h5" color="text.secondary" sx={{ mt: 2 }}>
-                Welcome to TUM.ai Portal
-            </Typography>
+          <Typography variant="h5" color="text.secondary" sx={{ mt: 2 }}>
+            Welcome to TUM.ai Portal
+          </Typography>
         )}
       </Box>
 
       {/* Auth Form Card */}
       <AuthCard> {/* Use the styled Paper component */}
         <Typography variant="h5" component="h2" align="center" gutterBottom>
-          {isLogin ? 'Sign In' : 'Register'}
+          {isPasswordReset ? 'Reset Password' : isLogin ? 'Sign In' : 'Register'}
         </Typography>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={isPasswordReset ? handlePasswordReset : handleSubmit}>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: theme.spacing(2) }}>
             <TextField
               label="Email"
@@ -200,14 +227,16 @@ export default function Auth({ onLogin }) {
               required
               fullWidth
             />
-            <TextField
-              label="Password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              fullWidth
-            />
+            {!isPasswordReset && (
+              <TextField
+                label="Password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                fullWidth
+              />
+            )}
             <Button
               type="submit"
               variant="contained"
@@ -216,23 +245,54 @@ export default function Auth({ onLogin }) {
               disabled={loading} // Disable button when loading
               sx={{ mt: 2, height: 48 }} // Ensure consistent button height
             >
-              {loading ? <CircularProgress size={24} color="inherit" /> : (isLogin ? 'Login' : 'Register')}
+              {loading ? (
+                <CircularProgress size={24} color="inherit" />
+              ) : isPasswordReset ? (
+                'Send Reset Link'
+              ) : isLogin ? (
+                'Login'
+              ) : (
+                'Register'
+              )}
             </Button>
           </Box>
         </form>
 
         {message && (
-          <Typography color="error" align="center" sx={{ mt: 2 }}>
+          <Typography
+            color={message.includes('sent') ? 'primary' : 'error'}
+            align="center"
+            sx={{ mt: 2 }}
+          >
             {message}
           </Typography>
         )}
 
-        <Box sx={{ textAlign: 'center', mt: 2 }}>
+<Box sx={{ textAlign: 'center', mt: 2 }}>
+          {isLogin && !isPasswordReset && (
+            <Link
+              component="button"
+              variant="body2"
+              onClick={() => {
+                setIsPasswordReset(true);
+                setMessage('');
+              }}
+              sx={{ textDecoration: 'none', '&:hover': { textDecoration: 'underline' } }}
+            >
+              Forgot your password?
+            </Link>
+          )}
           <Link
             component="button"
             variant="body2"
-            onClick={() => setIsLogin(!isLogin)}
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setIsPasswordReset(false);
+              setMessage('');
+            }}
             sx={{
+                display: 'block', // Ensure it takes its own line
+                mt: isLogin && !isPasswordReset ? 1 : 0,
                 textDecoration: 'none', // Remove underline initially
                 '&:hover': {
                     textDecoration: 'underline', // Add underline on hover
@@ -240,7 +300,9 @@ export default function Auth({ onLogin }) {
                 color: theme.palette.primary.main, // Use primary color for the link
             }}
           >
-            {isLogin ? 'Don\'t have an account? Sign Up' : 'Already have an account? Sign In'}
+            {isLogin && !isPasswordReset
+              ? "Don't have an account? Sign Up"
+              : 'Back to Sign In'}
           </Link>
         </Box>
       </AuthCard>
