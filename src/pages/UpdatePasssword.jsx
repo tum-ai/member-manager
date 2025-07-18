@@ -18,15 +18,31 @@ export default function UpdatePassword() {
   const [error, setError] = useState('');
   const [isReady, setIsReady] = useState(false);
   const navigate = useNavigate();
-
   useEffect(() => {
     // This effect will run when the component mounts and handle the recovery event.
+    const hash = window.location.hash.substring(1);
+    const params = new URLSearchParams(hash);
+    const errorCode = params.get('error_code');
+    const errorDescription = params.get('error_description');
+
+    if (errorCode) {
+      // If there's an error in the URL, display it and stop.
+      setError(errorDescription?.replace(/\+/g, ' ') || 'An unknown error occurred.');
+      return; // Don't proceed to set up the listener.
+    }
+
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       // The PASSWORD_RECOVERY event provides a session object.
       // This confirms the user is authenticated for this specific action.
-      if (event === 'PASSWORD_RECOVERY') {
+      // React StrictMode (idk, can we fix this?) causes a race condition, so there's a possibility we get INITIAL_SESSION 
+      // instead of PASSWORD_RECOVERY. But we can handle that by checking if session exists.
+      // React.StrictMode loads the component twice but we only want to handle the first load.
+      // The session state change is implicitly handled by the supabase client.
+      console.log('Auth state change:', event, session);
+      if (event === 'PASSWORD_RECOVERY' || (event === 'INITIAL_SESSION' && session)) {
         setIsReady(true);
       }
     });
@@ -91,17 +107,22 @@ export default function UpdatePassword() {
               onChange={(e) => setPassword(e.target.value)}
               required
               fullWidth
-              disabled={!isReady || loading}
-            />
+              disabled={!isReady || loading}/>
             <Button
               type="submit"
               variant="contained"
               color="primary"
               fullWidth
               disabled={!isReady || loading}
-              sx={{ mt: 2, height: 48 }}
-            >
+              sx={{ mt: 2, height: 48 }}>
               {loading ? <CircularProgress size={24} /> : 'Update Password'}
+            </Button>
+            <Button
+              variant="outlined"
+              fullWidth
+              onClick={() => navigate('/auth')}
+              sx={{ mt: 2, height: 48 }}>
+              Back to Login
             </Button>
           </Box>
         </form>

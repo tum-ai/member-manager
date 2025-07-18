@@ -97,7 +97,7 @@ export default function Auth({ onLogin }) {
 
       const role = memberData?.role || 'user';
       onLogin({ ...user, role });
-      navigate('/'); 
+      navigate('/');
     } catch (err) {
       console.error('Unexpected error in post-login:', err);
       setMessage('Unexpected error occurred. Please try again.');
@@ -115,7 +115,7 @@ export default function Auth({ onLogin }) {
       if (error) {
         setMessage(error.message);
       } else {
-        setMessage(`Password reset link has been sent to ${email}, expect a redirect to ${import.meta.env.VITE_SITE_URL}.`);
+        setMessage(`Password reset link has been sent to ${email}.`);
         setIsPasswordReset(false); // Go back to login view
       }
     } catch (err) {
@@ -268,7 +268,7 @@ export default function Auth({ onLogin }) {
           </Typography>
         )}
 
-<Box sx={{ textAlign: 'center', mt: 2 }}>
+        <Box sx={{ textAlign: 'center', mt: 2 }}>
           {isLogin && !isPasswordReset && (
             <Link
               component="button"
@@ -291,13 +291,12 @@ export default function Auth({ onLogin }) {
               setMessage('');
             }}
             sx={{
-                display: 'block', // Ensure it takes its own line
-                mt: isLogin && !isPasswordReset ? 1 : 0,
-                textDecoration: 'none', // Remove underline initially
-                '&:hover': {
-                    textDecoration: 'underline', // Add underline on hover
-                },
-                color: theme.palette.primary.main, // Use primary color for the link
+              mt: isLogin && !isPasswordReset ? 1 : 0,
+              textDecoration: 'none', // Remove underline initially
+              '&:hover': {
+                textDecoration: 'underline', // Add underline on hover
+              },
+              color: theme.palette.primary.main, // Use primary color for the link
             }}
           >
             {isLogin && !isPasswordReset
