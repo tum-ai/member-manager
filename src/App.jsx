@@ -150,7 +150,7 @@ export default function App() {
   useEffect(() => {
     if (user && !isDev) {
       supabase
-        .from('sepa')
+        .from('sepa_enc')
         .select('mandate_agreed, privacy_agreed')
         .eq('user_id', user.id)
         .single()
