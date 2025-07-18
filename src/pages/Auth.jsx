@@ -286,7 +286,12 @@ export default function Auth({ onLogin }) {
             component="button"
             variant="body2"
             onClick={() => {
-              setIsLogin(!isLogin);
+              if(isPasswordReset) {
+                setIsLogin(true);
+              }
+              else{
+                setIsLogin(!isLogin);
+              }
               setIsPasswordReset(false);
               setMessage('');
             }}
