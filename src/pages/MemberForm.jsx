@@ -85,13 +85,38 @@ export default function MemberForm({ user }) {
       setRequestedStatus(memberData.active ? 'inactive' : 'active');
     }
 
-    const { data: sepaData } = await supabase
-      .from('sepa')
+    const { data: sepaData, error: sepaFetchError } = await supabase
+      .from('sepa_enc')
       .select('*')
       .eq('user_id', user.id)
       .single()
 
-    if (sepaData) {
+     if (sepaFetchError && sepaFetchError.code !== 'PGRST116') {
+      console.error('Error fetching SEPA data:', sepaFetchError);
+      setMessage(`Error fetching banking details: ${sepaFetchError.message}`);
+    }
+
+    if (sepaData && sepaData.iban) {
+      try {
+        // 2. Call the decrypt Edge Function
+        const { data: decryptedData, error: decryptError } = await supabase.functions.invoke('decrypt-iban', {
+          body: { encryptedIban: sepaData.iban },
+        })
+
+        if (decryptError) throw decryptError
+
+        // 3. Update state with decrypted IBAN
+        const decryptedSepa = { ...sepaData, iban: decryptedData.decryptedData };
+        setSepa(decryptedSepa)
+        setOriginalSepa(decryptedSepa)
+      } catch (error) {
+        console.error('Decryption failed:', error)
+        setMessage(`Failed to decrypt banking information. Please contact support.`)
+        // Store encrypted data to avoid data loss on save
+        setSepa(sepaData)
+        setOriginalSepa(sepaData)
+      }
+    } else if (sepaData) {
       setSepa(sepaData)
       setOriginalSepa(sepaData)
     }
@@ -114,9 +139,32 @@ export default function MemberForm({ user }) {
       return
     }
 
+    // Create a copy to not mutate the state directly
+    const sepaToSave = { ...sepa };
+
+     // 1. Encrypt IBAN if it exists and is not already encrypted
+    if (sepaToSave.iban) {
+      try {
+        const { data: encryptedResult, error: encryptError } = await supabase.functions.invoke('encrypt-iban', {
+          body: { iban: sepaToSave.iban },
+        });
+
+        if (encryptError) throw encryptError;
+
+        // 2. Replace plain IBAN with encrypted data
+        sepaToSave.iban = encryptedResult.encryptedData;
+
+      } catch (error) {
+        console.error('Encryption failed:', error);
+        setMessage(`Error saving banking details: ${error.message}`);
+        setLoading(false);
+        return;
+      }
+    }
+
     const { error: sepaError } = await supabase
-      .from('sepa')
-      .upsert(sepa, { onConflict: ['user_id'] })
+      .from('sepa_enc') // Changed from 'sepa' to 'sepa_enc'
+      .upsert(sepaToSave, { onConflict: ['user_id'] })
 
     if (sepaError) {
       setMessage(`SEPA error: ${sepaError.message}`)

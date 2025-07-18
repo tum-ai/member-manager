@@ -54,22 +54,60 @@ export default function AdminDatabaseView() {
 
   useEffect(() => {
     async function fetchData() {
-      const { data: members, error: membersError } = await supabase.from('members').select('*')
-      const { data: sepa, error: sepaError } = await supabase.from('sepa').select('*')
+setLoading(true);
+      setError(null);
 
-      if (membersError || sepaError) {
-        setError(membersError?.message || sepaError?.message)
-        setLoading(false)
-        return
+      const [membersRes, sepaRes] = await Promise.all([
+        supabase.from('members').select('*'),
+        supabase.from('sepa_enc').select('user_id, iban, bic, bank_name, mandate_agreed, privacy_agreed') // Fetch only necessary (right now, all) fields
+      ]);
+
+      if (membersRes.error || sepaRes.error) {
+        setError(membersRes.error?.message || sepaRes.error?.message);
+        setLoading(false);
+        return;
       }
+
+      const members = membersRes.data;
+      const sepaEnc = sepaRes.data;
+
+      const encryptedIbanArray = sepaEnc
+        .filter(s => s.iban)
+        .map(s => s.iban);
+
+      let decryptedIbans = [];
+      if (encryptedIbanArray.length > 0) {
+        try {
+          const { data, error } = await supabase.functions.invoke('decrypt-ibans-batch', {
+            body: { encryptedIbanArray },
+          });
+
+          if (error) throw error;
+          decryptedIbans = data.decryptedIbans;
+
+        } catch (e) {
+          setError(`Failed to decrypt IBANs: ${e.message}`);
+        }
+      }
+
+      // 3. Map decrypted IBANs back to the SEPA data
+      let decryptedIndex = 0;
+      const sepaDataWithDecryption = sepaEnc.map(s => {
+        if (s.iban) {
+          const iban = decryptedIbans[decryptedIndex] ?? '[DECRYPTION FAILED]';
+          decryptedIndex++;
+          return { ...s, iban };
+        }
+        return s;
+      });
 
       const joined = members.map(member => ({
         ...member,
-        sepa: sepa.find(s => s.user_id === member.user_id) || {},
-      }))
+        sepa: sepaDataWithDecryption.find(s => s.user_id === member.user_id) || {},
+      }));
 
-      setData(joined)
-      setLoading(false)
+      setData(joined);
+      setLoading(false);
     }
 
     fetchData()
