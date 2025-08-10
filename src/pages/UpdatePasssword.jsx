@@ -16,10 +16,10 @@ export default function UpdatePassword() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [isReady, setIsReady] = useState(false);
   const navigate = useNavigate();
+
   useEffect(() => {
-    // This effect will run when the component mounts and handle the recovery event.
+    // This effect will run when the component mounts to check for errors in the URL.
     const hash = window.location.hash.substring(1);
     const params = new URLSearchParams(hash);
     const errorCode = params.get('error_code');
@@ -27,31 +27,10 @@ export default function UpdatePassword() {
 
     if (errorCode) {
       // If there's an error in the URL, display it and stop.
+      console.error('Error during password recovery:', errorCode, errorDescription);
       setError(errorDescription?.replace(/\+/g, ' ') || 'An unknown error occurred.');
-      return; // Don't proceed to set up the listener.
     }
-
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      // The PASSWORD_RECOVERY event provides a session object.
-      // This confirms the user is authenticated for this specific action.
-      // React StrictMode (idk, can we fix this?) causes a race condition, so there's a possibility we get INITIAL_SESSION 
-      // instead of PASSWORD_RECOVERY. But we can handle that by checking if session exists.
-      // React.StrictMode loads the component twice but we only want to handle the first load.
-      // The session state change is implicitly handled by the supabase client.
-      console.log('Auth state change:', event, session);
-      if (event === 'PASSWORD_RECOVERY' || (event === 'INITIAL_SESSION' && session)) {
-        setIsReady(true);
-      }
-    });
-
-    return () => {
-      // Clean up the subscription when the component unmounts.
-      subscription.unsubscribe();
-    };
-  }, []); // The empty dependency array ensures this runs only once on mount.
+  }, []);
 
   const handlePasswordUpdate = async (e) => {
     e.preventDefault();
@@ -65,11 +44,13 @@ export default function UpdatePassword() {
 
     if (updateError) {
       setError(updateError.message);
+      console.error('Error updating password:', updateError);
     } else {
       setMessage('Your password has been updated successfully. You will be redirected to the login page.');
       // Sign out to clear the temporary recovery session
+      console.log('Password updated successfully, signing out...');
       await supabase.auth.signOut();
-      setTimeout(() => navigate('/auth'), 3000);
+      setTimeout(() => navigate('/auth', { replace: true }), 3000);
     }
     setLoading(false);
   };
@@ -107,13 +88,14 @@ export default function UpdatePassword() {
               onChange={(e) => setPassword(e.target.value)}
               required
               fullWidth
-              disabled={!isReady || loading}/>
+              disabled={loading || !!error} // Disable if loading or if there was an initial error
+            />
             <Button
               type="submit"
               variant="contained"
               color="primary"
               fullWidth
-              disabled={!isReady || loading}
+              disabled={loading || !!error}
               sx={{ mt: 2, height: 48 }}>
               {loading ? <CircularProgress size={24} /> : 'Update Password'}
             </Button>
@@ -126,11 +108,6 @@ export default function UpdatePassword() {
             </Button>
           </Box>
         </form>
-        {!isReady && !error && (
-          <Typography color="text.secondary" align="center" sx={{ mt: 2 }}>
-            Verifying...
-          </Typography>
-        )}
         {message && (
           <Typography color="primary.main" align="center" sx={{ mt: 2 }}>
             {message}

@@ -11,10 +11,8 @@ const darkTheme = getAppTheme('dark'); // Directly create the dark theme once
 
 
 ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
     <ThemeProvider theme={darkTheme}>
       <CssBaseline /> {/* Optional: Resets CSS for consistent base styles */}
       <App />
     </ThemeProvider>
-  </React.StrictMode>
 )

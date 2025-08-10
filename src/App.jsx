@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link as RouterLink, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link as RouterLink, Navigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
 
 // Import MUI Components
@@ -51,6 +51,36 @@ const Transition = React.forwardRef(function Transition(props, ref) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
+function PasswordRecoveryGuard() {
+  const location = useLocation();
+
+  useEffect(() => {
+    // If we are in recovery mode but not on the correct page, sign out.
+    if (location.pathname !== '/update-password') {
+      console.warn('Attempted navigation away from password update during recovery. Signing out. Navigating to', location.pathname);
+      supabase.auth.signOut();
+    }
+  }, [location]); // Re-run this check every time the location changes.
+
+  // This component will render the routes for the recovery flow.
+  return (
+    <Routes>
+      <Route path="/update-password" element={<UpdatePassword />} />
+      {/* 
+        Any other path will be caught here. We show a loading indicator
+        while the signOut effect runs. The onAuthStateChange listener in App
+        will then detect the SIGNED_OUT event and re-render the entire app,
+        directing the user to the login page.
+      */}
+      <Route path="*" element={
+        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh' }}>
+          <CircularProgress />
+        </Box>
+      } />
+    </Routes>
+  );
+}
+
 const dummyUser = {
   id: '00000000-0000-0000-0000-000000000001',
   email: 'debug@example.com',
@@ -62,10 +92,9 @@ export default function App() {
   const [user, setUser] = useState(isDev ? dummyUser : null);
   const [loading, setLoading] = useState(!isDev);
   const [userRole, setUserRole] = useState(null);
-
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [showSepa, setShowSepa] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
-
   const [sepaChecked, setSepaChecked] = useState(false);
   const [privacyChecked, setPrivacyChecked] = useState(false);
 
@@ -121,8 +150,20 @@ export default function App() {
         setLoading(false);
       });
 
-      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user ?? null);
+      const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+        console.log('Auth state changed:', event, session);
+        if (event === 'PASSWORD_RECOVERY' || event === 'INITIAL_SESSION') {
+          setIsPasswordRecovery(true);
+        } else if (event === 'SIGNED_OUT') {
+          setIsPasswordRecovery(false);
+          setUser(null);
+          setUserRole(null);
+        } else {
+          // When a recovery session becomes a regular session, it's no longer a recovery-specific state.
+          // However, we only want to flip this state *after* the user has successfully updated their password.
+          // The SIGNED_OUT event above will handle the final state cleanup.
+          setUser(session?.user ?? null);
+        }
       });
 
       return () => {
@@ -206,24 +247,35 @@ export default function App() {
   }
 
   // if (!user) return <Auth onLogin={setUser} />;
+  
+  if (isPasswordRecovery) {
+    return (
+      <Router>
+        <PasswordRecoveryGuard />
+      </Router>
+    );
+  }
 
   return (
     <Router>
       <Routes>
         {/* Public routes accessible without login */}
-        <Route path="/auth" element={<Auth onLogin={setUser} />} />
-        <Route path="/update-password" element={<UpdatePassword />} />
+        <Route path="/auth" element={user ? <Navigate to="/" replace /> : <Auth onLogin={setUser} />} />
 
         {/* Protected routes - only accessible when a user is logged in */}
         <Route
           path="/*"
           element={
             user ? (
-              <>
-                <AppBar position="static" elevation={0}>
-                  <Toolbar>
-                    {isMobile && ( // Show menu icon only on mobile
-                      <IconButton
+              isPasswordRecovery ? (
+                <Navigate to="/update-password" replace />
+              ) : 
+              (
+                <>
+                  <AppBar position="static" elevation={0}>
+                    <Toolbar>
+                      {isMobile && ( // Show menu icon only on mobile
+                        <IconButton
                         edge="start"
                         sx={{ mr: 2, color: theme.palette.primary.main  }}
                         aria-label="menu"
@@ -486,7 +538,7 @@ export default function App() {
                   </DialogActions>
                 </Dialog>
               </>
-            ) : (
+            )) : (
               <Navigate to="/auth" replace />
             )
           }
