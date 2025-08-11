@@ -64,7 +64,7 @@ export default function MemberForm({ user, onProfileComplete }) {
         return false
       }
     }
-    // SEPA fields required
+    // SEPA fields required (IBAN and bank name)
     if (
       !dataSepa.iban ||
       dataSepa.iban.trim() === '' ||
@@ -73,8 +73,8 @@ export default function MemberForm({ user, onProfileComplete }) {
     ) {
       return false
     }
-    // Must agree to mandate and privacy
-    if (!dataSepa.mandate_agreed || !dataSepa.privacy_agreed) {
+    // Only privacy policy agreement is required, SEPA mandate is optional
+    if (!dataSepa.privacy_agreed) {
       return false
     }
     return true
@@ -164,7 +164,7 @@ export default function MemberForm({ user, onProfileComplete }) {
 
     // Validate before upsert
     if (!isProfileComplete(member, sepa)) {
-      setMessage('Please fill all required fields and accept SEPA and Privacy policy.')
+      setMessage('Please fill all required fields and accept the Privacy Policy.')
       setLoading(false)
       return
     }
