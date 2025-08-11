@@ -97,7 +97,7 @@ export default function AdminDatabaseView() {
   }
 
   function downloadEmails() {
-    const emails = filtered.map(m => m.email).filter(Boolean).join(', ')
+    const emails = filtered.map(m => m.email).filter(Boolean).join('; ')
     const blob = new Blob([emails], { type: 'text/plain;charset=utf-8' })
     const url = URL.createObjectURL(blob)
 
