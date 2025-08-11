@@ -30,7 +30,7 @@ export default function PrivacyPolicy({ onCheckChange, privacyAgreed }) {
         <h3>Contact:</h3>
         <p>
           The organization's data protection officer can be contacted by e-mail:<br />
-          <a href="mailto:contact@tum-ai.com">contact@tum-ai.com</a>
+          <a href="mailto:contact@tum-ai.com" className="email-link-dark">contact@tum-ai.com</a>
         </p>
 
         <p>
@@ -95,7 +95,7 @@ export default function PrivacyPolicy({ onCheckChange, privacyAgreed }) {
           <li><strong>Complaint (Art. 77)</strong>: Lodge a complaint with a supervisory authority.</li>
         </ul>
         <p>
-          TUM.ai must respond to requests within one month. Contact us at <a href="mailto:contact@tum-ai.com">contact@tum-ai.com</a>.
+          TUM.ai must respond to requests within one month. Contact us at <a href="mailto:contact@tum-ai.com" className="email-link-dark">contact@tum-ai.com</a>.
         </p>
 
         <h3>What happens if you do not agree?</h3>
