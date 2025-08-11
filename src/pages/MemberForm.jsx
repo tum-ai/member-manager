@@ -275,14 +275,107 @@ export default function MemberForm({ user, onProfileComplete }) {
     setIsEditing(false)
     setMessage('Changes canceled.')
   }
-  function handleStatusChangeRequest() {
+  async function handleStatusChangeRequest() {
     const confirmed = window.confirm(
       `Are you sure you want to request a status change to ${requestedStatus}?\n\nThis will be a legally binding request and will be sent to finance@tum-ai.com.`
     );
+    
     if (confirmed) {
-      setStatusRequestMessage(
-        `A request to change your membership status to "${requestedStatus}" has been sent to finance@tum-ai.com. You will receive a confirmation email once the request is processed.`
-      );
+      setStatusRequestMessage('Sending request...');
+      
+      console.log('Testing Edge Function accessibility...');
+      try {
+        const testResponse = await supabase.functions.invoke('status-change-email', {
+          method: 'GET',
+        });
+        console.log('Edge Function test response:', testResponse);
+      } catch (testErr) {
+        console.log('Edge Function test failed (this might be expected):', testErr);
+      }
+      
+      try {
+        const requestBody = {
+          to: 'finance@tum-ai.com',
+          subject: `Membership Status Change Request - ${member.given_name} ${member.surname}`,
+          html: `
+            <p><strong>Membership Status Change Request</strong></p>
+            <p><strong>Member:</strong> ${member.salutation} ${member.given_name} ${member.surname}</p>
+            <p><strong>Email:</strong> ${member.email}</p>
+            <p><strong>Current Status:</strong> ${member.active ? 'Active' : 'Inactive'}</p>
+            <p><strong>Requested Status:</strong> ${requestedStatus.charAt(0).toUpperCase() + requestedStatus.slice(1)}</p>
+            <p><strong>Request Date:</strong> ${new Date().toLocaleDateString()}</p>
+            <p>This is an automated request from the member portal.</p>
+          `,
+        };
+        
+        console.log('Attempting to send email with request body:', JSON.stringify(requestBody, null, 2));
+        
+        const { data, error } = await supabase.functions.invoke('status-change-email', {
+          method: 'POST',
+          body: requestBody,
+        });
+
+        if (error) {
+          console.error('Error sending status change request:', error);
+          console.error('Error details:', {
+            message: error.message,
+            status: error.status,
+            statusText: error.statusText,
+            details: error.details
+          });
+          
+          // Try a fallback approach with a different format
+          console.log('Trying fallback approach...');
+          try {
+            const fallbackBody = {
+              to: 'finance@tum-ai.com',
+              subject: `Status Change Request - ${member.given_name} ${member.surname}`,
+              html: `<p>Status change request from ${member.email}</p>`,
+              attachment: {
+                filename: 'status_request.txt',
+                content: btoa('Status change request'),
+                encoding: 'base64',
+              },
+            };
+            
+            console.log('Trying fallback with attachment:', JSON.stringify(fallbackBody, null, 2));
+            
+            const { data: fallbackData, error: fallbackError } = await supabase.functions.invoke('email-test-m1', {
+              method: 'POST',
+              body: fallbackBody,
+            });
+            
+            if (fallbackError) {
+              console.error('Fallback also failed:', fallbackError);
+              console.error('Fallback error details:', {
+                message: fallbackError.message,
+                status: fallbackError.status,
+                statusText: fallbackError.statusText,
+                details: fallbackError.details
+              });
+              setStatusRequestMessage(`Failed to send request: ${error.message}. Please contact support.`);
+            } else {
+              console.log('Fallback succeeded:', fallbackData);
+              setStatusRequestMessage(
+                `A request to change your membership status to "${requestedStatus}" has been sent to finance@tum-ai.com. You will receive a confirmation email once the request is processed.`
+              );
+            }
+          } catch (fallbackErr) {
+            console.error('Fallback approach also failed:', fallbackErr);
+            console.error('Fallback exception details:', fallbackErr);
+            setStatusRequestMessage(`Failed to send request: ${error.message}. Please contact support.`);
+          }
+        } else {
+          console.log('Status change request sent successfully:', data);
+          setStatusRequestMessage(
+            `A request to change your membership status to "${requestedStatus}" has been sent to finance@tum-ai.com. You will receive a confirmation email once the request is processed.`
+          );
+        }
+      } catch (err) {
+        console.error('Unexpected error sending status change request:', err);
+        console.error('Full error object:', err);
+        setStatusRequestMessage('An unexpected error occurred while sending the request. Please try again.');
+      }
     }
   }
 
