@@ -3,13 +3,9 @@ body {
   font-family: sans-serif;
 }
 
-/* Email link color override for dark mode */
-.email-link-dark {
-  color: #efb8c8 !important; /* M3 Tertiary main, light pink */
+.email-link-light {
+  color: #0066cc !important; /* Default blue color for light backgrounds */
 }
-
-@media (prefers-color-scheme: dark) {
-  .email-link-dark {
-    color: #efb8c8 !important;
-  }
+.email-link-dark {
+  color: #efb8c8 !important; /* light pink for dark backgrounds */
 }

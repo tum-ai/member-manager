@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-export default function PrivacyPolicy({ onCheckChange, privacyAgreed }) {
+export default function PrivacyPolicy({ onCheckChange, privacyAgreed, context = 'dialog' }) {
   const [checked, setChecked] = useState(!!privacyAgreed);
 
   useEffect(() => {
@@ -10,6 +10,9 @@ export default function PrivacyPolicy({ onCheckChange, privacyAgreed }) {
   useEffect(() => {
     onCheckChange?.(checked);
   }, [checked, onCheckChange]);
+  
+  // Determine email link class based on context
+  const emailLinkClass = context === 'modal' ? 'email-link-light' : 'email-link-dark';
   
   return (
     <div>
@@ -30,7 +33,7 @@ export default function PrivacyPolicy({ onCheckChange, privacyAgreed }) {
         <h3>Contact:</h3>
         <p>
           The organization's data protection officer can be contacted by e-mail:<br />
-          <a href="mailto:contact@tum-ai.com" className="email-link-dark">contact@tum-ai.com</a>
+          <a href="mailto:contact@tum-ai.com" className={emailLinkClass}>contact@tum-ai.com</a>
         </p>
 
         <p>
@@ -95,7 +98,7 @@ export default function PrivacyPolicy({ onCheckChange, privacyAgreed }) {
           <li><strong>Complaint (Art. 77)</strong>: Lodge a complaint with a supervisory authority.</li>
         </ul>
         <p>
-          TUM.ai must respond to requests within one month. Contact us at <a href="mailto:contact@tum-ai.com" className="email-link-dark">contact@tum-ai.com</a>.
+          TUM.ai must respond to requests within one month. Contact us at <a href="mailto:contact@tum-ai.com" className={emailLinkClass}>contact@tum-ai.com</a>.
         </p>
 
         <h3>What happens if you do not agree?</h3>

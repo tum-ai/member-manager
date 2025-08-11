@@ -5,7 +5,7 @@ import Modal from './Modal'
 import SepaMandate from './SepaMandate'
 import PrivacyPolicy from './PrivacyPolicy'
 
-export default function MemberForm({ user }) {
+export default function MemberForm({ user, onProfileComplete }) {
   const [loading, setLoading] = useState(true)
   const [member, setMember] = useState({
     active: true,
@@ -44,9 +44,50 @@ export default function MemberForm({ user }) {
   const [pendingSepaCheck, setPendingSepaCheck] = useState(false)
   const [pendingPrivacyCheck, setPendingPrivacyCheck] = useState(false)
 
+  // Utility: Check if profile is complete (to notify parent)
+  function isProfileComplete(dataMember, dataSepa) {
+    const requiredMemberFields = [
+      'salutation',
+      'surname',
+      'given_name',
+      'email',
+      'date_of_birth',
+      'street',
+      'number',
+      'postal_code',
+      'city',
+      'country',
+    ]
+    // All required member fields must be non-empty
+    for (const field of requiredMemberFields) {
+      if (!dataMember[field] || dataMember[field].toString().trim() === '') {
+        return false
+      }
+    }
+    // SEPA fields required
+    if (
+      !dataSepa.iban ||
+      dataSepa.iban.trim() === '' ||
+      !dataSepa.bank_name ||
+      dataSepa.bank_name.trim() === ''
+    ) {
+      return false
+    }
+    // Must agree to mandate and privacy
+    if (!dataSepa.mandate_agreed || !dataSepa.privacy_agreed) {
+      return false
+    }
+    return true
+  }
+
+  // Notify parent on load or changes if profile complete
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (originalMember && originalSepa) {
+      if (isProfileComplete(originalMember, originalSepa)) {
+        onProfileComplete?.()
+      }
+    }
+  }, [originalMember, originalSepa, onProfileComplete])
 
   // Listen for modal state changes
   useEffect(() => {
@@ -95,14 +136,32 @@ export default function MemberForm({ user }) {
       setSepa(sepaData)
       setOriginalSepa(sepaData)
     }
-
+    // Auto-open edit mode if profile is incomplete or data is missing
+    const hasMember = !!memberData
+    const hasSepa = !!sepaData
+    const profileIsComplete = hasMember && hasSepa && isProfileComplete(memberData, sepaData)
+    if (!profileIsComplete) {
+      setIsEditing(true)
+    }
     setLoading(false)
   }
 
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  // Save user data
   async function updateData(e) {
     e.preventDefault()
     setLoading(true)
     setMessage('')
+
+    // Validate before upsert
+    if (!isProfileComplete(member, sepa)) {
+      setMessage('Please fill all required fields and accept SEPA and Privacy policy.')
+      setLoading(false)
+      return
+    }
 
     const { error: memberError } = await supabase
       .from('members')
@@ -129,6 +188,11 @@ export default function MemberForm({ user }) {
     setIsEditing(false)
     setMessage('Data saved successfully!')
     setLoading(false)
+
+    // Notify parent if profile is now complete
+    if (isProfileComplete(member, sepa)) {
+      onProfileComplete?.()
+    }
   }
 
   function handleMemberChange(e) {
@@ -142,7 +206,7 @@ export default function MemberForm({ user }) {
   function handleSepaChange(e) {
     const { name, type, checked, value } = e.target
     const newValue = type === 'checkbox' ? checked : value
-    
+
     setSepa(prev => ({
       ...prev,
       [name]: newValue,
@@ -330,9 +394,7 @@ export default function MemberForm({ user }) {
                 )}
               </label>
 
-
-
-              {personalFields.filter(f => !['title', 'salutation', 'active'].includes(f.name)).map(({ label, name, type }) => (
+              {personalFields.filter(f => !['title', 'salutation', 'active', 'email'].includes(f.name)).map(({ label, name, type }) => (
                 <label key={name} style={{ display: 'block', marginBottom: '0.75rem' }}>
                   {label}: *<br />
                   <input
@@ -346,6 +408,21 @@ export default function MemberForm({ user }) {
                   />
                 </label>
               ))}
+              
+              {/* Email field - read only */}
+              <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+                Email: *<br />
+                <input
+                  type="email"
+                  name="email"
+                  value={member.email}
+                  disabled={true}
+                  style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem', backgroundColor: '#333', color: '#999' }}
+                />
+                <small style={{ color: 'lightgray', display: 'block', marginTop: '0.25rem' }}>
+                  Email address cannot be changed. Contact support if you need to update your email.
+                </small>
+              </label>
             </div>
 
             <div style={{ flex: 1, minWidth: '300px' }}>
@@ -452,7 +529,7 @@ export default function MemberForm({ user }) {
             setPendingPrivacyCheck(false);
           }}
         >
-          <PrivacyPolicy privacyAgreed={sepa.privacy_agreed} />
+          <PrivacyPolicy privacyAgreed={sepa.privacy_agreed} context="modal" />
         </Modal>
       )}
     </div>

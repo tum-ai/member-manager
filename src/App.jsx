@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { BrowserRouter as Router, Routes, Route, Link as RouterLink } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Link as RouterLink, Navigate } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
 
 // Import MUI Components
@@ -61,6 +61,9 @@ export default function App() {
   const [user, setUser] = useState(isDev ? dummyUser : null);
   const [loading, setLoading] = useState(!isDev);
   const [userRole, setUserRole] = useState(null);
+
+  const [profileComplete, setProfileComplete] = useState(false);
+  const [checkingProfile, setCheckingProfile] = useState(true);
 
   const [showSepa, setShowSepa] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -233,21 +236,21 @@ export default function App() {
           {!isMobile && ( // Desktop navigation links
             <Box sx={{ display: 'flex', gap: 2, flexGrow: 1 }}>
               {userRole === 'user' && (<Button color="inherit" component={RouterLink} to="/">
-                <AccountCircleIcon sx={{ mr: 0.5 }} /> Member Form
-              </Button>
-            )}
-              {userRole === 'user' && (<Button color="inherit" component="a" onClick={() => setShowSepa(true)}>
-                <DescriptionIcon sx={{ mr: 0.5 }} /> SEPA
-              </Button>
-            )}
-              {userRole === 'user' && (<Button color="inherit" component="a" onClick={() => setShowPrivacy(true)}>
-                <PolicyIcon sx={{ mr: 0.5 }} /> Privacy Policy
-              </Button>
-            )}
-              {userRole === 'user' && (<Button color="inherit" component={RouterLink} to="/certificate">
-                <EmojiEventsIcon sx={{ mr: 0.5 }} /> Certificate
-              </Button>
-            )}
+                  <AccountCircleIcon sx={{ mr: 0.5 }} /> Member Form
+                </Button>
+              )}
+              {userRole === 'user' && (<Button color="inherit" component="a" onClick={() => setShowSepa(true)} disabled={!profileComplete}>
+                  <DescriptionIcon sx={{ mr: 0.5 }} /> SEPA
+                </Button>
+              )}
+              {userRole === 'user' && (<Button color="inherit" component="a" onClick={() => setShowPrivacy(true)} disabled={!profileComplete}>
+                  <PolicyIcon sx={{ mr: 0.5 }} /> Privacy Policy
+                </Button>
+              )}
+              {userRole === 'user' && (<Button color="inherit" component={RouterLink} to="/certificate" disabled={!profileComplete}>
+                  <EmojiEventsIcon sx={{ mr: 0.5 }} /> Certificate
+                </Button>
+              )}
               {userRole === 'admin' && (
                 <Button color="inherit" component={RouterLink} to="/">
                   <AdminPanelSettingsIcon sx={{ mr: 0.5 }} /> Admin
@@ -303,36 +306,36 @@ export default function App() {
           <img src="/img/logo.webp" alt="TUM.ai Logo" style={{ height: '24px', mb: 4, pb: 4 }} />
           <List sx={{ width: '100%' }}>
             {userRole === 'user' && (
-            <ListItem disablePadding>
-              <ListItemButton component={RouterLink} to="/">
+              <ListItem disablePadding>
+                <ListItemButton component={RouterLink} to="/">
                 <ListItemIcon><AccountCircleIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-                <ListItemText primary="Member Form" />
-              </ListItemButton>
-            </ListItem>
+                  <ListItemText primary="Member Form" />
+                </ListItemButton>
+              </ListItem>
             )}
             {userRole === 'user' && (
-            <ListItem disablePadding>
-              <ListItemButton component="a" onClick={() => setShowSepa(true)}>
+              <ListItem disablePadding>
+              <ListItemButton component="a" onClick={() => setShowSepa(true)} disabled={!profileComplete}>
                 <ListItemIcon><DescriptionIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-                <ListItemText primary="SEPA" />
-              </ListItemButton>
-            </ListItem>
+                  <ListItemText primary="SEPA" />
+                </ListItemButton>
+              </ListItem>
             )}
             {userRole === 'user' && (
-            <ListItem disablePadding>
-              <ListItemButton component="a" onClick={() => setShowPrivacy(true)}>
-                <ListItemIcon><PolicyIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-                <ListItemText primary="Privacy Policy" />
-              </ListItemButton>
-            </ListItem>
+              <ListItem disablePadding>
+                <ListItemButton onClick={() => setShowPrivacy(true)} disabled={!profileComplete}>
+                  <ListItemIcon><PolicyIcon /></ListItemIcon>
+                  <ListItemText primary="Privacy Policy" />
+                </ListItemButton>
+              </ListItem>
             )}
             {userRole === 'user' && (
-            <ListItem disablePadding>
-              <ListItemButton component={RouterLink} to="/certificate">
-                <ListItemIcon><EmojiEventsIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-                <ListItemText primary="Certificate" />
-              </ListItemButton>
-            </ListItem>
+              <ListItem disablePadding>
+                <ListItemButton component={RouterLink} to="/certificate" disabled={!profileComplete}>
+                  <ListItemIcon><EmojiEventsIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+                  <ListItemText primary="Certificate" />
+                </ListItemButton>
+              </ListItem>
             )}
             {userRole === 'admin' && (
               <ListItem disablePadding>
@@ -367,17 +370,18 @@ export default function App() {
         <Routes>
           {userRole === 'user' && (
             <>
-              <Route path="/" element={<MemberForm user={user} />} />
-              <Route path="/sepa" element={<SepaMandate user={user} />} />
-              <Route path="/privacy" element={<PrivacyPolicy user={user} />} />
-              <Route path="/certificate" element={<Certificate user={user} />} />
+              <Route path="/" element={<MemberForm user={user} onProfileComplete={() => setProfileComplete(true)} />} />
+              {profileComplete && (
+                <>
+                  <Route path="/sepa" element={<SepaMandate user={user} />} />
+                  <Route path="/privacy" element={<PrivacyPolicy user={user} />} />
+                  <Route path="/certificate" element={<Certificate user={user} />} />
+                </>
+              )}
+              {!profileComplete && <Route path="*" element={<Navigate to="/" replace />} />}
             </>
           )}
-          {userRole === 'admin' && (
-            <>
-            <Route path="/" element={<AdminDatabaseView />} />
-            </>
-          )}
+          {userRole === 'admin' && <Route path="/" element={<AdminDatabaseView />} />}
         </Routes>
       </Box>
 
@@ -442,7 +446,7 @@ export default function App() {
         }}
       >
         <DialogTitle variant="h5" sx={{ textAlign: 'center', pb: 2 }}>
-            Privacy Policy
+          Privacy Policy
             <IconButton
                 aria-label="close"
                 onClick={handlePrivacyModalClose}
