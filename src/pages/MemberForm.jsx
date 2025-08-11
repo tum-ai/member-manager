@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import { countries } from '../lib/countries'
 import Modal from './Modal'
 import SepaMandate from './SepaMandate'
 import PrivacyPolicy from './PrivacyPolicy'
@@ -400,7 +401,7 @@ export default function MemberForm({ user, onProfileComplete }) {
                 )}
               </label>
 
-              {personalFields.filter(f => !['title', 'salutation', 'active', 'email'].includes(f.name)).map(({ label, name, type }) => (
+              {personalFields.filter(f => !['title', 'salutation', 'active', 'email', 'country'].includes(f.name)).map(({ label, name, type }) => (
                 <label key={name} style={{ display: 'block', marginBottom: '0.75rem' }}>
                   {label}: *<br />
                   <input
@@ -414,6 +415,26 @@ export default function MemberForm({ user, onProfileComplete }) {
                   />
                 </label>
               ))}
+              
+              {/* Country dropdown */}
+              <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+                Country: *<br />
+                <select
+                  name="country"
+                  value={member.country}
+                  onChange={handleMemberChange}
+                  disabled={loading}
+                  required
+                  style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
+                >
+                  <option value="">-- Please choose a country --</option>
+                  {countries.map(country => (
+                    <option key={country.code} value={country.name}>
+                      {country.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
               
               {/* Email field - read only */}
               <label style={{ display: 'block', marginBottom: '0.75rem' }}>
