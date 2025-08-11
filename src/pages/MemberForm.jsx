@@ -541,6 +541,7 @@ export default function MemberForm({ user, onProfileComplete }) {
             setShowSepaModal(false);
             setPendingSepaCheck(false);
           }}
+          confirmText="Save"
         >
           <SepaMandate sepaAgreed={sepa.mandate_agreed} />
         </Modal>

@@ -424,7 +424,7 @@ export default function App() {
         </DialogContent>
         <DialogActions sx={{ pt: 2, pb: 1, pr: 2 }}>
           <Button onClick={handleSepaModalClose} color="primary" variant="contained">
-            Confirm
+            Save
           </Button>
         </DialogActions>
       </Dialog>

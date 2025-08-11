@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function Modal({ title, onClose, children, onConfirm, confirmDisabled }) {
+export default function Modal({ title, onClose, children, onConfirm, confirmDisabled, confirmText = "Confirm" }) {
   return (
     <div
       style={{
@@ -61,7 +61,7 @@ export default function Modal({ title, onClose, children, onConfirm, confirmDisa
               cursor: confirmDisabled ? 'not-allowed' : 'pointer'
             }}
           >
-            Confirm
+            {confirmText}
           </button>
         </div>
       </div>
