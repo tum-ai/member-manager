@@ -133,8 +133,14 @@ export default function MemberForm({ user, onProfileComplete }) {
       .single()
 
     if (sepaData) {
-      setSepa(sepaData)
-      setOriginalSepa(sepaData)
+      // Ensure boolean fields have proper default values
+      const sepaWithDefaults = {
+        ...sepaData,
+        mandate_agreed: sepaData.mandate_agreed ?? false, // Default to false if undefined/null
+        privacy_agreed: sepaData.privacy_agreed ?? false, // Default to false if undefined/null
+      }
+      setSepa(sepaWithDefaults)
+      setOriginalSepa(sepaWithDefaults)
     }
     // Auto-open edit mode if profile is incomplete or data is missing
     const hasMember = !!memberData
