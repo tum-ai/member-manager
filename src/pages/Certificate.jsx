@@ -27,7 +27,6 @@ export default function EngagementConfirmation({ user }) {
     {
       startDate: '',
       endDate: '',
-      weeklyHours: '',
       department: '',
       isTeamLead: false,
       isStillActive: false, // Added isStillActive
@@ -77,7 +76,6 @@ export default function EngagementConfirmation({ user }) {
       {
         startDate: '',
         endDate: '',
-        weeklyHours: '',
         department: '',
         isTeamLead: false,
         isStillActive: false, // Reset isStillActive for new engagement
@@ -99,7 +97,6 @@ export default function EngagementConfirmation({ user }) {
       if (
         !engagement.startDate ||
         (!engagement.isStillActive && !engagement.endDate) || // End date required only if not active
-        !engagement.weeklyHours ||
         !engagement.department ||
         !engagement.tasksDescription ||
         engagement.tasksDescription.trim() === ''
@@ -460,16 +457,6 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
               </div>
             )}
 
-            <div>
-              <label><strong>Weekly Hours *</strong><br />
-                <select value={engagement.weeklyHours} onChange={e => updateEngagement(index, 'weeklyHours', e.target.value)} required>
-                  <option value="" disabled>Select</option>
-                  {[2, 5, 10, 15, 20].map(hour => (
-                    <option key={hour} value={hour}>{hour} hours</option>
-                  ))}
-                </select>
-              </label>
-            </div>
 
             <div>
               <label><strong>Department *</strong><br />
