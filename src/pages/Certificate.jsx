@@ -482,12 +482,18 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
               </label>
             </div>
 
+            {engagement.department !== 'Board' && (
             <div>
               <label>
-                <input type="checkbox" checked={engagement.isTeamLead} onChange={e => updateEngagement(index, 'isTeamLead', e.target.checked)} />
+                <input 
+                  type="checkbox" 
+                  checked={engagement.isTeamLead} 
+                  onChange={e => updateEngagement(index, 'isTeamLead', e.target.checked)} 
+                />
                 {' '}<strong>I was a team lead</strong>
               </label>
             </div>
+          )}
 
             <div>
               <label><strong>Tasks / Responsibilities *</strong><br />
