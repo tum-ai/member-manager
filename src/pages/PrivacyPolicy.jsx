@@ -1,15 +1,27 @@
 import React, { useEffect, useState } from 'react';
 
 export default function PrivacyPolicy({ onCheckChange, privacyAgreed, context = 'dialog' }) {
-  const [checked, setChecked] = useState(!!privacyAgreed);
+  const [checked, setChecked] = useState(false);
+  const [locked, setLocked] = useState(false);
 
+  // If already agreed from backend, lock it immediately
   useEffect(() => {
-    setChecked(!!privacyAgreed); // Sync prop change
+    if (privacyAgreed) {
+      setChecked(true);
+      setLocked(true);
+    }
   }, [privacyAgreed]);
 
-  useEffect(() => {
-    onCheckChange?.(checked);
-  }, [checked, onCheckChange]);
+  const handleCheckboxChange = (e) => {
+    const isChecked = e.target.checked;
+
+    if (isChecked) {
+      setChecked(true);
+      setLocked(true); // lock once agreed
+      onCheckChange?.(true);
+    }
+  };
+
   
   // Determine email link class based on context
   const emailLinkClass = context === 'modal' ? 'email-link-light' : 'email-link-dark';
@@ -118,12 +130,12 @@ export default function PrivacyPolicy({ onCheckChange, privacyAgreed, context = 
             <input
               type="checkbox"
               checked={checked}
-              onChange={(e) => setChecked(e.target.checked)}
-              disabled={privacyAgreed}
+              onChange={handleCheckboxChange}
+              disabled={locked} // prevent unchecking after agreement
             />{' '}
             I have read and agree to the Privacy Policy.
           </label>
-          {privacyAgreed && (
+          {locked && (
             <p style={{ fontSize: '0.9rem', color: 'gray', marginTop: '0.5rem' }}>
               You have already agreed to the Privacy Policy.
             </p>
