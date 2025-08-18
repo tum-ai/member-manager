@@ -1,6 +1,6 @@
 import React from 'react'
 
-export default function Modal({ title, onClose, children, onConfirm, confirmDisabled, confirmText = "Confirm" }) {
+export default function Modal({ title, onClose, children, onConfirm, confirmDisabled, confirmText = "Save" }) {
   return (
     <div
       style={{

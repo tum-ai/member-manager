@@ -473,7 +473,7 @@ export default function App() {
             color="primary"
             variant="contained"
           >
-            Confirm
+            Save
           </Button>
         </DialogActions>
       </Dialog>
