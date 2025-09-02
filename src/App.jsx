@@ -239,17 +239,41 @@ export default function App() {
                   <AccountCircleIcon sx={{ mr: 0.5 }} /> Member Form
                 </Button>
               )}
-              {userRole === 'user' && (<Button color="inherit" component="a" onClick={() => setShowSepa(true)} disabled={!profileComplete}>
-                  <DescriptionIcon sx={{ mr: 0.5 }} /> SEPA
-                </Button>
+              {userRole === 'user' && (
+                <Tooltip 
+                  title={!profileComplete ? "Complete the member form to access this feature" : ""}
+                  disableHoverListener={profileComplete}
+                >
+                  <span>
+                    <Button color="inherit" component="a" onClick={() => setShowSepa(true)} disabled={!profileComplete}>
+                      <DescriptionIcon sx={{ mr: 0.5 }} /> SEPA
+                    </Button>
+                  </span>
+                </Tooltip>
               )}
-              {userRole === 'user' && (<Button color="inherit" component="a" onClick={() => setShowPrivacy(true)} disabled={!profileComplete}>
-                  <PolicyIcon sx={{ mr: 0.5 }} /> Privacy Policy
-                </Button>
+              {userRole === 'user' && (
+                <Tooltip 
+                  title={!profileComplete ? "Complete the member form to access this feature" : ""}
+                  disableHoverListener={profileComplete}
+                >
+                  <span>
+                    <Button color="inherit" component="a" onClick={() => setShowPrivacy(true)} disabled={!profileComplete}>
+                      <PolicyIcon sx={{ mr: 0.5 }} /> Privacy Policy
+                    </Button>
+                  </span>
+                </Tooltip>
               )}
-              {userRole === 'user' && (<Button color="inherit" component={RouterLink} to="/certificate" disabled={!profileComplete}>
-                  <EmojiEventsIcon sx={{ mr: 0.5 }} /> Certificate
-                </Button>
+              {userRole === 'user' && (
+                <Tooltip 
+                  title={!profileComplete ? "Complete the member form to access this feature" : ""}
+                  disableHoverListener={profileComplete}
+                >
+                  <span>
+                    <Button color="inherit" component={RouterLink} to="/certificate" disabled={!profileComplete}>
+                      <EmojiEventsIcon sx={{ mr: 0.5 }} /> Certificate
+                    </Button>
+                  </span>
+                </Tooltip>
               )}
               {userRole === 'admin' && (
                 <Button color="inherit" component={RouterLink} to="/">
@@ -315,26 +339,47 @@ export default function App() {
             )}
             {userRole === 'user' && (
               <ListItem disablePadding>
-              <ListItemButton component="a" onClick={() => setShowSepa(true)} disabled={!profileComplete}>
-                <ListItemIcon><DescriptionIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-                  <ListItemText primary="SEPA" />
-                </ListItemButton>
+                <Tooltip 
+                  title={!profileComplete ? "Complete the member form to access this feature" : ""}
+                  disableHoverListener={profileComplete}
+                >
+                  <span style={{ width: '100%' }}>
+                    <ListItemButton component="a" onClick={() => setShowSepa(true)} disabled={!profileComplete}>
+                      <ListItemIcon><DescriptionIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+                      <ListItemText primary="SEPA" />
+                    </ListItemButton>
+                  </span>
+                </Tooltip>
               </ListItem>
             )}
             {userRole === 'user' && (
               <ListItem disablePadding>
-                <ListItemButton onClick={() => setShowPrivacy(true)} disabled={!profileComplete}>
-                  <ListItemIcon><PolicyIcon /></ListItemIcon>
-                  <ListItemText primary="Privacy Policy" />
-                </ListItemButton>
+                <Tooltip 
+                  title={!profileComplete ? "Complete the member form to access this feature" : ""}
+                  disableHoverListener={profileComplete}
+                >
+                  <span style={{ width: '100%' }}>
+                    <ListItemButton onClick={() => setShowPrivacy(true)} disabled={!profileComplete}>
+                      <ListItemIcon><PolicyIcon /></ListItemIcon>
+                      <ListItemText primary="Privacy Policy" />
+                    </ListItemButton>
+                  </span>
+                </Tooltip>
               </ListItem>
             )}
             {userRole === 'user' && (
               <ListItem disablePadding>
-                <ListItemButton component={RouterLink} to="/certificate" disabled={!profileComplete}>
-                  <ListItemIcon><EmojiEventsIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
-                  <ListItemText primary="Certificate" />
-                </ListItemButton>
+                <Tooltip 
+                  title={!profileComplete ? "Complete the member form to access this feature" : ""}
+                  disableHoverListener={profileComplete}
+                >
+                  <span style={{ width: '100%' }}>
+                    <ListItemButton component={RouterLink} to="/certificate" disabled={!profileComplete}>
+                      <ListItemIcon><EmojiEventsIcon sx={{ color: theme.palette.text.secondary }} /></ListItemIcon>
+                      <ListItemText primary="Certificate" />
+                    </ListItemButton>
+                  </span>
+                </Tooltip>
               </ListItem>
             )}
             {userRole === 'admin' && (
