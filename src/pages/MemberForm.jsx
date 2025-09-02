@@ -5,6 +5,8 @@ import { countries } from '../lib/countries'
 import Modal from './Modal'
 import SepaMandate from './SepaMandate'
 import PrivacyPolicy from './PrivacyPolicy'
+import IBAN from 'iban'
+import bicValidator from 'bic-validator'
 
 export default function MemberForm({ user, onProfileComplete }) {
   const [loading, setLoading] = useState(true)
@@ -25,7 +27,6 @@ export default function MemberForm({ user, onProfileComplete }) {
   })
   const [statusRequestMessage, setStatusRequestMessage] = useState('')
 
-
   const [sepa, setSepa] = useState({
     iban: '',
     bic: '',
@@ -33,6 +34,13 @@ export default function MemberForm({ user, onProfileComplete }) {
     mandate_agreed: false,
     privacy_agreed: false,
     user_id: user.id,
+  })
+
+  // Validation state
+  const [validationErrors, setValidationErrors] = useState({
+    iban: '',
+    bic: '',
+    bank_name: ''
   })
 
   const [originalMember, setOriginalMember] = useState(null)
@@ -44,6 +52,45 @@ export default function MemberForm({ user, onProfileComplete }) {
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
   const [pendingSepaCheck, setPendingSepaCheck] = useState(false)
   const [pendingPrivacyCheck, setPendingPrivacyCheck] = useState(false)
+
+  // Validation functions
+  const validateIBAN = (iban) => {
+    if (!iban || iban.trim() === '') {
+      return sepa.mandate_agreed ? 'IBAN is required when SEPA mandate is agreed' : ''
+    }
+    if (!IBAN.isValid(iban)) {
+      return 'Invalid IBAN format'
+    }
+    return ''
+  }
+
+  const validateBIC = (bic) => {
+    if (!bic || bic.trim() === '') {
+      return sepa.mandate_agreed ? 'BIC is required when SEPA mandate is agreed' : ''
+    }
+    if (!bicValidator.isValid(bic)) {
+      return 'Invalid BIC format'
+    }
+    return ''
+  }
+
+  const validateBankName = (bankName) => {
+    if (!bankName || bankName.trim() === '') {
+      return sepa.mandate_agreed ? 'Bank name is required when SEPA mandate is agreed' : ''
+    }
+    return ''
+  }
+
+  // Validate all SEPA fields
+  const validateSepaFields = () => {
+    const errors = {
+      iban: validateIBAN(sepa.iban),
+      bic: validateBIC(sepa.bic),
+      bank_name: validateBankName(sepa.bank_name)
+    }
+    setValidationErrors(errors)
+    return !Object.values(errors).some(error => error !== '')
+  }
 
   // Utility: Check if profile is complete (to notify parent)
   function isProfileComplete(dataMember, dataSepa) {
@@ -65,15 +112,20 @@ export default function MemberForm({ user, onProfileComplete }) {
         return false
       }
     }
-    // SEPA fields required (IBAN and bank name)
-    if (
-      !dataSepa.iban ||
-      dataSepa.iban.trim() === '' ||
-      !dataSepa.bank_name ||
-      dataSepa.bank_name.trim() === ''
-    ) {
-      return false
+    
+    // If SEPA mandate is agreed, validate SEPA fields
+    if (dataSepa.mandate_agreed) {
+      if (!dataSepa.iban || dataSepa.iban.trim() === '' ||
+          !dataSepa.bic || dataSepa.bic.trim() === '' ||
+          !dataSepa.bank_name || dataSepa.bank_name.trim() === '') {
+        return false
+      }
+      // Validate IBAN and BIC format
+      if (!IBAN.isValid(dataSepa.iban) || !bicValidator.isValid(dataSepa.bic)) {
+        return false
+      }
     }
+    
     // Only privacy policy agreement is required, SEPA mandate is optional
     if (!dataSepa.privacy_agreed) {
       return false
@@ -89,6 +141,13 @@ export default function MemberForm({ user, onProfileComplete }) {
       }
     }
   }, [originalMember, originalSepa, onProfileComplete])
+
+  // Validate SEPA fields when mandate agreement changes
+  useEffect(() => {
+    if (isEditing) {
+      validateSepaFields()
+    }
+  }, [sepa.mandate_agreed, isEditing])
 
   // Listen for modal state changes
   useEffect(() => {
@@ -163,6 +222,15 @@ export default function MemberForm({ user, onProfileComplete }) {
     setLoading(true)
     setMessage('')
 
+    // Validate SEPA fields if mandate is agreed
+    if (sepa.mandate_agreed) {
+      if (!validateSepaFields()) {
+        setMessage('Please correct your banking details.')
+        setLoading(false)
+        return
+      }
+    }
+
     // Validate before upsert
     if (!isProfileComplete(member, sepa)) {
       setMessage('Please fill all required fields and accept the Privacy Policy.')
@@ -219,11 +287,27 @@ export default function MemberForm({ user, onProfileComplete }) {
       [name]: newValue,
     }))
 
+    // Validate fields when they change
+    if (name === 'iban') {
+      const error = validateIBAN(newValue)
+      setValidationErrors(prev => ({ ...prev, iban: error }))
+    } else if (name === 'bic') {
+      const error = validateBIC(newValue)
+      setValidationErrors(prev => ({ ...prev, bic: error }))
+    } else if (name === 'bank_name') {
+      const error = validateBankName(newValue)
+      setValidationErrors(prev => ({ ...prev, bank_name: error }))
+    }
+
     // Dispatch events to keep modals synchronized
     if (name === 'mandate_agreed') {
       window.dispatchEvent(new CustomEvent('sepa-updated', { 
         detail: { mandate_agreed: newValue } 
       }))
+      // Re-validate all fields when mandate agreement changes
+      setTimeout(() => {
+        validateSepaFields()
+      }, 100)
     } else if (name === 'privacy_agreed') {
       window.dispatchEvent(new CustomEvent('privacy-updated', { 
         detail: { privacy_agreed: newValue } 
@@ -420,7 +504,7 @@ export default function MemberForm({ user, onProfileComplete }) {
               <h2>Banking Details</h2>
               <p><strong>IBAN:</strong> {sepa.iban || '-'}</p>
               <p><strong>BIC:</strong> {sepa.bic || '-'}</p>
-              <p><strong>Bank name:</strong> {sepa.bank_name || '-'}</p>
+              <p><strong>Bank Name:</strong> {sepa.bank_name || '-'}</p>
               <p><strong>SEPA Mandate:</strong> {sepa.mandate_agreed ? 'Accepted' : 'Not Accepted'}</p>
               <p><strong>Privacy Policy:</strong> {sepa.privacy_agreed ? 'Accepted' : 'Not Accepted'}</p>
             </div>
@@ -547,37 +631,53 @@ export default function MemberForm({ user, onProfileComplete }) {
 
             <div style={{ flex: 1, minWidth: '300px' }}>
               <h2>Banking Details</h2>
-              <label>
-                IBAN: *<br />
+              {sepa.mandate_agreed && (
+                <div style={{ 
+                  backgroundColor: '#4EA1D3', 
+                  color: 'white', 
+                  padding: '0.5rem', 
+                  borderRadius: '4px', 
+                  marginBottom: '1rem',
+                  fontSize: '0.875rem'
+                }}>
+                  ⚠️ SEPA mandate is agreed - IBAN, BIC, and bank name are now required fields
+                </div>
+              )}
+              <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+                IBAN: {sepa.mandate_agreed && '*'}<br />
                 <input
                   name="iban"
                   value={sepa.iban}
                   onChange={handleSepaChange}
                   disabled={loading}
-                  required
-                  style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem', marginBottom: '0.75rem' }}
+                  required={sepa.mandate_agreed}
+                  style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
                 />
+                {validationErrors.iban && <p style={{ color: 'red', fontSize: '0.875rem', margin: '0.25rem 0 0 0' }}>{validationErrors.iban}</p>}
               </label>
-              <label>
-                BIC: <br />
+              <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+                BIC: {sepa.mandate_agreed && '*'}<br />
                 <input
                   name="bic"
                   value={sepa.bic}
                   onChange={handleSepaChange}
                   disabled={loading}
-                  style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem', marginBottom: '0.75rem' }}
+                  required={sepa.mandate_agreed}
+                  style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
                 />
+                {validationErrors.bic && <p style={{ color: 'red', fontSize: '0.875rem', margin: '0.25rem 0 0 0' }}>{validationErrors.bic}</p>}
               </label>
-              <label>
-                Bank name: *<br />
+              <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+                Bank Name: {sepa.mandate_agreed && '*'}<br />
                 <input
                   name="bank_name"
                   value={sepa.bank_name}
                   onChange={handleSepaChange}
                   disabled={loading}
-                  required
-                  style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem', marginBottom: '0.75rem' }}
+                  required={sepa.mandate_agreed}
+                  style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem' }}
                 />
+                {validationErrors.bank_name && <p style={{ color: 'red', fontSize: '0.875rem', margin: '0.25rem 0 0 0' }}>{validationErrors.bank_name}</p>}
               </label>
               <label style={{ display: 'block', marginBottom: '0.75rem' }}>
                 <input
@@ -608,7 +708,9 @@ export default function MemberForm({ user, onProfileComplete }) {
               </label>
 
               <div style={{ marginTop: '1rem' }}>
-                <small style={{ color: 'lightgray' }}>* Required fields</small>
+                <small style={{ color: 'lightgray' }}>
+                  * Required fields.
+                </small>
               </div>
             </div>
           </div>
