@@ -719,7 +719,7 @@ export default function MemberForm({ user, onProfileComplete }) {
             <button type="submit" disabled={loading} style={{ marginRight: '1rem' }}>
               {loading ? 'Saving...' : 'Save Data'}
             </button>
-            <button type="button" onClick={handleCancel} disabled={loading}>
+            <button type="button" onClick={handleCancel} disabled={loading || !isProfileComplete(member, sepa)}>
               Cancel
             </button>
           </div>
