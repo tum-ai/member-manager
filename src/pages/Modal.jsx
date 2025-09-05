@@ -1,6 +1,8 @@
 import React from 'react'
+import { useTheme } from '@mui/material/styles'
 
 export default function Modal({ title, onClose, children, onConfirm, confirmDisabled, confirmText = "Save" }) {
+  const theme = useTheme()
   return (
     <div
       style={{
@@ -17,8 +19,8 @@ export default function Modal({ title, onClose, children, onConfirm, confirmDisa
     >
       <div
         style={{
-          backgroundColor: 'white',
-          color: 'black',
+          backgroundColor: '#414144',
+          color: theme.palette.text.primary,
           maxWidth: '800px',
           width: '100%',
           maxHeight: '90vh',
@@ -37,7 +39,8 @@ export default function Modal({ title, onClose, children, onConfirm, confirmDisa
             background: 'none',
             border: 'none',
             fontSize: '1.5rem',
-            cursor: 'pointer'
+            cursor: 'pointer',
+            color: theme.palette.text.primary
           }}
           aria-label="Close"
         >
@@ -53,8 +56,8 @@ export default function Modal({ title, onClose, children, onConfirm, confirmDisa
             onClick={onConfirm}
             disabled={confirmDisabled}
             style={{
-              backgroundColor: confirmDisabled ? '#aaa' : '#3c00b4',
-              color: 'white',
+              backgroundColor: confirmDisabled ? '#aaa' : theme.palette.primary.main,
+              color: theme.palette.primary.onPrimary,
               padding: '0.5rem 1rem',
               border: 'none',
               borderRadius: '4px',
