@@ -437,7 +437,7 @@ export default function MemberForm({ user, onProfileComplete }) {
                 statusText: fallbackError.statusText,
                 details: fallbackError.details
               });
-              setStatusRequestMessage(`Failed to send request: ${error.message}. Please contact support.`);
+              setStatusRequestMessage(`Failed to send request: ${error.message}. Please contact us at contact@tum-ai.com.`);
             } else {
               console.log('Fallback succeeded:', fallbackData);
               setStatusRequestMessage(
@@ -447,7 +447,7 @@ export default function MemberForm({ user, onProfileComplete }) {
           } catch (fallbackErr) {
             console.error('Fallback approach also failed:', fallbackErr);
             console.error('Fallback exception details:', fallbackErr);
-            setStatusRequestMessage(`Failed to send request: ${error.message}. Please contact support.`);
+            setStatusRequestMessage(`Failed to send request: ${error.message}. Please contact us at contact@tum-ai.com.`);
           }
         } else {
           console.log('Status change request sent successfully:', data);
@@ -624,7 +624,7 @@ export default function MemberForm({ user, onProfileComplete }) {
                   style={{ width: '100%', padding: '0.5rem', marginTop: '0.25rem', backgroundColor: '#333', color: '#999' }}
                 />
                 <small style={{ color: 'lightgray', display: 'block', marginTop: '0.25rem' }}>
-                  Email address cannot be changed. Contact support if you need to update your email.
+                  Email address cannot be changed. Contact us at contact@tum-ai.com if you need to update your email.
                 </small>
               </label>
             </div>
