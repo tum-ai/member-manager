@@ -1,13 +1,52 @@
-import React, { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import Modal from './Modal'
 import SepaMandate from './SepaMandate'
 import PrivacyPolicy from './PrivacyPolicy'
+import { User } from '@supabase/supabase-js'
 
-export default function MemberForm({ user }) {
+interface Member {
+  active: boolean;
+  salutation: string;
+  title: string;
+  surname: string;
+  given_name: string;
+  email: string;
+  date_of_birth: string;
+  street: string;
+  number: string;
+  postal_code: string;
+  city: string;
+  country: string;
+  user_id: string;
+  [key: string]: any; // Allow indexing
+}
+
+interface Sepa {
+  iban: string;
+  bic: string;
+  bank_name: string;
+  mandate_agreed: boolean;
+  privacy_agreed: boolean;
+  user_id: string;
+  [key: string]: any; // Allow indexing
+}
+
+interface MemberFormProps {
+  user: User;
+}
+
+interface SepaUpdateEventDetail {
+  mandate_agreed: boolean;
+}
+
+interface PrivacyUpdateEventDetail {
+  privacy_agreed: boolean;
+}
+
+export default function MemberForm({ user }: MemberFormProps) {
   const [loading, setLoading] = useState(true)
-  const [member, setMember] = useState({
+  const [member, setMember] = useState<Member>({
     active: true,
     salutation: '',
     title: '',
@@ -25,7 +64,7 @@ export default function MemberForm({ user }) {
   const [statusRequestMessage, setStatusRequestMessage] = useState('')
 
 
-  const [sepa, setSepa] = useState({
+  const [sepa, setSepa] = useState<Sepa>({
     iban: '',
     bic: '',
     bank_name: '',
@@ -34,15 +73,14 @@ export default function MemberForm({ user }) {
     user_id: user.id,
   })
 
-  const [originalMember, setOriginalMember] = useState(null)
-  const [originalSepa, setOriginalSepa] = useState(null)
+  const [originalMember, setOriginalMember] = useState<Member | null>(null)
+  const [originalSepa, setOriginalSepa] = useState<Sepa | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [message, setMessage] = useState('')
   const [requestedStatus, setRequestedStatus] = useState(member.active ? 'inactive' : 'active');
   const [showSepaModal, setShowSepaModal] = useState(false)
   const [showPrivacyModal, setShowPrivacyModal] = useState(false)
-  const [pendingSepaCheck, setPendingSepaCheck] = useState(false)
-  const [pendingPrivacyCheck, setPendingPrivacyCheck] = useState(false)
+
 
   useEffect(() => {
     fetchData()
@@ -50,15 +88,17 @@ export default function MemberForm({ user }) {
 
   // Listen for modal state changes
   useEffect(() => {
-    const handleSepaUpdate = (event) => {
-      if (event.detail && typeof event.detail.mandate_agreed === 'boolean') {
-        setSepa(prev => ({ ...prev, mandate_agreed: event.detail.mandate_agreed }))
+    const handleSepaUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<SepaUpdateEventDetail>;
+      if (customEvent.detail && typeof customEvent.detail.mandate_agreed === 'boolean') {
+        setSepa(prev => ({ ...prev, mandate_agreed: customEvent.detail.mandate_agreed }))
       }
     }
 
-    const handlePrivacyUpdate = (event) => {
-      if (event.detail && typeof event.detail.privacy_agreed === 'boolean') {
-        setSepa(prev => ({ ...prev, privacy_agreed: event.detail.privacy_agreed }))
+    const handlePrivacyUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<PrivacyUpdateEventDetail>;
+      if (customEvent.detail && typeof customEvent.detail.privacy_agreed === 'boolean') {
+        setSepa(prev => ({ ...prev, privacy_agreed: customEvent.detail.privacy_agreed }))
       }
     }
 
@@ -99,14 +139,14 @@ export default function MemberForm({ user }) {
     setLoading(false)
   }
 
-  async function updateData(e) {
+  async function updateData(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
     setMessage('')
 
     const { error: memberError } = await supabase
       .from('members')
-      .upsert(member, { onConflict: ['user_id'] })
+      .upsert(member, { onConflict: 'user_id' })
 
     if (memberError) {
       setMessage(`Member error: ${memberError.message}`)
@@ -116,7 +156,7 @@ export default function MemberForm({ user }) {
 
     const { error: sepaError } = await supabase
       .from('sepa')
-      .upsert(sepa, { onConflict: ['user_id'] })
+      .upsert(sepa, { onConflict: 'user_id' })
 
     if (sepaError) {
       setMessage(`SEPA error: ${sepaError.message}`)
@@ -131,16 +171,18 @@ export default function MemberForm({ user }) {
     setLoading(false)
   }
 
-  function handleMemberChange(e) {
-    const { name, value, type, checked } = e.target
+  function handleMemberChange(e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) {
+    const { name, value, type } = e.target
+    const checked = (e.target as HTMLInputElement).checked
     setMember(prev => ({
       ...prev,
       [name]: type === 'checkbox' ? checked : value,
     }))
   }
 
-  function handleSepaChange(e) {
-    const { name, type, checked, value } = e.target
+  function handleSepaChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const { name, type, value } = e.target
+    const checked = e.target.checked
     const newValue = type === 'checkbox' ? checked : value
     
     setSepa(prev => ({
@@ -161,13 +203,12 @@ export default function MemberForm({ user }) {
   }
 
   // Custom handler for SEPA checkbox
-  function handleSepaCheckbox(e) {
+  function handleSepaCheckbox(e: React.ChangeEvent<HTMLInputElement>) {
     if (loading) return;
     const checked = e.target.checked;
     if (!sepa.mandate_agreed && checked) {
       // Not agreed, trying to check: show modal
       e.preventDefault();
-      setPendingSepaCheck(true);
       setShowSepaModal(true);
     } else if (sepa.mandate_agreed && !checked) {
       // Already agreed, allow unchecking directly
@@ -184,13 +225,12 @@ export default function MemberForm({ user }) {
   }
 
   // Custom handler for Privacy Policy checkbox
-  function handlePrivacyCheckbox(e) {
+  function handlePrivacyCheckbox(e: React.ChangeEvent<HTMLInputElement>) {
     if (loading) return;
     const checked = e.target.checked;
     if (!sepa.privacy_agreed && checked) {
       // Not agreed, trying to check: show modal
       e.preventDefault();
-      setPendingPrivacyCheck(true);
       setShowPrivacyModal(true);
     } else if (sepa.privacy_agreed && !checked) {
       // Already agreed, cannot uncheck
@@ -430,12 +470,11 @@ export default function MemberForm({ user }) {
       {showSepaModal && (
         <Modal
           title="SEPA Mandate Agreement"
-          onClose={() => { setShowSepaModal(false); setPendingSepaCheck(false); }}
+          onClose={() => { setShowSepaModal(false); }}
           onConfirm={() => {
             setSepa(prev => ({ ...prev, mandate_agreed: true }));
             window.dispatchEvent(new CustomEvent('sepa-updated', { detail: { mandate_agreed: true } }));
             setShowSepaModal(false);
-            setPendingSepaCheck(false);
           }}
         >
           <SepaMandate sepaAgreed={sepa.mandate_agreed} />
@@ -444,12 +483,11 @@ export default function MemberForm({ user }) {
       {showPrivacyModal && (
         <Modal
           title="Privacy Policy Agreement"
-          onClose={() => { setShowPrivacyModal(false); setPendingPrivacyCheck(false); }}
+          onClose={() => { setShowPrivacyModal(false); }}
           onConfirm={() => {
             setSepa(prev => ({ ...prev, privacy_agreed: true }));
             window.dispatchEvent(new CustomEvent('privacy-updated', { detail: { privacy_agreed: true } }));
             setShowPrivacyModal(false);
-            setPendingPrivacyCheck(false);
           }}
         >
           <PrivacyPolicy privacyAgreed={sepa.privacy_agreed} />

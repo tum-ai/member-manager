@@ -1,17 +1,24 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
-export default function SepaForm() {
-  const [form, setForm] = useState({ member_id: '', iban: '', bic: '', mandate_agreed: false })
+interface SepaFormData {
+  member_id: string;
+  iban: string;
+  bic: string;
+  mandate_agreed: boolean;
+}
 
-  const handleChange = e => {
+export default function SepaForm() {
+  const [form, setForm] = useState<SepaFormData>({ member_id: '', iban: '', bic: '', mandate_agreed: false })
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
     setForm({ ...form, [name]: type === 'checkbox' ? checked : value })
   }
 
-  const handleSubmit = async e => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const { data, error } = await supabase.from('sepa_mandates').insert([form])
+    const { error } = await supabase.from('sepa_mandates').insert([form])
     if (error) alert('Error: ' + error.message)
     else alert('SEPA info added successfully!')
   }

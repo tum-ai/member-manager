@@ -1,14 +1,21 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
+interface Member {
+  id: string;
+  name: string;
+  email: string;
+  [key: string]: any;
+}
+
 export default function MemberList() {
-  const [members, setMembers] = useState([])
+  const [members, setMembers] = useState<Member[]>([])
 
   useEffect(() => {
     const fetchMembers = async () => {
       const { data, error } = await supabase.from('members').select('*')
       console.log('Fetched members:', data, 'Error:', error)
-      if (!error) setMembers(data)
+      if (!error && data) setMembers(data)
     }
     fetchMembers()
   }, [])

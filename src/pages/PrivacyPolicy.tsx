@@ -1,6 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
-export default function PrivacyPolicy({ onCheckChange, privacyAgreed }) {
+interface PrivacyPolicyProps {
+  onCheckChange?: (checked: boolean) => void;
+  privacyAgreed: boolean;
+}
+
+export default function PrivacyPolicy({ onCheckChange, privacyAgreed }: PrivacyPolicyProps) {
   const [checked, setChecked] = useState(!!privacyAgreed);
 
   useEffect(() => {

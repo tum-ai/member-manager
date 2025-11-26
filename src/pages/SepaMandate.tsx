@@ -1,6 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 
-export default function SepaMandate({ onCheckChange, sepaAgreed }) {
+interface SepaMandateProps {
+  onCheckChange?: (checked: boolean) => void;
+  sepaAgreed: boolean;
+}
+
+export default function SepaMandate({ onCheckChange, sepaAgreed }: SepaMandateProps) {
   const [checked, setChecked] = useState(!!sepaAgreed);
 
   useEffect(() => {

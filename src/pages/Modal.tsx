@@ -1,6 +1,14 @@
 import React from 'react'
 
-export default function Modal({ title, onClose, children, onConfirm, confirmDisabled }) {
+interface ModalProps {
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+  onConfirm: () => void;
+  confirmDisabled?: boolean;
+}
+
+export default function Modal({ title, onClose, children, onConfirm, confirmDisabled }: ModalProps) {
   return (
     <div
       style={{

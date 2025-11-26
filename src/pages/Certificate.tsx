@@ -1,12 +1,37 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import { jsPDF } from 'jspdf'
+import { User } from '@supabase/supabase-js'
 
-export default function EngagementConfirmation({ user }) {
+interface EngagementConfirmationProps {
+  user: User;
+}
+
+interface MemberData {
+  salutation: string;
+  given_name: string;
+  surname: string;
+  date_of_birth: string;
+  active: boolean;
+  email: string;
+}
+
+interface Engagement {
+  startDate: string;
+  endDate: string;
+  weeklyHours: string;
+  department: string;
+  isTeamLead: boolean;
+  isStillActive: boolean;
+  tasksDescription: string;
+  [key: string]: any; // Allow indexing
+}
+
+export default function EngagementConfirmation({ user }: EngagementConfirmationProps) {
   const [loading, setLoading] = useState(true)
   const [isSendingEmail, setIsSendingEmail] = useState(false) // New state for email sending status
-  const [memberData, setMemberData] = useState(null)
-  const [error, setError] = useState(null)
+  const [memberData, setMemberData] = useState<MemberData | null>(null)
+  const [error, setError] = useState<string | null>(null)
 
   const institutionName = 'TUM.ai'
 
@@ -23,7 +48,7 @@ export default function EngagementConfirmation({ user }) {
     'Venture',
   ].sort()
 
-  const [engagements, setEngagements] = useState([
+  const [engagements, setEngagements] = useState<Engagement[]>([
     {
       startDate: '',
       endDate: '',
@@ -57,7 +82,7 @@ export default function EngagementConfirmation({ user }) {
     fetchMemberData()
   }, [user])
 
-  const updateEngagement = (index, key, value) => {
+  const updateEngagement = (index: number, key: string, value: any) => {
     const updated = [...engagements]
     updated[index][key] = value
     // If isStillActive changes to true, clear endDate
@@ -86,7 +111,7 @@ export default function EngagementConfirmation({ user }) {
     ])
   }
 
-  const removeEngagement = (index) => {
+  const removeEngagement = (index: number) => {
     setEngagements(engagements.filter((_, i) => i !== index))
   }
 
@@ -125,17 +150,21 @@ export default function EngagementConfirmation({ user }) {
       const logoPath = '/img/logo_black.png'
 
       // Load image as base64 to ensure proper loading
-      const loadImageAsBase64 = (src) => {
+      const loadImageAsBase64 = (src: string): Promise<string> => {
         return new Promise((resolve, reject) => {
           const img = new Image()
           img.crossOrigin = 'anonymous'
           img.onload = () => {
             const canvas = document.createElement('canvas')
             const ctx = canvas.getContext('2d')
-            canvas.width = img.width
-            canvas.height = img.height
-            ctx.drawImage(img, 0, 0)
-            resolve(canvas.toDataURL('image/png'))
+            if (ctx) {
+                canvas.width = img.width
+                canvas.height = img.height
+                ctx.drawImage(img, 0, 0)
+                resolve(canvas.toDataURL('image/png'))
+            } else {
+                reject(new Error('Could not get canvas context'))
+            }
           }
           img.onerror = reject
           img.src = src
@@ -166,13 +195,13 @@ export default function EngagementConfirmation({ user }) {
 
     doc.setFont('helvetica', 'bold')
     doc.setFontSize(22)
-    doc.setTextColor(...checkColor)
+    doc.setTextColor(checkColor[0], checkColor[1], checkColor[2])
     doc.text('CERTIFICATE', pageWidth / 2, y, { align: 'center' })
 
     y += 20
     doc.setFontSize(12)
     doc.setFont('helvetica', 'normal')
-    doc.setTextColor(...textColor)
+    doc.setTextColor(textColor[0], textColor[1], textColor[2])
     doc.setLineHeightFactor(1.5)
 
     const intro = `
@@ -198,7 +227,7 @@ We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in an
 
     // Loop through engagements
     engagements.forEach(({ startDate, endDate, department, isTeamLead, isStillActive, tasksDescription }) => {
-      const formatMonthYear = (dateStr) => {
+      const formatMonthYear = (dateStr: string) => {
         const date = new Date(dateStr)
         // Ensure date is valid before formatting
         if (isNaN(date.getTime())) {
@@ -226,7 +255,7 @@ We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in an
       const checkmarkOffset = 5
       const indentX = colX3 + checkmarkOffset
 
-      const formattedTasks = []
+      const formattedTasks: { check: boolean; line: string }[] = []
       tasks.forEach(task => {
         const wrapped = doc.splitTextToSize(task, col3Width - checkmarkOffset - 1)
         if (wrapped.length > 0) {
@@ -241,7 +270,7 @@ We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in an
       const lineHeight = 6
 
       for (let i = 0; i < lines; i++) {
-        doc.setTextColor(...textColor)
+        doc.setTextColor(textColor[0], textColor[1], textColor[2])
 
         if (wrappedPeriod[i]) doc.text(wrappedPeriod[i], colX1, y)
         if (wrappedDept[i]) doc.text(wrappedDept[i], colX2, y)
@@ -249,9 +278,9 @@ We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in an
         const taskLine = formattedTasks[i]
         if (taskLine) {
           if (taskLine.check) {
-            doc.setTextColor(...checkColor)
+            doc.setTextColor(checkColor[0], checkColor[1], checkColor[2])
             doc.text(checkmark, colX3, y)
-            doc.setTextColor(...textColor)
+            doc.setTextColor(textColor[0], textColor[1], textColor[2])
             doc.text(taskLine.line, colX3 + checkmarkOffset, y)
           } else {
             doc.text(taskLine.line, indentX, y)
@@ -316,24 +345,25 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
   }
 
   // --- Function to handle downloading the PDF ---
-  const handleDownloadPdf = async () => {
-    const pdfBlob = await generatePdfBlob();
-    if (pdfBlob) {
-      const fullName = `${memberData.given_name} ${memberData.surname}`;
-      const url = URL.createObjectURL(pdfBlob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `TUMai_Certificate_${fullName}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-    }
-  };
+  // const handleDownloadPdf = async () => {
+  //   const pdfBlob = await generatePdfBlob();
+  //   if (pdfBlob && memberData) {
+  //     const fullName = `${memberData.given_name} ${memberData.surname}`;
+  //     const url = URL.createObjectURL(pdfBlob);
+  //     const a = document.createElement('a');
+  //     a.href = url;
+  //     a.download = `TUMai_Certificate_${fullName}.pdf`;
+  //     document.body.appendChild(a);
+  //     a.click();
+  //     document.body.removeChild(a);
+  //     URL.revokeObjectURL(url);
+  //   }
+  // };
 
   // --- Function to handle sending the PDF via email ---
   const handleSendPdfEmail = async () => {
     if (isSendingEmail) return; // Prevent double clicks
+    if (!memberData) return;
 
     const pdfBlob = await generatePdfBlob();
     if (!pdfBlob) return; // If PDF generation failed (e.g., validation), stop
@@ -353,7 +383,8 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
       const reader = new FileReader();
       reader.readAsDataURL(pdfBlob);
       reader.onloadend = async () => {
-        const base64Pdf = reader.result.split(',')[1]; // Get only the base64 part
+        const result = reader.result as string;
+        const base64Pdf = result.split(',')[1]; // Get only the base64 part
         const pdfFileName = `TUMai_Certificate_${fullName}.pdf`;
 
         const { data, error } = await supabase.functions.invoke('email-test-m1', {
@@ -402,6 +433,7 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
 
   if (loading) return <div>Loading...</div>
   if (error) return <div>{error}</div>
+  if (!memberData) return <div>No member data found.</div>
 
   return (
     <div style={{ color: 'white', maxWidth: 700, margin: 'auto', padding: '1rem' }}>

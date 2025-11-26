@@ -1,6 +1,10 @@
 // src/theme.js
 import { createTheme } from '@mui/material/styles';
 
+
+
+
+
 // Define all M3 Typography Variants as constants FIRST
 // This way, they can be referenced consistently throughout the theme object
 const displayLarge = {
@@ -210,7 +214,7 @@ const getAppTheme = () =>
           variant: 'outlined', // Default to outlined for a cleaner M3 look
         },
         styleOverrides: {
-          root: ({ ownerState, theme }) => ({
+          root: ({ theme }) => ({
             '& .MuiOutlinedInput-root': {
               borderRadius: '8px', // Slightly rounded corners for text fields
               backgroundColor: 'rgba(255,255,255,0.05)', // Lighter fill for M3 dark mode
@@ -269,7 +273,7 @@ const getAppTheme = () =>
       MuiDialog: {
           styleOverrides: {
               paper: ({ theme }) => ({
-                  borderRadius: theme.shape.borderRadius * 2, // Apply the border radius set in App.jsx's PaperProps here as a default
+                  borderRadius: (theme.shape.borderRadius as number) * 2, // Apply the border radius set in App.jsx's PaperProps here as a default
                   backgroundColor: theme.palette.background.paper,
                   color: theme.palette.text.primary,
               }),

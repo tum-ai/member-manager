@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { User } from '@supabase/supabase-js';
 
 // Import MUI components and hooks
 import {
@@ -22,7 +23,7 @@ const AuthCard = styled(Paper)(({ theme }) => ({
   display: 'flex',
   flexDirection: 'column',
   gap: theme.spacing(2),
-  borderRadius: theme.shape.borderRadius * 2, // More rounded for M3
+  borderRadius: (theme.shape.borderRadius as number) * 2, // More rounded for M3
   boxShadow: theme.shadows[3],
   width: '100%',
   maxWidth: 400,
@@ -31,7 +32,15 @@ const AuthCard = styled(Paper)(({ theme }) => ({
   },
 }));
 
-export default function Auth({ onLogin }) {
+interface UserWithRole extends User {
+  role?: string;
+}
+
+interface AuthProps {
+  onLogin: (user: UserWithRole) => void;
+}
+
+export default function Auth({ onLogin }: AuthProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin] = useState(true);
@@ -42,7 +51,7 @@ export default function Auth({ onLogin }) {
   const isLargeScreen = useMediaQuery(theme.breakpoints.up('md')); // Check if screen is medium size or larger
 
   // Create or check member after login
-  async function handlePostLogin(user) {
+  async function handlePostLogin(user: User) {
     try {
       const { data: existingMember, error: fetchError } = await supabase
         .from('members')
@@ -100,7 +109,7 @@ export default function Auth({ onLogin }) {
     }
   }
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setMessage('');
     setLoading(true); // Start loading
@@ -122,7 +131,7 @@ export default function Auth({ onLogin }) {
 
         await handlePostLogin(user);
       } else {
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {

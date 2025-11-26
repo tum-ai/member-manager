@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link as RouterLink } from 'react-router-dom';
 import { supabase } from './lib/supabaseClient';
+import { User } from '@supabase/supabase-js';
 
 // Import MUI Components
 import {
@@ -24,9 +25,9 @@ import {
   useMediaQuery,
   useTheme,
   Slide,
-  Paper,
   Tooltip,
 } from '@mui/material';
+import { TransitionProps } from '@mui/material/transitions';
 
 // Import MUI Icons
 import MenuIcon from '@mui/icons-material/Menu';
@@ -36,7 +37,6 @@ import DescriptionIcon from '@mui/icons-material/Description'; // For SEPA
 import PolicyIcon from '@mui/icons-material/Policy'; // For Privacy Policy
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents'; // For Certificate
 import AdminPanelSettingsIcon from '@mui/icons-material/AdminPanelSettings'; // For Admin View
-import PaidIcon from '@mui/icons-material/Paid'; // For Legal & Financial Admin View
 import Auth from './pages/Auth'
 import MemberForm from './pages/MemberForm'
 import Certificate from './pages/Certificate'
@@ -46,21 +46,38 @@ import SepaMandate from './pages/SepaMandate'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 
 // Transition for Dialog (like a bottom-up slide)
-const Transition = React.forwardRef(function Transition(props, ref) {
+const Transition = React.forwardRef(function Transition(
+  props: TransitionProps & {
+    children: React.ReactElement<any, any>;
+  },
+  ref: React.Ref<unknown>,
+) {
   return <Slide direction="up" ref={ref} {...props} />;
 });
 
-const dummyUser = {
+const dummyUser: User = {
   id: '00000000-0000-0000-0000-000000000001',
+  app_metadata: {},
+  user_metadata: {},
+  aud: 'authenticated',
+  created_at: new Date().toISOString(),
   email: 'debug@example.com',
   role: 'user',
-};
+} as User;
+
+interface SepaUpdateEventDetail {
+  mandate_agreed: boolean;
+}
+
+interface PrivacyUpdateEventDetail {
+  privacy_agreed: boolean;
+}
 
 export default function App() {
   const isDev = import.meta.env.MODE === 'development' && false;
-  const [user, setUser] = useState(isDev ? dummyUser : null);
+  const [user, setUser] = useState<User | null>(isDev ? dummyUser : null);
   const [loading, setLoading] = useState(!isDev);
-  const [userRole, setUserRole] = useState(null);
+  const [userRole, setUserRole] = useState<string | null>(null);
 
   const [showSepa, setShowSepa] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
@@ -90,17 +107,19 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const handleSepaUpdate = (event) => {
-      if (event.detail && typeof event.detail.mandate_agreed === 'boolean') {
-        setSepaChecked(event.detail.mandate_agreed);
-        setCurrentSepaAgreed(event.detail.mandate_agreed);
+    const handleSepaUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<SepaUpdateEventDetail>;
+      if (customEvent.detail && typeof customEvent.detail.mandate_agreed === 'boolean') {
+        setSepaChecked(customEvent.detail.mandate_agreed);
+        setCurrentSepaAgreed(customEvent.detail.mandate_agreed);
       }
     };
 
-    const handlePrivacyUpdate = (event) => {
-      if (event.detail && typeof event.detail.privacy_agreed === 'boolean') {
-        setPrivacyChecked(event.detail.privacy_agreed);
-        setCurrentPrivacyAgreed(event.detail.privacy_agreed);
+    const handlePrivacyUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent<PrivacyUpdateEventDetail>;
+      if (customEvent.detail && typeof customEvent.detail.privacy_agreed === 'boolean') {
+        setPrivacyChecked(customEvent.detail.privacy_agreed);
+        setCurrentPrivacyAgreed(customEvent.detail.privacy_agreed);
       }
     };
 
@@ -137,7 +156,7 @@ export default function App() {
         .select('role')
         .eq('user_id', user.id)
         .single()
-        .then(({ data, error }) => {
+        .then(({ data }) => {
           if (data) setUserRole(data.role);
           else setUserRole(null);
         });
@@ -153,7 +172,7 @@ export default function App() {
         .select('mandate_agreed, privacy_agreed')
         .eq('user_id', user.id)
         .single()
-        .then(({ data, error }) => {
+        .then(({ data }) => {
           if (data) {
             setCurrentSepaAgreed(data.mandate_agreed || false);
             setCurrentPrivacyAgreed(data.privacy_agreed || false);
@@ -300,7 +319,7 @@ export default function App() {
           onClick={() => setDrawerOpen(false)}
           onKeyDown={() => setDrawerOpen(false)}
         >
-          <img src="/img/logo.webp" alt="TUM.ai Logo" style={{ height: '24px', mb: 4, pb: 4 }} />
+          <img src="/img/logo.webp" alt="TUM.ai Logo" style={{ height: '24px', marginBottom: '32px', paddingBottom: '32px' }} />
           <List sx={{ width: '100%' }}>
             {userRole === 'user' && (
             <ListItem disablePadding>
@@ -344,8 +363,8 @@ export default function App() {
             )}
             <ListItem disablePadding sx={{ mt: 2 }}>
               <ListItemButton onClick={handleLogout}>
-                <ListItemIcon><LogoutIcon sx={{ color: theme.palette.primary.surface }} /></ListItemIcon>
-                <ListItemText primary="Logout" sx={{ color: theme.palette.primary.surface }} />
+                <ListItemIcon><LogoutIcon sx={{ color: theme.palette.primary.main }} /></ListItemIcon>
+                <ListItemText primary="Logout" sx={{ color: theme.palette.primary.main }} />
               </ListItemButton>
             </ListItem>
           </List>
@@ -368,8 +387,8 @@ export default function App() {
           {userRole === 'user' && (
             <>
               <Route path="/" element={<MemberForm user={user} />} />
-              <Route path="/sepa" element={<SepaMandate user={user} />} />
-              <Route path="/privacy" element={<PrivacyPolicy user={user} />} />
+              <Route path="/sepa" element={<SepaMandate onCheckChange={setSepaChecked} sepaAgreed={currentSepaAgreed} />} />
+              <Route path="/privacy" element={<PrivacyPolicy onCheckChange={setPrivacyChecked} privacyAgreed={currentPrivacyAgreed} />} />
               <Route path="/certificate" element={<Certificate user={user} />} />
             </>
           )}
@@ -390,7 +409,7 @@ export default function App() {
         maxWidth="md"
         PaperProps={{
             sx: {
-                borderRadius: theme.shape.borderRadius * 2,
+                borderRadius: (theme.shape.borderRadius as number) * 2,
                 backgroundColor: theme.palette.background.paper,
                 color: theme.palette.text.primary,
                 p: theme.spacing(2),
@@ -434,7 +453,7 @@ export default function App() {
         maxWidth="md"
         PaperProps={{
             sx: {
-                borderRadius: theme.shape.borderRadius * 2,
+                borderRadius: (theme.shape.borderRadius as number) * 2,
                 backgroundColor: theme.palette.background.paper,
                 color: theme.palette.text.primary,
                 p: theme.spacing(2),

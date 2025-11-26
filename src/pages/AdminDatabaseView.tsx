@@ -1,22 +1,49 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 import * as XLSX from 'xlsx'
 
+interface Member {
+  user_id: string;
+  surname: string;
+  given_name: string;
+  email: string;
+  phone?: string;
+  active: boolean;
+  sepa: Sepa;
+  [key: string]: any;
+}
+
+interface Sepa {
+  iban?: string;
+  bic?: string;
+  bank_name?: string;
+  mandate_agreed?: boolean;
+  privacy_agreed?: boolean;
+  user_id?: string;
+  [key: string]: any;
+}
+
+interface Filters {
+  search: string;
+  mandateAgreed: string;
+  privacyAgreed: string;
+  active: string;
+}
 
 export default function AdminDatabaseView() {
-  const [data, setData] = useState([])
-  const [filters, setFilters] = useState({
+  const [data, setData] = useState<Member[]>([])
+  const [filters, setFilters] = useState<Filters>({
     search: '',
     mandateAgreed: '',
     privacyAgreed: '',
     active: '',
   })
-  const [sortBy, setSortBy] = useState('surname')
+  const [sortBy, setSortBy] = useState<string>('surname')
   const [sortAsc, setSortAsc] = useState(true)
   const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+  const [error, setError] = useState<string | null>(null)
 
-  function getRowStyle(member) {
+  function getRowStyle(member: Member) {
     if (member.sepa?.mandate_agreed && !member.active) {
       return { backgroundColor: '#dc3545', color: 'white' } // red: SEPA enabled but inactive
     } else if (member.sepa?.mandate_agreed && member.active) {
@@ -27,7 +54,7 @@ export default function AdminDatabaseView() {
   }
 
 
-  async function toggleMemberStatus(member) {
+  async function toggleMemberStatus(member: Member) {
     const newStatus = !member.active
     const confirmation = window.confirm(
       `Are you sure you want to change the status of ${member.given_name} ${member.surname} to ${newStatus ? 'active' : 'inactive'}?`
@@ -58,17 +85,19 @@ export default function AdminDatabaseView() {
       const { data: sepa, error: sepaError } = await supabase.from('sepa').select('*')
 
       if (membersError || sepaError) {
-        setError(membersError?.message || sepaError?.message)
+        setError(membersError?.message || sepaError?.message || null)
         setLoading(false)
         return
       }
 
-      const joined = members.map(member => ({
-        ...member,
-        sepa: sepa.find(s => s.user_id === member.user_id) || {},
-      }))
+      if (members) {
+        const joined: Member[] = members.map((member: any) => ({
+          ...member,
+          sepa: sepa?.find((s: any) => s.user_id === member.user_id) || {},
+        }))
 
-      setData(joined)
+        setData(joined)
+      }
       setLoading(false)
     }
 
@@ -110,7 +139,7 @@ export default function AdminDatabaseView() {
     URL.revokeObjectURL(url)
   }
 
-  function filterRow(row) {
+  function filterRow(row: Member) {
     const { search, mandateAgreed, privacyAgreed, active } = filters
 
     const text = `${row.surname} ${row.given_name} ${row.email} ${row.phone} ${row.sepa.iban || ''} ${row.sepa.bic || ''} ${row.sepa.bank_name || ''}`.toLowerCase()
@@ -235,7 +264,7 @@ export default function AdminDatabaseView() {
       </div>
 
       <table
-        border="1"
+        border={1}
         cellPadding="6"
         style={{
           width: '100%',
