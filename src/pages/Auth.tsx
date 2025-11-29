@@ -159,6 +159,22 @@ export default function Auth({ onLogin }: AuthProps) {
 		}
 	}
 
+	const signInWithSlack = async () => {
+		const { error } = await supabase.auth.signInWithOAuth({
+			provider: "slack_oidc",
+			options: {
+				redirectTo: import.meta.env.VITE_SLACK_CALLBACK_URL,
+			},
+		});
+
+		if (error) {
+			console.error("Slack error:", error.message);
+			setMessage("Slack error: " + error.message);
+			return;
+		}
+	};
+
+
 	return (
 		<Container
 			maxWidth={false} // Allow container to take full width
@@ -245,6 +261,27 @@ export default function Auth({ onLogin }: AuthProps) {
 						</Button>
 					</Box>
 				</form>
+
+				{/* Divider */}
+				<Box sx={{ display: 'flex', alignItems: 'center', my: 2 }}>
+					<Box sx={{ flex: 1, borderTop: 1, borderColor: 'divider' }} />
+					<Typography sx={{ px: 2, color: 'text.secondary' }}>or</Typography>
+					<Box sx={{ flex: 1, borderTop: 1, borderColor: 'divider' }} />
+				</Box>
+
+				{/* Slack Sign In */}
+				<div style={{ textAlign: "center"}}>
+					<img
+						src="https://platform.slack-edge.com/img/sign_in_with_slack.png"
+						srcSet="https://platform.slack-edge.com/img/sign_in_with_slack.png 1x, https://platform.slack-edge.com/img/sign_in_with_slack.png 2x"
+						alt="Sign in with Slack"
+						style={{ cursor: "pointer" }}
+						onClick={signInWithSlack}
+					/>
+				</div>
+
+
+
 				{message && (
 					<Typography color="error" align="center" sx={{ mt: 2 }}>
 						{message}
