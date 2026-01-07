@@ -1,29 +1,8 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import * as XLSX from "xlsx";
-import { supabase } from "../../lib/supabaseClient";
-
-interface Member {
-	user_id: string;
-	surname: string;
-	given_name: string;
-	email: string;
-	phone?: string;
-	active: boolean;
-	sepa: Sepa;
-	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
-	[key: string]: any;
-}
-
-interface Sepa {
-	iban?: string;
-	bic?: string;
-	bank_name?: string;
-	mandate_agreed?: boolean;
-	privacy_agreed?: boolean;
-	user_id?: string;
-	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
-	[key: string]: any;
-}
+import { useToast } from "../../contexts/ToastContext";
+import { useAdminData } from "../../hooks/useAdminData";
+import type { Member } from "../../types";
 
 interface Filters {
 	search: string;
@@ -33,7 +12,9 @@ interface Filters {
 }
 
 export default function AdminDatabaseView() {
-	const [data, setData] = useState<Member[]>([]);
+	const { showToast } = useToast();
+	const { members, isLoading, error, toggleStatus } = useAdminData();
+
 	const [filters, setFilters] = useState<Filters>({
 		search: "",
 		mandateAgreed: "",
@@ -42,20 +23,48 @@ export default function AdminDatabaseView() {
 	});
 	const [sortBy, setSortBy] = useState<string>("surname");
 	const [sortAsc, setSortAsc] = useState(true);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
+
+	if (isLoading)
+		return <div className="text-white text-center p-8">Loading data...</div>;
+	if (error)
+		return <div className="text-red-500 text-center p-8">Error: {error.message}</div>;
+
+	const filtered = (members || [])
+		.filter((row) => {
+			const { search, mandateAgreed, privacyAgreed, active } = filters;
+			const text =
+				`${row.surname} ${row.given_name} ${row.email} ${row.phone} ${row.sepa.iban || ""} ${row.sepa.bic || ""} ${row.sepa.bank_name || ""}`.toLowerCase();
+
+			if (search && !text.includes(search.toLowerCase())) return false;
+			if (mandateAgreed !== "" && String(row.sepa?.mandate_agreed) !== mandateAgreed)
+				return false;
+			if (privacyAgreed !== "" && String(row.sepa?.privacy_agreed) !== privacyAgreed)
+				return false;
+			if (active !== "" && String(row.active) !== active) return false;
+
+			return true;
+		})
+		.sort((a, b) => {
+			// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
+			const valA = (a as any)[sortBy] ?? (a.sepa as any)?.[sortBy] ?? "";
+			// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
+			const valB = (b as any)[sortBy] ?? (b.sepa as any)?.[sortBy] ?? "";
+			return sortAsc
+				? String(valA).localeCompare(String(valB))
+				: String(valB).localeCompare(String(valA));
+		});
 
 	function getRowStyle(member: Member) {
 		if (member.sepa?.mandate_agreed && !member.active) {
-			return { backgroundColor: "#dc3545", color: "white" }; // red: SEPA enabled but inactive
-		} else if (member.sepa?.mandate_agreed && member.active) {
-			return { backgroundColor: "#28a745", color: "white" }; // green: SEPA enabled and active
-		} else {
-			return { backgroundColor: "#fd7e14", color: "white" }; // orange: SEPA not enabled (and not one of the first two cases)
+			return "bg-red-600 text-white"; // red: SEPA enabled but inactive
 		}
+		if (member.sepa?.mandate_agreed && member.active) {
+			return "bg-green-600 text-white"; // green: SEPA enabled and active
+		}
+		return "bg-orange-500 text-white"; // orange: SEPA not enabled
 	}
 
-	async function toggleMemberStatus(member: Member) {
+	async function handleToggleStatus(member: Member) {
 		const newStatus = !member.active;
 		const confirmation = window.confirm(
 			`Are you sure you want to change the status of ${member.given_name} ${member.surname} to ${newStatus ? "active" : "inactive"}?`,
@@ -63,53 +72,13 @@ export default function AdminDatabaseView() {
 
 		if (!confirmation) return;
 
-		const { error } = await supabase
-			.from("members")
-			.update({ active: newStatus })
-			.eq("user_id", member.user_id);
-
-		if (error) {
-			alert(`Failed to update status: ${error.message}`);
-			return;
+		try {
+			await toggleStatus({ userId: member.user_id, newStatus });
+			showToast("Status updated successfully", "success");
+		} catch (err: any) {
+			showToast(`Failed to update status: ${err.message}`, "error");
 		}
-
-		setData((prev) =>
-			prev.map((m) =>
-				m.user_id === member.user_id ? { ...m, active: newStatus } : m,
-			),
-		);
 	}
-
-	useEffect(() => {
-		async function fetchData() {
-			const { data: members, error: membersError } = await supabase
-				.from("members")
-				.select("*");
-			const { data: sepa, error: sepaError } = await supabase
-				.from("sepa")
-				.select("*");
-
-			if (membersError || sepaError) {
-				setError(membersError?.message || sepaError?.message || null);
-				setLoading(false);
-				return;
-			}
-
-			if (members) {
-				// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
-				const joined: Member[] = members.map((member: any) => ({
-					...member,
-					// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
-					sepa: sepa?.find((s: any) => s.user_id === member.user_id) || {},
-				}));
-
-				setData(joined);
-			}
-			setLoading(false);
-		}
-
-		fetchData();
-	}, []);
 
 	function exportToExcel() {
 		const exportData = filtered.map((member) => ({
@@ -128,7 +97,6 @@ export default function AdminDatabaseView() {
 		const worksheet = XLSX.utils.json_to_sheet(exportData);
 		const workbook = XLSX.utils.book_new();
 		XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
-
 		XLSX.writeFile(workbook, "members_export.xlsx");
 	}
 
@@ -139,7 +107,6 @@ export default function AdminDatabaseView() {
 			.join(", ");
 		const blob = new Blob([emails], { type: "text/plain;charset=utf-8" });
 		const url = URL.createObjectURL(blob);
-
 		const link = document.createElement("a");
 		link.href = url;
 		link.download = "filtered_emails.txt";
@@ -149,42 +116,6 @@ export default function AdminDatabaseView() {
 		URL.revokeObjectURL(url);
 	}
 
-	function filterRow(row: Member) {
-		const { search, mandateAgreed, privacyAgreed, active } = filters;
-
-		const text =
-			`${row.surname} ${row.given_name} ${row.email} ${row.phone} ${row.sepa.iban || ""} ${row.sepa.bic || ""} ${row.sepa.bank_name || ""}`.toLowerCase();
-		if (search && !text.includes(search.toLowerCase())) return false;
-
-		if (mandateAgreed !== "") {
-			const val = String(row.sepa.mandate_agreed);
-			if (val !== mandateAgreed) return false;
-		}
-
-		if (privacyAgreed !== "") {
-			const val = String(row.sepa.privacy_agreed);
-			if (val !== privacyAgreed) return false;
-		}
-
-		if (active !== "") {
-			const val = String(row.active);
-			if (val !== active) return false;
-		}
-
-		return true;
-	}
-
-	const filtered = data.filter(filterRow).sort((a, b) => {
-		const valA = a[sortBy] ?? a.sepa?.[sortBy] ?? "";
-		const valB = b[sortBy] ?? b.sepa?.[sortBy] ?? "";
-		return sortAsc
-			? String(valA).localeCompare(String(valB))
-			: String(valB).localeCompare(String(valA));
-	});
-
-	if (loading) return <div style={{ color: "white" }}>Loading data…</div>;
-	if (error) return <div style={{ color: "red" }}>Error: {error}</div>;
-
 	const boolOptions = [
 		{ label: "All", value: "" },
 		{ label: "Yes", value: "true" },
@@ -192,10 +123,11 @@ export default function AdminDatabaseView() {
 	];
 
 	return (
-		<div style={{ minHeight: "100vh", padding: "2rem", color: "white" }}>
-			<h2>Admin Database View</h2>
+		<div className="min-h-screen p-8 text-white">
+			<h2 className="text-3xl font-bold mb-6">Admin Database View</h2>
 
-			<div style={{ marginBottom: "1rem" }}>
+			{/* Filters */}
+			<div className="flex flex-wrap gap-4 mb-6 p-4 bg-gray-800 rounded-lg">
 				<input
 					type="text"
 					placeholder="Search text..."
@@ -203,22 +135,17 @@ export default function AdminDatabaseView() {
 					onChange={(e) =>
 						setFilters((f) => ({ ...f, search: e.target.value }))
 					}
-					style={{
-						padding: "0.5rem",
-						borderRadius: "4px",
-						width: "300px",
-						marginRight: "1rem",
-					}}
+					className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500 w-full md:w-64"
 				/>
 
-				<label>
-					SEPA Mandate:
+				<div className="flex items-center gap-2">
+					<span>SEPA Mandate:</span>
 					<select
 						value={filters.mandateAgreed}
 						onChange={(e) =>
 							setFilters((f) => ({ ...f, mandateAgreed: e.target.value }))
 						}
-						style={{ marginLeft: "0.5rem", marginRight: "1rem" }}
+						className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none"
 					>
 						{boolOptions.map((opt) => (
 							<option key={opt.value} value={opt.value}>
@@ -226,16 +153,16 @@ export default function AdminDatabaseView() {
 							</option>
 						))}
 					</select>
-				</label>
+				</div>
 
-				<label>
-					Privacy Agreed:
+				<div className="flex items-center gap-2">
+					<span>Privacy Agreed:</span>
 					<select
 						value={filters.privacyAgreed}
 						onChange={(e) =>
 							setFilters((f) => ({ ...f, privacyAgreed: e.target.value }))
 						}
-						style={{ marginLeft: "0.5rem", marginRight: "1rem" }}
+						className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none"
 					>
 						{boolOptions.map((opt) => (
 							<option key={opt.value} value={opt.value}>
@@ -243,16 +170,16 @@ export default function AdminDatabaseView() {
 							</option>
 						))}
 					</select>
-				</label>
+				</div>
 
-				<label>
-					Active:
+				<div className="flex items-center gap-2">
+					<span>Active:</span>
 					<select
 						value={filters.active}
 						onChange={(e) =>
 							setFilters((f) => ({ ...f, active: e.target.value }))
 						}
-						style={{ marginLeft: "0.5rem" }}
+						className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none"
 					>
 						{boolOptions.map((opt) => (
 							<option key={opt.value} value={opt.value}>
@@ -260,124 +187,96 @@ export default function AdminDatabaseView() {
 							</option>
 						))}
 					</select>
-				</label>
+				</div>
 			</div>
-			<div style={{ marginBottom: "1rem" }}>
+
+			{/* Actions */}
+			<div className="flex gap-4 mb-6">
 				<button
 					type="button"
 					onClick={exportToExcel}
-					style={{
-						marginRight: "1rem",
-						padding: "0.5rem 1rem",
-						borderRadius: "4px",
-						border: "none",
-						backgroundColor: "#007bff",
-						color: "white",
-						cursor: "pointer",
-					}}
+					className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium transition-colors"
 				>
 					Export to Excel
 				</button>
-
 				<button
 					type="button"
 					onClick={downloadEmails}
-					style={{
-						padding: "0.5rem 1rem",
-						borderRadius: "4px",
-						border: "none",
-						backgroundColor: "#17a2b8",
-						color: "white",
-						cursor: "pointer",
-					}}
+					className="px-4 py-2 bg-teal-600 hover:bg-teal-700 rounded font-medium transition-colors"
 				>
 					Download Filtered Emails
 				</button>
 			</div>
 
-			<table
-				border={1}
-				cellPadding="6"
-				style={{
-					width: "100%",
-					backgroundColor: "#111",
-					color: "white",
-					borderCollapse: "collapse",
-					cursor: "default",
-				}}
-			>
-				<thead>
-					<tr>
-						{[
-							{ key: "surname", label: "Surname" },
-							{ key: "given_name", label: "Given Name" },
-							{ key: "email", label: "Email" },
-							{ key: "phone", label: "Phone" },
-							{ key: "iban", label: "IBAN" },
-							{ key: "bic", label: "BIC" },
-							{ key: "bank_name", label: "Bank Name" },
-							{ key: "mandate_agreed", label: "SEPA Mandate" },
-							{ key: "privacy_agreed", label: "Privacy Agreed" },
-							{ key: "active", label: "Active" },
-							{ key: "actions", label: "Actions" },
-						].map(({ key, label }) => (
-							<th
-								key={key}
-								onClick={() => {
-									setSortBy(key);
-									setSortAsc((prev) => (sortBy === key ? !prev : true));
-								}}
-								style={{
-									cursor: "pointer",
-									backgroundColor: "#222",
-									userSelect: "none",
-								}}
-							>
-								{label} {sortBy === key ? (sortAsc ? "▲" : "▼") : ""}
-							</th>
-						))}
-					</tr>
-				</thead>
-				<tbody>
-					{filtered.map((row) => (
-						<tr key={row.user_id} style={getRowStyle(row)}>
-							<td>{row.surname}</td>
-							<td>{row.given_name}</td>
-							<td>{row.email}</td>
-							<td>{row.phone}</td>
-							<td>{row.sepa?.iban || ""}</td>
-							<td>{row.sepa?.bic || ""}</td>
-							<td>{row.sepa?.bank_name || ""}</td>
-							<td>{String(row.sepa?.mandate_agreed)}</td>
-							<td>{String(row.sepa?.privacy_agreed)}</td>
-							<td>{String(row.active)}</td>
-							<td>
-								<button
-									type="button"
-									onClick={() => toggleMemberStatus(row)}
-									style={{
-										padding: "0.25rem 0.5rem",
-										backgroundColor: row.active ? "#dc3545" : "#28a745",
-										color: "white",
-										border: "none",
-										borderRadius: "4px",
-										cursor: "pointer",
+			{/* Table */}
+			<div className="overflow-x-auto rounded-lg border border-gray-700">
+				<table className="w-full border-collapse text-sm">
+					<thead>
+						<tr className="bg-gray-900 text-left">
+							{[
+								{ key: "surname", label: "Surname" },
+								{ key: "given_name", label: "Given Name" },
+								{ key: "email", label: "Email" },
+								{ key: "phone", label: "Phone" },
+								{ key: "iban", label: "IBAN" },
+								{ key: "bic", label: "BIC" },
+								{ key: "bank_name", label: "Bank Name" },
+								{ key: "mandate_agreed", label: "SEPA" },
+								{ key: "privacy_agreed", label: "Privacy" },
+								{ key: "active", label: "Active" },
+								{ key: "actions", label: "Actions" },
+							].map(({ key, label }) => (
+								<th
+									key={key}
+									onClick={() => {
+										setSortBy(key);
+										setSortAsc((prev) => (sortBy === key ? !prev : true));
 									}}
+									className="p-3 cursor-pointer hover:bg-gray-800 select-none whitespace-nowrap"
 								>
-									{row.active ? "Set Inactive" : "Set Active"}
-								</button>
-							</td>
+									{label} {sortBy === key ? (sortAsc ? "▲" : "▼") : ""}
+								</th>
+							))}
 						</tr>
-					))}
-					{filtered.length === 0 && (
-						<tr>
-							<td colSpan={11} style={{ textAlign: "center", padding: "1rem" }}>
-								No records found.
-							</td>
-						</tr>
-					)}
-				</tbody>
-			</table>
+					</thead>
+					<tbody>
+						{filtered.map((row) => (
+							<tr key={row.user_id} className={`${getRowStyle(row)} border-b border-gray-700`}>
+								<td className="p-3">{row.surname}</td>
+								<td className="p-3">{row.given_name}</td>
+								<td className="p-3">{row.email}</td>
+								<td className="p-3">{row.phone}</td>
+								<td className="p-3">{row.sepa?.iban || ""}</td>
+								<td className="p-3">{row.sepa?.bic || ""}</td>
+								<td className="p-3">{row.sepa?.bank_name || ""}</td>
+								<td className="p-3">{String(row.sepa?.mandate_agreed)}</td>
+								<td className="p-3">{String(row.sepa?.privacy_agreed)}</td>
+								<td className="p-3">{String(row.active)}</td>
+								<td className="p-3">
+									<button
+										type="button"
+										onClick={() => handleToggleStatus(row)}
+										className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
+											row.active
+												? "bg-red-700 hover:bg-red-800"
+												: "bg-green-700 hover:bg-green-800"
+										}`}
+									>
+										{row.active ? "Set Inactive" : "Set Active"}
+									</button>
+								</td>
+							</tr>
+						))}
+						{filtered.length === 0 && (
+							<tr>
+								<td colSpan={11} className="p-8 text-center text-gray-400">
+									No records found.
+								</td>
+							</tr>
+						)}
+					</tbody>
+				</table>
+			</div>
 		</div>
 	);
 }
