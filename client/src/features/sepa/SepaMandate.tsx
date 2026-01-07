@@ -102,6 +102,7 @@ export default function SepaMandate({
 							type="checkbox"
 							checked={checked}
 							onChange={(e) => setChecked(e.target.checked)}
+							disabled={sepaAgreed}
 						/>{" "}
 						I have read and agree to the SEPA mandate.
 					</label>
