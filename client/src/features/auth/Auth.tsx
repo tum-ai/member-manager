@@ -1,36 +1,42 @@
-// Import MUI components and hooks
+import { zodResolver } from "@hookform/resolvers/zod";
 import {
 	Box,
 	Button,
 	CircularProgress,
-	Container, // For overall page container
-	Link, // For the toggle text
+	Container,
+	Link,
 	Paper,
 	TextField,
 	Typography,
-	useMediaQuery, // To check screen size for responsiveness
-	useTheme, // To access the current theme
+	useMediaQuery,
+	useTheme,
 } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import type { User } from "@supabase/supabase-js";
-import type React from "react";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { apiClient } from "../../lib/apiClient";
 import { supabase } from "../../lib/supabaseClient";
 
-import { apiClient } from "../../lib/apiClient";
+const authSchema = z.object({
+	email: z.string().email("Invalid email address"),
+	password: z.string().min(6, "Password must be at least 6 characters"),
+});
 
-// Styled component for the main form card
+type AuthSchema = z.infer<typeof authSchema>;
+
 const AuthCard = styled(Paper)(({ theme }) => ({
 	padding: theme.spacing(4),
 	display: "flex",
 	flexDirection: "column",
 	gap: theme.spacing(2),
-	borderRadius: (theme.shape.borderRadius as number) * 2, // More rounded for M3
+	borderRadius: (theme.shape.borderRadius as number) * 2,
 	boxShadow: theme.shadows[3],
 	width: "100%",
 	maxWidth: 400,
 	[theme.breakpoints.down("sm")]: {
-		padding: theme.spacing(3), // Slightly less padding on small screens
+		padding: theme.spacing(3),
 	},
 }));
 
@@ -43,16 +49,21 @@ interface AuthProps {
 }
 
 export default function Auth({ onLogin }: AuthProps) {
-	const [email, setEmail] = useState("");
-	const [password, setPassword] = useState("");
 	const [isLogin, setIsLogin] = useState(true);
 	const [message, setMessage] = useState("");
-	const [loading, setLoading] = useState(false); // New loading state for auth actions
+	const [loading, setLoading] = useState(false);
 
 	const theme = useTheme();
-	const isLargeScreen = useMediaQuery(theme.breakpoints.up("md")); // Check if screen is medium size or larger
+	const isLargeScreen = useMediaQuery(theme.breakpoints.up("md"));
 
-	// Create or check member after login
+	const {
+		register,
+		handleSubmit,
+		formState: { errors },
+	} = useForm<AuthSchema>({
+		resolver: zodResolver(authSchema),
+	});
+
 	async function handlePostLogin(user: User) {
 		try {
 			const memberData = await apiClient<{ role?: string }>("/api/members", {
@@ -71,16 +82,15 @@ export default function Auth({ onLogin }: AuthProps) {
 		}
 	}
 
-	async function handleSubmit(e: React.FormEvent) {
-		e.preventDefault();
+	async function onSubmit(data: AuthSchema) {
 		setMessage("");
-		setLoading(true); // Start loading
+		setLoading(true);
 
 		try {
 			if (isLogin) {
-				const { data, error } = await supabase.auth.signInWithPassword({
-					email,
-					password,
+				const { data: authData, error } = await supabase.auth.signInWithPassword({
+					email: data.email,
+					password: data.password,
 				});
 
 				if (error) {
@@ -88,7 +98,7 @@ export default function Auth({ onLogin }: AuthProps) {
 					return;
 				}
 
-				const user = data.user || data.session?.user;
+				const user = authData.user || authData.session?.user;
 				if (!user) {
 					setMessage("Login failed. No user returned.");
 					return;
@@ -97,8 +107,8 @@ export default function Auth({ onLogin }: AuthProps) {
 				await handlePostLogin(user);
 			} else {
 				const { error } = await supabase.auth.signUp({
-					email,
-					password,
+					email: data.email,
+					password: data.password,
 					options: {
 						emailRedirectTo: `${window.location.origin}/`,
 					},
@@ -117,7 +127,7 @@ export default function Auth({ onLogin }: AuthProps) {
 			console.error("Unexpected error:", err);
 			setMessage("An unexpected error occurred.");
 		} finally {
-			setLoading(false); // Stop loading regardless of outcome
+			setLoading(false);
 		}
 	}
 
@@ -136,37 +146,34 @@ export default function Auth({ onLogin }: AuthProps) {
 		}
 	};
 
-
 	return (
 		<Container
-			maxWidth={false} // Allow container to take full width
+			maxWidth={false}
 			sx={{
 				display: "flex",
-				flexDirection: isLargeScreen ? "row" : "column", // Row for large, column for small
+				flexDirection: isLargeScreen ? "row" : "column",
 				justifyContent: "center",
 				alignItems: "center",
-				minHeight: "100vh", // Take full viewport height
-				padding: theme.spacing(3), // Use theme spacing
-				backgroundColor: theme.palette.background.default, // Use theme background color
-				gap: theme.spacing(isLargeScreen ? 8 : 4), // More gap on large screens
+				minHeight: "100vh",
+				padding: theme.spacing(3),
+				backgroundColor: theme.palette.background.default,
+				gap: theme.spacing(isLargeScreen ? 8 : 4),
 			}}
 		>
-			{/* Logo Section */}
 			<Box
 				sx={{
 					textAlign: isLargeScreen ? "left" : "center",
-					flexShrink: 0, // Prevent shrinking
+					flexShrink: 0,
 				}}
 			>
 				<img
-					src="/img/logo.webp" // Ensure this path is correct relative to /public
+					src="/img/logo.webp"
 					alt="TUM.ai Logo"
 					style={{
-						width: isLargeScreen ? "180px" : "120px", // Larger logo on large screens
+						width: isLargeScreen ? "180px" : "120px",
 						marginBottom: theme.spacing(isLargeScreen ? 0 : 4),
 					}}
 				/>
-				{/* Optional: Add a tagline or description for the logo section on larger screens */}
 				{isLargeScreen && (
 					<Typography variant="h5" color="text.secondary" sx={{ mt: 2 }}>
 						Welcome to TUM.ai Portal
@@ -174,14 +181,11 @@ export default function Auth({ onLogin }: AuthProps) {
 				)}
 			</Box>
 
-			{/* Auth Form Card */}
 			<AuthCard>
-				{" "}
-				{/* Use the styled Paper component */}
 				<Typography variant="h5" component="h2" align="center" gutterBottom>
 					{isLogin ? "Sign In" : "Register"}
 				</Typography>
-				<form onSubmit={handleSubmit}>
+				<form onSubmit={handleSubmit(onSubmit)}>
 					<Box
 						sx={{
 							display: "flex",
@@ -192,17 +196,17 @@ export default function Auth({ onLogin }: AuthProps) {
 						<TextField
 							label="Email"
 							type="email"
-							value={email}
-							onChange={(e) => setEmail(e.target.value)}
-							required
+							{...register("email")}
+							error={!!errors.email}
+							helperText={errors.email?.message}
 							fullWidth
 						/>
 						<TextField
 							label="Password"
 							type="password"
-							value={password}
-							onChange={(e) => setPassword(e.target.value)}
-							required
+							{...register("password")}
+							error={!!errors.password}
+							helperText={errors.password?.message}
 							fullWidth
 						/>
 						<Button
@@ -210,8 +214,8 @@ export default function Auth({ onLogin }: AuthProps) {
 							variant="contained"
 							color="primary"
 							fullWidth
-							disabled={loading} // Disable button when loading
-							sx={{ mt: 2, height: 48 }} // Ensure consistent button height
+							disabled={loading}
+							sx={{ mt: 2, height: 48 }}
 						>
 							{loading ? (
 								<CircularProgress size={24} color="inherit" />
@@ -224,15 +228,13 @@ export default function Auth({ onLogin }: AuthProps) {
 					</Box>
 				</form>
 
-				{/* Divider */}
-				<Box sx={{ display: 'flex', alignItems: 'center', my: 2 }}>
-					<Box sx={{ flex: 1, borderTop: 1, borderColor: 'divider' }} />
-					<Typography sx={{ px: 2, color: 'text.secondary' }}>or</Typography>
-					<Box sx={{ flex: 1, borderTop: 1, borderColor: 'divider' }} />
+				<Box sx={{ display: "flex", alignItems: "center", my: 2 }}>
+					<Box sx={{ flex: 1, borderTop: 1, borderColor: "divider" }} />
+					<Typography sx={{ px: 2, color: "text.secondary" }}>or</Typography>
+					<Box sx={{ flex: 1, borderTop: 1, borderColor: "divider" }} />
 				</Box>
 
-				{/* Slack Sign In */}
-				<div style={{ textAlign: "center"}}>
+				<div style={{ textAlign: "center" }}>
 					<img
 						src="https://platform.slack-edge.com/img/sign_in_with_slack.png"
 						srcSet="https://platform.slack-edge.com/img/sign_in_with_slack.png 1x, https://platform.slack-edge.com/img/sign_in_with_slack.png 2x"
@@ -241,8 +243,6 @@ export default function Auth({ onLogin }: AuthProps) {
 						onClick={signInWithSlack}
 					/>
 				</div>
-
-
 
 				{message && (
 					<Typography color="error" align="center" sx={{ mt: 2 }}>
@@ -255,11 +255,11 @@ export default function Auth({ onLogin }: AuthProps) {
 						variant="body2"
 						onClick={() => setIsLogin(!isLogin)}
 						sx={{
-							textDecoration: "none", // Remove underline initially
+							textDecoration: "none",
 							"&:hover": {
-								textDecoration: "underline", // Add underline on hover
+								textDecoration: "underline",
 							},
-							color: theme.palette.primary.main, // Use primary color for the link
+							color: theme.palette.primary.main,
 						}}
 					>
 						{isLogin
