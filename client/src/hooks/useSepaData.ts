@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type SepaSchema, sepaSchema } from "../lib/schemas";
+import type { SepaSchema } from "../lib/schemas";
 import { supabase } from "../lib/supabaseClient";
 import type { Sepa } from "../types";
 

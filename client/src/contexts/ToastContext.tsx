@@ -1,5 +1,6 @@
 import { Alert, Snackbar } from "@mui/material";
-import React, { createContext, useContext, useState, useCallback } from "react";
+import type React from "react";
+import { createContext, useCallback, useContext, useState } from "react";
 
 type ToastSeverity = "success" | "error" | "info" | "warning";
 
@@ -14,17 +15,14 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 	const [message, setMessage] = useState("");
 	const [severity, setSeverity] = useState<ToastSeverity>("info");
 
-	const showToast = useCallback(
-		(msg: string, sev: ToastSeverity = "info") => {
-			setMessage(msg);
-			setSeverity(sev);
-			setOpen(true);
-		},
-		[],
-	);
+	const showToast = useCallback((msg: string, sev: ToastSeverity = "info") => {
+		setMessage(msg);
+		setSeverity(sev);
+		setOpen(true);
+	}, []);
 
 	const handleClose = (
-		event?: React.SyntheticEvent | Event,
+		_event?: React.SyntheticEvent | Event,
 		reason?: string,
 	) => {
 		if (reason === "clickaway") {

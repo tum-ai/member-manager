@@ -27,7 +27,9 @@ export default function AdminDatabaseView() {
 	if (isLoading)
 		return <div className="text-white text-center p-8">Loading data...</div>;
 	if (error)
-		return <div className="text-red-500 text-center p-8">Error: {error.message}</div>;
+		return (
+			<div className="text-red-500 text-center p-8">Error: {error.message}</div>
+		);
 
 	const filtered = (members || [])
 		.filter((row) => {
@@ -36,9 +38,15 @@ export default function AdminDatabaseView() {
 				`${row.surname} ${row.given_name} ${row.email} ${row.phone} ${row.sepa.iban || ""} ${row.sepa.bic || ""} ${row.sepa.bank_name || ""}`.toLowerCase();
 
 			if (search && !text.includes(search.toLowerCase())) return false;
-			if (mandateAgreed !== "" && String(row.sepa?.mandate_agreed) !== mandateAgreed)
+			if (
+				mandateAgreed !== "" &&
+				String(row.sepa?.mandate_agreed) !== mandateAgreed
+			)
 				return false;
-			if (privacyAgreed !== "" && String(row.sepa?.privacy_agreed) !== privacyAgreed)
+			if (
+				privacyAgreed !== "" &&
+				String(row.sepa?.privacy_agreed) !== privacyAgreed
+			)
 				return false;
 			if (active !== "" && String(row.active) !== active) return false;
 
@@ -75,8 +83,9 @@ export default function AdminDatabaseView() {
 		try {
 			await toggleStatus({ userId: member.user_id, newStatus });
 			showToast("Status updated successfully", "success");
-		} catch (err: any) {
-			showToast(`Failed to update status: ${err.message}`, "error");
+		} catch (err: unknown) {
+			const errorMessage = err instanceof Error ? err.message : "Unknown error";
+			showToast(`Failed to update status: ${errorMessage}`, "error");
 		}
 	}
 
@@ -241,7 +250,10 @@ export default function AdminDatabaseView() {
 					</thead>
 					<tbody>
 						{filtered.map((row) => (
-							<tr key={row.user_id} className={`${getRowStyle(row)} border-b border-gray-700`}>
+							<tr
+								key={row.user_id}
+								className={`${getRowStyle(row)} border-b border-gray-700`}
+							>
 								<td className="p-3">{row.surname}</td>
 								<td className="p-3">{row.given_name}</td>
 								<td className="p-3">{row.email}</td>

@@ -15,7 +15,7 @@ import type { TransitionProps } from "@mui/material/transitions";
 import type { User } from "@supabase/supabase-js";
 import { QueryClientProvider } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
-import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
+import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import AdminDatabaseView from "./features/admin/AdminDatabaseView";
 import Auth from "./features/auth/Auth";
@@ -25,10 +25,7 @@ import MemberForm from "./features/members/MemberForm";
 import SepaMandate from "./features/sepa/SepaMandate";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
-import type {
-	PrivacyUpdateEventDetail,
-	SepaUpdateEventDetail,
-} from "./types";
+import type { PrivacyUpdateEventDetail, SepaUpdateEventDetail } from "./types";
 
 // Transition for Dialog (like a bottom-up slide)
 const Transition = React.forwardRef(function Transition(
@@ -133,7 +130,7 @@ export default function App() {
 				listener.subscription.unsubscribe();
 			};
 		}
-	}, [isDev]);
+	}, []);
 
 	useEffect(() => {
 		if (user) {
@@ -167,7 +164,7 @@ export default function App() {
 					}
 				});
 		}
-	}, [user, isDev]);
+	}, [user]);
 
 	async function handleLogout() {
 		await supabase.auth.signOut();

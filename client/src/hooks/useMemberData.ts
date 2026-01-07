@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type MemberSchema, memberSchema } from "../lib/schemas";
+import type { MemberSchema } from "../lib/schemas";
 import { supabase } from "../lib/supabaseClient";
 import type { Member } from "../types";
 

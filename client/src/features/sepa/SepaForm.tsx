@@ -29,8 +29,10 @@ export default function SepaForm() {
 				body: JSON.stringify(form),
 			});
 			alert("SEPA info added successfully!");
-		} catch (error: any) {
-			alert(`Error: ${error.message}`);
+		} catch (error: unknown) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			alert(`Error: ${errorMessage}`);
 		}
 	};
 

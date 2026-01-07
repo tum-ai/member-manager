@@ -88,10 +88,11 @@ export default function Auth({ onLogin }: AuthProps) {
 
 		try {
 			if (isLogin) {
-				const { data: authData, error } = await supabase.auth.signInWithPassword({
-					email: data.email,
-					password: data.password,
-				});
+				const { data: authData, error } =
+					await supabase.auth.signInWithPassword({
+						email: data.email,
+						password: data.password,
+					});
 
 				if (error) {
 					setMessage(error.message);
@@ -141,7 +142,7 @@ export default function Auth({ onLogin }: AuthProps) {
 
 		if (error) {
 			console.error("Slack error:", error.message);
-			setMessage("Slack error: " + error.message);
+			setMessage(`Slack error: ${error.message}`);
 			return;
 		}
 	};
@@ -235,13 +236,22 @@ export default function Auth({ onLogin }: AuthProps) {
 				</Box>
 
 				<div style={{ textAlign: "center" }}>
-					<img
-						src="https://platform.slack-edge.com/img/sign_in_with_slack.png"
-						srcSet="https://platform.slack-edge.com/img/sign_in_with_slack.png 1x, https://platform.slack-edge.com/img/sign_in_with_slack.png 2x"
-						alt="Sign in with Slack"
-						style={{ cursor: "pointer" }}
+					<button
+						type="button"
 						onClick={signInWithSlack}
-					/>
+						style={{
+							background: "none",
+							border: "none",
+							padding: 0,
+							cursor: "pointer",
+						}}
+					>
+						<img
+							src="https://platform.slack-edge.com/img/sign_in_with_slack.png"
+							srcSet="https://platform.slack-edge.com/img/sign_in_with_slack.png 1x, https://platform.slack-edge.com/img/sign_in_with_slack.png 2x"
+							alt="Sign in with Slack"
+						/>
+					</button>
 				</div>
 
 				{message && (
