@@ -17,6 +17,8 @@ import type React from "react";
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 
+import { apiClient } from "../lib/apiClient";
+
 // Styled component for the main form card
 const AuthCard = styled(Paper)(({ theme }) => ({
 	padding: theme.spacing(4),
@@ -53,59 +55,19 @@ export default function Auth({ onLogin }: AuthProps) {
 	// Create or check member after login
 	async function handlePostLogin(user: User) {
 		try {
-			const { data: existingMember, error: fetchError } = await supabase
-				.from("members")
-				.select("user_id")
-				.eq("user_id", user.id)
-				.single();
-
-			if (fetchError && fetchError.code !== "PGRST116") {
-				console.error("Error checking member:", fetchError);
-				setMessage("Error verifying user profile. Please try again later.");
-				return;
-			}
-
-			if (!existingMember) {
-				const { error: insertError } = await supabase.from("members").insert({
+			const memberData = await apiClient<{ role?: string }>("/api/members", {
+				method: "POST",
+				body: JSON.stringify({
 					user_id: user.id,
 					email: user.email,
-					given_name: "",
-					surname: "",
-					date_of_birth: "1900-01-01",
-					street: "",
-					number: "",
-					postal_code: "",
-					city: "",
-					country: "",
-					active: true,
-					salutation: "",
-					role: "user",
-				});
-
-				if (insertError) {
-					console.error("Error inserting member:", insertError);
-					setMessage("Failed to create user profile.");
-					return;
-				}
-			}
-
-			const { data: memberData, error: roleError } = await supabase
-				.from("members")
-				.select("role")
-				.eq("user_id", user.id)
-				.single();
-
-			if (roleError) {
-				console.error("Error fetching role:", roleError);
-				setMessage("Failed to retrieve user role.");
-				return;
-			}
+				}),
+			});
 
 			const role = memberData?.role || "user";
 			onLogin({ ...user, role });
 		} catch (err) {
 			console.error("Unexpected error in post-login:", err);
-			setMessage("Unexpected error occurred. Please try again.");
+			setMessage("Failed to load user profile.");
 		}
 	}
 

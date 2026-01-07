@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { apiClient } from "../lib/apiClient";
 
 interface Member {
 	id: string;
@@ -14,9 +14,13 @@ export default function MemberList() {
 
 	useEffect(() => {
 		const fetchMembers = async () => {
-			const { data, error } = await supabase.from("members").select("*");
-			console.log("Fetched members:", data, "Error:", error);
-			if (!error && data) setMembers(data);
+			try {
+				const data = await apiClient<Member[]>("/api/members");
+				console.log("Fetched members:", data);
+				if (data) setMembers(data);
+			} catch (error) {
+				console.error("Error fetching members:", error);
+			}
 		};
 		fetchMembers();
 	}, []);

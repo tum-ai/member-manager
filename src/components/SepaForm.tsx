@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { apiClient } from "../lib/apiClient";
 
 interface SepaFormData {
 	member_id: string;
@@ -23,9 +23,15 @@ export default function SepaForm() {
 
 	const handleSubmit = async (e: React.FormEvent) => {
 		e.preventDefault();
-		const { error } = await supabase.from("sepa_mandates").insert([form]);
-		if (error) alert(`Error: ${error.message}`);
-		else alert("SEPA info added successfully!");
+		try {
+			await apiClient("/api/sepa", {
+				method: "POST",
+				body: JSON.stringify(form),
+			});
+			alert("SEPA info added successfully!");
+		} catch (error: any) {
+			alert(`Error: ${error.message}`);
+		}
 	};
 
 	return (
