@@ -1,4 +1,19 @@
-import type React from "react";
+// Modern Modal with MUI Dialog and glassmorphism
+import CloseIcon from "@mui/icons-material/Close";
+import {
+	Box,
+	Button,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
+	IconButton,
+	Slide,
+	useMediaQuery,
+	useTheme,
+} from "@mui/material";
+import type { TransitionProps } from "@mui/material/transitions";
+import React from "react";
 
 interface ModalProps {
 	title: string;
@@ -6,83 +21,96 @@ interface ModalProps {
 	children: React.ReactNode;
 	onConfirm: () => void;
 	confirmDisabled?: boolean;
+	confirmLabel?: string;
+	maxWidth?: "xs" | "sm" | "md" | "lg";
 }
+
+const SlideTransition = React.forwardRef(function SlideTransition(
+	props: TransitionProps & { children: React.ReactElement },
+	ref: React.Ref<unknown>,
+) {
+	return <Slide direction="up" ref={ref} {...props} />;
+});
 
 export default function Modal({
 	title,
 	onClose,
 	children,
 	onConfirm,
-	confirmDisabled,
+	confirmDisabled = false,
+	confirmLabel = "Confirm",
+	maxWidth = "md",
 }: ModalProps) {
+	const theme = useTheme();
+	const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
 	return (
-		<div
-			style={{
-				position: "fixed",
-				top: 0,
-				left: 0,
-				width: "100vw",
-				height: "100vh",
-				backgroundColor: "rgba(0,0,0,0.5)",
-				zIndex: 1000,
-				display: "flex",
-				justifyContent: "center",
-				alignItems: "center",
-				padding: "1rem",
+		<Dialog
+			open
+			onClose={onClose}
+			TransitionComponent={SlideTransition}
+			fullScreen={isMobile}
+			fullWidth
+			maxWidth={maxWidth}
+			PaperProps={{
+				sx: {
+					borderRadius: isMobile ? 0 : 3,
+					backgroundColor: "rgba(30, 30, 30, 0.95)",
+					backdropFilter: "blur(20px)",
+					border: isMobile ? "none" : `1px solid ${theme.palette.divider}`,
+				},
+			}}
+			slotProps={{
+				backdrop: {
+					sx: {
+						backgroundColor: "rgba(0, 0, 0, 0.7)",
+						backdropFilter: "blur(4px)",
+					},
+				},
 			}}
 		>
-			<div
-				style={{
-					backgroundColor: "white",
-					color: "black",
-					maxWidth: "800px",
-					width: "100%",
-					maxHeight: "90vh",
-					overflowY: "auto",
-					padding: "2rem",
-					borderRadius: "8px",
-					position: "relative",
+			<DialogTitle
+				sx={{
+					display: "flex",
+					alignItems: "center",
+					justifyContent: "space-between",
+					pb: 1,
 				}}
 			>
-				<button
-					type="button"
+				<Box component="span" sx={{ fontWeight: 600 }}>
+					{title}
+				</Box>
+				<IconButton
 					onClick={onClose}
-					style={{
-						position: "absolute",
-						top: "1rem",
-						right: "1rem",
-						background: "none",
-						border: "none",
-						fontSize: "1.5rem",
-						cursor: "pointer",
+					size="small"
+					sx={{
+						color: theme.palette.text.secondary,
+						"&:hover": {
+							backgroundColor: "rgba(255, 255, 255, 0.1)",
+						},
 					}}
 					aria-label="Close"
 				>
-					×
-				</button>
+					<CloseIcon />
+				</IconButton>
+			</DialogTitle>
 
-				<h2 style={{ marginTop: 0 }}>{title}</h2>
+			<DialogContent dividers sx={{ borderColor: theme.palette.divider }}>
+				{children}
+			</DialogContent>
 
-				<div>{children}</div>
-
-				<div style={{ marginTop: "2rem", textAlign: "right" }}>
-					<button
-						type="button"
-						onClick={onConfirm}
-						disabled={confirmDisabled}
-						style={{
-							backgroundColor: confirmDisabled ? "#aaa" : "#3c00b4",
-							color: "white",
-							padding: "0.5rem 1rem",
-							border: "none",
-							borderRadius: "4px",
-							cursor: confirmDisabled ? "not-allowed" : "pointer",
-						}}
-					>
-						Confirm
-					</button>
-				</div>
-			</div>
-		</div>
+			<DialogActions sx={{ px: 3, py: 2 }}>
+				<Button onClick={onClose} variant="text" color="inherit">
+					Cancel
+				</Button>
+				<Button
+					onClick={onConfirm}
+					variant="contained"
+					disabled={confirmDisabled}
+				>
+					{confirmLabel}
+				</Button>
+			</DialogActions>
+		</Dialog>
 	);
 }

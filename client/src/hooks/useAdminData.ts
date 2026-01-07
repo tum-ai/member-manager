@@ -44,7 +44,10 @@ export function useAdminData() {
 		mutationFn: async ({
 			userId,
 			newStatus,
-		}: { userId: string; newStatus: boolean }) => {
+		}: {
+			userId: string;
+			newStatus: boolean;
+		}) => {
 			const { error } = await supabase
 				.from("members")
 				.update({ active: newStatus })

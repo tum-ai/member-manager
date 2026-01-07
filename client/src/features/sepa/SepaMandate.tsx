@@ -1,3 +1,11 @@
+// SEPA Mandate Agreement - MUI styled version
+import {
+	Box,
+	Checkbox,
+	Divider,
+	FormControlLabel,
+	Typography,
+} from "@mui/material";
 import { useEffect, useState } from "react";
 
 interface SepaMandateProps {
@@ -12,7 +20,7 @@ export default function SepaMandate({
 	const [checked, setChecked] = useState(!!sepaAgreed);
 
 	useEffect(() => {
-		setChecked(!!sepaAgreed); // Sync prop change
+		setChecked(!!sepaAgreed);
 	}, [sepaAgreed]);
 
 	useEffect(() => {
@@ -20,101 +28,110 @@ export default function SepaMandate({
 	}, [checked, onCheckChange]);
 
 	return (
-		<div>
-			<div
-				style={{ maxHeight: "60vh", overflowY: "auto", paddingRight: "1rem" }}
-			>
-				<h2>Agreement</h2>
-
-				<h3>
+		<Box>
+			<Box sx={{ maxHeight: "55vh", overflowY: "auto", pr: 1 }}>
+				<Typography variant="h6" sx={{ mb: 2, fontWeight: 600 }}>
 					Issuance of a Direct Debit Authorization and a SEPA Direct Debit
-					Mandate*
-				</h3>
+					Mandate
+				</Typography>
 
-				<p>
-					<strong>Name of the Payee:</strong>
-					<br />
-					TUM.ai e.V.
-				</p>
+				<Box sx={{ mb: 3 }}>
+					<Typography variant="subtitle2" color="text.secondary" gutterBottom>
+						Name of the Payee
+					</Typography>
+					<Typography>TUM.ai e.V.</Typography>
+				</Box>
 
-				<p>
-					<strong>Address of the Payee:</strong>
-					<br />
-					TUM.ai e.V.
-					<br />
-					Arcisstraße 21
-					<br />
-					80333 Munich, Germany
-				</p>
+				<Box sx={{ mb: 3 }}>
+					<Typography variant="subtitle2" color="text.secondary" gutterBottom>
+						Address of the Payee
+					</Typography>
+					<Typography>
+						TUM.ai e.V.
+						<br />
+						Arcisstraße 21
+						<br />
+						80333 Munich, Germany
+					</Typography>
+				</Box>
 
-				<p>
-					<strong>Creditor Identifier:</strong>
-					<br />
-					DEXXXXXXXXXX
-				</p>
+				<Box sx={{ mb: 3 }}>
+					<Typography variant="subtitle2" color="text.secondary" gutterBottom>
+						Creditor Identifier
+					</Typography>
+					<Typography sx={{ fontFamily: "monospace" }}>DEXXXXXXXXXX</Typography>
+				</Box>
 
-				<p>
-					<strong>Due Dates for Membership Fees:</strong>
-					<br />
-					According to Section X No. X of our Contribution Rules, membership
-					fees for active members are due on <em>XX.XX.XXXX</em> for the summer
-					semester and on <em>XX.XX.XXXX</em> for the winter semester each year.
-				</p>
+				<Box sx={{ mb: 3 }}>
+					<Typography variant="subtitle2" color="text.secondary" gutterBottom>
+						Due Dates for Membership Fees
+					</Typography>
+					<Typography>
+						According to Section X No. X of our Contribution Rules, membership
+						fees for active members are due on{" "}
+						<Typography component="span" sx={{ fontStyle: "italic" }}>
+							XX.XX.XXXX
+						</Typography>{" "}
+						for the summer semester and on{" "}
+						<Typography component="span" sx={{ fontStyle: "italic" }}>
+							XX.XX.XXXX
+						</Typography>{" "}
+						for the winter semester each year.
+					</Typography>
+				</Box>
 
-				<h3>Direct Debit Authorization:</h3>
-				<p>
+				<Divider sx={{ my: 3 }} />
+
+				<Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+					Direct Debit Authorization
+				</Typography>
+				<Typography sx={{ mb: 3 }}>
 					I authorize the payee <strong>TUM.ai</strong>, revocably, to collect
 					payments due from me by direct debit from my account upon the due
 					date.
-				</p>
+				</Typography>
 
-				<h3>SEPA Direct Debit Mandate:</h3>
-				<p>
+				<Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+					SEPA Direct Debit Mandate
+				</Typography>
+				<Typography sx={{ mb: 3 }}>
 					(A) I authorize the payee <strong>TUM.ai</strong> to collect payments
 					from my account via SEPA direct debit.
 					<br />
 					(B) At the same time, I instruct my bank to honor the SEPA direct
 					debits drawn by <strong>TUM.ai</strong> on my account.
-				</p>
+				</Typography>
 
-				<h3>Note:</h3>
-				<p>
+				<Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+					Note
+				</Typography>
+				<Typography sx={{ mb: 2 }}>
 					I may request a refund of the debited amount within eight weeks,
 					starting from the debit date. The conditions agreed upon with my bank
 					apply.
-				</p>
-
-				<p>
+				</Typography>
+				<Typography sx={{ mb: 3 }}>
 					<strong>TUM.ai</strong> will inform me of the SEPA Core Direct Debit
 					collection in this procedure at least 14 days before the debit takes
 					place.
-				</p>
+				</Typography>
+			</Box>
 
-				<div
-					style={{
-						marginTop: "2rem",
-						paddingTop: "1rem",
-						borderTop: "1px solid #e5e7eb",
-					}}
-				>
-					<label>
-						<input
-							type="checkbox"
-							checked={checked}
-							onChange={(e) => setChecked(e.target.checked)}
-							disabled={sepaAgreed}
-						/>{" "}
+			<Divider sx={{ my: 2 }} />
+
+			<FormControlLabel
+				control={
+					<Checkbox
+						checked={checked}
+						onChange={(e) => setChecked(e.target.checked)}
+					/>
+				}
+				label={
+					<Typography variant="body2">
 						I have read and agree to the SEPA mandate.
-					</label>
-					{sepaAgreed && (
-						<p
-							style={{ fontSize: "0.9rem", color: "gray", marginTop: "0.5rem" }}
-						>
-							You have already agreed to the SEPA mandate.
-						</p>
-					)}
-				</div>
-			</div>
-		</div>
+					</Typography>
+				}
+			/>
+		</Box>
 	);
 }

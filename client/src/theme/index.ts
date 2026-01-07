@@ -1,305 +1,258 @@
-// src/theme.js
-import { createTheme } from "@mui/material/styles";
+// Enhanced MUI Theme with modern design system
+import { createTheme, type ThemeOptions } from "@mui/material/styles";
 
-// Define all M3 Typography Variants as constants FIRST
-// This way, they can be referenced consistently throughout the theme object
-const displayLarge = {
-	fontSize: "5.75rem", // 92px
-	lineHeight: "6.5rem", // 104px
-	fontWeight: 400,
+// Color palette - refined for premium dark mode
+const colors = {
+	primary: {
+		main: "#D0BCFF",
+		light: "#E8DEFF",
+		dark: "#9A82DB",
+		onPrimary: "#381E72",
+	},
+	secondary: {
+		main: "#CCC2DC",
+		light: "#E8DEF8",
+		dark: "#9A8BA7",
+		onSecondary: "#332D41",
+	},
+	accent: {
+		gradient: "linear-gradient(135deg, #D0BCFF 0%, #E8DEFF 50%, #CCC2DC 100%)",
+		glow: "rgba(208, 188, 255, 0.4)",
+	},
+	surface: {
+		default: "#121212",
+		paper: "#1E1E1E",
+		elevated: "#252525",
+		overlay: "rgba(30, 30, 30, 0.95)",
+	},
+	text: {
+		primary: "#E6E1E5",
+		secondary: "#CAC4D0",
+		disabled: "#6C6C6C",
+	},
+	success: "#4CAF50",
+	error: "#CF6679",
+	warning: "#FFB74D",
+	outline: "#49454F",
 };
 
-const displayMedium = {
-	fontSize: "4.5rem", // 72px
-	lineHeight: "5.25rem", // 84px
-	fontWeight: 400,
+// Typography scale with Inter font
+const typography: ThemeOptions["typography"] = {
+	fontFamily: "'Inter', 'Roboto', sans-serif",
+	h1: { fontSize: "2.5rem", fontWeight: 600, letterSpacing: "-0.02em" },
+	h2: { fontSize: "2rem", fontWeight: 600, letterSpacing: "-0.01em" },
+	h3: { fontSize: "1.5rem", fontWeight: 600 },
+	h4: { fontSize: "1.25rem", fontWeight: 500 },
+	h5: { fontSize: "1.125rem", fontWeight: 500 },
+	h6: { fontSize: "1rem", fontWeight: 500 },
+	body1: { fontSize: "1rem", lineHeight: 1.6 },
+	body2: { fontSize: "0.875rem", lineHeight: 1.5 },
+	button: { fontSize: "0.875rem", fontWeight: 500, textTransform: "none" },
+	caption: { fontSize: "0.75rem", lineHeight: 1.4 },
 };
 
-const displaySmall = {
-	fontSize: "3.5rem", // 57px
-	lineHeight: "4rem", // 64px
-	fontWeight: 400,
-};
-
-const headlineLarge = {
-	fontSize: "2.25rem", // 36px
-	lineHeight: "2.75rem", // 44px
-	fontWeight: 400,
-};
-
-const headlineMedium = {
-	fontSize: "2rem", // 32px
-	lineHeight: "2.5rem", // 40px
-	fontWeight: 400,
-};
-
-const headlineSmall = {
-	fontSize: "1.75rem", // 28px
-	lineHeight: "2.25rem", // 36px
-	fontWeight: 400,
-};
-
-const titleLarge = {
-	fontSize: "1.375rem", // 22px
-	lineHeight: "1.75rem", // 28px
-	fontWeight: 400,
-};
-
-const titleMedium = {
-	fontSize: "1rem", // 16px
-	lineHeight: "1.5rem", // 24px
-	fontWeight: 500,
-};
-
-const titleSmall = {
-	fontSize: "0.875rem", // 14px
-	lineHeight: "1.25rem", // 20px
-	fontWeight: 500,
-};
-
-const bodyLarge = {
-	fontSize: "1rem", // 16px
-	lineHeight: "1.5rem", // 24px
-	fontWeight: 400,
-};
-
-const bodyMedium = {
-	fontSize: "0.875rem", // 14px
-	lineHeight: "1.25rem", // 20px
-	fontWeight: 400,
-};
-
-const bodySmall = {
-	fontSize: "0.75rem", // 12px
-	lineHeight: "1rem", // 16px
-	fontWeight: 400,
-};
-
-const labelLarge = {
-	fontSize: "0.875rem", // 14px
-	lineHeight: "1.25rem", // 20px
-	fontWeight: 500,
-};
-
-const labelMedium = {
-	fontSize: "0.75rem", // 12px
-	lineHeight: "1rem", // 16px
-	fontWeight: 500,
-};
-
-const labelSmall = {
-	fontSize: "0.6875rem", // 11px
-	lineHeight: "1rem", // 16px
-	fontWeight: 500,
-};
-
-// Main theme creation function for dark mode
 const getAppTheme = () =>
 	createTheme({
 		palette: {
-			mode: "dark", // Explicitly set to 'dark' for your application
+			mode: "dark",
 			primary: {
-				main: "#D0BCFF", // M3 primary color for dark theme (e.g., from Material Theme Builder)
-				onPrimary: "#321D59", // Text/icon color that contrasts well with primary.main
+				main: colors.primary.main,
+				light: colors.primary.light,
+				dark: colors.primary.dark,
+				contrastText: colors.primary.onPrimary,
 			},
 			secondary: {
-				main: "#CCC2DC", // M3 secondary color for dark theme
-				onSecondary: "#3C2E4D", // Text/icon color that contrasts well with secondary.main
+				main: colors.secondary.main,
+				light: colors.secondary.light,
+				dark: colors.secondary.dark,
+				contrastText: colors.secondary.onSecondary,
 			},
-			tertiary: {
-				main: "#EFB8C8", // M3 tertiary color for dark theme
-				onTertiary: "#492532", // Text/icon color that contrasts well with tertiary.main
-			},
-			error: {
-				main: "#CF6679", // M3 error color for dark theme
-				onError: "#690005", // Text/icon color that contrasts well with error.main
-			},
+			error: { main: colors.error },
+			success: { main: colors.success },
+			warning: { main: colors.warning },
 			background: {
-				default: "#1C1B1F", // M3 dark theme surface background
-				paper: "#1C1B1F", // M3 dark theme surface for cards, dialogs, etc.
+				default: colors.surface.default,
+				paper: colors.surface.paper,
 			},
 			text: {
-				primary: "#E6E1E5", // M3 dark theme on-surface for primary text
-				secondary: "#CAC4D0", // M3 dark theme on-surface-variant for secondary text
+				primary: colors.text.primary,
+				secondary: colors.text.secondary,
+				disabled: colors.text.disabled,
 			},
-			outline: "#8D8C91", // M3 dark theme outline color
-			surface: "#1C1B1F", // General surface color
-			onSurface: "#E6E1E5", // Text/icon color on general surface
-			surfaceVariant: "#49454F", // A variant of the surface color
-			onSurfaceVariant: "#CAC4D0", // Text/icon color on surfaceVariant
+			divider: colors.outline,
 		},
-		typography: {
-			fontFamily: "Roboto, sans-serif", // Material Design default font
-
-			// M3 Typography Scale defined using the constants
-			displayLarge,
-			displayMedium,
-			displaySmall,
-			headlineLarge,
-			headlineMedium,
-			headlineSmall,
-			titleLarge,
-			titleMedium,
-			titleSmall,
-			bodyLarge,
-			bodyMedium,
-			bodySmall,
-			labelLarge,
-			labelMedium,
-			labelSmall,
-
-			// Map standard MUI typography names to M3 using the constants
-			h1: displayLarge,
-			h2: displayMedium,
-			h3: headlineLarge,
-			h4: headlineMedium,
-			h5: titleLarge,
-			h6: titleMedium,
-			subtitle1: bodyLarge, // Typically mapped to body large/medium in M3
-			subtitle2: bodyMedium,
-			body1: bodyLarge,
-			body2: bodyMedium,
-			button: labelLarge, // M3 uses label for button text
-			caption: bodySmall,
-			overline: labelSmall,
-		},
+		typography,
+		shape: { borderRadius: 12 },
 		components: {
+			MuiCssBaseline: {
+				styleOverrides: {
+					body: {
+						backgroundColor: colors.surface.default,
+						backgroundImage:
+							"radial-gradient(ellipse at top left, rgba(208, 188, 255, 0.08) 0%, transparent 50%), radial-gradient(ellipse at bottom right, rgba(204, 194, 220, 0.06) 0%, transparent 50%)",
+						backgroundAttachment: "fixed",
+					},
+				},
+			},
 			MuiButton: {
+				defaultProps: { disableElevation: true },
 				styleOverrides: {
 					root: {
-						borderRadius: 20, // M3-inspired rounded corners
-						textTransform: "none", // M3 buttons often use Sentence Case
+						borderRadius: 10,
+						padding: "10px 24px",
+						transition: "all 200ms cubic-bezier(0.4, 0, 0.2, 1)",
 					},
-					contained: ({ ownerState, theme }) => ({
-						boxShadow: "none", // M3 tends to have less pronounced shadows
+					contained: {
+						background: colors.accent.gradient,
+						color: colors.primary.onPrimary,
 						"&:hover": {
-							boxShadow: "none", // Keep consistent on hover
+							background: colors.accent.gradient,
+							filter: "brightness(1.1)",
+							transform: "translateY(-1px)",
+							boxShadow: `0 4px 20px ${colors.accent.glow}`,
 						},
-						// Ensure text color on primary contained buttons contrasts well with the background
-						...(ownerState.color === "primary" && {
-							color: theme.palette.primary.onPrimary,
-						}),
-						// Add similar for other colors if you use contained secondary/tertiary buttons
-						...(ownerState.color === "secondary" && {
-							color: theme.palette.secondary.onSecondary,
-						}),
-						...(ownerState.color === "tertiary" && {
-							color: theme.palette.tertiary.onTertiary,
-						}),
-						...(ownerState.color === "error" && {
-							color: theme.palette.error.onError,
-						}),
-					}),
-					text: ({ ownerState, theme }) => ({
-						textTransform: "none",
-						...(ownerState.color === "primary" && {
-							color: theme.palette.primary.main, // Text buttons usually use the main color
-						}),
-					}),
-					outlined: ({ ownerState, theme }) => ({
-						textTransform: "none",
-						borderColor: theme.palette.outline, // Use outline color for borders
-						...(ownerState.color === "primary" && {
-							color: theme.palette.primary.main,
-						}),
-					}),
+						"&:active": { transform: "translateY(0)" },
+					},
+					outlined: {
+						borderColor: colors.outline,
+						"&:hover": {
+							borderColor: colors.primary.main,
+							backgroundColor: "rgba(208, 188, 255, 0.08)",
+						},
+					},
 				},
 			},
 			MuiTextField: {
-				defaultProps: {
-					variant: "outlined", // Default to outlined for a cleaner M3 look
-				},
+				defaultProps: { variant: "outlined", fullWidth: true },
 				styleOverrides: {
-					root: ({ theme }) => ({
+					root: {
 						"& .MuiOutlinedInput-root": {
-							borderRadius: "8px", // Slightly rounded corners for text fields
-							backgroundColor: "rgba(255,255,255,0.05)", // Lighter fill for M3 dark mode
-						},
-						"& .MuiInputLabel-root": {
-							color: theme.palette.text.secondary, // Label color
+							borderRadius: 10,
+							backgroundColor: "rgba(255, 255, 255, 0.03)",
+							transition: "all 200ms ease",
+							"&:hover": {
+								backgroundColor: "rgba(255, 255, 255, 0.05)",
+							},
+							"&.Mui-focused": {
+								backgroundColor: "rgba(255, 255, 255, 0.05)",
+								"& .MuiOutlinedInput-notchedOutline": {
+									borderColor: colors.primary.main,
+									borderWidth: 2,
+								},
+							},
 						},
 						"& .MuiOutlinedInput-notchedOutline": {
-							borderColor: theme.palette.outline, // Use M3 outline color
+							borderColor: colors.outline,
 						},
-						"&:hover .MuiOutlinedInput-notchedOutline": {
-							borderColor: theme.palette.primary.main, // Hover border color
+						"& .MuiInputLabel-root": {
+							color: colors.text.secondary,
 						},
-						"& .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline":
-							{
-								borderColor: theme.palette.primary.main, // Focused border color
-								borderWidth: "2px", // M3 has a thicker focus outline
-							},
-						"& .MuiInputBase-input": {
-							color: theme.palette.text.primary, // Input text color
+					},
+				},
+			},
+			MuiCard: {
+				styleOverrides: {
+					root: {
+						backgroundColor: colors.surface.paper,
+						backgroundImage:
+							"linear-gradient(rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0))",
+						border: `1px solid ${colors.outline}`,
+						borderRadius: 16,
+						transition: "all 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+						"&:hover": {
+							borderColor: "rgba(208, 188, 255, 0.3)",
+							boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)",
 						},
-					}),
+					},
 				},
 			},
 			MuiPaper: {
 				styleOverrides: {
-					root: ({ theme }) => ({
-						backgroundColor: theme.palette.background.paper, // Use theme paper background
-						boxShadow: theme.shadows[1], // Lighter shadow for M3 (you might adjust this based on specific M3 guidelines for dark mode elevation)
-					}),
-				},
-			},
-			MuiAppBar: {
-				styleOverrides: {
-					root: ({ theme }) => ({
-						backgroundColor: theme.palette.primary.default, // Or a surface-container color for AppBar
-						color: theme.palette.primary.onSurface, // Text/icon color on the AppBar should be onPrimary
-						boxShadow: "none", // M3 app bars often have no shadow initially
-					}),
-				},
-			},
-			MuiIconButton: {
-				styleOverrides: {
-					root: ({ theme }) => ({
-						// Default icon buttons within primary colored AppBar should use onPrimary
-						color: theme.palette.primary.onPrimary,
-					}),
-				},
-			},
-			MuiFab: {
-				styleOverrides: {
 					root: {
-						borderRadius: "16px", // M3 FABs are square with rounded corners
+						backgroundImage: "none",
+						backgroundColor: colors.surface.paper,
 					},
+					elevation1: { boxShadow: "0 2px 8px rgba(0, 0, 0, 0.2)" },
+					elevation2: { boxShadow: "0 4px 16px rgba(0, 0, 0, 0.25)" },
+					elevation3: { boxShadow: "0 8px 32px rgba(0, 0, 0, 0.3)" },
 				},
 			},
 			MuiDialog: {
 				styleOverrides: {
-					paper: ({ theme }) => ({
-						borderRadius: (theme.shape.borderRadius as number) * 2, // Apply the border radius set in App.jsx's PaperProps here as a default
-						backgroundColor: theme.palette.background.paper,
-						color: theme.palette.text.primary,
-					}),
+					paper: {
+						borderRadius: 20,
+						backgroundColor: colors.surface.overlay,
+						backdropFilter: "blur(20px)",
+						border: `1px solid ${colors.outline}`,
+					},
 				},
 			},
 			MuiDialogTitle: {
 				styleOverrides: {
-					root: ({ theme }) => ({
-						color: theme.palette.text.primary,
-						paddingBottom: theme.spacing(2),
-						textAlign: "center", // Center title as in your original modal
-					}),
+					root: {
+						fontSize: "1.25rem",
+						fontWeight: 600,
+						padding: "24px 24px 16px",
+					},
 				},
 			},
 			MuiDialogContent: {
 				styleOverrides: {
-					root: ({ theme }) => ({
-						color: theme.palette.text.primary,
-					}),
+					root: { padding: "16px 24px" },
 				},
 			},
 			MuiDialogActions: {
 				styleOverrides: {
-					root: ({ theme }) => ({
-						paddingTop: theme.spacing(2),
-						paddingBottom: theme.spacing(1),
-						paddingRight: theme.spacing(2),
-						justifyContent: "flex-end", // Align buttons to the right
-					}),
+					root: { padding: "16px 24px 24px" },
+				},
+			},
+			MuiAppBar: {
+				styleOverrides: {
+					root: {
+						backgroundColor: "rgba(18, 18, 18, 0.8)",
+						backdropFilter: "blur(10px)",
+						borderBottom: `1px solid ${colors.outline}`,
+					},
+				},
+			},
+			MuiCheckbox: {
+				styleOverrides: {
+					root: {
+						color: colors.outline,
+						"&.Mui-checked": {
+							color: colors.primary.main,
+						},
+					},
+				},
+			},
+			MuiFormControlLabel: {
+				styleOverrides: {
+					root: {
+						marginLeft: 0,
+						marginRight: 0,
+					},
+				},
+			},
+			MuiChip: {
+				styleOverrides: {
+					root: {
+						borderRadius: 8,
+						fontWeight: 500,
+					},
+					filled: {
+						backgroundColor: "rgba(208, 188, 255, 0.15)",
+						color: colors.primary.main,
+					},
+				},
+			},
+			MuiIconButton: {
+				styleOverrides: {
+					root: {
+						transition: "all 200ms ease",
+						"&:hover": {
+							backgroundColor: "rgba(208, 188, 255, 0.1)",
+						},
+					},
 				},
 			},
 		},
