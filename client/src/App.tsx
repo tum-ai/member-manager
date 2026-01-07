@@ -1,14 +1,4 @@
-import AccountCircleIcon from "@mui/icons-material/AccountCircle"; // For Member Form
-import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings"; // For Admin View
-import DescriptionIcon from "@mui/icons-material/Description"; // For SEPA
-import EmojiEventsIcon from "@mui/icons-material/EmojiEvents"; // For Certificate
-import LogoutIcon from "@mui/icons-material/Logout";
-// Import MUI Icons
-import MenuIcon from "@mui/icons-material/Menu";
-import PolicyIcon from "@mui/icons-material/Policy"; // For Privacy Policy
-// Import MUI Components
 import {
-	AppBar,
 	Box,
 	Button,
 	CircularProgress,
@@ -16,36 +6,27 @@ import {
 	DialogActions,
 	DialogContent,
 	DialogTitle,
-	Drawer,
 	IconButton,
-	List,
-	ListItem,
-	ListItemButton,
-	ListItemIcon,
-	ListItemText,
 	Slide,
-	Toolbar,
-	Tooltip,
 	Typography,
-	useMediaQuery,
 	useTheme,
 } from "@mui/material";
 import type { TransitionProps } from "@mui/material/transitions";
 import type { User } from "@supabase/supabase-js";
 import React, { useEffect, useState } from "react";
-import {
-	Route,
-	BrowserRouter as Router,
-	Link as RouterLink,
-	Routes,
-} from "react-router-dom";
+import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import MainLayout from "./components/layout/MainLayout";
+import AdminDatabaseView from "./features/admin/AdminDatabaseView";
+import Auth from "./features/auth/Auth";
+import Certificate from "./features/certificate/Certificate";
+import PrivacyPolicy from "./features/legal/PrivacyPolicy";
+import MemberForm from "./features/members/MemberForm";
+import SepaMandate from "./features/sepa/SepaMandate";
 import { supabase } from "./lib/supabaseClient";
-import AdminDatabaseView from "./pages/AdminDatabaseView";
-import Auth from "./pages/Auth";
-import Certificate from "./pages/Certificate";
-import MemberForm from "./pages/MemberForm";
-import PrivacyPolicy from "./pages/PrivacyPolicy";
-import SepaMandate from "./pages/SepaMandate";
+import type {
+	PrivacyUpdateEventDetail,
+	SepaUpdateEventDetail,
+} from "./types";
 
 // Transition for Dialog (like a bottom-up slide)
 const Transition = React.forwardRef(function Transition(
@@ -68,14 +49,6 @@ const dummyUser: User = {
 	role: "user",
 } as User;
 
-interface SepaUpdateEventDetail {
-	mandate_agreed: boolean;
-}
-
-interface PrivacyUpdateEventDetail {
-	privacy_agreed: boolean;
-}
-
 export default function App() {
 	const isDev = import.meta.env.MODE === "development" && false;
 	const [user, setUser] = useState<User | null>(isDev ? dummyUser : null);
@@ -93,8 +66,6 @@ export default function App() {
 	const [currentPrivacyAgreed, setCurrentPrivacyAgreed] = useState(false);
 
 	const theme = useTheme();
-	const isMobile = useMediaQuery(theme.breakpoints.down("md"));
-	const [drawerOpen, setDrawerOpen] = useState(false);
 
 	useEffect(() => {
 		const handleOpenSepa = () => setShowSepa(true);
@@ -158,7 +129,7 @@ export default function App() {
 				listener.subscription.unsubscribe();
 			};
 		}
-	}, []);
+	}, [isDev]);
 
 	useEffect(() => {
 		if (user) {
@@ -192,7 +163,7 @@ export default function App() {
 					}
 				});
 		}
-	}, [user]);
+	}, [user, isDev]);
 
 	async function handleLogout() {
 		await supabase.auth.signOut();
@@ -245,215 +216,12 @@ export default function App() {
 
 	return (
 		<Router>
-			<AppBar position="static" elevation={0}>
-				<Toolbar>
-					{isMobile && ( // Show menu icon only on mobile
-						<IconButton
-							edge="start"
-							sx={{ mr: 2, color: theme.palette.primary.main }}
-							aria-label="menu"
-							onClick={() => setDrawerOpen(true)}
-						>
-							<MenuIcon />
-						</IconButton>
-					)}
-
-					{/* TUM.ai Logo on the left */}
-					<Box
-						sx={{ display: "flex", alignItems: "center", mr: isMobile ? 0 : 4 }}
-					>
-						<img
-							src="/img/logo.webp"
-							alt="TUM.ai Logo"
-							// FIX 2: Adjust logo height for better visual balance
-							style={{ height: "24px" }} // Adjusted from 36px to 32px
-						/>
-					</Box>
-					{!isMobile && ( // Desktop navigation links
-						<Box sx={{ display: "flex", gap: 2, flexGrow: 1 }}>
-							{userRole === "user" && (
-								<Button color="inherit" component={RouterLink} to="/">
-									<AccountCircleIcon sx={{ mr: 0.5 }} /> Member Form
-								</Button>
-							)}
-							{userRole === "user" && (
-								<Button
-									color="inherit"
-									component="a"
-									onClick={() => setShowSepa(true)}
-								>
-									<DescriptionIcon sx={{ mr: 0.5 }} /> SEPA
-								</Button>
-							)}
-							{userRole === "user" && (
-								<Button
-									color="inherit"
-									component="a"
-									onClick={() => setShowPrivacy(true)}
-								>
-									<PolicyIcon sx={{ mr: 0.5 }} /> Privacy Policy
-								</Button>
-							)}
-							{userRole === "user" && (
-								<Button
-									color="inherit"
-									component={RouterLink}
-									to="/certificate"
-								>
-									<EmojiEventsIcon sx={{ mr: 0.5 }} /> Certificate
-								</Button>
-							)}
-							{userRole === "admin" && (
-								<Button color="inherit" component={RouterLink} to="/">
-									<AdminPanelSettingsIcon sx={{ mr: 0.5 }} /> Admin
-								</Button>
-							)}
-						</Box>
-					)}
-
-					{/* User Email and Logout Button on the right */}
-					<Box
-						sx={{ ml: "auto", display: "flex", alignItems: "center", gap: 2 }}
-					>
-						{!isMobile && user?.email && (
-							<Typography variant="body2" color="inherit">
-								{user.email}
-							</Typography>
-						)}
-						<Tooltip title="Logout">
-							<IconButton
-								sx={{ color: theme.palette.primary.main }}
-								onClick={handleLogout}
-							>
-								<LogoutIcon />
-							</IconButton>
-						</Tooltip>
-					</Box>
-				</Toolbar>
-			</AppBar>
-
-			{/* Mobile Navigation Drawer */}
-			<Drawer
-				anchor="left"
-				open={drawerOpen}
-				onClose={() => setDrawerOpen(false)}
-				PaperProps={{
-					sx: {
-						backgroundColor: theme.palette.background.paper,
-						color: theme.palette.text.primary,
-					},
-				}}
-			>
-				<Box
-					sx={{
-						width: 250,
-						pt: 2,
-						pb: 2,
-						display: "flex",
-						flexDirection: "column",
-						alignItems: "center",
-					}}
-					role="presentation"
-					onClick={() => setDrawerOpen(false)}
-					onKeyDown={() => setDrawerOpen(false)}
-				>
-					<img
-						src="/img/logo.webp"
-						alt="TUM.ai Logo"
-						style={{
-							height: "24px",
-							marginBottom: "32px",
-							paddingBottom: "32px",
-						}}
-					/>
-					<List sx={{ width: "100%" }}>
-						{userRole === "user" && (
-							<ListItem disablePadding>
-								<ListItemButton component={RouterLink} to="/">
-									<ListItemIcon>
-										<AccountCircleIcon
-											sx={{ color: theme.palette.text.secondary }}
-										/>
-									</ListItemIcon>
-									<ListItemText primary="Member Form" />
-								</ListItemButton>
-							</ListItem>
-						)}
-						{userRole === "user" && (
-							<ListItem disablePadding>
-								<ListItemButton component="a" onClick={() => setShowSepa(true)}>
-									<ListItemIcon>
-										<DescriptionIcon
-											sx={{ color: theme.palette.text.secondary }}
-										/>
-									</ListItemIcon>
-									<ListItemText primary="SEPA" />
-								</ListItemButton>
-							</ListItem>
-						)}
-						{userRole === "user" && (
-							<ListItem disablePadding>
-								<ListItemButton
-									component="a"
-									onClick={() => setShowPrivacy(true)}
-								>
-									<ListItemIcon>
-										<PolicyIcon sx={{ color: theme.palette.text.secondary }} />
-									</ListItemIcon>
-									<ListItemText primary="Privacy Policy" />
-								</ListItemButton>
-							</ListItem>
-						)}
-						{userRole === "user" && (
-							<ListItem disablePadding>
-								<ListItemButton component={RouterLink} to="/certificate">
-									<ListItemIcon>
-										<EmojiEventsIcon
-											sx={{ color: theme.palette.text.secondary }}
-										/>
-									</ListItemIcon>
-									<ListItemText primary="Certificate" />
-								</ListItemButton>
-							</ListItem>
-						)}
-						{userRole === "admin" && (
-							<ListItem disablePadding>
-								<ListItemButton component={RouterLink} to="/">
-									<ListItemIcon>
-										<AdminPanelSettingsIcon
-											sx={{ color: theme.palette.text.secondary }}
-										/>
-									</ListItemIcon>
-									<ListItemText primary="Admin" />
-								</ListItemButton>
-							</ListItem>
-						)}
-						<ListItem disablePadding sx={{ mt: 2 }}>
-							<ListItemButton onClick={handleLogout}>
-								<ListItemIcon>
-									<LogoutIcon sx={{ color: theme.palette.primary.main }} />
-								</ListItemIcon>
-								<ListItemText
-									primary="Logout"
-									sx={{ color: theme.palette.primary.main }}
-								/>
-							</ListItemButton>
-						</ListItem>
-					</List>
-				</Box>
-			</Drawer>
-
-			{/* Main Content Area */}
-			<Box
-				component="main"
-				sx={{
-					backgroundColor: theme.palette.background.default,
-					color: theme.palette.text.primary,
-					minHeight: "calc(100vh - 64px)",
-					paddingX: { xs: theme.spacing(2), md: theme.spacing(4) }, // Responsive horizontal padding
-					paddingY: theme.spacing(3), // Vertical padding
-					overflow: "auto",
-				}}
+			<MainLayout
+				user={user}
+				userRole={userRole}
+				onLogout={handleLogout}
+				onOpenSepa={() => setShowSepa(true)}
+				onOpenPrivacy={() => setShowPrivacy(true)}
 			>
 				<Routes>
 					{userRole === "user" && (
@@ -477,17 +245,14 @@ export default function App() {
 									/>
 								}
 							/>
-							<Route
-								path="/certificate"
-								element={<Certificate user={user} />}
-							/>
+							<Route path="/certificate" element={<Certificate user={user} />} />
 						</>
 					)}
 					{userRole === "admin" && (
 						<Route path="/" element={<AdminDatabaseView />} />
 					)}
 				</Routes>
-			</Box>
+			</MainLayout>
 
 			{/* SEPA Dialog */}
 			<Dialog
@@ -516,7 +281,7 @@ export default function App() {
 							top: 8,
 							color: (theme) => theme.palette.grey[500],
 						}}
-					></IconButton>
+					/>
 				</DialogTitle>
 				<DialogContent dividers>
 					<SepaMandate

@@ -15,9 +15,9 @@ import { styled } from "@mui/material/styles";
 import type { User } from "@supabase/supabase-js";
 import type React from "react";
 import { useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../../lib/supabaseClient";
 
-import { apiClient } from "../lib/apiClient";
+import { apiClient } from "../../lib/apiClient";
 
 // Styled component for the main form card
 const AuthCard = styled(Paper)(({ theme }) => ({

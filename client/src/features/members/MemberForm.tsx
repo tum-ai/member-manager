@@ -1,49 +1,18 @@
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
-import Modal from "./Modal";
-import PrivacyPolicy from "./PrivacyPolicy";
-import SepaMandate from "./SepaMandate";
-
-interface Member {
-	active: boolean;
-	salutation: string;
-	title: string;
-	surname: string;
-	given_name: string;
-	email: string;
-	date_of_birth: string;
-	street: string;
-	number: string;
-	postal_code: string;
-	city: string;
-	country: string;
-	user_id: string;
-	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
-	[key: string]: any; // Allow indexing
-}
-
-interface Sepa {
-	iban: string;
-	bic: string;
-	bank_name: string;
-	mandate_agreed: boolean;
-	privacy_agreed: boolean;
-	user_id: string;
-	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
-	[key: string]: any; // Allow indexing
-}
+import { supabase } from "../../lib/supabaseClient";
+import Modal from "../../components/ui/Modal";
+import PrivacyPolicy from "../legal/PrivacyPolicy";
+import SepaMandate from "../sepa/SepaMandate";
+import type {
+	Member,
+	PrivacyUpdateEventDetail,
+	Sepa,
+	SepaUpdateEventDetail,
+} from "../../types";
 
 interface MemberFormProps {
 	user: User;
-}
-
-interface SepaUpdateEventDetail {
-	mandate_agreed: boolean;
-}
-
-interface PrivacyUpdateEventDetail {
-	privacy_agreed: boolean;
 }
 
 export default function MemberForm({ user }: MemberFormProps) {

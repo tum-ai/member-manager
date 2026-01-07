@@ -1,7 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { jsPDF } from "jspdf";
 import { useEffect, useState } from "react";
-import { supabase } from "../lib/supabaseClient";
+import { supabase } from "../../lib/supabaseClient";
 
 interface EngagementConfirmationProps {
 	user: User;
