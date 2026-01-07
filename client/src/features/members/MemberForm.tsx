@@ -76,6 +76,7 @@ export default function MemberForm({ user }: MemberFormProps) {
 		},
 	});
 
+	const { dirtyFields: sepaDirtyFields } = sepaForm.formState;
 	const mandateAgreed = sepaForm.watch("mandate_agreed");
 	const privacyAgreed = sepaForm.watch("privacy_agreed");
 
@@ -633,7 +634,7 @@ export default function MemberForm({ user }: MemberFormProps) {
 				<Modal
 					title="SEPA Mandate Agreement"
 					onClose={() => setShowSepaModal(false)}
-					confirmDisabled={!mandateAgreed}
+					confirmDisabled={!mandateAgreed || !sepaDirtyFields.mandate_agreed}
 					onConfirm={() => {
 						sepaForm.setValue("mandate_agreed", true, { shouldDirty: true });
 						window.dispatchEvent(
@@ -659,7 +660,7 @@ export default function MemberForm({ user }: MemberFormProps) {
 				<Modal
 					title="Privacy Policy Agreement"
 					onClose={() => setShowPrivacyModal(false)}
-					confirmDisabled={!privacyAgreed}
+					confirmDisabled={!privacyAgreed || !sepaDirtyFields.privacy_agreed}
 					onConfirm={() => {
 						sepaForm.setValue("privacy_agreed", true, { shouldDirty: true });
 						window.dispatchEvent(
