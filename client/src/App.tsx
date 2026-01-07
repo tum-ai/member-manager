@@ -13,8 +13,9 @@ import {
 } from "@mui/material";
 import type { TransitionProps } from "@mui/material/transitions";
 import type { User } from "@supabase/supabase-js";
+import { QueryClientProvider } from "@tanstack/react-query";
 import React, { useEffect, useState } from "react";
-import { Route, BrowserRouter as Router, Routes } from "react-router-dom";
+import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import AdminDatabaseView from "./features/admin/AdminDatabaseView";
 import Auth from "./features/auth/Auth";
@@ -22,6 +23,7 @@ import Certificate from "./features/certificate/Certificate";
 import PrivacyPolicy from "./features/legal/PrivacyPolicy";
 import MemberForm from "./features/members/MemberForm";
 import SepaMandate from "./features/sepa/SepaMandate";
+import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
 import type {
 	PrivacyUpdateEventDetail,
@@ -48,6 +50,8 @@ const dummyUser: User = {
 	email: "debug@example.com",
 	role: "user",
 } as User;
+
+import { ToastProvider } from "./contexts/ToastContext";
 
 export default function App() {
 	const isDev = import.meta.env.MODE === "development" && false;
@@ -215,139 +219,146 @@ export default function App() {
 	if (!user) return <Auth onLogin={setUser} />;
 
 	return (
-		<Router>
-			<MainLayout
-				user={user}
-				userRole={userRole}
-				onLogout={handleLogout}
-				onOpenSepa={() => setShowSepa(true)}
-				onOpenPrivacy={() => setShowPrivacy(true)}
-			>
-				<Routes>
-					{userRole === "user" && (
-						<>
-							<Route path="/" element={<MemberForm user={user} />} />
-							<Route
-								path="/sepa"
-								element={
-									<SepaMandate
-										onCheckChange={setSepaChecked}
-										sepaAgreed={currentSepaAgreed}
-									/>
-								}
-							/>
-							<Route
-								path="/privacy"
-								element={
-									<PrivacyPolicy
-										onCheckChange={setPrivacyChecked}
-										privacyAgreed={currentPrivacyAgreed}
-									/>
-								}
-							/>
-							<Route path="/certificate" element={<Certificate user={user} />} />
-						</>
-					)}
-					{userRole === "admin" && (
-						<Route path="/" element={<AdminDatabaseView />} />
-					)}
-				</Routes>
-			</MainLayout>
-
-			{/* SEPA Dialog */}
-			<Dialog
-				open={showSepa}
-				onClose={handleSepaModalClose}
-				TransitionComponent={Transition}
-				fullWidth
-				maxWidth="md"
-				PaperProps={{
-					sx: {
-						borderRadius: (theme.shape.borderRadius as number) * 2,
-						backgroundColor: theme.palette.background.paper,
-						color: theme.palette.text.primary,
-						p: theme.spacing(2),
-					},
-				}}
-			>
-				<DialogTitle variant="h5" sx={{ textAlign: "center", pb: 2 }}>
-					SEPA Mandate
-					<IconButton
-						aria-label="close"
-						onClick={handleSepaModalClose}
-						sx={{
-							position: "absolute",
-							right: 8,
-							top: 8,
-							color: (theme) => theme.palette.grey[500],
-						}}
-					/>
-				</DialogTitle>
-				<DialogContent dividers>
-					<SepaMandate
-						onCheckChange={setSepaChecked}
-						sepaAgreed={currentSepaAgreed}
-					/>
-				</DialogContent>
-				<DialogActions sx={{ pt: 2, pb: 1, pr: 2 }}>
-					<Button
-						onClick={handleSepaModalClose}
-						color="primary"
-						variant="contained"
+		<QueryClientProvider client={queryClient}>
+			<ToastProvider>
+				<Router>
+					<MainLayout
+						user={user}
+						userRole={userRole}
+						onLogout={handleLogout}
+						onOpenSepa={() => setShowSepa(true)}
+						onOpenPrivacy={() => setShowPrivacy(true)}
 					>
-						Confirm
-					</Button>
-				</DialogActions>
-			</Dialog>
+						<Routes>
+							{userRole === "user" && (
+								<>
+									<Route path="/" element={<MemberForm user={user} />} />
+									<Route
+										path="/sepa"
+										element={
+											<SepaMandate
+												onCheckChange={setSepaChecked}
+												sepaAgreed={currentSepaAgreed}
+											/>
+										}
+									/>
+									<Route
+										path="/privacy"
+										element={
+											<PrivacyPolicy
+												onCheckChange={setPrivacyChecked}
+												privacyAgreed={currentPrivacyAgreed}
+											/>
+										}
+									/>
+									<Route
+										path="/certificate"
+										element={<Certificate user={user} />}
+									/>
+								</>
+							)}
+							{userRole === "admin" && (
+								<Route path="/" element={<AdminDatabaseView />} />
+							)}
+						</Routes>
+					</MainLayout>
 
-			{/* Privacy Dialog */}
-			<Dialog
-				open={showPrivacy}
-				onClose={handlePrivacyModalClose}
-				TransitionComponent={Transition}
-				fullWidth
-				maxWidth="md"
-				PaperProps={{
-					sx: {
-						borderRadius: (theme.shape.borderRadius as number) * 2,
-						backgroundColor: theme.palette.background.paper,
-						color: theme.palette.text.primary,
-						p: theme.spacing(2),
-					},
-				}}
-			>
-				<DialogTitle variant="h5" sx={{ textAlign: "center", pb: 2 }}>
-					Privacy Policy
-					<IconButton
-						aria-label="close"
-						onClick={handlePrivacyModalClose}
-						sx={{
-							position: "absolute",
-							right: 8,
-							top: 8,
-							color: (theme) => theme.palette.grey[500],
+					{/* SEPA Dialog */}
+					<Dialog
+						open={showSepa}
+						onClose={handleSepaModalClose}
+						TransitionComponent={Transition}
+						fullWidth
+						maxWidth="md"
+						PaperProps={{
+							sx: {
+								borderRadius: (theme.shape.borderRadius as number) * 2,
+								backgroundColor: theme.palette.background.paper,
+								color: theme.palette.text.primary,
+								p: theme.spacing(2),
+							},
 						}}
 					>
-						×
-					</IconButton>
-				</DialogTitle>
-				<DialogContent dividers>
-					<PrivacyPolicy
-						onCheckChange={setPrivacyChecked}
-						privacyAgreed={currentPrivacyAgreed}
-					/>
-				</DialogContent>
-				<DialogActions sx={{ pt: 2, pb: 1, pr: 2 }}>
-					<Button
-						onClick={handlePrivacyModalClose}
-						disabled={!privacyChecked}
-						color="primary"
-						variant="contained"
+						<DialogTitle variant="h5" sx={{ textAlign: "center", pb: 2 }}>
+							SEPA Mandate
+							<IconButton
+								aria-label="close"
+								onClick={handleSepaModalClose}
+								sx={{
+									position: "absolute",
+									right: 8,
+									top: 8,
+									color: (theme) => theme.palette.grey[500],
+								}}
+							/>
+						</DialogTitle>
+						<DialogContent dividers>
+							<SepaMandate
+								onCheckChange={setSepaChecked}
+								sepaAgreed={currentSepaAgreed}
+							/>
+						</DialogContent>
+						<DialogActions sx={{ pt: 2, pb: 1, pr: 2 }}>
+							<Button
+								onClick={handleSepaModalClose}
+								color="primary"
+								variant="contained"
+							>
+								Confirm
+							</Button>
+						</DialogActions>
+					</Dialog>
+
+					{/* Privacy Dialog */}
+					<Dialog
+						open={showPrivacy}
+						onClose={handlePrivacyModalClose}
+						TransitionComponent={Transition}
+						fullWidth
+						maxWidth="md"
+						PaperProps={{
+							sx: {
+								borderRadius: (theme.shape.borderRadius as number) * 2,
+								backgroundColor: theme.palette.background.paper,
+								color: theme.palette.text.primary,
+								p: theme.spacing(2),
+							},
+						}}
 					>
-						Confirm
-					</Button>
-				</DialogActions>
-			</Dialog>
-		</Router>
+						<DialogTitle variant="h5" sx={{ textAlign: "center", pb: 2 }}>
+							Privacy Policy
+							<IconButton
+								aria-label="close"
+								onClick={handlePrivacyModalClose}
+								sx={{
+									position: "absolute",
+									right: 8,
+									top: 8,
+									color: (theme) => theme.palette.grey[500],
+								}}
+							>
+								×
+							</IconButton>
+						</DialogTitle>
+						<DialogContent dividers>
+							<PrivacyPolicy
+								onCheckChange={setPrivacyChecked}
+								privacyAgreed={currentPrivacyAgreed}
+							/>
+						</DialogContent>
+						<DialogActions sx={{ pt: 2, pb: 1, pr: 2 }}>
+							<Button
+								onClick={handlePrivacyModalClose}
+								disabled={!privacyChecked}
+								color="primary"
+								variant="contained"
+							>
+								Confirm
+							</Button>
+						</DialogActions>
+					</Dialog>
+				</Router>
+			</ToastProvider>
+		</QueryClientProvider>
 	);
 }
