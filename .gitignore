@@ -1,35 +1,55 @@
-
-# dependencies
-/node_modules
-/.pnp
+# Dependencies
+node_modules/
+.pnp
 .pnp.js
 
-# testing
-/coverage
+# Testing
+coverage/
+*.lcov
 
-# production
-/build
-/dist
+# Production / Build
+dist/
+build/
+out/
+*.tsbuildinfo
 
-# misc
-.DS_Store
-.env.local
-.env.*.local
+# Environment variables
 .env
-.vscode
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
 
-# logs
+# Logs
+*.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
+server/server.log
 
-# IDEs and editors
+# IDEs and Editors
+.vscode/
+!.vscode/extensions.json
 .idea/
+*.swp
+*.swo
 *.sublime-workspace
+*.sublime-project
 
-# Vite cache
-/.vite
+# OS Metadata
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# Zone identifiers
-*Zone.Identifier*
+# Caches
+.eslintcache
+.stylelintcache
+.vite/
+.turbo/
+.cache/
+
+# Misc
+*.Zone.Identifier
+.gemini/
