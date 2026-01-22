@@ -19,6 +19,12 @@ export async function sepaRoutes(server: FastifyInstance) {
   server.post('/sepa', { preHandler: authenticate }, async (request, reply) => {
     try {
         const body = SepaSchema.parse(request.body);
+        const user = (request as any).user;
+
+        // Verify ownership
+        if (body.member_id !== user.id) {
+            return reply.status(403).send({ error: "Unauthorized: User ID mismatch" });
+        }
 
         const { error } = await supabase.from("sepa_mandates").insert([body]);
 

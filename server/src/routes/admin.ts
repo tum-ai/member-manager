@@ -1,7 +1,7 @@
 import { FastifyInstance } from "fastify";
-import { z } from "zod";
+import { z, ZodError } from "zod";
 import { supabase } from "../lib/supabase.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, requireAdmin } from "../middleware/auth.js";
 
 const QuerySchema = z.object({
 	page: z.string().transform(Number).default("1"),
@@ -17,28 +17,17 @@ const QuerySchema = z.object({
 		.default("true"),
 });
 
+const StatusSchema = z.object({
+	active: z.boolean(),
+});
+
 export async function adminRoutes(server: FastifyInstance) {
 	server.get(
 		"/admin/members",
-		{ preHandler: authenticate },
+		{ preHandler: [authenticate, requireAdmin] },
 		async (request, reply) => {
 			try {
-				const user = (request as any).user;
-
-				// 1. Verify Admin Role
-				const { data: roleData, error: roleError } = await supabase
-					.from("user_roles")
-					.select("role")
-					.eq("user_id", user.id)
-					.single();
-
-				if (roleError || roleData?.role !== "admin") {
-					return reply
-						.status(403)
-						.send({ error: "Unauthorized: Admin access required" });
-				}
-
-				// 2. Parse Query Params
+				// 1. Parse Query Params
 				const query = QuerySchema.parse(request.query);
 				const {
 					page,
@@ -115,6 +104,34 @@ export async function adminRoutes(server: FastifyInstance) {
 					limit,
 				};
 			} catch (err: any) {
+				server.log.error(err);
+				return reply
+					.status(500)
+					.send({ error: err.message || "Internal Server Error" });
+			}
+		},
+	);
+
+	server.patch(
+		"/admin/members/:userId/status",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			try {
+				const { userId } = request.params as { userId: string };
+				const body = StatusSchema.parse(request.body);
+
+				const { error } = await supabase
+					.from("members")
+					.update({ active: body.active })
+					.eq("user_id", userId);
+
+				if (error) throw error;
+
+				return { message: "Status updated successfully" };
+			} catch (err: any) {
+				if (err instanceof ZodError) {
+					return reply.status(400).send({ error: "Validation Error", details: err.issues });
+				}
 				server.log.error(err);
 				return reply
 					.status(500)
