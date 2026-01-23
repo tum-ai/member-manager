@@ -5,15 +5,17 @@ import { supabase } from "../lib/supabase.js";
 import { authenticate } from "../middleware/auth.js";
 
 const SepaSchema = z.object({
-  member_id: z.string(),
+  user_id: z.string(),
   iban: z
     .string()
     .transform((val) => electronicFormatIBAN(val))
     .refine((val): val is string => !!val && isValidIBAN(val), {
       message: "Invalid IBAN checksum or format",
     }),
-  bic: z.string(),
+  bic: z.string().optional(),
+  bank_name: z.string(),
   mandate_agreed: z.boolean(),
+  privacy_agreed: z.boolean(),
 });
 
 export async function sepaRoutes(server: FastifyInstance) {
@@ -26,7 +28,7 @@ export async function sepaRoutes(server: FastifyInstance) {
         const user = (request as any).user;
 
         // Verify ownership
-        if (body.member_id !== user.id) {
+        if (body.user_id !== user.id) {
           return reply
             .status(403)
             .send({ error: "Unauthorized: User ID mismatch" });
@@ -40,7 +42,13 @@ export async function sepaRoutes(server: FastifyInstance) {
 
         return { message: "SEPA info added successfully" };
       } catch (err: any) {
-        if (err instanceof ZodError) {
+        if (err instanceof z.ZodError) {
+          const ibanError = err.issues.find((issue) => issue.path.includes("iban"));
+          if (ibanError) {
+            return reply
+              .status(400)
+              .send({ error: "Invalid IBAN. Please check your IBAN and try again." });
+          }
           return reply
             .status(400)
             .send({ error: "Validation Error", details: err.issues });
@@ -97,7 +105,7 @@ export async function sepaRoutes(server: FastifyInstance) {
         const user = (request as any).user;
         const body = SepaSchema.parse(request.body);
 
-        if (user.id !== body.member_id) {
+        if (user.id !== body.user_id) {
           return reply.status(403).send({
             error:
               "Forbidden: userId in request params doesn't match body's userId",
@@ -116,6 +124,12 @@ export async function sepaRoutes(server: FastifyInstance) {
         return data;
       } catch (err: any) {
         if (err instanceof z.ZodError) {
+          const ibanError = err.issues.find((issue) => issue.path.includes("iban"));
+          if (ibanError) {
+            return reply
+              .status(400)
+              .send({ error: "Invalid IBAN. Please check your IBAN and try again." });
+          }
           return reply
             .status(400)
             .send({ error: "Validation Error", details: err.issues });

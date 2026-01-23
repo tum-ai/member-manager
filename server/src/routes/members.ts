@@ -140,14 +140,21 @@ export async function memberRoutes(server: FastifyInstance) {
               "Forbidden: userId in request params doesn't match body's userId",
           });
         }
+        
+        // Remove the 'role' field before upserting since it doesn't exist in the DB
+        const { role, ...memberData } = body as any;
+        
         const { data, error } = await supabase
           .from("members")
-          .upsert(body, { onConflict: "user_id" })
+          .upsert(memberData, { onConflict: "user_id" })
           .select()
           .single();
 
         if (error && error.code === "PGRST116") {
           return reply.status(404).send({ error: "Member not found" });
+        }
+        if (error) {
+          throw error;
         }
 
         return data;
