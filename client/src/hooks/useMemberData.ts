@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { MemberSchema } from "../lib/schemas";
 import { apiClient } from "../lib/apiClient";
+import type { MemberSchema } from "../lib/schemas";
 
 export function useMemberData(userId: string) {
 	const queryClient = useQueryClient();
