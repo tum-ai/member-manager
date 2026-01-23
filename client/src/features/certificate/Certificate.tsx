@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { jsPDF } from "jspdf";
 import { useEffect, useState } from "react";
+import { apiClient } from "../../lib/apiClient";
 import { supabase } from "../../lib/supabaseClient";
 
 interface EngagementConfirmationProps {
@@ -30,7 +31,7 @@ interface Engagement {
 }
 
 export default function EngagementConfirmation({
-	user,
+	user: _user,
 }: EngagementConfirmationProps) {
 	const [loading, setLoading] = useState(true);
 	const [isSendingEmail, setIsSendingEmail] = useState(false); // New state for email sending status
@@ -67,25 +68,25 @@ export default function EngagementConfirmation({
 
 	useEffect(() => {
 		async function fetchMemberData() {
-			const { data, error } = await supabase
-				.from("members")
-				.select("salutation, given_name, surname, date_of_birth, active, email") // Added 'email'
-				.eq("user_id", user.id)
-				.single();
+			try {
+				const data = (await apiClient("api/members/me", {
+					method: "GET",
+				})) as MemberData;
 
-			if (error) {
-				console.error("Supabase fetch error:", error);
-				setError(`Error fetching data: ${error.message}`);
-			} else if (!data.active) {
-				setError("Membership is not active.");
-			} else {
-				setMemberData(data);
+				if (!data.active) {
+					setError("Membership is not active.");
+				} else {
+					setMemberData(data);
+				}
+			} catch (err: any) {
+				console.error("Fetch error:", err);
+				setError(`Error fetching data: ${err.message}`);
 			}
 			setLoading(false);
 		}
 
 		fetchMemberData();
-	}, [user]);
+	}, []);
 
 	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
 	const updateEngagement = (id: string, key: string, value: any) => {
