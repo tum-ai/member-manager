@@ -1,6 +1,7 @@
 import cors from "@fastify/cors";
 import dotenv from "dotenv";
 import Fastify from "fastify";
+import errorHandler from "./plugins/errorHandler.js";
 import { adminRoutes } from "./routes/admin.js";
 import { memberRoutes } from "./routes/members.js";
 import { sepaRoutes } from "./routes/sepa.js";
@@ -11,9 +12,11 @@ const server = Fastify({
 	logger: true,
 });
 
+// Register plugins
 server.register(cors, {
 	origin: true, // Allow all for dev, tighten for prod
 });
+server.register(errorHandler);
 
 server.get("/health", async (_request, _reply) => {
 	return { status: "ok" };

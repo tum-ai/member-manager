@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { ForbiddenError, NotFoundError, isNotFoundError } from "../lib/errors.js";
 import { supabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
 
@@ -24,57 +25,49 @@ export async function memberRoutes(server: FastifyInstance) {
     "/members",
     { preHandler: authenticate },
     async (request, reply) => {
-      try {
-        const body = MemberSchema.parse(request.body);
-        const user = (request as any).user;
+      const body = MemberSchema.parse(request.body);
+      const user = (request as any).user;
 
-        if (body.user_id !== user.id) {
-          return reply
-            .status(403)
-            .send({ error: "Unauthorized: User ID mismatch" });
-        }
+      if (body.user_id !== user.id) {
+        throw new ForbiddenError("User ID mismatch");
+      }
 
-        // Check if member exists
-        const { data: existingMember, error: fetchError } = await supabase
+      // Check if member exists
+      const { data: existingMember, error: fetchError } = await supabase
+        .from("members")
+        .select("user_id")
+        .eq("user_id", body.user_id)
+        .single();
+
+      if (fetchError && !isNotFoundError(fetchError)) {
+        throw fetchError;
+      }
+
+      if (existingMember) {
+        // If exists, just return the member
+        const { data: memberData, error: roleError } = await supabase
           .from("members")
-          .select("user_id")
+          .select("*")
           .eq("user_id", body.user_id)
           .single();
 
-        if (fetchError && fetchError.code !== "PGRST116") {
-          throw fetchError;
-        }
-
-        if (existingMember) {
-          // If exists, just return the role/member
-          const { data: memberData, error: roleError } = await supabase
-            .from("members")
-            .select("*")
-            .eq("user_id", body.user_id)
-            .single();
-
-          if (roleError) throw roleError;
-          return memberData;
-        }
-
-        // Insert new member
-        const { data, error } = await supabase
-          .from("members")
-          .insert(body)
-          .select()
-          .single();
-
-        if (error) {
-          throw error;
-        }
-
-        return data;
-      } catch (err: any) {
-        server.log.error(err);
-        return reply
-          .status(500)
-          .send({ error: err.message || "Internal Server Error" });
+        if (roleError) throw roleError;
+        return memberData;
       }
+
+      // Insert new member (remove role field as it doesn't exist in DB)
+      const { role, ...memberData } = body as any;
+      const { data, error } = await supabase
+        .from("members")
+        .insert(memberData)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      return data;
     },
   );
 
@@ -95,34 +88,22 @@ export async function memberRoutes(server: FastifyInstance) {
     "/members/me",
     { preHandler: authenticate },
     async (request, reply) => {
-      try {
-        const user = (request as any).user;
+      const user = (request as any).user;
 
-        const { data, error } = await supabase
-          .from("members")
-          .select("*")
-          .eq("user_id", user.id)
-          .single();
+      const { data, error } = await supabase
+        .from("members")
+        .select("*")
+        .eq("user_id", user.id)
+        .single();
 
-        if (error && error.code === "PGRST116") {
-          return reply.status(404).send({ error: "Member not found" });
-        }
-        if (error) {
-          throw error;
-        }
-
-        return data;
-      } catch (err: any) {
-        if (err instanceof z.ZodError) {
-          return reply
-            .status(400)
-            .send({ error: "Validation Error", details: err.issues });
-        }
-        server.log.error(err);
-        return reply
-          .status(500)
-          .send({ error: err.message || "Internal Server Error" });
+      if (isNotFoundError(error)) {
+        throw new NotFoundError("Member not found");
       }
+      if (error) {
+        throw error;
+      }
+
+      return data;
     },
   );
 
@@ -130,45 +111,30 @@ export async function memberRoutes(server: FastifyInstance) {
     "/members/me",
     { preHandler: authenticate },
     async (request, reply) => {
-      try {
-        const body = MemberSchema.parse(request.body);
-        const user = (request as any).user;
+      const body = MemberSchema.parse(request.body);
+      const user = (request as any).user;
 
-        if (user.id !== body.user_id) {
-          return reply.status(403).send({
-            error:
-              "Forbidden: userId in request params doesn't match body's userId",
-          });
-        }
-        
-        // Remove the 'role' field before upserting since it doesn't exist in the DB
-        const { role, ...memberData } = body as any;
-        
-        const { data, error } = await supabase
-          .from("members")
-          .upsert(memberData, { onConflict: "user_id" })
-          .select()
-          .single();
-
-        if (error && error.code === "PGRST116") {
-          return reply.status(404).send({ error: "Member not found" });
-        }
-        if (error) {
-          throw error;
-        }
-
-        return data;
-      } catch (err: any) {
-        if (err instanceof z.ZodError) {
-          return reply
-            .status(400)
-            .send({ error: "Validation Error", details: err.issues });
-        }
-        server.log.error(err);
-        return reply
-          .status(500)
-          .send({ error: err.message || "Internal Server Error" });
+      if (user.id !== body.user_id) {
+        throw new ForbiddenError("User ID mismatch");
       }
+
+      // Remove the 'role' field before upserting since it doesn't exist in the DB
+      const { role, ...memberData } = body as any;
+
+      const { data, error } = await supabase
+        .from("members")
+        .upsert(memberData, { onConflict: "user_id" })
+        .select()
+        .single();
+
+      if (isNotFoundError(error)) {
+        throw new NotFoundError("Member not found");
+      }
+      if (error) {
+        throw error;
+      }
+
+      return data;
     },
   );
 }
