@@ -12,7 +12,7 @@ export function useMemberData(userId: string) {
 	} = useQuery({
 		queryKey: ["member", userId],
 		queryFn: async () => {
-			return await apiClient(`api/members/me`, {
+			return await apiClient(`/api/members/me`, {
 				method: "GET",
 			});
 		},
@@ -20,7 +20,7 @@ export function useMemberData(userId: string) {
 
 	const mutation = useMutation({
 		mutationFn: async (data: MemberSchema) => {
-			await apiClient(`api/members/me`, {
+			await apiClient(`/api/members/me`, {
 				method: "PUT",
 				body: JSON.stringify(data),
 			});

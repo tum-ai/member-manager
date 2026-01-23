@@ -13,7 +13,7 @@ export function useSepaData(userId: string) {
 	} = useQuery({
 		queryKey: ["sepa", userId],
 		queryFn: async () => {
-			return (await apiClient(`api/sepa/me`, {
+			return (await apiClient(`/api/sepa/me`, {
 				method: "GET",
 			})) as Sepa;
 		},
@@ -21,7 +21,7 @@ export function useSepaData(userId: string) {
 
 	const mutation = useMutation({
 		mutationFn: async (data: SepaSchema) => {
-			return (await apiClient(`api/sepa/me`, {
+			return (await apiClient(`/api/sepa/me`, {
 				method: "PUT",
 				body: JSON.stringify(data),
 			})) as Sepa;
