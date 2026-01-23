@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { SepaSchema } from "../lib/schemas";
 import { supabase } from "../lib/supabaseClient";
 import type { Sepa } from "../types";
+import { apiClient } from "../lib/apiClient";
 
 export function useSepaData(userId: string) {
 	const queryClient = useQueryClient();
@@ -13,22 +14,18 @@ export function useSepaData(userId: string) {
 	} = useQuery({
 		queryKey: ["sepa", userId],
 		queryFn: async () => {
-			const { data, error } = await supabase
-				.from("sepa")
-				.select("*")
-				.eq("user_id", userId)
-				.single();
-			if (error && error.code !== "PGRST116") throw error; // Ignore not found error
-			return data as Sepa;
+			return (await apiClient(`api/sepa/me`, {
+				method: "GET",
+			})) as Sepa;
 		},
 	});
 
 	const mutation = useMutation({
 		mutationFn: async (data: SepaSchema) => {
-			const { error } = await supabase
-				.from("sepa")
-				.upsert(data, { onConflict: "user_id" });
-			if (error) throw error;
+			return (await apiClient(`api/sepa/me`, {
+				method: "PUT",
+				body: JSON.stringify(data),
+			})) as Sepa;
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["sepa", userId] });
