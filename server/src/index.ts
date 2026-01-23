@@ -1,9 +1,9 @@
-import Fastify from "fastify";
 import cors from "@fastify/cors";
 import dotenv from "dotenv";
+import Fastify from "fastify";
+import { adminRoutes } from "./routes/admin.js";
 import { memberRoutes } from "./routes/members.js";
 import { sepaRoutes } from "./routes/sepa.js";
-import { adminRoutes } from "./routes/admin.js";
 
 dotenv.config();
 
@@ -15,7 +15,7 @@ server.register(cors, {
 	origin: true, // Allow all for dev, tighten for prod
 });
 
-server.get("/health", async (request, reply) => {
+server.get("/health", async (_request, _reply) => {
 	return { status: "ok" };
 });
 
@@ -25,7 +25,7 @@ server.register(adminRoutes, { prefix: "/api" });
 
 const start = async () => {
 	try {
-		const PORT = parseInt(process.env.PORT || "3000");
+		const PORT = parseInt(process.env.PORT || "3000", 10);
 		await server.listen({ port: PORT, host: "0.0.0.0" });
 		console.log(`Server listening on http://localhost:${PORT}`);
 	} catch (err) {

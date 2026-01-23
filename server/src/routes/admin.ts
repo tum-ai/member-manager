@@ -1,4 +1,4 @@
-import { FastifyInstance } from "fastify";
+import type { FastifyInstance } from "fastify";
 import { z, ZodError } from "zod";
 import { supabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
