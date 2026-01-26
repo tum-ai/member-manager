@@ -1,9 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase } from "../lib/supabaseClient";
+import { apiClient } from "../lib/apiClient";
 import type { Member, Sepa } from "../types";
 
 interface AdminMember extends Member {
 	sepa: Sepa;
+}
+
+interface AdminResponse {
+	data: AdminMember[];
+	total: number;
+	page: number;
+	limit: number;
 }
 
 export function useAdminData() {
@@ -16,27 +23,10 @@ export function useAdminData() {
 	} = useQuery({
 		queryKey: ["admin-members"],
 		queryFn: async () => {
-			const { data: members, error: membersError } = await supabase
-				.from("members")
-				.select("*");
-			const { data: sepa, error: sepaError } = await supabase
-				.from("sepa")
-				.select("*");
-
-			if (membersError) throw membersError;
-			if (sepaError) throw sepaError;
-
-			if (!members) return [];
-
-			// Join data manually since Supabase join syntax can be complex with strict types
-			// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
-			const joined: AdminMember[] = members.map((member: any) => ({
-				...member,
-				// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
-				sepa: sepa?.find((s: any) => s.user_id === member.user_id) || {},
-			}));
-
-			return joined;
+			const response = await apiClient<AdminResponse>(
+				"/api/admin/members?limit=1000",
+			);
+			return response.data;
 		},
 	});
 
@@ -48,11 +38,10 @@ export function useAdminData() {
 			userId: string;
 			newStatus: boolean;
 		}) => {
-			const { error } = await supabase
-				.from("members")
-				.update({ active: newStatus })
-				.eq("user_id", userId);
-			if (error) throw error;
+			await apiClient(`/api/admin/members/${userId}/status`, {
+				method: "PATCH",
+				body: JSON.stringify({ active: newStatus }),
+			});
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["admin-members"] });

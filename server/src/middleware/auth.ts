@@ -18,3 +18,17 @@ export async function authenticate(request: FastifyRequest, reply: FastifyReply)
     // Attach user to request
     (request as any).user = user;
 }
+
+export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
+    const user = (request as any).user;
+
+    const { data: roleData, error: roleError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single();
+
+    if (roleError || roleData?.role !== "admin") {
+        return reply.status(403).send({ error: "Unauthorized: Admin access required" });
+    }
+}

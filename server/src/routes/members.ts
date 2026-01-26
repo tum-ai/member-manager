@@ -1,7 +1,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { supabase } from '../lib/supabase.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, requireAdmin } from '../middleware/auth.js';
 
 const MemberSchema = z.object({
   user_id: z.string(),
@@ -70,7 +70,7 @@ export async function memberRoutes(server: FastifyInstance) {
     }
   });
 
-  server.get('/members', { preHandler: authenticate }, async (request, reply) => {
+  server.get('/members', { preHandler: [authenticate, requireAdmin] }, async (request, reply) => {
     const { data, error } = await supabase.from('members').select('*');
 
     if (error) {
