@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { electronicFormatIBAN, isValidIBAN } from "ibantools";
 import { z } from "zod";
-import { checkAdminRole } from "../lib/auth.js";
+import { ensureOwnerOrAdmin } from "../lib/auth.js";
 import {
 	ForbiddenError,
 	isNotFoundError,
@@ -23,6 +23,10 @@ const SepaSchema = z.object({
 	bank_name: z.string(),
 	mandate_agreed: z.boolean(),
 	privacy_agreed: z.boolean(),
+});
+
+const UpdateSepaSchema = SepaSchema.omit({
+	user_id: true,
 });
 
 export async function sepaRoutes(server: FastifyInstance) {
@@ -55,12 +59,11 @@ export async function sepaRoutes(server: FastifyInstance) {
 			const { userId } = request.params;
 			const user = (request as AuthenticatedRequest).user;
 
-			if (userId !== user.id) {
-				const isAdmin = await checkAdminRole(user.id);
-				if (!isAdmin) {
-					throw new ForbiddenError("You can only view your own SEPA data");
-				}
-			}
+			await ensureOwnerOrAdmin(
+				user.id,
+				userId,
+				"You can only view your own SEPA data",
+			);
 
 			const { data, error } = await supabase
 				.from("sepa")
@@ -85,23 +88,18 @@ export async function sepaRoutes(server: FastifyInstance) {
 		async (request, _reply) => {
 			const { userId } = request.params;
 			const user = (request as AuthenticatedRequest).user;
-			const body = SepaSchema.parse(request.body);
 
-			if (userId !== user.id) {
-				const isAdmin = await checkAdminRole(user.id);
-				if (!isAdmin) {
-					throw new ForbiddenError("You can only update your own SEPA data");
-				}
-			}
+			await ensureOwnerOrAdmin(
+				user.id,
+				userId,
+				"You can only update your own SEPA data",
+			);
 
-			// Ensure we are updating the correct user
-			if (body.user_id !== userId) {
-				throw new ForbiddenError("User ID mismatch in body");
-			}
+			const body = UpdateSepaSchema.parse(request.body);
 
 			const { data, error } = await supabase
 				.from("sepa")
-				.upsert(body, { onConflict: "user_id" })
+				.upsert({ ...body, user_id: userId }, { onConflict: "user_id" })
 				.select()
 				.single();
 

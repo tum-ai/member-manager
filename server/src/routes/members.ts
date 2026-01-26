@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { checkAdminRole } from "../lib/auth.js";
+import { ensureOwnerOrAdmin } from "../lib/auth.js";
 import {
 	ForbiddenError,
 	isNotFoundError,
@@ -104,14 +104,11 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { userId } = request.params;
 			const user = (request as AuthenticatedRequest).user;
 
-			if (userId !== user.id) {
-				// Check if requester is admin
-				const isAdmin = await checkAdminRole(user.id);
-
-				if (!isAdmin) {
-					throw new ForbiddenError("You can only view your own profile");
-				}
-			}
+			await ensureOwnerOrAdmin(
+				user.id,
+				userId,
+				"You can only view your own profile",
+			);
 
 			const { data, error } = await supabase
 				.from("members")
@@ -137,12 +134,11 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { userId } = request.params;
 			const user = (request as AuthenticatedRequest).user;
 
-			if (userId !== user.id) {
-				const isAdmin = await checkAdminRole(user.id);
-				if (!isAdmin) {
-					throw new ForbiddenError("You can only update your own profile");
-				}
-			}
+			await ensureOwnerOrAdmin(
+				user.id,
+				userId,
+				"You can only update your own profile",
+			);
 
 			const body = UpdateMemberSchema.parse(request.body);
 
@@ -157,14 +153,14 @@ export async function memberRoutes(server: FastifyInstance) {
 				.select()
 				.single();
 
-      if (isNotFoundError(error)) {
-        throw new NotFoundError("Member not found");
-      }
-      if (error) {
-        throw error;
-      }
+			if (isNotFoundError(error)) {
+				throw new NotFoundError("Member not found");
+			}
+			if (error) {
+				throw error;
+			}
 
-      return data;
-    },
-  );
+			return data;
+		},
+	);
 }

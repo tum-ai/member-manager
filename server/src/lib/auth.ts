@@ -1,4 +1,4 @@
-import { isNotFoundError } from "./errors.js";
+import { ForbiddenError, isNotFoundError } from "./errors.js";
 import { supabase } from "./supabase.js";
 
 export async function checkAdminRole(userId: string): Promise<boolean> {
@@ -13,4 +13,17 @@ export async function checkAdminRole(userId: string): Promise<boolean> {
 	}
 
 	return roleData?.role === "admin";
+}
+
+export async function ensureOwnerOrAdmin(
+	userId: string,
+	targetId: string,
+	message = "Access denied",
+): Promise<void> {
+	if (userId === targetId) return;
+
+	const isAdmin = await checkAdminRole(userId);
+	if (!isAdmin) {
+		throw new ForbiddenError(message);
+	}
 }
