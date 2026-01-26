@@ -1,5 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { checkAdminRole } from "../lib/auth.js";
 import { supabase } from "../lib/supabase.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 
 export async function authenticate(
 	request: FastifyRequest,
@@ -22,19 +24,24 @@ export async function authenticate(
 	}
 
 	// Attach user to request
-	(request as any).user = user;
+	(request as AuthenticatedRequest).user = user;
 }
 
-export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
-    const user = (request as any).user;
+export async function requireAdmin(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const user = (request as AuthenticatedRequest).user;
 
-    const { data: roleData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .single();
+	try {
+		const isAdmin = await checkAdminRole(user.id);
 
-    if (roleError || roleData?.role !== "admin") {
-        return reply.status(403).send({ error: "Unauthorized: Admin access required" });
-    }
+		if (!isAdmin) {
+			return reply
+				.status(403)
+				.send({ error: "Unauthorized: Admin access required" });
+		}
+	} catch (error) {
+		return reply.status(500).send({ error: "Internal Server Error" });
+	}
 }

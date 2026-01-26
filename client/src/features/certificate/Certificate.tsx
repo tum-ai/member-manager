@@ -69,9 +69,9 @@ export default function EngagementConfirmation({
 	useEffect(() => {
 		async function fetchMemberData() {
 			try {
-			const data = (await apiClient("/api/members/me", {
-				method: "GET",
-			})) as MemberData;
+				const data = (await apiClient("/api/members/me", {
+					method: "GET",
+				})) as MemberData;
 
 				if (!data.active) {
 					setError("Membership is not active.");

@@ -1,8 +1,14 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { ForbiddenError, NotFoundError, isNotFoundError } from "../lib/errors.js";
+import { checkAdminRole } from "../lib/auth.js";
+import {
+  ForbiddenError,
+  isNotFoundError,
+  NotFoundError,
+} from "../lib/errors.js";
 import { supabase } from "../lib/supabase.js";
-import { authenticate, requireAdmin } from "../middleware/auth.js";
+import { authenticate } from "../middleware/auth.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 
 const MemberSchema = z.object({
   user_id: z.string(),
@@ -24,9 +30,9 @@ export async function memberRoutes(server: FastifyInstance) {
   server.post(
     "/members",
     { preHandler: authenticate },
-    async (request, reply) => {
+    async (request, _reply) => {
       const body = MemberSchema.parse(request.body);
-      const user = (request as any).user;
+      const user = (request as AuthenticatedRequest).user;
 
       if (body.user_id !== user.id) {
         throw new ForbiddenError("User ID mismatch");
@@ -55,7 +61,6 @@ export async function memberRoutes(server: FastifyInstance) {
         return memberData;
       }
 
-      // Insert new member (remove role field as it doesn't exist in DB)
       const { role, ...memberData } = body as any;
       const { data, error } = await supabase
         .from("members")
@@ -71,15 +76,35 @@ export async function memberRoutes(server: FastifyInstance) {
     },
   );
 
-  server.get(
-    "/members",
-    { preHandler: [authenticate, requireAdmin] },
-    async (request, reply) => {
-      const { data, error } = await supabase.from("members").select("*");
-      if (error) {
-        server.log.error(error);
-        return reply.status(500).send({ error: error.message });
+  server.get<{ Params: { userId: string } }>(
+    "/members/:userId",
+    { preHandler: authenticate },
+    async (request, _reply) => {
+      const { userId } = request.params;
+      const user = (request as AuthenticatedRequest).user;
+
+      if (userId !== user.id) {
+        // Check if requester is admin
+        const isAdmin = await checkAdminRole(user.id);
+
+        if (!isAdmin) {
+          throw new ForbiddenError("You can only view your own profile");
+        }
       }
+
+      const { data, error } = await supabase
+        .from("members")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+
+      if (isNotFoundError(error)) {
+        throw new NotFoundError("Member not found");
+      }
+      if (error) {
+        throw error;
+      }
+
       return data;
     },
   );
@@ -87,8 +112,8 @@ export async function memberRoutes(server: FastifyInstance) {
   server.get(
     "/members/me",
     { preHandler: authenticate },
-    async (request, reply) => {
-      const user = (request as any).user;
+    async (request, _reply) => {
+      const user = (request as AuthenticatedRequest).user;
 
       const { data, error } = await supabase
         .from("members")
@@ -110,9 +135,9 @@ export async function memberRoutes(server: FastifyInstance) {
   server.put(
     "/members/me",
     { preHandler: authenticate },
-    async (request, reply) => {
+    async (request, _reply) => {
       const body = MemberSchema.parse(request.body);
-      const user = (request as any).user;
+      const user = (request as AuthenticatedRequest).user;
 
       if (user.id !== body.user_id) {
         throw new ForbiddenError("User ID mismatch");
