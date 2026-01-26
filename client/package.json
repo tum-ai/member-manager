@@ -1,5 +1,5 @@
 {
-	"name": "member-manager",
+	"name": "@member-manager/client",
 	"version": "0.0.1",
 	"scripts": {
 		"dev": "vite",
