@@ -1,5 +1,5 @@
 {
-	"name": "server",
+	"name": "@member-manager/server",
 	"version": "1.0.0",
 	"description": "Backend API for Member Manager",
 	"main": "dist/index.js",
