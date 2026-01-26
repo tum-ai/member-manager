@@ -1,7 +1,8 @@
+// THIS IS CURRENTLY UNUSED
 import type { User } from "@supabase/supabase-js";
 import { jsPDF } from "jspdf";
-import { useEffect, useState } from "react";
-import { apiClient } from "../../lib/apiClient";
+import { useState } from "react";
+import { useMemberData } from "../../hooks/useMemberData";
 import { supabase } from "../../lib/supabaseClient";
 
 interface EngagementConfirmationProps {
@@ -33,10 +34,10 @@ interface Engagement {
 export default function EngagementConfirmation({
 	user: _user,
 }: EngagementConfirmationProps) {
-	const [loading, setLoading] = useState(true);
+	const { member, isLoading, error: fetchError } = useMemberData(_user.id);
+	const memberData = member as MemberData | undefined;
+
 	const [isSendingEmail, setIsSendingEmail] = useState(false); // New state for email sending status
-	const [memberData, setMemberData] = useState<MemberData | null>(null);
-	const [error, setError] = useState<string | null>(null);
 
 	const institutionName = "TUM.ai";
 
@@ -65,28 +66,6 @@ export default function EngagementConfirmation({
 			id: "initial-id",
 		},
 	]);
-
-	useEffect(() => {
-		async function fetchMemberData() {
-			try {
-				const data = (await apiClient("/api/members/me", {
-					method: "GET",
-				})) as MemberData;
-
-				if (!data.active) {
-					setError("Membership is not active.");
-				} else {
-					setMemberData(data);
-				}
-			} catch (err: any) {
-				console.error("Fetch error:", err);
-				setError(`Error fetching data: ${err.message}`);
-			}
-			setLoading(false);
-		}
-
-		fetchMemberData();
-	}, []);
 
 	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
 	const updateEngagement = (id: string, key: string, value: any) => {
@@ -477,9 +456,10 @@ Each member shapes their TUM.ai journey by joining one of the departments to con
 		}
 	};
 
-	if (loading) return <div>Loading...</div>;
-	if (error) return <div>{error}</div>;
+	if (isLoading) return <div>Loading...</div>;
+	if (fetchError) return <div>Error fetching data: {fetchError.message}</div>;
 	if (!memberData) return <div>No member data found.</div>;
+	if (!memberData.active) return <div>Membership is not active.</div>;
 
 	return (
 		<div

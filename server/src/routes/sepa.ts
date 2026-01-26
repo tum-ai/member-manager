@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { electronicFormatIBAN, isValidIBAN } from "ibantools";
 import { z } from "zod";
+import { checkAdminRole } from "../lib/auth.js";
 import {
 	ForbiddenError,
 	isNotFoundError,
@@ -47,16 +48,24 @@ export async function sepaRoutes(server: FastifyInstance) {
 		},
 	);
 
-	server.get(
-		"/sepa/me",
+	server.get<{ Params: { userId: string } }>(
+		"/sepa/:userId",
 		{ preHandler: authenticate },
 		async (request, _reply) => {
+			const { userId } = request.params;
 			const user = (request as AuthenticatedRequest).user;
+
+			if (userId !== user.id) {
+				const isAdmin = await checkAdminRole(user.id);
+				if (!isAdmin) {
+					throw new ForbiddenError("You can only view your own SEPA data");
+				}
+			}
 
 			const { data, error } = await supabase
 				.from("sepa")
 				.select("*")
-				.eq("user_id", user.id)
+				.eq("user_id", userId)
 				.single();
 
 			if (isNotFoundError(error)) {
@@ -70,15 +79,24 @@ export async function sepaRoutes(server: FastifyInstance) {
 		},
 	);
 
-	server.put(
-		"/sepa/me",
+	server.put<{ Params: { userId: string } }>(
+		"/sepa/:userId",
 		{ preHandler: authenticate },
 		async (request, _reply) => {
+			const { userId } = request.params;
 			const user = (request as AuthenticatedRequest).user;
 			const body = SepaSchema.parse(request.body);
 
-			if (user.id !== body.user_id) {
-				throw new ForbiddenError("User ID mismatch");
+			if (userId !== user.id) {
+				const isAdmin = await checkAdminRole(user.id);
+				if (!isAdmin) {
+					throw new ForbiddenError("You can only update your own SEPA data");
+				}
+			}
+
+			// Ensure we are updating the correct user
+			if (body.user_id !== userId) {
+				throw new ForbiddenError("User ID mismatch in body");
 			}
 
 			const { data, error } = await supabase

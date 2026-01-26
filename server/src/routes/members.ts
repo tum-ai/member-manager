@@ -2,155 +2,160 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { checkAdminRole } from "../lib/auth.js";
 import {
-  ForbiddenError,
-  isNotFoundError,
-  NotFoundError,
+	ForbiddenError,
+	isNotFoundError,
+	NotFoundError,
 } from "../lib/errors.js";
 import { supabase } from "../lib/supabase.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
 const MemberSchema = z.object({
-  user_id: z.string(),
-  email: z.string().email(),
-  given_name: z.string().optional().default(""),
-  surname: z.string().optional().default(""),
-  date_of_birth: z.string().optional().default("1900-01-01"),
-  street: z.string().optional().default(""),
-  number: z.string().optional().default(""),
-  postal_code: z.string().optional().default(""),
-  city: z.string().optional().default(""),
-  country: z.string().optional().default(""),
-  active: z.boolean().optional().default(true),
-  salutation: z.string().optional().default(""),
-  role: z.string().optional().default("user"),
+	user_id: z.string(),
+	email: z.string().email(),
+	given_name: z.string().optional().default(""),
+	surname: z.string().optional().default(""),
+	date_of_birth: z.string().optional().default("1900-01-01"),
+	street: z.string().optional().default(""),
+	number: z.string().optional().default(""),
+	postal_code: z.string().optional().default(""),
+	city: z.string().optional().default(""),
+	country: z.string().optional().default(""),
+	active: z.boolean().optional().default(true),
+	salutation: z.string().optional().default(""),
+	title: z.string().optional().default(""),
+});
+
+const UpdateMemberSchema = MemberSchema.omit({
+	user_id: true,
+	active: true,
 });
 
 export async function memberRoutes(server: FastifyInstance) {
-  server.post(
-    "/members",
-    { preHandler: authenticate },
-    async (request, _reply) => {
-      const body = MemberSchema.parse(request.body);
-      const user = (request as AuthenticatedRequest).user;
+	server.post(
+		"/members",
+		{ preHandler: authenticate },
+		async (request, _reply) => {
+			const body = MemberSchema.parse(request.body);
+			const user = (request as AuthenticatedRequest).user;
 
-      if (body.user_id !== user.id) {
-        throw new ForbiddenError("User ID mismatch");
-      }
+			if (body.user_id !== user.id) {
+				throw new ForbiddenError("User ID mismatch");
+			}
 
-      // Check if member exists
-      const { data: existingMember, error: fetchError } = await supabase
-        .from("members")
-        .select("user_id")
-        .eq("user_id", body.user_id)
-        .single();
+			// Check if member exists
+			const { data: existingMember, error: fetchError } = await supabase
+				.from("members")
+				.select("user_id")
+				.eq("user_id", body.user_id)
+				.single();
 
-      if (fetchError && !isNotFoundError(fetchError)) {
-        throw fetchError;
-      }
+			if (fetchError && !isNotFoundError(fetchError)) {
+				throw fetchError;
+			}
 
-      if (existingMember) {
-        // If exists, just return the member
-        const { data: memberData, error: roleError } = await supabase
-          .from("members")
-          .select("*")
-          .eq("user_id", body.user_id)
-          .single();
+			if (existingMember) {
+				// If exists, just return the member
+				const { data: memberData, error: roleError } = await supabase
+					.from("members")
+					.select("*")
+					.eq("user_id", body.user_id)
+					.single();
 
-        if (roleError) throw roleError;
-        return memberData;
-      }
+				if (roleError) throw roleError;
+				return memberData;
+			}
 
-      const { role, ...memberData } = body as any;
-      const { data, error } = await supabase
-        .from("members")
-        .insert(memberData)
-        .select()
-        .single();
+			const { ...memberData } = body;
+			const { data, error } = await supabase
+				.from("members")
+				.insert(memberData)
+				.select()
+				.single();
 
-      if (error) {
-        throw error;
-      }
+			if (error) {
+				throw error;
+			}
 
-      return data;
-    },
-  );
+			// Assign default role if it doesn't exist
+			const { error: roleAssignmentError } = await supabase
+				.from("user_roles")
+				.upsert(
+					{ user_id: body.user_id, role: "user" },
+					{ onConflict: "user_id", ignoreDuplicates: true },
+				);
 
-  server.get<{ Params: { userId: string } }>(
-    "/members/:userId",
-    { preHandler: authenticate },
-    async (request, _reply) => {
-      const { userId } = request.params;
-      const user = (request as AuthenticatedRequest).user;
+			if (roleAssignmentError) {
+				request.log.error(
+					{ err: roleAssignmentError },
+					"Failed to assign default role",
+				);
+				throw roleAssignmentError;
+			}
 
-      if (userId !== user.id) {
-        // Check if requester is admin
-        const isAdmin = await checkAdminRole(user.id);
+			return data;
+		},
+	);
 
-        if (!isAdmin) {
-          throw new ForbiddenError("You can only view your own profile");
-        }
-      }
+	server.get<{ Params: { userId: string } }>(
+		"/members/:userId",
+		{ preHandler: authenticate },
+		async (request, _reply) => {
+			const { userId } = request.params;
+			const user = (request as AuthenticatedRequest).user;
 
-      const { data, error } = await supabase
-        .from("members")
-        .select("*")
-        .eq("user_id", userId)
-        .single();
+			if (userId !== user.id) {
+				// Check if requester is admin
+				const isAdmin = await checkAdminRole(user.id);
 
-      if (isNotFoundError(error)) {
-        throw new NotFoundError("Member not found");
-      }
-      if (error) {
-        throw error;
-      }
+				if (!isAdmin) {
+					throw new ForbiddenError("You can only view your own profile");
+				}
+			}
 
-      return data;
-    },
-  );
+			const { data, error } = await supabase
+				.from("members")
+				.select("*")
+				.eq("user_id", userId)
+				.single();
 
-  server.get(
-    "/members/me",
-    { preHandler: authenticate },
-    async (request, _reply) => {
-      const user = (request as AuthenticatedRequest).user;
+			if (isNotFoundError(error)) {
+				throw new NotFoundError("Member not found");
+			}
+			if (error) {
+				throw error;
+			}
 
-      const { data, error } = await supabase
-        .from("members")
-        .select("*")
-        .eq("user_id", user.id)
-        .single();
+			return data;
+		},
+	);
 
-      if (isNotFoundError(error)) {
-        throw new NotFoundError("Member not found");
-      }
-      if (error) {
-        throw error;
-      }
+	server.put<{ Params: { userId: string } }>(
+		"/members/:userId",
+		{ preHandler: authenticate },
+		async (request, _reply) => {
+			const { userId } = request.params;
+			const user = (request as AuthenticatedRequest).user;
 
-      return data;
-    },
-  );
+			if (userId !== user.id) {
+				const isAdmin = await checkAdminRole(user.id);
+				if (!isAdmin) {
+					throw new ForbiddenError("You can only update your own profile");
+				}
+			}
 
-  server.put(
-    "/members/me",
-    { preHandler: authenticate },
-    async (request, _reply) => {
-      const body = MemberSchema.parse(request.body);
-      const user = (request as AuthenticatedRequest).user;
+			const body = UpdateMemberSchema.parse(request.body);
 
-      if (user.id !== body.user_id) {
-        throw new ForbiddenError("User ID mismatch");
-      }
+			const memberData = {
+				...body,
+				user_id: userId,
+			};
 
-      // Remove the 'role' field before upserting since it doesn't exist in the DB
-      const { role, ...memberData } = body as any;
-
-      const { data, error } = await supabase
-        .from("members")
-        .upsert(memberData, { onConflict: "user_id" })
-        .select()
-        .single();
+			const { data, error } = await supabase
+				.from("members")
+				.upsert(memberData, { onConflict: "user_id" })
+				.select()
+				.single();
 
       if (isNotFoundError(error)) {
         throw new NotFoundError("Member not found");
