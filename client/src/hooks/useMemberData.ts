@@ -1,7 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { apiClient } from "../lib/apiClient";
 import type { MemberSchema } from "../lib/schemas";
-import { supabase } from "../lib/supabaseClient";
-import type { Member } from "../types";
 
 export function useMemberData(userId: string) {
 	const queryClient = useQueryClient();
@@ -13,22 +12,18 @@ export function useMemberData(userId: string) {
 	} = useQuery({
 		queryKey: ["member", userId],
 		queryFn: async () => {
-			const { data, error } = await supabase
-				.from("members")
-				.select("*")
-				.eq("user_id", userId)
-				.single();
-			if (error) throw error;
-			return data as Member;
+			return await apiClient(`/api/members/${userId}`, {
+				method: "GET",
+			});
 		},
 	});
 
 	const mutation = useMutation({
 		mutationFn: async (data: MemberSchema) => {
-			const { error } = await supabase
-				.from("members")
-				.upsert(data, { onConflict: "user_id" });
-			if (error) throw error;
+			await apiClient(`/api/members/${userId}`, {
+				method: "PUT",
+				body: JSON.stringify(data),
+			});
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["member", userId] });

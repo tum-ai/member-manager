@@ -1,82 +1,166 @@
-import { FastifyInstance } from 'fastify';
-import { z } from 'zod';
-import { supabase } from '../lib/supabase.js';
-import { authenticate, requireAdmin } from '../middleware/auth.js';
+import type { FastifyInstance } from "fastify";
+import { z } from "zod";
+import { ensureOwnerOrAdmin } from "../lib/auth.js";
+import {
+	ForbiddenError,
+	isNotFoundError,
+	NotFoundError,
+} from "../lib/errors.js";
+import { supabase } from "../lib/supabase.js";
+import { authenticate } from "../middleware/auth.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 
 const MemberSchema = z.object({
-  user_id: z.string(),
-  email: z.string().email(),
-  given_name: z.string().optional().default(""),
-  surname: z.string().optional().default(""),
-  date_of_birth: z.string().optional().default("1900-01-01"),
-  street: z.string().optional().default(""),
-  number: z.string().optional().default(""),
-  postal_code: z.string().optional().default(""),
-  city: z.string().optional().default(""),
-  country: z.string().optional().default(""),
-  active: z.boolean().optional().default(true),
-  salutation: z.string().optional().default(""),
-  role: z.string().optional().default("user"),
+	user_id: z.string(),
+	email: z.string().email(),
+	given_name: z.string().optional().default(""),
+	surname: z.string().optional().default(""),
+	date_of_birth: z.string().optional().default("1900-01-01"),
+	street: z.string().optional().default(""),
+	number: z.string().optional().default(""),
+	postal_code: z.string().optional().default(""),
+	city: z.string().optional().default(""),
+	country: z.string().optional().default(""),
+	active: z.boolean().optional().default(true),
+	salutation: z.string().optional().default(""),
+	title: z.string().optional().default(""),
+});
+
+const UpdateMemberSchema = MemberSchema.omit({
+	user_id: true,
+	active: true,
 });
 
 export async function memberRoutes(server: FastifyInstance) {
-  server.post('/members', { preHandler: authenticate }, async (request, reply) => {
-    try {
-        const body = MemberSchema.parse(request.body);
-        const user = (request as any).user;
+	server.post(
+		"/members",
+		{ preHandler: authenticate },
+		async (request, _reply) => {
+			const body = MemberSchema.parse(request.body);
+			const user = (request as AuthenticatedRequest).user;
 
-        if (body.user_id !== user.id) {
-             return reply.status(403).send({ error: "Unauthorized: User ID mismatch" });
-        }
+			if (body.user_id !== user.id) {
+				throw new ForbiddenError("User ID mismatch");
+			}
 
-        // Check if member exists
-        const { data: existingMember, error: fetchError } = await supabase
-            .from("members")
-            .select("user_id")
-            .eq("user_id", body.user_id)
-            .single();
+			// Check if member exists
+			const { data: existingMember, error: fetchError } = await supabase
+				.from("members")
+				.select("user_id")
+				.eq("user_id", body.user_id)
+				.single();
 
-        if (fetchError && fetchError.code !== "PGRST116") {
-            throw fetchError;
-        }
+			if (fetchError && !isNotFoundError(fetchError)) {
+				throw fetchError;
+			}
 
-        if (existingMember) {
-             // If exists, just return the role/member
-            const { data: memberData, error: roleError } = await supabase
-                .from("members")
-                .select("*")
-                .eq("user_id", body.user_id)
-                .single();
-            
-             if (roleError) throw roleError;
-             return memberData;
-        }
+			if (existingMember) {
+				// If exists, just return the member
+				const { data: memberData, error: roleError } = await supabase
+					.from("members")
+					.select("*")
+					.eq("user_id", body.user_id)
+					.single();
 
-        // Insert new member
-        const { data, error } = await supabase
-        .from('members')
-        .insert(body)
-        .select()
-        .single();
+				if (roleError) throw roleError;
+				return memberData;
+			}
 
-        if (error) {
-            throw error;
-        }
+			const { ...memberData } = body;
+			const { data, error } = await supabase
+				.from("members")
+				.insert(memberData)
+				.select()
+				.single();
 
-        return data;
-    } catch (err: any) {
-        server.log.error(err);
-        return reply.status(500).send({ error: err.message || "Internal Server Error" });
-    }
-  });
+			if (error) {
+				throw error;
+			}
 
-  server.get('/members', { preHandler: [authenticate, requireAdmin] }, async (request, reply) => {
-    const { data, error } = await supabase.from('members').select('*');
+			// Assign default role if it doesn't exist
+			const { error: roleAssignmentError } = await supabase
+				.from("user_roles")
+				.upsert(
+					{ user_id: body.user_id, role: "user" },
+					{ onConflict: "user_id", ignoreDuplicates: true },
+				);
 
-    if (error) {
-        server.log.error(error);
-        return reply.status(500).send({ error: error.message });
-    }
-    return data;
-  });
+			if (roleAssignmentError) {
+				request.log.error(
+					{ err: roleAssignmentError },
+					"Failed to assign default role",
+				);
+				throw roleAssignmentError;
+			}
+
+			return data;
+		},
+	);
+
+	server.get<{ Params: { userId: string } }>(
+		"/members/:userId",
+		{ preHandler: authenticate },
+		async (request, _reply) => {
+			const { userId } = request.params;
+			const user = (request as AuthenticatedRequest).user;
+
+			await ensureOwnerOrAdmin(
+				user.id,
+				userId,
+				"You can only view your own profile",
+			);
+
+			const { data, error } = await supabase
+				.from("members")
+				.select("*")
+				.eq("user_id", userId)
+				.single();
+
+			if (isNotFoundError(error)) {
+				throw new NotFoundError("Member not found");
+			}
+			if (error) {
+				throw error;
+			}
+
+			return data;
+		},
+	);
+
+	server.put<{ Params: { userId: string } }>(
+		"/members/:userId",
+		{ preHandler: authenticate },
+		async (request, _reply) => {
+			const { userId } = request.params;
+			const user = (request as AuthenticatedRequest).user;
+
+			await ensureOwnerOrAdmin(
+				user.id,
+				userId,
+				"You can only update your own profile",
+			);
+
+			const body = UpdateMemberSchema.parse(request.body);
+
+			const memberData = {
+				...body,
+				user_id: userId,
+			};
+
+			const { data, error } = await supabase
+				.from("members")
+				.upsert(memberData, { onConflict: "user_id" })
+				.select()
+				.single();
+
+			if (isNotFoundError(error)) {
+				throw new NotFoundError("Member not found");
+			}
+			if (error) {
+				throw error;
+			}
+
+			return data;
+		},
+	);
 }

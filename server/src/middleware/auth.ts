@@ -1,34 +1,47 @@
-import { FastifyReply, FastifyRequest } from 'fastify';
-import { supabase } from '../lib/supabase.js';
+import type { FastifyReply, FastifyRequest } from "fastify";
+import { checkAdminRole } from "../lib/auth.js";
+import { supabase } from "../lib/supabase.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 
-export async function authenticate(request: FastifyRequest, reply: FastifyReply) {
-    const authHeader = request.headers.authorization;
+export async function authenticate(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const authHeader = request.headers.authorization;
 
-    if (!authHeader) {
-      return reply.status(401).send({ error: 'Missing Authorization header' });
-    }
+	if (!authHeader) {
+		return reply.status(401).send({ error: "Missing Authorization header" });
+	}
 
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error } = await supabase.auth.getUser(token);
+	const token = authHeader.replace("Bearer ", "");
+	const {
+		data: { user },
+		error,
+	} = await supabase.auth.getUser(token);
 
-    if (error || !user) {
-      return reply.status(401).send({ error: 'Invalid token' });
-    }
+	if (error || !user) {
+		return reply.status(401).send({ error: "Invalid token" });
+	}
 
-    // Attach user to request
-    (request as any).user = user;
+	// Attach user to request
+	(request as AuthenticatedRequest).user = user;
 }
 
-export async function requireAdmin(request: FastifyRequest, reply: FastifyReply) {
-    const user = (request as any).user;
+export async function requireAdmin(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const user = (request as AuthenticatedRequest).user;
 
-    const { data: roleData, error: roleError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id)
-        .single();
+	try {
+		const isAdmin = await checkAdminRole(user.id);
 
-    if (roleError || roleData?.role !== "admin") {
-        return reply.status(403).send({ error: "Unauthorized: Admin access required" });
-    }
+		if (!isAdmin) {
+			return reply
+				.status(403)
+				.send({ error: "Unauthorized: Admin access required" });
+		}
+	} catch (_error) {
+		return reply.status(500).send({ error: "Internal Server Error" });
+	}
 }
