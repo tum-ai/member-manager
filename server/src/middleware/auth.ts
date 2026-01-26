@@ -41,7 +41,7 @@ export async function requireAdmin(
 				.status(403)
 				.send({ error: "Unauthorized: Admin access required" });
 		}
-	} catch (error) {
+	} catch (_error) {
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}
 }

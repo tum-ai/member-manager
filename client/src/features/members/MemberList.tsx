@@ -15,7 +15,7 @@ export default function MemberList() {
 	useEffect(() => {
 		const fetchMembers = async () => {
 			try {
-				const data = await apiClient<Member[]>("/admin/api/members");
+				const data = await apiClient<Member[]>("/api/admin/members");
 				console.log("Fetched members:", data);
 				if (data) setMembers(data);
 			} catch (error) {

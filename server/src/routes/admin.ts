@@ -42,7 +42,17 @@ export async function adminRoutes(server: FastifyInstance) {
 			const to = from + limit - 1;
 
 			// 3. Build Query
-			let dbQuery = supabase.from("members").select("*", { count: "exact" });
+			// Determine if we need to filter on SEPA, which requires an inner join logic
+			// for the filter to work on the parent rows in PostgREST.
+			const filterSepa =
+				(mandate_agreed !== undefined && mandate_agreed !== "") ||
+				(privacy_agreed !== undefined && privacy_agreed !== "");
+
+			const selectQuery = filterSepa ? "*, sepa!inner(*)" : "*, sepa(*)";
+
+			let dbQuery = supabase
+				.from("members")
+				.select(selectQuery, { count: "exact" });
 
 			if (search) {
 				dbQuery = dbQuery.or(
@@ -52,6 +62,13 @@ export async function adminRoutes(server: FastifyInstance) {
 
 			if (active !== undefined && active !== "") {
 				dbQuery = dbQuery.eq("active", active === "true");
+			}
+
+			if (mandate_agreed !== undefined && mandate_agreed !== "") {
+				dbQuery = dbQuery.eq("sepa.mandate_agreed", mandate_agreed === "true");
+			}
+			if (privacy_agreed !== undefined && privacy_agreed !== "") {
+				dbQuery = dbQuery.eq("sepa.privacy_agreed", privacy_agreed === "true");
 			}
 
 			if (["surname", "given_name", "email", "created_at"].includes(sort_by)) {
@@ -66,33 +83,12 @@ export async function adminRoutes(server: FastifyInstance) {
 
 			if (membersError) throw membersError;
 
-			if (!members || members.length === 0) {
-				return { data: [], total: 0, page, limit };
-			}
-
-			// 4. Fetch SEPA data for these members
-			const userIds = members.map((m) => m.user_id);
-			const { data: sepaData, error: sepaError } = await supabase
-				.from("sepa")
-				.select("*")
-				.in("user_id", userIds);
-
-			if (sepaError) throw sepaError;
-
-			// 5. Join and Filter by SEPA fields
-			let joined = members.map((member) => ({
-				...member,
-				sepa: sepaData?.find((s) => s.user_id === member.user_id) || {},
+			// Transform data to ensure sepa is an object (Supabase might return array)
+			// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
+			const joined = (members || []).map((m: any) => ({
+				...m,
+				sepa: Array.isArray(m.sepa) ? m.sepa[0] || {} : m.sepa || {},
 			}));
-
-			if (mandate_agreed !== undefined && mandate_agreed !== "") {
-				const boolVal = mandate_agreed === "true";
-				joined = joined.filter((m) => !!m.sepa.mandate_agreed === boolVal);
-			}
-			if (privacy_agreed !== undefined && privacy_agreed !== "") {
-				const boolVal = privacy_agreed === "true";
-				joined = joined.filter((m) => !!m.sepa.privacy_agreed === boolVal);
-			}
 
 			return {
 				data: joined,
