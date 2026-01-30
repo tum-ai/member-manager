@@ -9,6 +9,6 @@
     "lint:apply": "pnpm -r --parallel run lint:apply"
   },
   "devDependencies": {
-    "@biomejs/biome": "^2.3.13"
+    "@biomejs/biome": "^2.3.7"
   }
 }
