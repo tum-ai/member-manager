@@ -2,13 +2,16 @@ import assert from "node:assert";
 import { describe, test, before, after } from "node:test";
 import { buildApp } from "../src/app.js";
 import dotenv from "dotenv";
+import type { FastifyInstance } from "fastify";
 
 dotenv.config();
 
 describe("Server Middleware", async () => {
-	let app: any;
+	let app: FastifyInstance;
 
 	before(async () => {
+		// Set predictable CORS origin for tests
+		process.env.CORS_ORIGIN = "http://localhost:5173";
 		app = await buildApp();
 	});
 
@@ -62,16 +65,10 @@ describe("Server Middleware", async () => {
 			}
 		});
 
-		// Fastify CORS usually responds with 204 or 200 for OPTIONS
-		// and sets the Access-Control-Allow-Origin header
 		const originHeader = response.headers["access-control-allow-origin"];
 		
-		// If the env var is set, it might return that specific origin or * or reflect the request
-		// Based on our config: origin: allowedOrigins (which is split from env)
-		// If strict, it should match.
-		if (process.env.CORS_ORIGIN?.includes(allowedOrigin)) {
-			assert.strictEqual(originHeader, allowedOrigin);
-		}
+		// Should match exactly since we set the env var in before()
+		assert.strictEqual(originHeader, allowedOrigin);
 	});
 
 	test("CORS rejects disallowed origin", async () => {

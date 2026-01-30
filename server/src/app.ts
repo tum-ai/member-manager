@@ -1,13 +1,16 @@
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import Fastify from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import errorHandler from "./plugins/errorHandler.js";
 import { adminRoutes } from "./routes/admin.js";
 import { memberRoutes } from "./routes/members.js";
 import { sepaRoutes } from "./routes/sepa.js";
 
-export const buildApp = async () => {
+/**
+ * Builds the Fastify application instance.
+ */
+export const buildApp = async (): Promise<FastifyInstance> => {
 	const server = Fastify({
 		logger: true,
 	});
@@ -19,9 +22,14 @@ export const buildApp = async () => {
 		timeWindow: "1 minute",
 	});
 
+	// Fallback to true (allow all) in development if CORS_ORIGIN is not set
 	const allowedOrigins = process.env.CORS_ORIGIN
-		? process.env.CORS_ORIGIN.split(",")
+		? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
 		: true;
+
+	if (allowedOrigins === true) {
+		server.log.warn("CORS_ORIGIN not set: defaulting to allow all origins.");
+	}
 
 	await server.register(cors, {
 		origin: allowedOrigins,
