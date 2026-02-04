@@ -3,7 +3,6 @@ import {
 	addSignatureBlock,
 	type BoardMember,
 	createPdfDocument,
-	downloadPdfBlob,
 	formatGermanDate,
 	getTodayGermanDate,
 	PDF_COLORS,
@@ -88,5 +87,3 @@ export async function generateMembershipProofPdf(
 
 	return doc.output("blob");
 }
-
-// downloadPdfBlob moved to shared pdfUtils
