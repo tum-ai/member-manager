@@ -13,8 +13,8 @@ export interface BoardMember {
 }
 
 export const DEFAULT_BOARD_MEMBERS = {
-	president: { name: "Paul Schneider", title: "TUM.ai President" },
-	vicePresident: { name: "Amy Chao", title: "TUM.ai Vice President" },
+	president: { name: "Sami Haddouti", title: "TUM.ai President" },
+	vicePresident: { name: "Julian Sikora", title: "TUM.ai Vice President" },
 } as const;
 
 export function loadImageAsBase64(src: string): Promise<string> {

@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import DescriptionIcon from "@mui/icons-material/Description";
 import DownloadIcon from "@mui/icons-material/Download";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import SaveIcon from "@mui/icons-material/Save";
@@ -20,6 +21,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { Link } from "react-router-dom";
 import GlassCard from "../../components/ui/GlassCard";
 import Modal from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
@@ -222,6 +224,15 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 						color={isActive ? "success" : "default"}
 						variant="outlined"
 					/>
+					<Button
+						component={Link}
+						to="/engagement-certificate"
+						variant="outlined"
+						size="small"
+						startIcon={<DescriptionIcon />}
+					>
+						Engagement Certificate
+					</Button>
 					<Button
 						variant="outlined"
 						size="small"
