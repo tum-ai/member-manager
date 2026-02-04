@@ -28,12 +28,8 @@ Git & commit safety
 - Commit messages: short imperative verb phrase (e.g. `Add input validation`).
 - Never force-push to protected branches. Avoid `git push --force`.
 - Do not commit secrets or `.env` files. If a secret is accidentally committed, notify maintainers immediately.
-<<<<<<< HEAD
 - Do not try to continue rebases, e.g. `git rebase --continue`.
-||||||| parent of 9884538 (Update AGENTS docs for root Biome and server tests)
-=======
 - Lockfiles: use `pnpm-lock.yaml` only; do not add `package-lock.json` or `yarn.lock`.
->>>>>>> 9884538 (Update AGENTS docs for root Biome and server tests)
 
 Agent behavior and constraints
 - Scope changes to the package being worked on unless the task explicitly requires cross-package edits.
