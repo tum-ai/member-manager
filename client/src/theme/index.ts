@@ -1,7 +1,5 @@
-// Enhanced MUI Theme with modern design system
 import { createTheme, type ThemeOptions } from "@mui/material/styles";
 
-// Color palette - refined for premium dark mode
 const colors = {
 	primary: {
 		main: "#D0BCFF",
@@ -36,7 +34,6 @@ const colors = {
 	outline: "#49454F",
 };
 
-// Typography scale with Inter font
 const typography: ThemeOptions["typography"] = {
 	fontFamily: "'Inter', 'Roboto', sans-serif",
 	h1: { fontSize: "2.5rem", fontWeight: 600, letterSpacing: "-0.02em" },

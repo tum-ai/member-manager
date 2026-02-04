@@ -49,6 +49,12 @@ export class ConflictError extends AppError {
 	}
 }
 
+export class DatabaseError extends AppError {
+	constructor(message = "A database error occurred") {
+		super(message, 500);
+	}
+}
+
 /**
  * Helper to check if an error is a Supabase "not found" error (PGRST116)
  */

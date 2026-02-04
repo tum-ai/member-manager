@@ -40,6 +40,13 @@ Agent behavior and constraints
 Formatting and linting
 - Biome is centralized at the repo root via `biome.json`.
 - Prefer running lint/format via package scripts (`pnpm lint`, `pnpm lint:apply`) instead of invoking Biome directly.
+- Do not write comments that disable lint rules.
+- Do not modify `biome.json` without explicit instructions.
+- Do not write extra comments that a human wouldn't add or is inconsistent with the rest of the file (including unnecessary emoji usage).
+- Do not write self-explanatory comments for obvious code, rather focus on
+  explaining intent or non-trivial logic.
+- Do not use any other style that is inconsistent with the file.
+- Do not use casts to any to get around type issues.
 
 CI and reproducibility
 - Use explicit package targeting in CI to keep builds fast and deterministic (e.g. `pnpm --filter client run build`).

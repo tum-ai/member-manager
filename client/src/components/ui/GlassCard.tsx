@@ -1,4 +1,3 @@
-// Glassmorphism Card component with hover effects
 import { Card, type CardProps, styled } from "@mui/material";
 
 interface GlassCardProps extends CardProps {

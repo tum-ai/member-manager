@@ -1,4 +1,3 @@
-// Simplified Main Layout - header only with logo and user info
 import LogoutIcon from "@mui/icons-material/Logout";
 import {
 	AppBar,
@@ -42,12 +41,10 @@ export default function MainLayout({
 				}}
 			>
 				<Toolbar sx={{ justifyContent: "space-between" }}>
-					{/* Logo */}
 					<Box sx={{ display: "flex", alignItems: "center" }}>
 						<img src="/img/logo.webp" alt="TUM.ai" style={{ height: 28 }} />
 					</Box>
 
-					{/* User info + logout */}
 					<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
 						{user?.email && (
 							<Typography

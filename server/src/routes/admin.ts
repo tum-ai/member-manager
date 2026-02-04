@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { DatabaseError } from "../lib/errors.js";
 import { supabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
 
@@ -26,7 +27,6 @@ export async function adminRoutes(server: FastifyInstance) {
 		"/admin/members",
 		{ preHandler: [authenticate, requireAdmin] },
 		async (request, _reply) => {
-			// 1. Parse Query Params
 			const query = QuerySchema.parse(request.query);
 			const {
 				page,
@@ -41,7 +41,6 @@ export async function adminRoutes(server: FastifyInstance) {
 			const from = (page - 1) * limit;
 			const to = from + limit - 1;
 
-			// 3. Build Query
 			// Determine if we need to filter on SEPA, which requires an inner join logic
 			// for the filter to work on the parent rows in PostgREST.
 			const filterSepa =
@@ -81,7 +80,10 @@ export async function adminRoutes(server: FastifyInstance) {
 
 			const { data: members, count, error: membersError } = await dbQuery;
 
-			if (membersError) throw membersError;
+			if (membersError) {
+				request.log.error({ err: membersError }, "Failed to fetch members");
+				throw new DatabaseError();
+			}
 
 			// Transform data to ensure sepa is an object (Supabase might return array)
 			// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
@@ -111,7 +113,10 @@ export async function adminRoutes(server: FastifyInstance) {
 				.update({ active: body.active })
 				.eq("user_id", userId);
 
-			if (error) throw error;
+			if (error) {
+				request.log.error({ err: error }, "Failed to update member status");
+				throw new DatabaseError();
+			}
 
 			return { message: "Status updated successfully" };
 		},

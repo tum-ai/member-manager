@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ensureOwnerOrAdmin } from "../lib/auth.js";
 import {
+	DatabaseError,
 	ForbiddenError,
 	isNotFoundError,
 	NotFoundError,
@@ -51,7 +52,11 @@ export async function memberRoutes(server: FastifyInstance) {
 				.single();
 
 			if (fetchError && !isNotFoundError(fetchError)) {
-				throw fetchError;
+				request.log.error(
+					{ err: fetchError },
+					"Failed to check existing member",
+				);
+				throw new DatabaseError();
 			}
 
 			if (existingMember) {
@@ -62,7 +67,13 @@ export async function memberRoutes(server: FastifyInstance) {
 					.eq("user_id", body.user_id)
 					.single();
 
-				if (roleError) throw roleError;
+				if (roleError) {
+					request.log.error(
+						{ err: roleError },
+						"Failed to fetch existing member",
+					);
+					throw new DatabaseError();
+				}
 				return memberData;
 			}
 
@@ -74,7 +85,8 @@ export async function memberRoutes(server: FastifyInstance) {
 				.single();
 
 			if (error) {
-				throw error;
+				request.log.error({ err: error }, "Failed to insert member");
+				throw new DatabaseError();
 			}
 
 			// Assign default role if it doesn't exist
@@ -90,7 +102,7 @@ export async function memberRoutes(server: FastifyInstance) {
 					{ err: roleAssignmentError },
 					"Failed to assign default role",
 				);
-				throw roleAssignmentError;
+				throw new DatabaseError();
 			}
 
 			return data;
@@ -120,7 +132,8 @@ export async function memberRoutes(server: FastifyInstance) {
 				throw new NotFoundError("Member not found");
 			}
 			if (error) {
-				throw error;
+				request.log.error({ err: error }, "Failed to fetch member");
+				throw new DatabaseError();
 			}
 
 			return data;
@@ -157,7 +170,8 @@ export async function memberRoutes(server: FastifyInstance) {
 				throw new NotFoundError("Member not found");
 			}
 			if (error) {
-				throw error;
+				request.log.error({ err: error }, "Failed to upsert member");
+				throw new DatabaseError();
 			}
 
 			return data;

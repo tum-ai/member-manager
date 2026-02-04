@@ -1,5 +1,3 @@
-// Profile Page - unified member profile editing with SEPA and Privacy agreements
-
 import { zodResolver } from "@hookform/resolvers/zod";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
@@ -45,7 +43,6 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
-	// Data hooks
 	const {
 		member: memberData,
 		isLoading: isLoadingMember,
@@ -60,7 +57,6 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 		isUpdating: isUpdatingSepa,
 	} = useSepaData(user.id);
 
-	// Forms
 	const memberForm = useForm<MemberSchema>({
 		resolver: zodResolver(memberSchema),
 		defaultValues: {
@@ -96,7 +92,6 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 	const privacyAgreed = sepaForm.watch("privacy_agreed");
 	const isActive = memberForm.watch("active");
 
-	// Sync data
 	useEffect(() => {
 		if (memberData) {
 			memberForm.reset({
@@ -174,7 +169,6 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 
 	return (
 		<Box sx={{ py: 2 }}>
-			{/* Header */}
 			<Box
 				sx={{
 					display: "flex",
@@ -207,7 +201,6 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 
 			<form onSubmit={memberForm.handleSubmit(onSubmit)}>
 				<Grid container spacing={3}>
-					{/* Personal Information Card */}
 					<Grid size={{ xs: 12, lg: 7 }}>
 						<GlassCard>
 							<CardContent sx={{ p: 3 }}>
@@ -355,7 +348,6 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 						</GlassCard>
 					</Grid>
 
-					{/* Banking & Agreements Card */}
 					<Grid size={{ xs: 12, lg: 5 }}>
 						<GlassCard>
 							<CardContent sx={{ p: 3 }}>
@@ -477,7 +469,6 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 							</CardContent>
 						</GlassCard>
 
-						{/* Save Button */}
 						<Button
 							type="submit"
 							variant="contained"
@@ -499,7 +490,6 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 				</Grid>
 			</form>
 
-			{/* SEPA Modal */}
 			{showSepaModal && (
 				<Modal
 					title="SEPA Mandate Agreement"
@@ -521,7 +511,6 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 				</Modal>
 			)}
 
-			{/* Privacy Modal */}
 			{showPrivacyModal && (
 				<Modal
 					title="Privacy Policy Agreement"

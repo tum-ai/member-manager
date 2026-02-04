@@ -2,12 +2,12 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import "./theme-augmentation"; // Import type definitions
-import CssBaseline from "@mui/material/CssBaseline"; // Optional: for consistent baseline styles
+import "./theme-augmentation";
+import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider } from "@mui/material/styles";
-import getAppTheme from "./theme"; // Import the theme function
+import getAppTheme from "./theme";
 
-const darkTheme = getAppTheme(); // Directly create the dark theme once
+const darkTheme = getAppTheme();
 
 console.log("Starting app...");
 try {
@@ -19,8 +19,7 @@ try {
 		ReactDOM.createRoot(rootElement).render(
 			<React.StrictMode>
 				<ThemeProvider theme={darkTheme}>
-					<CssBaseline />{" "}
-					{/* Optional: Resets CSS for consistent base styles */}
+					<CssBaseline />
 					<App />
 				</ThemeProvider>
 			</React.StrictMode>,

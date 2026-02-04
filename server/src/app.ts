@@ -7,9 +7,6 @@ import { adminRoutes } from "./routes/admin.js";
 import { memberRoutes } from "./routes/members.js";
 import { sepaRoutes } from "./routes/sepa.js";
 
-/**
- * Builds the Fastify application instance.
- */
 export const buildApp = async (): Promise<FastifyInstance> => {
 	const server = Fastify({
 		logger: true,

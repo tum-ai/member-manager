@@ -29,7 +29,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 
-	// --- Custom Hooks ---
 	const {
 		member: memberData,
 		isLoading: isLoadingMember,
@@ -44,7 +43,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 		isUpdating: isUpdatingSepa,
 	} = useSepaData(user.id);
 
-	// --- React Hook Form ---
 	const memberForm = useForm<MemberSchema>({
 		resolver: zodResolver(memberSchema),
 		defaultValues: {
@@ -80,7 +78,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 	const mandateAgreed = sepaForm.watch("mandate_agreed");
 	const privacyAgreed = sepaForm.watch("privacy_agreed");
 
-	// Sync data when loaded
 	useEffect(() => {
 		if (memberData) {
 			memberForm.reset({
@@ -136,7 +133,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 		}
 	};
 
-	// --- Event Listeners for Modals ---
 	useEffect(() => {
 		const handleSepaUpdate = (event: Event) => {
 			const customEvent = event as CustomEvent<SepaUpdateEventDetail>;
@@ -199,7 +195,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 					onSubmit={memberForm.handleSubmit(onSubmit)}
 					className="flex flex-col lg:flex-row"
 				>
-					{/* Left Column: Personal Data */}
 					<div className="flex-1 p-6 sm:p-8 lg:border-r border-gray-700">
 						<div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-700">
 							<h2 className="text-xl font-semibold text-white">
@@ -213,7 +208,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 						</div>
 
 						<div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-							{/* Salutation & Title */}
 							<div className="sm:col-span-4">
 								<label
 									htmlFor="salutation"
@@ -255,7 +249,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 								</select>
 							</div>
 
-							{/* Names */}
 							<div className="sm:col-span-6">
 								<label
 									htmlFor="given_name"
@@ -295,7 +288,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 								)}
 							</div>
 
-							{/* Contact */}
 							<div className="sm:col-span-8">
 								<label
 									htmlFor="email"
@@ -335,7 +327,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 								)}
 							</div>
 
-							{/* Address */}
 							<div className="sm:col-span-9">
 								<label
 									htmlFor="street"
@@ -430,7 +421,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 							</div>
 						</div>
 
-						{/* Status Change Request */}
 						<div className="mt-8 pt-6 border-t border-gray-700">
 							<button
 								type="button"
@@ -447,7 +437,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 						</div>
 					</div>
 
-					{/* Right Column: Banking Details & Actions */}
 					<div className="lg:w-96 bg-gray-800/50 p-6 sm:p-8 flex flex-col justify-between">
 						<div>
 							<h2 className="text-xl font-semibold text-white mb-6 pb-4 border-b border-gray-700">
@@ -578,7 +567,6 @@ export default function MemberForm({ user }: MemberFormProps) {
 							</div>
 						</div>
 
-						{/* Action Buttons */}
 						<div className="mt-8 pt-6 border-t border-gray-700 flex flex-col gap-3">
 							<button
 								type="submit"

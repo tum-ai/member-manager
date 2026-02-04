@@ -1,4 +1,3 @@
-// Main Application - Simplified routing with ProfilePage
 import {
 	Box,
 	CircularProgress,
