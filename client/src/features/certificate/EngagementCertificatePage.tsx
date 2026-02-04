@@ -26,14 +26,12 @@ import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
 import { DEPARTMENTS, WEEKLY_HOURS_OPTIONS } from "../../lib/constants";
+import { downloadPdfBlob } from "../../lib/pdfUtils";
 import {
 	type EngagementFormSchema,
 	engagementFormSchema,
 } from "../../lib/schemas";
-import {
-	downloadPdfBlob,
-	generateEngagementCertificatePdf,
-} from "./generators/engagementCertificatePdf";
+import { generateEngagementCertificatePdf } from "./generators/engagementCertificatePdf";
 
 interface Props {
 	user: User;
@@ -235,6 +233,7 @@ export default function EngagementCertificatePage({ user }: Props) {
 										color="error"
 										onClick={() => handleRemoveEngagement(index)}
 										size="small"
+										aria-label={`Remove engagement ${index + 1}`}
 									>
 										<DeleteIcon />
 									</IconButton>
