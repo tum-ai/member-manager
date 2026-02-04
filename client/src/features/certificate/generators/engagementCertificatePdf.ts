@@ -158,6 +158,13 @@ export async function generateEngagementCertificatePdf(
 			if (y > maxY) {
 				doc.addPage();
 				y = margin;
+				// reprint table headers on the new page
+				doc.setFont("helvetica", "bold");
+				doc.text("Time Period", colX1, y);
+				doc.text("Department", colX2, y);
+				doc.text("Tasks", colX3, y);
+				y += 8;
+				doc.setFont("helvetica", "normal");
 			}
 		}
 
