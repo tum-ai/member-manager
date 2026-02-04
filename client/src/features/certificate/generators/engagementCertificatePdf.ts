@@ -214,11 +214,6 @@ export async function generateEngagementCertificatePdf(
 	doc.text(wrappedAbout, margin, y);
 	y += wrappedAbout.length * 7 + 15;
 
-	if (y > maxY) {
-		doc.addPage();
-		y = margin;
-	}
-
 	return doc.output("blob");
 }
 
