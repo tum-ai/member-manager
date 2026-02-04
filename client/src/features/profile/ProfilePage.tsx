@@ -27,16 +27,14 @@ import Modal from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
 import { useSepaData } from "../../hooks/useSepaData";
+import { downloadPdfBlob } from "../../lib/pdfUtils";
 import {
 	type MemberSchema,
 	memberSchema,
 	type SepaSchema,
 	sepaSchema,
 } from "../../lib/schemas";
-import {
-	downloadPdfBlob,
-	generateMembershipProofPdf,
-} from "../certificate/generators/membershipProofPdf";
+import { generateMembershipProofPdf } from "../certificate/generators/membershipProofPdf";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
 import SepaMandate from "../sepa/SepaMandate";
 
@@ -161,7 +159,12 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 		setIsGeneratingPdf(true);
 		try {
 			const pdfBlob = await generateMembershipProofPdf(memberData);
-			const fullName = `${memberData.given_name}_${memberData.surname}`;
+			const safeGivenName = memberData.given_name.replace(
+				/[^a-zA-Z0-9-_]/g,
+				"_",
+			);
+			const safeSurname = memberData.surname.replace(/[^a-zA-Z0-9-_]/g, "_");
+			const fullName = `${safeGivenName}_${safeSurname}`;
 			downloadPdfBlob(pdfBlob, `TUMai_Membership_Proof_${fullName}.pdf`);
 			showToast("Membership proof downloaded!", "success");
 		} catch (error) {
