@@ -161,10 +161,10 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 			const pdfBlob = await generateMembershipProofPdf(memberData);
 			const safeGivenName = memberData.given_name.replace(
 				/[^a-zA-Z0-9-_]/g,
-				"_",
+				"-",
 			);
-			const safeSurname = memberData.surname.replace(/[^a-zA-Z0-9-_]/g, "_");
-			const fullName = `${safeGivenName}_${safeSurname}`;
+			const safeSurname = memberData.surname.replace(/[^a-zA-Z0-9-_]/g, "-");
+			const fullName = `${safeGivenName}-${safeSurname}`;
 			downloadPdfBlob(pdfBlob, `TUMai_Membership_Proof_${fullName}.pdf`);
 			showToast("Membership proof downloaded!", "success");
 		} catch (error) {

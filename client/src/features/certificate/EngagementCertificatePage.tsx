@@ -80,9 +80,9 @@ export default function EngagementCertificatePage({ user }: Props) {
 				member,
 				data.engagements,
 			);
-			const safeGivenName = member.given_name.replace(/[^a-zA-Z0-9-_]/g, "_");
-			const safeSurname = member.surname.replace(/[^a-zA-Z0-9-_]/g, "_");
-			const fullName = `${safeGivenName}_${safeSurname}`;
+			const safeGivenName = member.given_name.replace(/[^a-zA-Z0-9-_]/g, "-");
+			const safeSurname = member.surname.replace(/[^a-zA-Z0-9-_]/g, "-");
+			const fullName = `${safeGivenName}-${safeSurname}`;
 			downloadPdfBlob(pdfBlob, `TUMai_Engagement_Certificate_${fullName}.pdf`);
 			showToast("Certificate downloaded successfully!", "success");
 		} catch (error) {
