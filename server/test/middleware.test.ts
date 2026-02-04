@@ -50,7 +50,10 @@ describe("Server Middleware", async () => {
 
 		const headers = response.headers;
 		assert.ok(headers["x-ratelimit-limit"], "Rate limit header missing");
-		assert.ok(headers["x-ratelimit-remaining"], "Rate limit remaining header missing");
+		assert.ok(
+			headers["x-ratelimit-remaining"],
+			"Rate limit remaining header missing",
+		);
 	});
 
 	test("CORS allows configured origin", async () => {
@@ -65,6 +68,14 @@ describe("Server Middleware", async () => {
 		});
 
 		const originHeader = response.headers["access-control-allow-origin"];
+<<<<<<< HEAD
+||||||| parent of 9884538 (Update AGENTS docs for root Biome and server tests)
+		
+		// Should match exactly since we set the env var in before()
+=======
+
+		// Should match exactly since we set the env var in before()
+>>>>>>> 9884538 (Update AGENTS docs for root Biome and server tests)
 		assert.strictEqual(originHeader, allowedOrigin);
 	});
 

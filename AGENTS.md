@@ -16,6 +16,7 @@ Workspace commands (root)
 - Run both dev servers in parallel: `pnpm dev` (runs `pnpm -r --parallel run dev`)
 - Build all packages: `pnpm build` (runs `pnpm -r run build`)
 - Run all package lint scripts: `pnpm lint` (runs `pnpm -r run lint`)
+- Apply lint/format fixes across packages: `pnpm lint:apply` (runs `pnpm -r --parallel run lint:apply`)
 - Run all package tests: `pnpm test` (runs `pnpm -r run test` when packages define `test`)
 
 Targeting a single package
@@ -27,13 +28,22 @@ Git & commit safety
 - Commit messages: short imperative verb phrase (e.g. `Add input validation`).
 - Never force-push to protected branches. Avoid `git push --force`.
 - Do not commit secrets or `.env` files. If a secret is accidentally committed, notify maintainers immediately.
+<<<<<<< HEAD
 - Do not try to continue rebases, e.g. `git rebase --continue`.
+||||||| parent of 9884538 (Update AGENTS docs for root Biome and server tests)
+=======
+- Lockfiles: use `pnpm-lock.yaml` only; do not add `package-lock.json` or `yarn.lock`.
+>>>>>>> 9884538 (Update AGENTS docs for root Biome and server tests)
 
 Agent behavior and constraints
 - Scope changes to the package being worked on unless the task explicitly requires cross-package edits.
 - Prefer small, incremental PRs. Run tests and lint locally before creating PRs.
 - Avoid destructive git operations (`git reset --hard`, `git rebase --interactive`) unless explicitly requested.
 - If modifying configuration files (`tsconfig.json`, `pnpm-workspace.yaml`, CI config), add a clear explanation in the commit/PR.
+
+Formatting and linting
+- Biome is centralized at the repo root via `biome.json`.
+- Prefer running lint/format via package scripts (`pnpm lint`, `pnpm lint:apply`) instead of invoking Biome directly.
 
 CI and reproducibility
 - Use explicit package targeting in CI to keep builds fast and deterministic (e.g. `pnpm --filter client run build`).

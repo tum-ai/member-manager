@@ -6,7 +6,7 @@ Purpose
 Quick facts
 - Tech: React 18 + Vite + TypeScript
 - Test runner: Vitest + Testing Library
-- Formatter/linter: Biome (`biome check src`)
+- Formatter/linter: Biome (config in repo root `biome.json`)
 
 Commands (preferred via root with `--filter`)
 - Install: `pnpm install` (root)
