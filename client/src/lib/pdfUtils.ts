@@ -74,7 +74,17 @@ export interface PdfDocumentOptions {
 	margin?: number;
 }
 
-export function createPdfDocument(options: PdfDocumentOptions = {}) {
+export interface PdfDocument {
+	doc: jsPDF;
+	pageWidth: number;
+	pageHeight: number;
+	margin: number;
+	maxWidth: number;
+}
+
+export function createPdfDocument(
+	options: PdfDocumentOptions = {},
+): PdfDocument {
 	const { orientation = "p", margin = 20 } = options;
 	const doc = new jsPDF(orientation, "mm", "a4");
 	const pageWidth = doc.internal.pageSize.getWidth();

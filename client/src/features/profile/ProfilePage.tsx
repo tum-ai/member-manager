@@ -42,7 +42,7 @@ interface ProfilePageProps {
 	user: User;
 }
 
-export default function ProfilePage({ user }: ProfilePageProps) {
+export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const theme = useTheme();
 	const { showToast } = useToast();
 	const [showSepaModal, setShowSepaModal] = useState(false);
@@ -131,12 +131,12 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 		}
 	}, [sepaData, sepaForm, user.id]);
 
-	const onSubmit = async () => {
+	const onSubmit = async (): Promise<void> => {
 		try {
 			const memberValid = await memberForm.trigger();
 			const sepaValid = await sepaForm.trigger();
 
-			const promises = [];
+			const promises: Promise<unknown>[] = [];
 			if (memberValid) {
 				promises.push(updateMemberAsync(memberForm.getValues()));
 			}
@@ -153,7 +153,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 		}
 	};
 
-	const handleDownloadMembershipProof = async () => {
+	const handleDownloadMembershipProof = async (): Promise<void> => {
 		if (!memberData || isGeneratingPdf) return;
 
 		setIsGeneratingPdf(true);

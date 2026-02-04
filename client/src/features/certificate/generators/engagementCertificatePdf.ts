@@ -15,6 +15,20 @@ export interface EngagementCertificateOptions {
 	vicePresident?: BoardMember;
 }
 
+function formatMonthYear(dateStr: string): string {
+	const date = new Date(dateStr);
+	if (Number.isNaN(date.getTime())) {
+		if (import.meta.env.DEV) {
+			console.warn(`Invalid date string encountered: ${dateStr}`);
+		}
+		return "Invalid Date";
+	}
+	return date.toLocaleDateString("de-DE", {
+		year: "numeric",
+		month: "2-digit",
+	});
+}
+
 export async function generateEngagementCertificatePdf(
 	member: Member,
 	engagements: EngagementSchema[],
@@ -69,27 +83,15 @@ export async function generateEngagementCertificatePdf(
 	doc.setFont("helvetica", "normal");
 
 	for (const engagement of engagements) {
-		const formatMonthYear = (dateStr: string) => {
-			const date = new Date(dateStr);
-			if (Number.isNaN(date.getTime())) {
-				if (import.meta.env.DEV) {
-					console.warn(`Invalid date string encountered: ${dateStr}`);
-				}
-				return "Invalid Date";
-			}
-			return date.toLocaleDateString("de-DE", {
-				year: "numeric",
-				month: "2-digit",
-			});
-		};
-
 		const start = formatMonthYear(engagement.startDate);
 		const end = engagement.isStillActive
 			? "Present"
 			: formatMonthYear(engagement.endDate || "");
 
 		const period = `${start} - ${end}`;
-		const deptText = `${engagement.department}${engagement.isTeamLead ? " (Team Lead)" : ""}`;
+		const deptText = `${engagement.department}${
+			engagement.isTeamLead ? " (Team Lead)" : ""
+		}`;
 
 		const tasks = engagement.tasksDescription
 			.split("\n")

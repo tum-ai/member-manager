@@ -29,6 +29,7 @@ import { DEPARTMENTS, WEEKLY_HOURS_OPTIONS } from "../../lib/constants";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
 import {
 	type EngagementFormSchema,
+	type EngagementSchema,
 	engagementFormSchema,
 } from "../../lib/schemas";
 import { generateEngagementCertificatePdf } from "./generators/engagementCertificatePdf";
@@ -37,7 +38,7 @@ interface Props {
 	user: User;
 }
 
-function createDefaultEngagement() {
+function createDefaultEngagement(): EngagementSchema {
 	return {
 		id: crypto.randomUUID(),
 		startDate: "",
@@ -50,7 +51,9 @@ function createDefaultEngagement() {
 	};
 }
 
-export default function EngagementCertificatePage({ user }: Props) {
+export default function EngagementCertificatePage({
+	user,
+}: Props): JSX.Element {
 	const { member, isLoading, error: fetchError } = useMemberData(user.id);
 	const { showToast } = useToast();
 	const [isGenerating, setIsGenerating] = useState(false);
@@ -68,7 +71,7 @@ export default function EngagementCertificatePage({ user }: Props) {
 		name: "engagements",
 	});
 
-	const handleDownload = async (data: EngagementFormSchema) => {
+	const handleDownload = async (data: EngagementFormSchema): Promise<void> => {
 		if (!member) {
 			showToast("Member data not available", "error");
 			return;
@@ -97,7 +100,7 @@ export default function EngagementCertificatePage({ user }: Props) {
 		}
 	};
 
-	const handleAddEngagement = () => {
+	const handleAddEngagement = (): void => {
 		if (fields.length >= 5) {
 			showToast("Maximum 5 engagements allowed", "warning");
 			return;
@@ -105,7 +108,7 @@ export default function EngagementCertificatePage({ user }: Props) {
 		append(createDefaultEngagement());
 	};
 
-	const handleRemoveEngagement = (index: number) => {
+	const handleRemoveEngagement = (index: number): void => {
 		if (fields.length <= 1) {
 			showToast("At least one engagement is required", "warning");
 			return;

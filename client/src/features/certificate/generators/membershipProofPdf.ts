@@ -48,7 +48,7 @@ export async function generateMembershipProofPdf(
 	y = 85;
 	doc.setFont("helvetica", "bold");
 	doc.setFontSize(16);
-	doc.text(`${salutation} ${fullName}`, pageWidth / 2, y, { align: "center" });
+	doc.text(`${salutation}${fullName}`, pageWidth / 2, y, { align: "center" });
 
 	y = 98;
 	doc.setFont("helvetica", "normal");

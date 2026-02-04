@@ -20,7 +20,7 @@ import getAppTheme from "./theme";
 
 const theme = getAppTheme();
 
-export default function App() {
+export default function App(): JSX.Element {
 	const [user, setUser] = useState<User | null>(null);
 	const [loading, setLoading] = useState(true);
 
@@ -41,7 +41,7 @@ export default function App() {
 		};
 	}, []);
 
-	async function handleLogout() {
+	async function handleLogout(): Promise<void> {
 		await supabase.auth.signOut();
 		setUser(null);
 	}
