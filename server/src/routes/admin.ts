@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { DatabaseError } from "../lib/errors.js";
 import { supabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
 
@@ -81,7 +82,10 @@ export async function adminRoutes(server: FastifyInstance) {
 
 			const { data: members, count, error: membersError } = await dbQuery;
 
-			if (membersError) throw membersError;
+			if (membersError) {
+				request.log.error({ err: membersError }, "Failed to fetch members");
+				throw new DatabaseError();
+			}
 
 			// Transform data to ensure sepa is an object (Supabase might return array)
 			// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
@@ -111,7 +115,10 @@ export async function adminRoutes(server: FastifyInstance) {
 				.update({ active: body.active })
 				.eq("user_id", userId);
 
-			if (error) throw error;
+			if (error) {
+				request.log.error({ err: error }, "Failed to update member status");
+				throw new DatabaseError();
+			}
 
 			return { message: "Status updated successfully" };
 		},

@@ -50,6 +50,16 @@ export class ConflictError extends AppError {
 }
 
 /**
+ * Generic database error to wrap internal DB errors.
+ * Prevents leaking internal error details to clients.
+ */
+export class DatabaseError extends AppError {
+	constructor(message = "A database error occurred") {
+		super(message, 500);
+	}
+}
+
+/**
  * Helper to check if an error is a Supabase "not found" error (PGRST116)
  */
 export function isNotFoundError(error: unknown): boolean {

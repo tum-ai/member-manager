@@ -3,6 +3,7 @@ import { electronicFormatIBAN, isValidIBAN } from "ibantools";
 import { z } from "zod";
 import { ensureOwnerOrAdmin } from "../lib/auth.js";
 import {
+	DatabaseError,
 	ForbiddenError,
 	isNotFoundError,
 	NotFoundError,
@@ -45,7 +46,8 @@ export async function sepaRoutes(server: FastifyInstance) {
 			const { error } = await supabase.from("sepa").insert([body]);
 
 			if (error) {
-				throw error;
+				request.log.error({ err: error }, "Failed to insert SEPA data");
+				throw new DatabaseError();
 			}
 
 			return { message: "SEPA info added successfully" };
@@ -75,7 +77,8 @@ export async function sepaRoutes(server: FastifyInstance) {
 				throw new NotFoundError("SEPA data not found");
 			}
 			if (error) {
-				throw error;
+				request.log.error({ err: error }, "Failed to fetch SEPA data");
+				throw new DatabaseError();
 			}
 
 			return data;
@@ -107,7 +110,8 @@ export async function sepaRoutes(server: FastifyInstance) {
 				throw new NotFoundError("SEPA data not found");
 			}
 			if (error) {
-				throw error;
+				request.log.error({ err: error }, "Failed to upsert SEPA data");
+				throw new DatabaseError();
 			}
 
 			return data;
