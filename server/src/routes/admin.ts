@@ -27,7 +27,6 @@ export async function adminRoutes(server: FastifyInstance) {
 		"/admin/members",
 		{ preHandler: [authenticate, requireAdmin] },
 		async (request, _reply) => {
-			// 1. Parse Query Params
 			const query = QuerySchema.parse(request.query);
 			const {
 				page,
@@ -42,7 +41,6 @@ export async function adminRoutes(server: FastifyInstance) {
 			const from = (page - 1) * limit;
 			const to = from + limit - 1;
 
-			// 3. Build Query
 			// Determine if we need to filter on SEPA, which requires an inner join logic
 			// for the filter to work on the parent rows in PostgREST.
 			const filterSepa =

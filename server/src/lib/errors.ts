@@ -49,10 +49,6 @@ export class ConflictError extends AppError {
 	}
 }
 
-/**
- * Generic database error to wrap internal DB errors.
- * Prevents leaking internal error details to clients.
- */
 export class DatabaseError extends AppError {
 	constructor(message = "A database error occurred") {
 		super(message, 500);

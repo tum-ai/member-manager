@@ -1,5 +1,3 @@
-// Animation keyframes and transition utilities for modern UI
-
 export const keyframes = {
 	fadeIn: {
 		"0%": { opacity: 0 },

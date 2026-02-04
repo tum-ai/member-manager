@@ -135,7 +135,6 @@ export default function AdminDatabaseView() {
 		<div className="min-h-screen p-8 text-white">
 			<h2 className="text-3xl font-bold mb-6">Admin Database View</h2>
 
-			{/* Filters */}
 			<div className="flex flex-wrap gap-4 mb-6 p-4 bg-gray-800 rounded-lg">
 				<input
 					type="text"
@@ -199,7 +198,6 @@ export default function AdminDatabaseView() {
 				</div>
 			</div>
 
-			{/* Actions */}
 			<div className="flex gap-4 mb-6">
 				<button
 					type="button"
@@ -217,7 +215,6 @@ export default function AdminDatabaseView() {
 				</button>
 			</div>
 
-			{/* Table */}
 			<div className="overflow-x-auto rounded-lg border border-gray-700">
 				<table className="w-full border-collapse text-sm">
 					<thead>

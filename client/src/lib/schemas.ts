@@ -17,7 +17,7 @@ export const memberSchema = z.object({
 });
 
 export const sepaSchema = z.object({
-	iban: z.string().min(15, "Invalid IBAN"), // Basic length check
+	iban: z.string().min(15, "Invalid IBAN"),
 	bic: z.string().optional(),
 	bank_name: z.string().min(1, "Bank name is required"),
 	mandate_agreed: z.boolean(),
