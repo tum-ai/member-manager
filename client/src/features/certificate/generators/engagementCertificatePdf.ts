@@ -1,8 +1,8 @@
 import {
 	addLogoToDocument,
+	addSignatureBlock,
 	type BoardMember,
 	createPdfDocument,
-	DEFAULT_BOARD_MEMBERS,
 	formatGermanDate,
 	getTodayGermanDate,
 	PDF_COLORS,
@@ -184,17 +184,11 @@ export async function generateEngagementCertificatePdf(
 	doc.setFontSize(11);
 	doc.setFont("helvetica", "normal");
 
-	const vp = options.vicePresident || DEFAULT_BOARD_MEMBERS.vicePresident;
-	const pres = options.president || DEFAULT_BOARD_MEMBERS.president;
-
-	doc.text(`${vp.name},`, margin, y);
-	doc.text(vp.title, margin, y + 6);
-	doc.text(`Munich, ${today}`, margin, y + 12);
-
-	const rightX = pageWidth - margin - 60;
-	doc.text(`${pres.name},`, rightX, y);
-	doc.text(pres.title, rightX, y + 6);
-	doc.text(`Munich, ${today}`, rightX, y + 12);
+	addSignatureBlock(doc, y, margin, pageWidth, {
+		president: options.president,
+		vicePresident: options.vicePresident,
+		date: today,
+	});
 
 	y += 25;
 
@@ -215,15 +209,4 @@ export async function generateEngagementCertificatePdf(
 	y += wrappedAbout.length * 7 + 15;
 
 	return doc.output("blob");
-}
-
-export function downloadPdfBlob(blob: Blob, filename: string): void {
-	const url = URL.createObjectURL(blob);
-	const link = document.createElement("a");
-	link.href = url;
-	link.download = filename;
-	document.body.appendChild(link);
-	link.click();
-	document.body.removeChild(link);
-	URL.revokeObjectURL(url);
 }
