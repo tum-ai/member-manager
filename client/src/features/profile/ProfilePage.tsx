@@ -1,5 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import DownloadIcon from "@mui/icons-material/Download";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import SaveIcon from "@mui/icons-material/Save";
 import {
@@ -30,6 +31,10 @@ import {
 	type SepaSchema,
 	sepaSchema,
 } from "../../lib/schemas";
+import {
+	downloadPdfBlob,
+	generateMembershipProofPdf,
+} from "../certificate/generators/membershipProofPdf";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
 import SepaMandate from "../sepa/SepaMandate";
 
@@ -42,6 +47,7 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 	const { showToast } = useToast();
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+	const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
 	const {
 		member: memberData,
@@ -147,6 +153,24 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 		}
 	};
 
+	const handleDownloadMembershipProof = async () => {
+		if (!memberData || isGeneratingPdf) return;
+
+		setIsGeneratingPdf(true);
+		try {
+			const pdfBlob = await generateMembershipProofPdf(memberData);
+			const fullName = `${memberData.given_name}_${memberData.surname}`;
+			downloadPdfBlob(pdfBlob, `TUMai_Membership_Proof_${fullName}.pdf`);
+			showToast("Membership proof downloaded!", "success");
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			showToast(`Failed to generate PDF: ${errorMessage}`, "error");
+		} finally {
+			setIsGeneratingPdf(false);
+		}
+	};
+
 	const isLoading = isLoadingMember || isLoadingSepa;
 	const isUpdating = isUpdatingMember || isUpdatingSepa;
 
@@ -185,18 +209,35 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 						Manage your personal information and agreements
 					</Typography>
 				</Box>
-				<Chip
-					icon={
-						isActive ? (
-							<CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
-						) : (
-							<ErrorOutlineIcon sx={{ fontSize: 18 }} />
-						)
-					}
-					label={isActive ? "Active Member" : "Inactive"}
-					color={isActive ? "success" : "default"}
-					variant="outlined"
-				/>
+				<Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+					<Chip
+						icon={
+							isActive ? (
+								<CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
+							) : (
+								<ErrorOutlineIcon sx={{ fontSize: 18 }} />
+							)
+						}
+						label={isActive ? "Active Member" : "Inactive"}
+						color={isActive ? "success" : "default"}
+						variant="outlined"
+					/>
+					<Button
+						variant="outlined"
+						size="small"
+						startIcon={
+							isGeneratingPdf ? (
+								<CircularProgress size={16} color="inherit" />
+							) : (
+								<DownloadIcon />
+							)
+						}
+						onClick={handleDownloadMembershipProof}
+						disabled={isGeneratingPdf || !memberData}
+					>
+						{isGeneratingPdf ? "Generating..." : "Proof of Membership"}
+					</Button>
+				</Box>
 			</Box>
 
 			<form onSubmit={memberForm.handleSubmit(onSubmit)}>
