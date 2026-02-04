@@ -171,7 +171,11 @@ export async function generateEngagementCertificatePdf(
 		y += 4;
 	}
 
-	const valueText = `For the active and continuous contribution to TUM.ai, a high level of responsibility, personal commitment, team-spirit and curiosity are indispensable.\n\nWe thank ${fullName} for ${member.salutation === "Ms." ? "her" : "his"} commitment and enriching contribution to TUM.ai.`;
+	let pronoun = "their";
+	if (member.salutation === "Mr.") pronoun = "his";
+	else if (member.salutation === "Ms.") pronoun = "her";
+
+	const valueText = `For the active and continuous contribution to TUM.ai, a high level of responsibility, personal commitment, team-spirit and curiosity are indispensable.\n\nWe thank ${fullName} for ${pronoun} commitment and enriching contribution to TUM.ai.`;
 	const wrappedValue = doc.splitTextToSize(valueText.trim(), maxWidth);
 	doc.text(wrappedValue, margin, y);
 	y += wrappedValue.length * 7 + 10;
