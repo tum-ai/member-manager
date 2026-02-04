@@ -28,8 +28,17 @@ export const sepaSchema = z.object({
 export const engagementSchema = z
 	.object({
 		id: z.string(),
-		startDate: z.string().min(1, "Start date is required"),
-		endDate: z.string().optional(),
+		startDate: z
+			.string()
+			.min(1, "Start date is required")
+			.refine((val) => !Number.isNaN(Date.parse(val)), "Invalid start date"),
+		endDate: z
+			.string()
+			.optional()
+			.refine(
+				(val) => !val || !Number.isNaN(Date.parse(val)),
+				"Invalid end date",
+			),
 		isStillActive: z.boolean(),
 		weeklyHours: z.string().min(1, "Weekly hours is required"),
 		department: z.string().min(1, "Department is required"),
@@ -42,10 +51,23 @@ export const engagementSchema = z
 				"Tasks description cannot be empty",
 			),
 	})
-	.refine((data) => data.isStillActive || data.endDate, {
-		message: "End date is required when not still active",
-		path: ["endDate"],
-	});
+	.refine(
+		(data) => data.isStillActive || (data.endDate && data.endDate.length > 0),
+		{
+			message: "End date is required when not still active",
+			path: ["endDate"],
+		},
+	)
+	.refine(
+		(data) => {
+			if (data.isStillActive || !data.endDate) return true;
+			return new Date(data.endDate) > new Date(data.startDate);
+		},
+		{
+			message: "End date must be after start date",
+			path: ["endDate"],
+		},
+	);
 
 export const engagementFormSchema = z.object({
 	engagements: z
