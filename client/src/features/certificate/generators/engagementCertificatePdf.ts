@@ -20,7 +20,8 @@ export async function generateEngagementCertificatePdf(
 	engagements: EngagementSchema[],
 	options: EngagementCertificateOptions = {},
 ): Promise<Blob> {
-	const { doc, pageWidth, margin, maxWidth } = createPdfDocument();
+	const { doc, pageWidth, pageHeight, margin, maxWidth } = createPdfDocument();
+	const maxY = pageHeight - margin;
 
 	const fullName = `${member.given_name} ${member.surname}`;
 	const birthDate = formatGermanDate(member.date_of_birth);
@@ -64,6 +65,8 @@ export async function generateEngagementCertificatePdf(
 	doc.text("Department", colX2, y);
 	doc.text("Tasks", colX3, y);
 	y += 8;
+
+	doc.setFont("helvetica", "normal");
 
 	for (const engagement of engagements) {
 		const formatMonthYear = (dateStr: string) => {
@@ -152,9 +155,9 @@ export async function generateEngagementCertificatePdf(
 			}
 
 			y += lineHeight;
-			if (y > 270) {
+			if (y > maxY) {
 				doc.addPage();
-				y = 20;
+				y = margin;
 			}
 		}
 
@@ -165,6 +168,11 @@ export async function generateEngagementCertificatePdf(
 	const wrappedValue = doc.splitTextToSize(valueText.trim(), maxWidth);
 	doc.text(wrappedValue, margin, y);
 	y += wrappedValue.length * 7 + 10;
+
+	if (y + 30 > maxY) {
+		doc.addPage();
+		y = margin;
+	}
 
 	doc.setFontSize(11);
 	doc.setFont("helvetica", "normal");
@@ -183,6 +191,11 @@ export async function generateEngagementCertificatePdf(
 
 	y += 25;
 
+	if (y + 40 > maxY) {
+		doc.addPage();
+		y = margin;
+	}
+
 	doc.setFont("helvetica", "bold");
 	doc.setFontSize(10);
 	doc.text("About TUM.ai", margin, y);
@@ -194,9 +207,9 @@ export async function generateEngagementCertificatePdf(
 	doc.text(wrappedAbout, margin, y);
 	y += wrappedAbout.length * 7 + 15;
 
-	if (y > 270) {
+	if (y > maxY) {
 		doc.addPage();
-		y = 20;
+		y = margin;
 	}
 
 	return doc.output("blob");
