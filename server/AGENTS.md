@@ -13,10 +13,11 @@ Commands (preferred via root with `--filter`)
 - Dev: `pnpm --filter server run dev` or from `server/`: `pnpm dev` (`tsx watch src/index.ts`)
 - Build: `pnpm --filter server run build` or `pnpm build` (runs `tsc`)
 - Start (production): `pnpm --filter server run start` or `pnpm start` (runs `node dist/index.js`)
-- Lint (apply fixes): `pnpm --filter server run lint:apply` (runs `npx biome check . --write`)
+- Lint (check): `pnpm --filter server run lint` (runs `biome check .`)
+- Lint (apply fixes): `pnpm --filter server run lint:apply` (runs `biome check . --write`)
 
 Code style & conventions (server)
-- Formatting: use Biome (`npx biome check . --write`) where needed.
+- Formatting: use Biome (config in repo root `biome.json`).
 - Project structure:
   - `src/index.ts` — server entry
   - `src/routes/` — route definitions

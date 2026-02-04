@@ -1,8 +1,8 @@
 import assert from "node:assert";
-import { describe, test, before, after } from "node:test";
-import { buildApp } from "../src/app.js";
+import { after, before, describe, test } from "node:test";
 import dotenv from "dotenv";
 import type { FastifyInstance } from "fastify";
+import { buildApp } from "../src/app.js";
 
 dotenv.config();
 
@@ -34,7 +34,7 @@ describe("Server Middleware", async () => {
 			method: "GET",
 			url: "/health",
 		});
-		
+
 		const headers = response.headers;
 		assert.ok(headers["content-security-policy"], "CSP header missing");
 		assert.ok(headers["strict-transport-security"], "HSTS header missing");
@@ -50,23 +50,25 @@ describe("Server Middleware", async () => {
 
 		const headers = response.headers;
 		assert.ok(headers["x-ratelimit-limit"], "Rate limit header missing");
-		assert.ok(headers["x-ratelimit-remaining"], "Rate limit remaining header missing");
+		assert.ok(
+			headers["x-ratelimit-remaining"],
+			"Rate limit remaining header missing",
+		);
 	});
 
 	test("CORS allows configured origin", async () => {
-		// Simulate a request from an allowed origin
 		const allowedOrigin = "http://localhost:5173";
 		const response = await app.inject({
 			method: "OPTIONS",
 			url: "/health",
 			headers: {
-				"Origin": allowedOrigin,
-				"Access-Control-Request-Method": "GET"
-			}
+				Origin: allowedOrigin,
+				"Access-Control-Request-Method": "GET",
+			},
 		});
 
 		const originHeader = response.headers["access-control-allow-origin"];
-		
+
 		// Should match exactly since we set the env var in before()
 		assert.strictEqual(originHeader, allowedOrigin);
 	});
@@ -77,12 +79,11 @@ describe("Server Middleware", async () => {
 			method: "OPTIONS",
 			url: "/health",
 			headers: {
-				"Origin": disallowedOrigin,
-				"Access-Control-Request-Method": "GET"
-			}
+				Origin: disallowedOrigin,
+				"Access-Control-Request-Method": "GET",
+			},
 		});
 
-		// Should NOT have the Access-Control-Allow-Origin header matching the evil domain
 		const originHeader = response.headers["access-control-allow-origin"];
 		assert.notStrictEqual(originHeader, disallowedOrigin);
 	});
