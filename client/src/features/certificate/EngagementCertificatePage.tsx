@@ -313,7 +313,6 @@ export default function EngagementCertificatePage({
 											form.formState.errors.engagements?.[index]?.weeklyHours
 												?.message
 										}
-										required
 									>
 										<MenuItem value="">Select</MenuItem>
 										{WEEKLY_HOURS_OPTIONS.map((hours) => (
@@ -374,8 +373,27 @@ export default function EngagementCertificatePage({
 										}
 										helperText={
 											form.formState.errors.engagements?.[index]
-												?.tasksDescription?.message ||
-											"Enter each task on a new line"
+												?.tasksDescription?.message || (
+												<Box
+													component="span"
+													sx={{
+														display: "flex",
+														justifyContent: "space-between",
+													}}
+												>
+													<span>Enter each task on a new line</span>
+													<span>
+														{
+															(
+																form.watch(
+																	`engagements.${index}.tasksDescription`,
+																) || ""
+															).length
+														}
+														/1000 chars
+													</span>
+												</Box>
+											)
 										}
 										required
 									/>

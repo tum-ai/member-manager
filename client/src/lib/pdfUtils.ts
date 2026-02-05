@@ -7,6 +7,8 @@ export const PDF_COLORS = {
 
 export const LOGO_PATH = "/img/logo_black.png";
 
+const imageCache = new Map<string, string>();
+
 export interface BoardMember {
 	name: string;
 	title: string;
@@ -18,6 +20,11 @@ export const DEFAULT_BOARD_MEMBERS = {
 } as const;
 
 export function loadImageAsBase64(src: string): Promise<string> {
+	const cached = imageCache.get(src);
+	if (cached) {
+		return Promise.resolve(cached);
+	}
+
 	return new Promise((resolve, reject) => {
 		const img = new Image();
 		img.crossOrigin = "anonymous";
@@ -28,7 +35,9 @@ export function loadImageAsBase64(src: string): Promise<string> {
 				canvas.width = img.width;
 				canvas.height = img.height;
 				ctx.drawImage(img, 0, 0);
-				resolve(canvas.toDataURL("image/png"));
+				const base64 = canvas.toDataURL("image/png");
+				imageCache.set(src, base64);
+				resolve(base64);
 			} else {
 				reject(new Error("Could not get canvas context"));
 			}

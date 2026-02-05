@@ -40,12 +40,13 @@ export const engagementSchema = z
 				"Invalid end date",
 			),
 		isStillActive: z.boolean(),
-		weeklyHours: z.string().min(1, "Weekly hours is required"),
+		weeklyHours: z.string().optional(),
 		department: z.string().min(1, "Department is required"),
 		isTeamLead: z.boolean(),
 		tasksDescription: z
 			.string()
 			.min(1, "Tasks description is required")
+			.max(300, "Tasks description is too long (max 300 characters)")
 			.refine(
 				(val) => val.trim().length > 0,
 				"Tasks description cannot be empty",
@@ -61,10 +62,10 @@ export const engagementSchema = z
 	.refine(
 		(data) => {
 			if (data.isStillActive || !data.endDate) return true;
-			return new Date(data.endDate) > new Date(data.startDate);
+			return new Date(data.endDate) >= new Date(data.startDate);
 		},
 		{
-			message: "End date must be after start date",
+			message: "End date must be on or after start date",
 			path: ["endDate"],
 		},
 	);

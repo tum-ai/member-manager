@@ -66,18 +66,21 @@ export async function generateEngagementCertificatePdf(
 	doc.text(wrappedIntro, margin, y);
 	y += wrappedIntro.length * 7 + 10;
 
-	const col1Width = 40;
-	const col2Width = 50;
-	const col3Width = maxWidth - col1Width - col2Width - 10;
+	const col1Width = 35;
+	const col2Width = 45;
+	const col3Width = 20;
+	const col4Width = maxWidth - col1Width - col2Width - col3Width - 15;
 
 	const colX1 = margin;
 	const colX2 = colX1 + col1Width + 5;
 	const colX3 = colX2 + col2Width + 5;
+	const colX4 = colX3 + col3Width + 5;
 
 	doc.setFont("helvetica", "bold");
 	doc.text("Time Period", colX1, y);
 	doc.text("Department", colX2, y);
-	doc.text("Tasks", colX3, y);
+	doc.text("Hours", colX3, y);
+	doc.text("Tasks", colX4, y);
 	y += 8;
 
 	doc.setFont("helvetica", "normal");
@@ -92,6 +95,9 @@ export async function generateEngagementCertificatePdf(
 		const deptText = `${engagement.department}${
 			engagement.isTeamLead ? " (Team Lead)" : ""
 		}`;
+		const hoursText = engagement.weeklyHours
+			? `${engagement.weeklyHours} h/w`
+			: "";
 
 		const tasks = engagement.tasksDescription
 			.split("\n")
@@ -100,16 +106,19 @@ export async function generateEngagementCertificatePdf(
 
 		const wrappedPeriod = doc.splitTextToSize(period, col1Width);
 		const wrappedDept = doc.splitTextToSize(deptText, col2Width);
+		const wrappedHours = hoursText
+			? doc.splitTextToSize(hoursText, col3Width)
+			: [];
 
 		const checkmark = "•";
 		const checkmarkOffset = 5;
-		const indentX = colX3 + checkmarkOffset;
+		const indentX = colX4 + checkmarkOffset;
 
 		const formattedTasks: { check: boolean; line: string }[] = [];
 		for (const task of tasks) {
 			const wrapped = doc.splitTextToSize(
 				task,
-				col3Width - checkmarkOffset - 1,
+				col4Width - checkmarkOffset - 1,
 			);
 			if (wrapped.length > 0) {
 				formattedTasks.push({ check: true, line: wrapped[0] });
@@ -122,6 +131,7 @@ export async function generateEngagementCertificatePdf(
 		const lines = Math.max(
 			wrappedPeriod.length,
 			wrappedDept.length,
+			wrappedHours.length,
 			formattedTasks.length,
 		);
 		const lineHeight = 6;
@@ -135,6 +145,7 @@ export async function generateEngagementCertificatePdf(
 
 			if (wrappedPeriod[i]) doc.text(wrappedPeriod[i], colX1, y);
 			if (wrappedDept[i]) doc.text(wrappedDept[i], colX2, y);
+			if (wrappedHours[i]) doc.text(wrappedHours[i], colX3, y);
 
 			const taskLine = formattedTasks[i];
 			if (taskLine) {
@@ -144,13 +155,13 @@ export async function generateEngagementCertificatePdf(
 						PDF_COLORS.primary[1],
 						PDF_COLORS.primary[2],
 					);
-					doc.text(checkmark, colX3, y);
+					doc.text(checkmark, colX4, y);
 					doc.setTextColor(
 						PDF_COLORS.text[0],
 						PDF_COLORS.text[1],
 						PDF_COLORS.text[2],
 					);
-					doc.text(taskLine.line, colX3 + checkmarkOffset, y);
+					doc.text(taskLine.line, colX4 + checkmarkOffset, y);
 				} else {
 					doc.text(taskLine.line, indentX, y);
 				}
@@ -164,7 +175,8 @@ export async function generateEngagementCertificatePdf(
 				doc.setFont("helvetica", "bold");
 				doc.text("Time Period", colX1, y);
 				doc.text("Department", colX2, y);
-				doc.text("Tasks", colX3, y);
+				doc.text("Hours", colX3, y);
+				doc.text("Tasks", colX4, y);
 				y += 8;
 				doc.setFont("helvetica", "normal");
 			}
