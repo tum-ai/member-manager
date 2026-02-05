@@ -1,10 +1,8 @@
+import "./setup.js";
 import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
-import dotenv from "dotenv";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
-
-dotenv.config();
 
 describe("Server Middleware", async () => {
 	let app: FastifyInstance;

@@ -5,6 +5,7 @@
 		"dev": "vite",
 		"build": "vite build",
 		"preview": "vite preview",
+		"test": "vitest run",
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write"
 	},

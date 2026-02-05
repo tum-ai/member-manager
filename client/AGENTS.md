@@ -23,6 +23,10 @@ Testing (Vitest)
 - Run a single test file: pass the path to Vitest:
   - Example: `pnpm --filter client exec vitest client/src/features/members/__tests__/MemberForm.test.tsx`
 - Watch mode: `pnpm --filter client exec vitest --watch`
+- Test environment setup:
+  - Environment variables are configured in `vite.config.ts` under `test.env` (not in setup files).
+  - `import.meta.env` is read-only; do not attempt assignments in test setup.
+  - Components using context providers (e.g. ToastProvider) must wrap test renders with those providers.
 
 Code style & conventions (client)
 - Formatting: use Biome. Run `biome check src --write` to apply fixes.

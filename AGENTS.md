@@ -30,6 +30,7 @@ Git & commit safety
 - Do not commit secrets or `.env` files. If a secret is accidentally committed, notify maintainers immediately.
 - Do not try to continue rebases, e.g. `git rebase --continue`.
 - Lockfiles: use `pnpm-lock.yaml` only; do not add `package-lock.json` or `yarn.lock`.
+- Do not push changes unless explicitly requested.
 
 Agent behavior and constraints
 - Scope changes to the package being worked on unless the task explicitly requires cross-package edits.
@@ -51,6 +52,11 @@ Formatting and linting
 CI and reproducibility
 - Use explicit package targeting in CI to keep builds fast and deterministic (e.g. `pnpm --filter client run build`).
 - Make sure the repo builds from a clean checkout: `pnpm install && pnpm build`.
+
+GitHub Actions CI
+- pnpm lockfile version (9.0) doesn't match pnpm major version (10.x) — both pnpm 9 and 10 use lockfileVersion 9.0.
+- pnpm/action-setup@v2 uses `version` parameter (not `pnpm-version` or `node-version`). Use separate actions/setup-node@v4 for Node.js.
+- Setup order matters: pnpm first, then Node.js with `cache: 'pnpm'` (simpler than manual cache configuration).
 
 Where to find package rules
 - `client/AGENTS.md` — frontend-specific build, test and style rules.

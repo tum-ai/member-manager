@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "../../../contexts/ToastContext";
 import MemberForm from "../MemberForm";
 
 // Mock Supabase client
@@ -37,17 +38,19 @@ describe("MemberForm", () => {
 	it("renders form fields correctly", async () => {
 		render(
 			<QueryClientProvider client={queryClient}>
-				<MemberForm user={mockUser} />
+				<ToastProvider>
+					<MemberForm user={mockUser} />
+				</ToastProvider>
 			</QueryClientProvider>,
 		);
 
 		// Wait for form to load (since we have async data fetching)
 		await waitFor(() => {
-			expect(screen.getByText("Personal Data")).toBeInTheDocument();
+			expect(screen.getByText("Personal Information")).toBeInTheDocument();
 		});
 
-		expect(screen.getByLabelText(/Surname/i)).toBeInTheDocument();
-		expect(screen.getByLabelText(/Given Name/i)).toBeInTheDocument();
+		expect(screen.getByLabelText(/Last Name/i)).toBeInTheDocument();
+		expect(screen.getByLabelText(/First Name/i)).toBeInTheDocument();
 		expect(screen.getByLabelText(/IBAN/i)).toBeInTheDocument();
 	});
 });
