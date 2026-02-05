@@ -45,6 +45,10 @@ Testing & Debugging
 - Tests use the native `node:test` runner.
 - Run tests: `pnpm --filter server run test` (maps to `tsx --test test/**/*.test.ts`).
 - Use `tsx watch` for rapid iteration in dev. Use `node dist/index.js` only for production run.
+- Test environment setup:
+  - Environment variables must be set before any module imports (especially Supabase client).
+  - Create `test/setup.ts` with env defaults, import it first in test files (before other imports).
+  - `dotenv.config()` in individual test files runs too late if modules import Supabase client at top level.
 
 If you need changes
 - Update this file and open a PR describing why. Run type checks (`pnpm --filter server run build`) before pushing.

@@ -52,6 +52,12 @@ CI and reproducibility
 - Use explicit package targeting in CI to keep builds fast and deterministic (e.g. `pnpm --filter client run build`).
 - Make sure the repo builds from a clean checkout: `pnpm install && pnpm build`.
 
+GitHub Actions CI
+- pnpm lockfile version (9.0) doesn't match pnpm major version (10.x) — both pnpm 9 and 10 use lockfileVersion 9.0.
+- Workflows added in a PR branch won't run on that same PR (security feature) — push an empty commit to trigger after initial creation.
+- pnpm/action-setup@v2 uses `version` parameter (not `pnpm-version` or `node-version`). Use separate actions/setup-node@v4 for Node.js.
+- Setup order matters: pnpm first, then Node.js with `cache: 'pnpm'` (simpler than manual cache configuration).
+
 Where to find package rules
 - `client/AGENTS.md` — frontend-specific build, test and style rules.
 - `server/AGENTS.md` — backend-specific API, error-handling and deployment rules.
