@@ -8,9 +8,11 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import { ToastProvider } from "./contexts/ToastContext";
 import Auth from "./features/auth/Auth";
+import EngagementCertificatePage from "./features/certificate/EngagementCertificatePage";
 import ProfilePage from "./features/profile/ProfilePage";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
@@ -18,7 +20,7 @@ import getAppTheme from "./theme";
 
 const theme = getAppTheme();
 
-export default function App() {
+export default function App(): JSX.Element {
 	const [user, setUser] = useState<User | null>(null);
 	const [loading, setLoading] = useState(true);
 
@@ -39,7 +41,7 @@ export default function App() {
 		};
 	}, []);
 
-	async function handleLogout() {
+	async function handleLogout(): Promise<void> {
 		await supabase.auth.signOut();
 		setUser(null);
 	}
@@ -80,9 +82,17 @@ export default function App() {
 			<CssBaseline />
 			<QueryClientProvider client={queryClient}>
 				<ToastProvider>
-					<MainLayout user={user} onLogout={handleLogout}>
-						<ProfilePage user={user} />
-					</MainLayout>
+					<BrowserRouter>
+						<MainLayout user={user} onLogout={handleLogout}>
+							<Routes>
+								<Route path="/" element={<ProfilePage user={user} />} />
+								<Route
+									path="/engagement-certificate"
+									element={<EngagementCertificatePage user={user} />}
+								/>
+							</Routes>
+						</MainLayout>
+					</BrowserRouter>
 				</ToastProvider>
 			</QueryClientProvider>
 		</ThemeProvider>

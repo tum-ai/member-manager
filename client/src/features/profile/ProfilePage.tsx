@@ -1,5 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
+import DescriptionIcon from "@mui/icons-material/Description";
+import DownloadIcon from "@mui/icons-material/Download";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import SaveIcon from "@mui/icons-material/Save";
 import {
@@ -19,17 +21,20 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
+import { Link } from "react-router-dom";
 import GlassCard from "../../components/ui/GlassCard";
 import Modal from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
 import { useSepaData } from "../../hooks/useSepaData";
+import { downloadPdfBlob } from "../../lib/pdfUtils";
 import {
 	type MemberSchema,
 	memberSchema,
 	type SepaSchema,
 	sepaSchema,
 } from "../../lib/schemas";
+import { generateMembershipProofPdf } from "../certificate/generators/membershipProofPdf";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
 import SepaMandate from "../sepa/SepaMandate";
 
@@ -37,11 +42,12 @@ interface ProfilePageProps {
 	user: User;
 }
 
-export default function ProfilePage({ user }: ProfilePageProps) {
+export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const theme = useTheme();
 	const { showToast } = useToast();
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+	const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
 	const {
 		member: memberData,
@@ -125,12 +131,12 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 		}
 	}, [sepaData, sepaForm, user.id]);
 
-	const onSubmit = async () => {
+	const onSubmit = async (): Promise<void> => {
 		try {
 			const memberValid = await memberForm.trigger();
 			const sepaValid = await sepaForm.trigger();
 
-			const promises = [];
+			const promises: Promise<unknown>[] = [];
 			if (memberValid) {
 				promises.push(updateMemberAsync(memberForm.getValues()));
 			}
@@ -144,6 +150,29 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
 			showToast(`Error saving: ${errorMessage}`, "error");
+		}
+	};
+
+	const handleDownloadMembershipProof = async (): Promise<void> => {
+		if (!memberData || isGeneratingPdf) return;
+
+		setIsGeneratingPdf(true);
+		try {
+			const pdfBlob = await generateMembershipProofPdf(memberData);
+			const safeGivenName = memberData.given_name.replace(
+				/[^a-zA-Z0-9-_]/g,
+				"-",
+			);
+			const safeSurname = memberData.surname.replace(/[^a-zA-Z0-9-_]/g, "-");
+			const fullName = `${safeGivenName}-${safeSurname}`;
+			downloadPdfBlob(pdfBlob, `TUMai_Membership_Proof_${fullName}.pdf`);
+			showToast("Membership proof downloaded!", "success");
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			showToast(`Failed to generate PDF: ${errorMessage}`, "error");
+		} finally {
+			setIsGeneratingPdf(false);
 		}
 	};
 
@@ -185,18 +214,44 @@ export default function ProfilePage({ user }: ProfilePageProps) {
 						Manage your personal information and agreements
 					</Typography>
 				</Box>
-				<Chip
-					icon={
-						isActive ? (
-							<CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
-						) : (
-							<ErrorOutlineIcon sx={{ fontSize: 18 }} />
-						)
-					}
-					label={isActive ? "Active Member" : "Inactive"}
-					color={isActive ? "success" : "default"}
-					variant="outlined"
-				/>
+				<Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
+					<Chip
+						icon={
+							isActive ? (
+								<CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
+							) : (
+								<ErrorOutlineIcon sx={{ fontSize: 18 }} />
+							)
+						}
+						label={isActive ? "Active Member" : "Inactive"}
+						color={isActive ? "success" : "default"}
+						variant="outlined"
+					/>
+					<Button
+						component={Link}
+						to="/engagement-certificate"
+						variant="outlined"
+						size="small"
+						startIcon={<DescriptionIcon />}
+					>
+						Engagement Certificate
+					</Button>
+					<Button
+						variant="outlined"
+						size="small"
+						startIcon={
+							isGeneratingPdf ? (
+								<CircularProgress size={16} color="inherit" />
+							) : (
+								<DownloadIcon />
+							)
+						}
+						onClick={handleDownloadMembershipProof}
+						disabled={isGeneratingPdf || !memberData}
+					>
+						{isGeneratingPdf ? "Generating..." : "Proof of Membership"}
+					</Button>
+				</Box>
 			</Box>
 
 			<form onSubmit={memberForm.handleSubmit(onSubmit)}>
