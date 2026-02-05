@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+function isValidDate(dateString: string): boolean {
+	const regex = /^\d{4}-\d{2}-\d{2}$/;
+	if (!regex.test(dateString)) return false;
+	const date = new Date(dateString);
+	if (Number.isNaN(date.getTime())) return false;
+	return date.toISOString().slice(0, 10) === dateString;
+}
+
 export const memberSchema = z.object({
 	active: z.boolean(),
 	salutation: z.string().min(1, "Salutation is required"),
@@ -31,14 +39,11 @@ export const engagementSchema = z
 		startDate: z
 			.string()
 			.min(1, "Start date is required")
-			.refine((val) => !Number.isNaN(Date.parse(val)), "Invalid start date"),
+			.refine(isValidDate, "Invalid start date"),
 		endDate: z
 			.string()
 			.optional()
-			.refine(
-				(val) => !val || !Number.isNaN(Date.parse(val)),
-				"Invalid end date",
-			),
+			.refine((val) => !val || isValidDate(val), "Invalid end date"),
 		isStillActive: z.boolean(),
 		weeklyHours: z.string().optional(),
 		department: z.string().min(1, "Department is required"),
@@ -46,7 +51,7 @@ export const engagementSchema = z
 		tasksDescription: z
 			.string()
 			.min(1, "Tasks description is required")
-			.max(300, "Tasks description is too long (max 300 characters)")
+			.max(1000, "Tasks description is too long (max 1000 characters)")
 			.refine(
 				(val) => val.trim().length > 0,
 				"Tasks description cannot be empty",
@@ -62,7 +67,7 @@ export const engagementSchema = z
 	.refine(
 		(data) => {
 			if (data.isStillActive || !data.endDate) return true;
-			return new Date(data.endDate) >= new Date(data.startDate);
+			return data.endDate >= data.startDate;
 		},
 		{
 			message: "End date must be on or after start date",
