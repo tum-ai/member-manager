@@ -61,6 +61,7 @@ GitHub Actions CI
 Where to find package rules
 - `client/AGENTS.md` — frontend-specific build, test and style rules.
 - `server/AGENTS.md` — backend-specific API, error-handling and deployment rules.
+- `supabase/AGENTS.md` — database migrations, seeding, and local development rules.
 
 If you need changes
 - Update this file and create a small PR. Run `pnpm lint:apply` and `pnpm build` before pushing.

@@ -22,7 +22,7 @@ insert into auth.users (
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000000',
     'admin@example.com',
-    crypt('password123', gen_salt('bf')),
+    extensions.crypt('password123', extensions.gen_salt('bf')),
     now(),
     now(),
     now(),
@@ -49,7 +49,7 @@ insert into auth.users (
     '00000000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000000',
     'user@example.com',
-    crypt('password123', gen_salt('bf')),
+    extensions.crypt('password123', extensions.gen_salt('bf')),
     now(),
     now(),
     now(),
@@ -105,13 +105,26 @@ insert into public.members (
     'Germany',
     true
 )
-on conflict (user_id) do nothing;
+on conflict (user_id) do update set
+    email = excluded.email,
+    given_name = excluded.given_name,
+    surname = excluded.surname,
+    salutation = excluded.salutation,
+    title = excluded.title,
+    date_of_birth = excluded.date_of_birth,
+    street = excluded.street,
+    number = excluded.number,
+    postal_code = excluded.postal_code,
+    city = excluded.city,
+    country = excluded.country,
+    active = excluded.active;
 
 -- Seed user roles
 insert into public.user_roles (user_id, role) values
     ('00000000-0000-0000-0000-000000000001', 'admin'),
     ('00000000-0000-0000-0000-000000000002', 'user')
-on conflict (user_id) do nothing;
+on conflict (user_id) do update set
+    role = excluded.role;
 
 -- Seed SEPA data for the regular user
 insert into public.sepa (

@@ -65,6 +65,25 @@ Started supabase local development setup.
 service_role key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 ```
 
+#### Create Environment Files for Local Development
+
+Create `.env.local` files in both `client/` and `server/` directories using the credentials from `supabase status`:
+
+**server/.env.local:**
+```env
+SUPABASE_URL=http://127.0.0.1:54321
+SUPABASE_ANON_KEY=<anon key from supabase status>
+SUPABASE_SERVICE_ROLE_KEY=<service_role key from supabase status>
+PORT=3000
+```
+
+**client/.env.local:**
+```env
+VITE_SUPABASE_URL=http://127.0.0.1:54321
+VITE_SUPABASE_ANON_KEY=<anon key from supabase status>
+VITE_API_URL=http://localhost:3000
+```
+
 #### Run Development with Local Database
 
 ```bash
@@ -72,7 +91,7 @@ service_role key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 pnpm dev:local
 ```
 
-This uses the `.env.local` files which are pre-configured for local development.
+This uses the `.env.local` files you created above.
 
 #### Other Supabase Commands
 
