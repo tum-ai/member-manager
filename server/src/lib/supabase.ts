@@ -20,5 +20,3 @@ export const getSupabase = (): SupabaseClient => _supabase;
 export const setSupabaseClient = (client: SupabaseClient): void => {
 	_supabase = client;
 };
-
-export const supabase = _supabase;

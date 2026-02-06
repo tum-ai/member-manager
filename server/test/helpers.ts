@@ -1,3 +1,4 @@
+import "./setup.js";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../src/app.js";
 import { setSupabaseClient } from "../src/lib/supabase.js";
