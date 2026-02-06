@@ -7,7 +7,7 @@ import {
 	isNotFoundError,
 	NotFoundError,
 } from "../lib/errors.js";
-import { supabase } from "../lib/supabase.js";
+import { getSupabase } from "../lib/supabase.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -45,7 +45,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			}
 
 			// Check if member exists
-			const { data: existingMember, error: fetchError } = await supabase
+			const { data: existingMember, error: fetchError } = await getSupabase()
 				.from("members")
 				.select("user_id")
 				.eq("user_id", body.user_id)
@@ -61,7 +61,7 @@ export async function memberRoutes(server: FastifyInstance) {
 
 			if (existingMember) {
 				// If exists, just return the member
-				const { data: memberData, error: roleError } = await supabase
+				const { data: memberData, error: roleError } = await getSupabase()
 					.from("members")
 					.select("*")
 					.eq("user_id", body.user_id)
@@ -78,7 +78,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			}
 
 			const { ...memberData } = body;
-			const { data, error } = await supabase
+			const { data, error } = await getSupabase()
 				.from("members")
 				.insert(memberData)
 				.select()
@@ -90,7 +90,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			}
 
 			// Assign default role if it doesn't exist
-			const { error: roleAssignmentError } = await supabase
+			const { error: roleAssignmentError } = await getSupabase()
 				.from("user_roles")
 				.upsert(
 					{ user_id: body.user_id, role: "user" },
@@ -122,7 +122,7 @@ export async function memberRoutes(server: FastifyInstance) {
 				"You can only view your own profile",
 			);
 
-			const { data, error } = await supabase
+			const { data, error } = await getSupabase()
 				.from("members")
 				.select("*")
 				.eq("user_id", userId)
@@ -160,7 +160,7 @@ export async function memberRoutes(server: FastifyInstance) {
 				user_id: userId,
 			};
 
-			const { data, error } = await supabase
+			const { data, error } = await getSupabase()
 				.from("members")
 				.upsert(memberData, { onConflict: "user_id" })
 				.select()

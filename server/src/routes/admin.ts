@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { DatabaseError } from "../lib/errors.js";
-import { supabase } from "../lib/supabase.js";
+import { getSupabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
 
 const QuerySchema = z.object({
@@ -49,7 +49,7 @@ export async function adminRoutes(server: FastifyInstance) {
 
 			const selectQuery = filterSepa ? "*, sepa!inner(*)" : "*, sepa(*)";
 
-			let dbQuery = supabase
+			let dbQuery = getSupabase()
 				.from("members")
 				.select(selectQuery, { count: "exact" });
 
@@ -108,7 +108,7 @@ export async function adminRoutes(server: FastifyInstance) {
 			const { userId } = request.params as { userId: string };
 			const body = StatusSchema.parse(request.body);
 
-			const { error } = await supabase
+			const { error } = await getSupabase()
 				.from("members")
 				.update({ active: body.active })
 				.eq("user_id", userId);
