@@ -6,6 +6,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "tsx watch src/index.ts",
+		"dev:local": "DOTENV_CONFIG_PATH=.env.local tsx watch src/index.ts",
 		"build": "tsc",
 		"start": "node dist/index.js",
 		"lint": "biome check .",

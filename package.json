@@ -1,14 +1,19 @@
 {
-  "name": "member-manager",
-  "private": true,
-  "scripts": {
-    "dev": "pnpm -r --parallel run dev",
-    "build": "pnpm -r run build",
-    "test": "pnpm -r run test",
-    "lint": "pnpm -r run lint",
-    "lint:apply": "pnpm -r --parallel run lint:apply"
-  },
-  "devDependencies": {
-    "@biomejs/biome": "^2.3.7"
-  }
+	"name": "member-manager",
+	"private": true,
+	"scripts": {
+		"dev": "pnpm -r --parallel run dev",
+		"dev:local": "pnpm supabase:start && pnpm -r --parallel run dev:local",
+		"build": "pnpm -r run build",
+		"test": "pnpm -r run test",
+		"lint": "pnpm -r run lint",
+		"lint:apply": "pnpm -r --parallel run lint:apply",
+		"supabase:start": "supabase start",
+		"supabase:stop": "supabase stop",
+		"supabase:status": "supabase status",
+		"supabase:reset": "supabase db reset"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.3.7"
+	}
 }
