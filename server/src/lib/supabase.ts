@@ -1,7 +1,9 @@
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 
-dotenv.config();
+// Support custom .env file path via DOTENV_CONFIG_PATH for local development
+const envPath = process.env.DOTENV_CONFIG_PATH;
+dotenv.config(envPath ? { path: envPath } : undefined);
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

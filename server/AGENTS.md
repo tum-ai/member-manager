@@ -52,3 +52,9 @@ Testing & Debugging
 
 If you need changes
 - Update this file and open a PR describing why. Run type checks (`pnpm --filter server run build`) before pushing.
+
+OS Compatibility
+- Use `cross-env` for scripts that set environment variables (e.g. `DOTENV_CONFIG_PATH`) to ensure Windows compatibility.
+  - Bad: `VAR=val cmd`
+  - Good: `cross-env VAR=val cmd`
+

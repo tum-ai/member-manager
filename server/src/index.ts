@@ -1,7 +1,4 @@
-import dotenv from "dotenv";
 import { buildApp } from "./app.js";
-
-dotenv.config();
 
 const start = async () => {
 	try {

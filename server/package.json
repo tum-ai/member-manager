@@ -6,6 +6,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "tsx watch src/index.ts",
+		"dev:local": "cross-env DOTENV_CONFIG_PATH=.env.local tsx watch src/index.ts",
 		"build": "tsc",
 		"start": "node dist/index.js",
 		"lint": "biome check .",
@@ -25,6 +26,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "^20.11.25",
+		"cross-env": "^10.1.0",
 		"tsx": "^4.7.1",
 		"typescript": "^5.4.2"
 	}
