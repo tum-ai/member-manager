@@ -1,3 +1,4 @@
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import LogoutIcon from "@mui/icons-material/Logout";
 import {
 	AppBar,
@@ -9,6 +10,7 @@ import {
 	useTheme,
 } from "@mui/material";
 import type { User } from "@supabase/supabase-js";
+import { useNavigate } from "react-router-dom";
 
 interface MainLayoutProps {
 	children: React.ReactNode;
@@ -22,6 +24,7 @@ export default function MainLayout({
 	onLogout,
 }: MainLayoutProps) {
 	const theme = useTheme();
+	const navigate = useNavigate();
 
 	return (
 		<Box
@@ -41,7 +44,14 @@ export default function MainLayout({
 				}}
 			>
 				<Toolbar sx={{ justifyContent: "space-between" }}>
-					<Box sx={{ display: "flex", alignItems: "center" }}>
+					<Box
+						sx={{
+							display: "flex",
+							alignItems: "center",
+							cursor: "pointer",
+						}}
+						onClick={() => navigate("/")}
+					>
 						<img src="/img/logo.webp" alt="TUM.ai" style={{ height: 28 }} />
 					</Box>
 
@@ -57,6 +67,21 @@ export default function MainLayout({
 								{user.email}
 							</Typography>
 						)}
+						<Tooltip title="My Profile">
+							<IconButton
+								onClick={() => navigate("/profile")}
+								size="small"
+								sx={{
+									color: theme.palette.text.secondary,
+									"&:hover": {
+										color: theme.palette.primary.main,
+										backgroundColor: "rgba(208, 188, 255, 0.1)",
+									},
+								}}
+							>
+								<AccountCircleIcon fontSize="small" />
+							</IconButton>
+						</Tooltip>
 						<Tooltip title="Logout">
 							<IconButton
 								onClick={onLogout}

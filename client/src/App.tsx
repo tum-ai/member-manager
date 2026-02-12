@@ -13,6 +13,7 @@ import MainLayout from "./components/layout/MainLayout";
 import { ToastProvider } from "./contexts/ToastContext";
 import Auth from "./features/auth/Auth";
 import EngagementCertificatePage from "./features/certificate/EngagementCertificatePage";
+import MemberList from "./features/members/MemberList";
 import ProfilePage from "./features/profile/ProfilePage";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
@@ -85,7 +86,8 @@ export default function App(): JSX.Element {
 					<BrowserRouter>
 						<MainLayout user={user} onLogout={handleLogout}>
 							<Routes>
-								<Route path="/" element={<ProfilePage user={user} />} />
+								<Route path="/" element={<MemberList />} />
+								<Route path="/profile" element={<ProfilePage user={user} />} />
 								<Route
 									path="/engagement-certificate"
 									element={<EngagementCertificatePage user={user} />}
