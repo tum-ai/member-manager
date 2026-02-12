@@ -134,10 +134,18 @@ function createQueryBuilder(table: string): QueryBuilder {
 			| undefined,
 		rangeConfig: undefined as { from: number; to: number } | undefined,
 		selectConfig: undefined as { count?: string } | undefined,
+		insertedData: null as Array<Record<string, unknown>> | null,
 	};
 
 	const execute = (isSingle = false) => {
-		let tableData = [...(mockDatabase[table as keyof MockData] || [])];
+		let tableData: Array<Record<string, unknown>>;
+
+		// If we just inserted data, return that instead of querying
+		if (state.insertedData) {
+			tableData = [...state.insertedData];
+		} else {
+			tableData = [...(mockDatabase[table as keyof MockData] || [])];
+		}
 
 		// Apply OR filters (for search)
 		if (state.orQuery) {
@@ -227,11 +235,9 @@ function createQueryBuilder(table: string): QueryBuilder {
 
 		insert: (data: unknown) => {
 			const tableData = mockDatabase[table as keyof MockData];
-			if (Array.isArray(data)) {
-				tableData.push(...data);
-			} else {
-				tableData.push(data as Record<string, unknown>);
-			}
+			const records = Array.isArray(data) ? data : [data];
+			tableData.push(...records);
+			state.insertedData = records as Array<Record<string, unknown>>;
 			return proxyBuilder;
 		},
 

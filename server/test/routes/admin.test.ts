@@ -135,8 +135,11 @@ describe("Admin Routes", async () => {
 			const response = await app.inject({
 				method: "PATCH",
 				url: `/api/admin/members/${testUserIds.user}/status`,
-				headers: authHeaders(testTokens.admin),
-				payload: { active: false },
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ active: false }),
 			});
 
 			assert.strictEqual(response.statusCode, 200);
@@ -149,8 +152,11 @@ describe("Admin Routes", async () => {
 			const response = await app.inject({
 				method: "PATCH",
 				url: `/api/admin/members/${testUserIds.otherUser}/status`,
-				headers: authHeaders(testTokens.user),
-				payload: { active: false },
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ active: false }),
 			});
 
 			assert.strictEqual(response.statusCode, 403);
@@ -161,8 +167,11 @@ describe("Admin Routes", async () => {
 			const response = await app.inject({
 				method: "PATCH",
 				url: `/api/admin/members/${testUserIds.user}/status`,
-				headers: authHeaders(testTokens.admin),
-				payload: { active: "not-a-boolean" },
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ active: "not-a-boolean" }),
 			});
 
 			assert.strictEqual(response.statusCode, 400);
@@ -173,7 +182,8 @@ describe("Admin Routes", async () => {
 			const response = await app.inject({
 				method: "PATCH",
 				url: `/api/admin/members/${testUserIds.user}/status`,
-				payload: { active: false },
+				headers: { "content-type": "application/json" },
+				payload: JSON.stringify({ active: false }),
 			});
 
 			assert.strictEqual(response.statusCode, 401);

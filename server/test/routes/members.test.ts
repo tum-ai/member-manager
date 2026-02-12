@@ -26,7 +26,9 @@ describe("Members Routes", async () => {
 	describe("POST /api/members", () => {
 		test("creates member for authenticated user", async () => {
 			resetDatabase();
-			const newUserId = "new-user-123";
+			// Use a token whose user is not present in the seeded members so we
+			// exercise the member-creation path.
+			const newUserId = testUserIds.otherUser;
 			const payload = mockMemberPayload({
 				user_id: newUserId,
 				email: "newuser@test.com",
@@ -36,18 +38,15 @@ describe("Members Routes", async () => {
 				method: "POST",
 				url: "/api/members",
 				headers: {
-					...authHeaders(testTokens.user),
+					...authHeaders(testTokens.otherUser),
 					"content-type": "application/json",
 				},
-				payload: JSON.stringify({
-					...payload,
-					user_id: testUserIds.user,
-				}),
+				payload: JSON.stringify(payload),
 			});
 
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
-			assert.strictEqual(data.email, "user@test.com");
+			assert.strictEqual(data.email, "newuser@test.com");
 		});
 
 		test("returns existing member if already exists", async () => {
