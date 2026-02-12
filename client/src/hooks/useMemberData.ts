@@ -27,6 +27,7 @@ export function useMemberData(userId: string) {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["member", userId] });
+			queryClient.invalidateQueries({ queryKey: ["members-list"] });
 		},
 	});
 

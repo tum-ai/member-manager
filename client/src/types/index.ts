@@ -14,6 +14,13 @@ export interface Member {
 	city: string;
 	country: string;
 	user_id: string;
+	batch?: string | null;
+	department?: string | null;
+	member_role?: string | null;
+	degree?: string | null;
+	school?: string | null;
+	skills?: string[] | null;
+	profile_picture_url?: string | null;
 	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
 	[key: string]: any;
 }
