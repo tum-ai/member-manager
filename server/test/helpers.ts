@@ -14,7 +14,8 @@ import {
 } from "./mocks/supabase.js";
 
 let testApp: FastifyInstance | null = null;
-let mockSupabaseClient: ReturnType<typeof createMockSupabaseClient> | null = null;
+let mockSupabaseClient: ReturnType<typeof createMockSupabaseClient> | null =
+	null;
 
 export async function getTestApp(): Promise<FastifyInstance> {
 	if (testApp) {
