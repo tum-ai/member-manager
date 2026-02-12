@@ -1,8 +1,8 @@
 import { ForbiddenError, isNotFoundError } from "./errors.js";
-import { supabase } from "./supabase.js";
+import { getSupabase } from "./supabase.js";
 
 export async function checkAdminRole(userId: string): Promise<boolean> {
-	const { data: roleData, error: roleError } = await supabase
+	const { data: roleData, error: roleError } = await getSupabase()
 		.from("user_roles")
 		.select("role")
 		.eq("user_id", userId)

@@ -45,6 +45,9 @@ Testing & Debugging
 - Tests use the native `node:test` runner.
 - Run tests: `pnpm --filter server run test` (maps to `tsx --test test/**/*.test.ts`).
 - Use `tsx watch` for rapid iteration in dev. Use `node dist/index.js` only for production run.
+- **Dependency Injection**: Use `getSupabase()` instead of direct `supabase` imports. In tests, use `setSupabaseClient(mockClient)` to inject mocks.
+- **Mock State**: `server/test/mocks/supabase.ts` uses shared mutable state (`mockDatabase`). Always call `resetMockDatabase()` in `beforeEach`.
+- **Mock Query Builder**: The mock uses a Proxy to handle `.then()` chains (e.g., `.from().select()`), enabling `await` support without implementing every method.
 - Test environment setup:
   - Environment variables must be set before any module imports (especially Supabase client).
   - Create `test/setup.ts` with env defaults, import it first in test files (before other imports).

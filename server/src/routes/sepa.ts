@@ -8,7 +8,7 @@ import {
 	isNotFoundError,
 	NotFoundError,
 } from "../lib/errors.js";
-import { supabase } from "../lib/supabase.js";
+import { getSupabase } from "../lib/supabase.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -43,7 +43,7 @@ export async function sepaRoutes(server: FastifyInstance) {
 				throw new ForbiddenError("User ID mismatch");
 			}
 
-			const { error } = await supabase.from("sepa").insert([body]);
+			const { error } = await getSupabase().from("sepa").insert([body]);
 
 			if (error) {
 				request.log.error({ err: error }, "Failed to insert SEPA data");
@@ -67,7 +67,7 @@ export async function sepaRoutes(server: FastifyInstance) {
 				"You can only view your own SEPA data",
 			);
 
-			const { data, error } = await supabase
+			const { data, error } = await getSupabase()
 				.from("sepa")
 				.select("*")
 				.eq("user_id", userId)
@@ -100,7 +100,7 @@ export async function sepaRoutes(server: FastifyInstance) {
 
 			const body = UpdateSepaSchema.parse(request.body);
 
-			const { data, error } = await supabase
+			const { data, error } = await getSupabase()
 				.from("sepa")
 				.upsert({ ...body, user_id: userId }, { onConflict: "user_id" })
 				.select()

@@ -1,3 +1,4 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@supabase/supabase-js";
 import dotenv from "dotenv";
 
@@ -12,4 +13,10 @@ if (!supabaseUrl || !supabaseKey) {
 	throw new Error("Missing Supabase URL or Key");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+let _supabase: SupabaseClient = createClient(supabaseUrl, supabaseKey);
+
+export const getSupabase = (): SupabaseClient => _supabase;
+
+export const setSupabaseClient = (client: SupabaseClient): void => {
+	_supabase = client;
+};

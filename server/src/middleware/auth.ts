@@ -1,6 +1,6 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import { checkAdminRole } from "../lib/auth.js";
-import { supabase } from "../lib/supabase.js";
+import { getSupabase } from "../lib/supabase.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
 export async function authenticate(
@@ -17,7 +17,7 @@ export async function authenticate(
 	const {
 		data: { user },
 		error,
-	} = await supabase.auth.getUser(token);
+	} = await getSupabase().auth.getUser(token);
 
 	if (error || !user) {
 		return reply.status(401).send({ error: "Invalid token" });
