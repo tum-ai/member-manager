@@ -8,14 +8,13 @@ import {
 	MOCK_OTHER_USER_ID,
 	MOCK_USER_ID,
 	resetMockDatabase,
-	type SupabaseClient,
 	VALID_ADMIN_TOKEN,
 	VALID_OTHER_USER_TOKEN,
 	VALID_USER_TOKEN,
 } from "./mocks/supabase.js";
 
 let testApp: FastifyInstance | null = null;
-let mockSupabaseClient: SupabaseClient | null = null;
+let mockSupabaseClient: ReturnType<typeof createMockSupabaseClient> | null = null;
 
 export async function getTestApp(): Promise<FastifyInstance> {
 	if (testApp) {
