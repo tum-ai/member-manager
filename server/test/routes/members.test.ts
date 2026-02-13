@@ -204,6 +204,85 @@ describe("Members Routes", async () => {
 		});
 	});
 
+	describe("GET /api/members", () => {
+		test("authenticated user can retrieve member list", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/members",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.ok(Array.isArray(data));
+			assert.strictEqual(data.length, 2);
+		});
+
+		test("rejects unauthenticated request", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/members",
+			});
+
+			assert.strictEqual(response.statusCode, 401);
+		});
+
+		test("returns only active members", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/members",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.ok(data.every((member: { active: boolean }) => member.active));
+		});
+
+		test("returns correct fields", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/members",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			const member = data[0];
+			assert.ok("user_id" in member);
+			assert.ok("given_name" in member);
+			assert.ok("surname" in member);
+			assert.ok("email" in member);
+			assert.ok("batch" in member);
+			assert.ok("department" in member);
+			assert.ok("member_role" in member);
+			assert.ok("degree" in member);
+			assert.ok("school" in member);
+			assert.ok("skills" in member);
+			assert.ok("profile_picture_url" in member);
+			assert.ok("active" in member);
+		});
+
+		test("members are sorted by surname ascending", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/members",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			for (let i = 0; i < data.length - 1; i++) {
+				assert.ok(data[i].surname <= data[i + 1].surname);
+			}
+		});
+	});
+
 	describe("PUT /api/members/:userId", () => {
 		test("owner can update own profile", async () => {
 			resetDatabase();
