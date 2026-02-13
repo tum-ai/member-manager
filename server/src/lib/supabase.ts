@@ -4,7 +4,16 @@ import dotenv from "dotenv";
 
 // Support custom .env file path via DOTENV_CONFIG_PATH for local development
 const envPath = process.env.DOTENV_CONFIG_PATH;
-dotenv.config(envPath ? { path: envPath } : undefined);
+const isProduction = process.env.NODE_ENV === "production";
+
+if (envPath) {
+	dotenv.config({ path: envPath });
+} else {
+	dotenv.config();
+	if (!isProduction) {
+		dotenv.config({ path: ".env.local" });
+	}
+}
 
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;

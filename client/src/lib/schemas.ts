@@ -22,6 +22,13 @@ export const memberSchema = z.object({
 	city: z.string().min(1, "City is required"),
 	country: z.string().min(1, "Country is required"),
 	user_id: z.string(),
+	batch: z.string().nullish(),
+	department: z.string().nullish(),
+	member_role: z.string().nullish(),
+	degree: z.string().nullish(),
+	school: z.string().nullish(),
+	skills: z.array(z.string()).nullish(),
+	profile_picture_url: z.string().url().nullish(),
 });
 
 export const sepaSchema = z.object({

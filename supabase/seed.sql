@@ -73,7 +73,14 @@ insert into public.members (
     postal_code,
     city,
     country,
-    active
+    active,
+    batch,
+    department,
+    member_role,
+    degree,
+    school,
+    skills,
+    profile_picture_url
 ) values
 (
     '00000000-0000-0000-0000-000000000001',
@@ -88,7 +95,14 @@ insert into public.members (
     '12345',
     'Munich',
     'Germany',
-    true
+    true,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null,
+    null
 ),
 (
     '00000000-0000-0000-0000-000000000002',
@@ -103,7 +117,14 @@ insert into public.members (
     '54321',
     'Berlin',
     'Germany',
-    true
+    true,
+    'WS23/24',
+    'Tech',
+    'Software Engineer',
+    'B.Sc.',
+    'TUM',
+    ARRAY['TypeScript', 'React', 'Node.js']::text[],
+    'https://example.com/profile.png'
 )
 on conflict (user_id) do update set
     email = excluded.email,
@@ -117,7 +138,14 @@ on conflict (user_id) do update set
     postal_code = excluded.postal_code,
     city = excluded.city,
     country = excluded.country,
-    active = excluded.active;
+    active = excluded.active,
+    batch = excluded.batch,
+    department = excluded.department,
+    member_role = excluded.member_role,
+    degree = excluded.degree,
+    school = excluded.school,
+    skills = excluded.skills,
+    profile_picture_url = excluded.profile_picture_url;
 
 -- Seed user roles
 insert into public.user_roles (user_id, role) values

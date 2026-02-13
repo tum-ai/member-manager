@@ -25,7 +25,7 @@ Targeting a single package
 - Alternatively `cd` into the package and run package scripts.
 
 Git & commit safety
-- Commit messages: short imperative verb phrase (e.g. `Add input validation`).
+- Commit messages: short conventional commits (e.g. `feat(scope): add input validation`).
 - Never force-push to protected branches. Avoid `git push --force`.
 - **Refactoring Migration**: When switching from direct exports to getters (e.g., `getSupabase()`), maintain the old export for backwards compatibility until all references are updated.
 - Do not commit secrets or `.env` files. If a secret is accidentally committed, notify maintainers immediately.

@@ -25,6 +25,35 @@ const MemberSchema = z.object({
 	active: z.boolean().optional().default(true),
 	salutation: z.string().optional().default(""),
 	title: z.string().optional().default(""),
+	batch: z
+		.string()
+		.nullish()
+		.transform((v) => v || null),
+	department: z
+		.string()
+		.nullish()
+		.transform((v) => v || null),
+	member_role: z
+		.string()
+		.nullish()
+		.transform((v) => v || null),
+	degree: z
+		.string()
+		.nullish()
+		.transform((v) => v || null),
+	school: z
+		.string()
+		.nullish()
+		.transform((v) => v || null),
+	skills: z
+		.array(z.string())
+		.nullish()
+		.transform((v) => (v && v.length > 0 ? v : null)),
+	profile_picture_url: z
+		.string()
+		.url()
+		.nullish()
+		.transform((v) => v || null),
 });
 
 const UpdateMemberSchema = MemberSchema.omit({
@@ -102,6 +131,27 @@ export async function memberRoutes(server: FastifyInstance) {
 					{ err: roleAssignmentError },
 					"Failed to assign default role",
 				);
+				throw new DatabaseError();
+			}
+
+			return data;
+		},
+	);
+
+	server.get(
+		"/members",
+		{ preHandler: authenticate },
+		async (request, _reply) => {
+			const { data, error } = await getSupabase()
+				.from("members")
+				.select(
+					"user_id, given_name, surname, email, batch, department, member_role, degree, school, skills, profile_picture_url, active",
+				)
+				.eq("active", true)
+				.order("surname", { ascending: true });
+
+			if (error) {
+				request.log.error({ err: error }, "Failed to fetch members");
 				throw new DatabaseError();
 			}
 

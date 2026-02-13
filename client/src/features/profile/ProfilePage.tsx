@@ -5,6 +5,7 @@ import DownloadIcon from "@mui/icons-material/Download";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import SaveIcon from "@mui/icons-material/Save";
 import {
+	Autocomplete,
 	Box,
 	Button,
 	CardContent,
@@ -27,6 +28,7 @@ import Modal from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
 import { useSepaData } from "../../hooks/useSepaData";
+import { DEPARTMENTS } from "../../lib/constants";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
 import {
 	type MemberSchema,
@@ -48,6 +50,19 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 	const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+	const normalizeTextValue = (value?: string | null): string | null => {
+		const trimmed = value?.trim();
+		return trimmed ? trimmed : null;
+	};
+
+	const normalizeSkillsValue = (value?: string[] | null): string[] | null => {
+		if (!value || value.length === 0) return null;
+		const cleaned = value
+			.map((item) => item.trim())
+			.filter((item) => item.length > 0);
+		return cleaned.length > 0 ? cleaned : null;
+	};
 
 	const {
 		member: memberData,
@@ -79,6 +94,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			city: "",
 			country: "Germany",
 			user_id: user.id,
+			batch: "",
+			department: "",
+			member_role: "",
+			degree: "",
+			school: "",
+			skills: [],
+			profile_picture_url: "",
 		},
 	});
 
@@ -114,6 +136,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				city: memberData.city || "",
 				country: memberData.country || "Germany",
 				user_id: user.id,
+				batch: memberData.batch || "",
+				department: memberData.department || "",
+				member_role: memberData.member_role || "",
+				degree: memberData.degree || "",
+				school: memberData.school || "",
+				skills: memberData.skills || [],
+				profile_picture_url: memberData.profile_picture_url || "",
 			});
 		}
 	}, [memberData, memberForm, user.id]);
@@ -138,7 +167,21 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 			const promises: Promise<unknown>[] = [];
 			if (memberValid) {
-				promises.push(updateMemberAsync(memberForm.getValues()));
+				const memberValues = memberForm.getValues();
+				promises.push(
+					updateMemberAsync({
+						...memberValues,
+						batch: normalizeTextValue(memberValues.batch),
+						department: normalizeTextValue(memberValues.department),
+						member_role: normalizeTextValue(memberValues.member_role),
+						degree: normalizeTextValue(memberValues.degree),
+						school: normalizeTextValue(memberValues.school),
+						profile_picture_url: normalizeTextValue(
+							memberValues.profile_picture_url,
+						),
+						skills: normalizeSkillsValue(memberValues.skills),
+					}),
+				);
 			}
 			if (sepaValid) {
 				promises.push(updateSepaAsync(sepaForm.getValues()));
@@ -396,6 +439,106 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											error={!!memberForm.formState.errors.country}
 											helperText={memberForm.formState.errors.country?.message}
 											required
+										/>
+									</Grid>
+								</Grid>
+							</CardContent>
+						</GlassCard>
+
+						<GlassCard sx={{ mt: 3 }}>
+							<CardContent sx={{ p: 3 }}>
+								<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
+									TUM.ai Profile
+								</Typography>
+
+								<Grid container spacing={2}>
+									<Grid size={{ xs: 12, sm: 6 }}>
+										<TextField
+											label="Batch"
+											placeholder="e.g. Fall 2023"
+											{...memberForm.register("batch")}
+											error={!!memberForm.formState.errors.batch}
+											helperText={memberForm.formState.errors.batch?.message}
+										/>
+									</Grid>
+									<Grid size={{ xs: 12, sm: 6 }}>
+										<TextField
+											select
+											label="Department"
+											{...memberForm.register("department")}
+											value={memberForm.watch("department") || ""}
+										>
+											<MenuItem value="">None</MenuItem>
+											{DEPARTMENTS.map((dept) => (
+												<MenuItem key={dept} value={dept}>
+													{dept}
+												</MenuItem>
+											))}
+										</TextField>
+									</Grid>
+
+									<Grid size={{ xs: 12, sm: 6 }}>
+										<TextField
+											label="Role in TUM.ai"
+											placeholder="e.g. Team Lead, Member"
+											{...memberForm.register("member_role")}
+										/>
+									</Grid>
+									<Grid size={{ xs: 12, sm: 6 }}>
+										<TextField
+											label="Degree"
+											placeholder="e.g. B.Sc., M.Sc., Ph.D."
+											{...memberForm.register("degree")}
+										/>
+									</Grid>
+
+									<Grid size={12}>
+										<TextField
+											label="School / University"
+											placeholder="e.g. TUM School of Computation, Information and Technology"
+											{...memberForm.register("school")}
+										/>
+									</Grid>
+
+									<Grid size={12}>
+										<TextField
+											label="Profile Picture URL"
+											placeholder="https://..."
+											{...memberForm.register("profile_picture_url")}
+										/>
+									</Grid>
+
+									<Grid size={12}>
+										<Autocomplete
+											multiple
+											freeSolo
+											options={[]}
+											value={memberForm.watch("skills") || []}
+											onChange={(_e, newValue) => {
+												memberForm.setValue("skills", newValue as string[], {
+													shouldDirty: true,
+												});
+											}}
+											renderTags={(value, getTagProps) =>
+												value.map((option, index) => {
+													const { key, ...rest } = getTagProps({ index });
+													return (
+														<Chip
+															key={key}
+															label={option}
+															size="small"
+															{...rest}
+														/>
+													);
+												})
+											}
+											renderInput={(params) => (
+												<TextField
+													{...params}
+													label="Skills"
+													placeholder="Type a skill and press Enter"
+												/>
+											)}
 										/>
 									</Grid>
 								</Grid>
