@@ -52,9 +52,6 @@ const MemberSchema = z.object({
 	profile_picture_url: z
 		.string()
 		.url()
-		.refine((url) => url.startsWith("http://") || url.startsWith("https://"), {
-			message: "profile_picture_url must be an HTTP or HTTPS URL",
-		})
 		.nullish()
 		.transform((v) => v || null),
 });

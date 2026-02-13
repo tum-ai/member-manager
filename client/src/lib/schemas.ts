@@ -28,7 +28,7 @@ export const memberSchema = z.object({
 	degree: z.string().nullish(),
 	school: z.string().nullish(),
 	skills: z.array(z.string()).nullish(),
-	profile_picture_url: z.string().nullish(),
+	profile_picture_url: z.string().url().nullish(),
 });
 
 export const sepaSchema = z.object({

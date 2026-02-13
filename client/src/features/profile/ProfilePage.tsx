@@ -51,6 +51,19 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 	const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
+	const normalizeTextValue = (value?: string | null): string | null => {
+		const trimmed = value?.trim();
+		return trimmed ? trimmed : null;
+	};
+
+	const normalizeSkillsValue = (value?: string[] | null): string[] | null => {
+		if (!value || value.length === 0) return null;
+		const cleaned = value
+			.map((item) => item.trim())
+			.filter((item) => item.length > 0);
+		return cleaned.length > 0 ? cleaned : null;
+	};
+
 	const {
 		member: memberData,
 		isLoading: isLoadingMember,
@@ -154,7 +167,21 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 			const promises: Promise<unknown>[] = [];
 			if (memberValid) {
-				promises.push(updateMemberAsync(memberForm.getValues()));
+				const memberValues = memberForm.getValues();
+				promises.push(
+					updateMemberAsync({
+						...memberValues,
+						batch: normalizeTextValue(memberValues.batch),
+						department: normalizeTextValue(memberValues.department),
+						member_role: normalizeTextValue(memberValues.member_role),
+						degree: normalizeTextValue(memberValues.degree),
+						school: normalizeTextValue(memberValues.school),
+						profile_picture_url: normalizeTextValue(
+							memberValues.profile_picture_url,
+						),
+						skills: normalizeSkillsValue(memberValues.skills),
+					}),
+				);
 			}
 			if (sepaValid) {
 				promises.push(updateSepaAsync(sepaForm.getValues()));

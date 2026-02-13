@@ -9,10 +9,10 @@ const isProduction = process.env.NODE_ENV === "production";
 if (envPath) {
 	dotenv.config({ path: envPath });
 } else {
+	dotenv.config();
 	if (!isProduction) {
 		dotenv.config({ path: ".env.local" });
 	}
-	dotenv.config();
 }
 
 const supabaseUrl = process.env.SUPABASE_URL;

@@ -278,7 +278,7 @@ describe("Members Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
 			for (let i = 0; i < data.length - 1; i++) {
-				assert.ok(data[i].surname <= data[i + 1].surname);
+				assert.ok(data[i].surname.localeCompare(data[i + 1].surname) <= 0);
 			}
 		});
 	});
