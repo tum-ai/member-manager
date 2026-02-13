@@ -46,13 +46,15 @@ export default function MemberList() {
 			const batch = (m.batch || "").toLowerCase();
 			const degree = (m.degree || "").toLowerCase();
 			const school = (m.school || "").toLowerCase();
+			const skills = (m.skills || []).join(" ").toLowerCase();
 			return (
 				name.includes(q) ||
 				dept.includes(q) ||
 				role.includes(q) ||
 				batch.includes(q) ||
 				degree.includes(q) ||
-				school.includes(q)
+				school.includes(q) ||
+				skills.includes(q)
 			);
 		});
 	}, [members, search]);
