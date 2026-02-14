@@ -22,6 +22,10 @@ const StatusSchema = z.object({
 	active: z.boolean(),
 });
 
+function sanitizePostgrestValue(value: string): string {
+	return value.replace(/[,()"]/g, "");
+}
+
 export async function adminRoutes(server: FastifyInstance) {
 	server.get(
 		"/admin/members",
@@ -54,8 +58,9 @@ export async function adminRoutes(server: FastifyInstance) {
 				.select(selectQuery, { count: "exact" });
 
 			if (search) {
+				const s = sanitizePostgrestValue(search);
 				dbQuery = dbQuery.or(
-					`given_name.ilike.%${search}%,surname.ilike.%${search}%,email.ilike.%${search}%`,
+					`given_name.ilike.%${s}%,surname.ilike.%${s}%,email.ilike.%${s}%`,
 				);
 			}
 
