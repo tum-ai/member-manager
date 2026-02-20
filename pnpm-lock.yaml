@@ -36,8 +36,8 @@ importers:
         specifier: ^5.90.16
         version: 5.90.20(react@18.3.1)
       jspdf:
-        specifier: ^4.1.0
-        version: 4.1.0
+        specifier: ^4.2.0
+        version: 4.2.0
       react:
         specifier: ^18.2.0
         version: 18.3.1
@@ -1493,8 +1493,8 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  jspdf@4.1.0:
-    resolution: {integrity: sha512-xd1d/XRkwqnsq6FP3zH1Q+Ejqn2ULIJeDZ+FTKpaabVpZREjsJKRJwuokTNgdqOU+fl55KgbvgZ1pRTSWCP2kQ==}
+  jspdf@4.2.0:
+    resolution: {integrity: sha512-hR/hnRevAXXlrjeqU5oahOE+Ln9ORJUB5brLHHqH67A+RBQZuFr5GkbI9XQI8OUFSEezKegsi45QRpc4bGj75Q==}
 
   light-my-request@6.6.0:
     resolution: {integrity: sha512-CHYbu8RtboSIoVsHZ6Ye4cj4Aw/yg2oAFimlF7mNvfDV192LR7nDiKtSIfCuLT7KokPSTn/9kfVLm5OGN0A28A==}
@@ -3483,7 +3483,7 @@ snapshots:
 
   json5@2.2.3: {}
 
-  jspdf@4.1.0:
+  jspdf@4.2.0:
     dependencies:
       '@babel/runtime': 7.28.6
       fast-png: 6.4.0
