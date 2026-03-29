@@ -74,6 +74,7 @@ Create `.env.local` files in both `client/` and `server/` directories using the 
 SUPABASE_URL=http://127.0.0.1:54321
 SUPABASE_ANON_KEY=<anon key from supabase status>
 SUPABASE_SERVICE_ROLE_KEY=<service_role key from supabase status>
+FIELD_ENCRYPTION_KEY=<long random secret used for field encryption>
 PORT=3000
 ```
 
@@ -140,6 +141,22 @@ If you need to connect to the production Supabase instance:
    ```
 
 Then open [http://localhost:5173](http://localhost:5173) in your browser.
+
+### Sensitive Data Encryption
+
+The server now encrypts sensitive member data before it is stored in Supabase and decrypts it only when serving authorized API responses.
+
+- Encrypted member fields: `date_of_birth`, `street`, `number`, `postal_code`, `city`, `country`, `phone`
+- Encrypted SEPA fields: `iban`, `bic`, `bank_name`
+- Transport enforcement: production Supabase URLs must use `https://`, and the browser app refuses to call the API over plain HTTP in production
+
+To enable this, set `FIELD_ENCRYPTION_KEY` in every server environment to a long random secret and keep it outside git.
+
+If you already have plaintext data in Supabase, run the one-time backfill after deploying the new server code:
+
+```bash
+pnpm --filter @member-manager/server backfill:encryption
+```
 
 ## Project Structure
 

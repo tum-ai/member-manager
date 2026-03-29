@@ -11,6 +11,7 @@ import {
 	testTokens,
 	testUserIds,
 } from "../helpers.js";
+import { mockDatabase } from "../mocks/supabase.js";
 
 describe("Members Routes", async () => {
 	let app: FastifyInstance;
@@ -31,7 +32,6 @@ describe("Members Routes", async () => {
 			const newUserId = testUserIds.otherUser;
 			const payload = mockMemberPayload({
 				user_id: newUserId,
-				email: "newuser@test.com",
 			});
 
 			const response = await app.inject({
@@ -46,7 +46,14 @@ describe("Members Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
-			assert.strictEqual(data.email, "newuser@test.com");
+			assert.strictEqual(data.email, "other@test.com");
+			const storedMember = mockDatabase.members.find(
+				(member) => member.user_id === newUserId,
+			);
+			assert.ok(storedMember);
+			assert.match(String(storedMember?.date_of_birth), /^enc-v1:/);
+			assert.match(String(storedMember?.street), /^enc-v1:/);
+			assert.match(String(storedMember?.city), /^enc-v1:/);
 		});
 
 		test("returns existing member if already exists", async () => {
@@ -122,11 +129,31 @@ describe("Members Routes", async () => {
 			assert.match(data.error, /mismatch/i);
 		});
 
-		test("rejects invalid email format", async () => {
+		test("rejects invalid profile picture url", async () => {
 			resetDatabase();
 			const payload = mockMemberPayload({
 				user_id: testUserIds.user,
-				email: "not-an-email",
+				profile_picture_url: "not-a-url",
+			});
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/members",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify(payload),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
+
+		test("rejects invalid date_of_birth", async () => {
+			resetDatabase();
+			const payload = mockMemberPayload({
+				user_id: testUserIds.user,
+				date_of_birth: "1995-02-31",
 			});
 
 			const response = await app.inject({
@@ -287,9 +314,9 @@ describe("Members Routes", async () => {
 		test("owner can update own profile", async () => {
 			resetDatabase();
 			const updatePayload = {
-				email: "updated@test.com",
 				given_name: "Updated",
 				surname: "Name",
+				street: "Updated Street",
 			};
 
 			const response = await app.inject({
@@ -304,14 +331,19 @@ describe("Members Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
-			assert.strictEqual(data.email, "updated@test.com");
+			assert.strictEqual(data.email, "user@test.com");
 			assert.strictEqual(data.given_name, "Updated");
+			assert.strictEqual(data.street, "Updated Street");
+			const storedMember = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.ok(storedMember);
+			assert.match(String(storedMember?.street), /^enc-v1:/);
 		});
 
 		test("admin can update any profile", async () => {
 			resetDatabase();
 			const updatePayload = {
-				email: "admin-updated@test.com",
 				given_name: "AdminUpdated",
 			};
 
@@ -327,13 +359,13 @@ describe("Members Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
-			assert.strictEqual(data.email, "admin-updated@test.com");
+			assert.strictEqual(data.email, "user@test.com");
 		});
 
 		test("user cannot update other's profile", async () => {
 			resetDatabase();
 			const updatePayload = {
-				email: "hacker@test.com",
+				given_name: "Hacker",
 			};
 
 			const response = await app.inject({
@@ -349,10 +381,10 @@ describe("Members Routes", async () => {
 			assert.strictEqual(response.statusCode, 403);
 		});
 
-		test("rejects invalid email in update", async () => {
+		test("rejects invalid profile picture url in update", async () => {
 			resetDatabase();
 			const updatePayload = {
-				email: "not-an-email",
+				profile_picture_url: "not-a-url",
 			};
 
 			const response = await app.inject({
@@ -371,7 +403,7 @@ describe("Members Routes", async () => {
 		test("rejects unauthenticated request", async () => {
 			resetDatabase();
 			const updatePayload = {
-				email: "test@test.com",
+				given_name: "Test",
 			};
 
 			const response = await app.inject({

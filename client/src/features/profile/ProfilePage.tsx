@@ -86,7 +86,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			title: "",
 			surname: "",
 			given_name: "",
-			email: user.email || "",
 			date_of_birth: "",
 			street: "",
 			number: "",
@@ -128,7 +127,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				title: memberData.title || "",
 				surname: memberData.surname || "",
 				given_name: memberData.given_name || "",
-				email: memberData.email || "",
 				date_of_birth: memberData.date_of_birth || "",
 				street: memberData.street || "",
 				number: memberData.number || "",
@@ -362,10 +360,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 										<TextField
 											label="Email"
 											type="email"
-											{...memberForm.register("email")}
-											error={!!memberForm.formState.errors.email}
-											helperText={memberForm.formState.errors.email?.message}
-											required
+											value={memberData?.email || user.email || ""}
+											helperText="Managed by your account login"
+											disabled
 										/>
 									</Grid>
 									<Grid size={{ xs: 12, sm: 4 }}>

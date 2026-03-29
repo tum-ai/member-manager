@@ -3,6 +3,11 @@ import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
 import type { FastifyInstance } from "fastify";
 import {
+	encryptRecord,
+	SENSITIVE_MEMBER_FIELDS,
+	SENSITIVE_SEPA_FIELDS,
+} from "../../src/lib/sensitiveData.js";
+import {
 	authHeaders,
 	closeTestApp,
 	getTestApp,
@@ -10,6 +15,7 @@ import {
 	testTokens,
 	testUserIds,
 } from "../helpers.js";
+import { mockDatabase } from "../mocks/supabase.js";
 
 describe("Admin Routes", async () => {
 	let app: FastifyInstance;
@@ -96,6 +102,33 @@ describe("Admin Routes", async () => {
 				(m: { given_name: string }) => m.given_name === "Admin",
 			);
 			assert.ok(hasAdmin);
+		});
+
+		test("admin list decrypts encrypted member and SEPA fields", async () => {
+			resetDatabase();
+			mockDatabase.members[0] = encryptRecord(
+				mockDatabase.members[0],
+				SENSITIVE_MEMBER_FIELDS,
+			);
+			mockDatabase.sepa[0] = encryptRecord(
+				mockDatabase.sepa[0],
+				SENSITIVE_SEPA_FIELDS,
+			);
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/admin/members",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			const member = payload.data.find(
+				(m: { user_id: string }) => m.user_id === testUserIds.user,
+			);
+			assert.ok(member);
+			assert.strictEqual(member.city, "Test City");
+			assert.strictEqual(member.sepa.iban, "DE89370400440532013000");
 		});
 
 		test("active filter works", async () => {

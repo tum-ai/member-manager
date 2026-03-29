@@ -70,7 +70,6 @@ export default function Auth({ onLogin }: AuthProps) {
 				method: "POST",
 				body: JSON.stringify({
 					user_id: user.id,
-					email: user.email,
 				}),
 			});
 

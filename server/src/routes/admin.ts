@@ -1,6 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { getAuthEmails } from "../lib/authEmails.js";
 import { DatabaseError } from "../lib/errors.js";
+import {
+	decryptRecord,
+	SENSITIVE_MEMBER_FIELDS,
+	SENSITIVE_SEPA_FIELDS,
+} from "../lib/sensitiveData.js";
 import { getSupabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
 
@@ -49,15 +55,7 @@ export async function adminRoutes(server: FastifyInstance) {
 
 			const selectQuery = filterSepa ? "*, sepa!inner(*)" : "*, sepa(*)";
 
-			let dbQuery = getSupabase()
-				.from("members")
-				.select(selectQuery, { count: "exact" });
-
-			if (search) {
-				dbQuery = dbQuery.or(
-					`given_name.ilike.%${search}%,surname.ilike.%${search}%,email.ilike.%${search}%`,
-				);
-			}
+			let dbQuery = getSupabase().from("members").select(selectQuery);
 
 			if (active !== undefined && active !== "") {
 				dbQuery = dbQuery.eq("active", active === "true");
@@ -70,34 +68,60 @@ export async function adminRoutes(server: FastifyInstance) {
 				dbQuery = dbQuery.eq("sepa.privacy_agreed", privacy_agreed === "true");
 			}
 
-			if (["surname", "given_name", "email", "created_at"].includes(sort_by)) {
-				dbQuery = dbQuery
-					.order(sort_by, { ascending: sort_asc })
-					.range(from, to);
-			} else {
-				dbQuery = dbQuery.range(from, to);
-			}
-
-			const { data: members, count, error: membersError } = await dbQuery;
+			const { data: members, error: membersError } = await dbQuery;
 
 			if (membersError) {
 				request.log.error({ err: membersError }, "Failed to fetch members");
 				throw new DatabaseError();
 			}
 
-			// Transform data to ensure sepa is an object (Supabase might return array)
-			// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
-			const joined = (members || []).map((m: any) => ({
-				...m,
-				sepa: Array.isArray(m.sepa) ? m.sepa[0] || {} : m.sepa || {},
-			}));
+			try {
+				const emailMap = await getAuthEmails(
+					(members || []).map((member) => String(member.user_id)),
+				);
 
-			return {
-				data: joined,
-				total: count || 0,
-				page,
-				limit,
-			};
+				// Transform data to ensure sepa is an object (Supabase might return array)
+				// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
+				const joined = (members || []).map((m: any) => ({
+					...decryptRecord(m, SENSITIVE_MEMBER_FIELDS),
+					email: emailMap.get(String(m.user_id)) ?? "",
+					sepa: decryptRecord(
+						Array.isArray(m.sepa) ? m.sepa[0] || {} : m.sepa || {},
+						SENSITIVE_SEPA_FIELDS,
+					),
+				}));
+
+				const normalizedSearch = search?.trim().toLowerCase();
+				const filtered = normalizedSearch
+					? joined.filter((member) =>
+							`${member.given_name} ${member.surname} ${member.email}`
+								.toLowerCase()
+								.includes(normalizedSearch),
+						)
+					: joined;
+
+				const getSortValue = (member: (typeof filtered)[number]) => {
+					// biome-ignore lint/suspicious/noExplicitAny: dynamic admin sorting
+					return (member as any)[sort_by] ?? member.sepa?.[sort_by] ?? "";
+				};
+
+				const sorted = [...filtered].sort((left, right) => {
+					const leftValue = String(getSortValue(left));
+					const rightValue = String(getSortValue(right));
+					const comparison = leftValue.localeCompare(rightValue);
+					return sort_asc ? comparison : comparison * -1;
+				});
+
+				return {
+					data: sorted.slice(from, to + 1),
+					total: filtered.length,
+					page,
+					limit,
+				};
+			} catch (authError) {
+				request.log.error({ err: authError }, "Failed to fetch auth emails");
+				throw new DatabaseError();
+			}
 		},
 	);
 

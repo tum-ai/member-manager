@@ -8,6 +8,11 @@ import {
 	isNotFoundError,
 	NotFoundError,
 } from "../lib/errors.js";
+import {
+	decryptRecord,
+	encryptRecord,
+	SENSITIVE_SEPA_FIELDS,
+} from "../lib/sensitiveData.js";
 import { getSupabase } from "../lib/supabase.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
@@ -43,7 +48,10 @@ export async function sepaRoutes(server: FastifyInstance) {
 				throw new ForbiddenError("User ID mismatch");
 			}
 
-			const { error } = await getSupabase().from("sepa").insert([body]);
+			const encryptedBody = encryptRecord(body, SENSITIVE_SEPA_FIELDS);
+			const { error } = await getSupabase()
+				.from("sepa")
+				.insert([encryptedBody]);
 
 			if (error) {
 				request.log.error({ err: error }, "Failed to insert SEPA data");
@@ -81,7 +89,7 @@ export async function sepaRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return data;
+			return decryptRecord(data, SENSITIVE_SEPA_FIELDS);
 		},
 	);
 
@@ -100,9 +108,13 @@ export async function sepaRoutes(server: FastifyInstance) {
 
 			const body = UpdateSepaSchema.parse(request.body);
 
+			const encryptedBody = encryptRecord(body, SENSITIVE_SEPA_FIELDS);
 			const { data, error } = await getSupabase()
 				.from("sepa")
-				.upsert({ ...body, user_id: userId }, { onConflict: "user_id" })
+				.upsert(
+					{ ...encryptedBody, user_id: userId },
+					{ onConflict: "user_id" },
+				)
 				.select()
 				.single();
 
@@ -114,7 +126,7 @@ export async function sepaRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return data;
+			return decryptRecord(data, SENSITIVE_SEPA_FIELDS);
 		},
 	);
 }

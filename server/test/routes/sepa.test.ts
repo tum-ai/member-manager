@@ -11,6 +11,7 @@ import {
 	testTokens,
 	testUserIds,
 } from "../helpers.js";
+import { mockDatabase } from "../mocks/supabase.js";
 
 describe("SEPA Routes", async () => {
 	let app: FastifyInstance;
@@ -46,6 +47,12 @@ describe("SEPA Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
 			assert.ok(data.message);
+			const storedSepa = mockDatabase.sepa.find(
+				(row) => row.user_id === testUserIds.otherUser,
+			);
+			assert.ok(storedSepa);
+			assert.match(String(storedSepa?.iban), /^enc-v1:/);
+			assert.match(String(storedSepa?.bank_name), /^enc-v1:/);
 		});
 
 		test("rejects user_id mismatch", async () => {
@@ -213,7 +220,13 @@ describe("SEPA Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.iban, "GB82WEST12345698765432");
 			assert.strictEqual(data.bank_name, "Updated Bank");
+			const storedSepa = mockDatabase.sepa.find(
+				(row) => row.user_id === testUserIds.user,
+			);
+			assert.ok(storedSepa);
+			assert.match(String(storedSepa?.iban), /^enc-v1:/);
 		});
 
 		test("admin can update any SEPA data", async () => {

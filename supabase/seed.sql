@@ -62,7 +62,6 @@ insert into auth.users (
 -- Seed member profiles
 insert into public.members (
     user_id,
-    email,
     given_name,
     surname,
     salutation,
@@ -84,7 +83,6 @@ insert into public.members (
 ) values
 (
     '00000000-0000-0000-0000-000000000001',
-    'admin@example.com',
     'Admin',
     'User',
     'Mr',
@@ -106,7 +104,6 @@ insert into public.members (
 ),
 (
     '00000000-0000-0000-0000-000000000002',
-    'user@example.com',
     'Regular',
     'User',
     'Ms',
@@ -127,7 +124,6 @@ insert into public.members (
     'https://example.com/profile.png'
 )
 on conflict (user_id) do update set
-    email = excluded.email,
     given_name = excluded.given_name,
     surname = excluded.surname,
     salutation = excluded.salutation,

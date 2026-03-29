@@ -46,7 +46,6 @@ export const mockDatabase: MockData = {
 	members: [
 		{
 			user_id: MOCK_USER_ID,
-			email: "user@test.com",
 			given_name: "Test",
 			surname: "User",
 			date_of_birth: "1990-01-01",
@@ -70,7 +69,6 @@ export const mockDatabase: MockData = {
 		},
 		{
 			user_id: MOCK_ADMIN_ID,
-			email: "admin@test.com",
 			given_name: "Admin",
 			surname: "User",
 			date_of_birth: "1985-01-01",
@@ -351,6 +349,40 @@ export function createMockSupabaseClient(): SupabaseClient {
 					error: { message: "Invalid token", status: 401 },
 				};
 			},
+			admin: {
+				getUserById: async (userId: string) => {
+					const user = Object.values(mockUsers).find(
+						(candidate) => candidate.id === userId,
+					);
+
+					if (user) {
+						return { data: { user }, error: null };
+					}
+
+					return {
+						data: { user: null },
+						error: { message: "User not found", status: 404 },
+					};
+				},
+				listUsers: async ({
+					page = 1,
+					perPage = 1000,
+				}: {
+					page?: number;
+					perPage?: number;
+				} = {}) => {
+					const allUsers = Object.values(mockUsers);
+					const from = (page - 1) * perPage;
+					const to = from + perPage;
+
+					return {
+						data: {
+							users: allUsers.slice(from, to),
+						},
+						error: null,
+					};
+				},
+			},
 		},
 		from: (table: string) => createQueryBuilder(table),
 	} as unknown as SupabaseClient;
@@ -360,7 +392,6 @@ export function resetMockDatabase(): void {
 	mockDatabase.members = [
 		{
 			user_id: MOCK_USER_ID,
-			email: "user@test.com",
 			given_name: "Test",
 			surname: "User",
 			date_of_birth: "1990-01-01",
@@ -384,7 +415,6 @@ export function resetMockDatabase(): void {
 		},
 		{
 			user_id: MOCK_ADMIN_ID,
-			email: "admin@test.com",
 			given_name: "Admin",
 			surname: "User",
 			date_of_birth: "1985-01-01",

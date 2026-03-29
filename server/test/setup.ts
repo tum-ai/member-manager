@@ -10,6 +10,10 @@ if (!process.env.SUPABASE_URL) {
 if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
 	process.env.SUPABASE_SERVICE_ROLE_KEY = "test-service-role-key";
 }
+if (!process.env.FIELD_ENCRYPTION_KEY) {
+	process.env.FIELD_ENCRYPTION_KEY =
+		"test-field-encryption-key-with-at-least-32-characters";
+}
 if (!process.env.CORS_ORIGIN) {
 	process.env.CORS_ORIGIN = "http://localhost:5173";
 }

@@ -257,7 +257,6 @@ describe("Access Control Matrix", async () => {
 					"content-type": "application/json",
 				},
 				payload: JSON.stringify({
-					email: "updated@test.com",
 					given_name: "Updated",
 				}),
 			});
@@ -275,7 +274,7 @@ describe("Access Control Matrix", async () => {
 					"content-type": "application/json",
 				},
 				payload: JSON.stringify({
-					email: "hacked@test.com",
+					given_name: "Hacked",
 				}),
 			});
 
@@ -292,7 +291,7 @@ describe("Access Control Matrix", async () => {
 					"content-type": "application/json",
 				},
 				payload: JSON.stringify({
-					email: "admin-updated@test.com",
+					given_name: "AdminUpdated",
 				}),
 			});
 

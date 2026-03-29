@@ -62,7 +62,6 @@ export function mockMemberPayload(
 ): Record<string, unknown> {
 	return {
 		user_id: MOCK_USER_ID,
-		email: "newuser@test.com",
 		given_name: "New",
 		surname: "User",
 		date_of_birth: "1995-05-15",

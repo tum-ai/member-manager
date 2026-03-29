@@ -14,7 +14,6 @@ export const memberSchema = z.object({
 	title: z.string().optional(),
 	surname: z.string().min(1, "Surname is required"),
 	given_name: z.string().min(1, "Given Name is required"),
-	email: z.string().email("Invalid email"),
 	date_of_birth: z.string().min(1, "Date of birth is required"),
 	street: z.string().min(1, "Street is required"),
 	number: z.string().min(1, "Number is required"),

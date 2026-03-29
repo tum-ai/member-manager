@@ -1,22 +1,45 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ensureOwnerOrAdmin } from "../lib/auth.js";
+import { getAuthEmail, getAuthEmails } from "../lib/authEmails.js";
 import {
 	DatabaseError,
 	ForbiddenError,
 	isNotFoundError,
 	NotFoundError,
 } from "../lib/errors.js";
+import {
+	decryptRecord,
+	encryptRecord,
+	SENSITIVE_MEMBER_FIELDS,
+} from "../lib/sensitiveData.js";
 import { getSupabase } from "../lib/supabase.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
+function isValidDate(dateString: string): boolean {
+	const regex = /^\d{4}-\d{2}-\d{2}$/;
+	if (!regex.test(dateString)) {
+		return false;
+	}
+
+	const date = new Date(dateString);
+	if (Number.isNaN(date.getTime())) {
+		return false;
+	}
+
+	return date.toISOString().slice(0, 10) === dateString;
+}
+
 const MemberSchema = z.object({
 	user_id: z.string(),
-	email: z.string().email(),
 	given_name: z.string().optional().default(""),
 	surname: z.string().optional().default(""),
-	date_of_birth: z.string().optional().default("1900-01-01"),
+	date_of_birth: z
+		.string()
+		.refine(isValidDate, "Invalid date_of_birth")
+		.optional()
+		.default("1900-01-01"),
 	street: z.string().optional().default(""),
 	number: z.string().optional().default(""),
 	postal_code: z.string().optional().default(""),
@@ -103,10 +126,13 @@ export async function memberRoutes(server: FastifyInstance) {
 					);
 					throw new DatabaseError();
 				}
-				return memberData;
+				return {
+					...decryptRecord(memberData, SENSITIVE_MEMBER_FIELDS),
+					email: user.email ?? "",
+				};
 			}
 
-			const { ...memberData } = body;
+			const memberData = encryptRecord(body, SENSITIVE_MEMBER_FIELDS);
 			const { data, error } = await getSupabase()
 				.from("members")
 				.insert(memberData)
@@ -134,7 +160,10 @@ export async function memberRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return data;
+			return {
+				...decryptRecord(data, SENSITIVE_MEMBER_FIELDS),
+				email: user.email ?? "",
+			};
 		},
 	);
 
@@ -145,7 +174,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select(
-					"user_id, given_name, surname, email, batch, department, member_role, degree, school, skills, profile_picture_url, active",
+					"user_id, given_name, surname, batch, department, member_role, degree, school, skills, profile_picture_url, active",
 				)
 				.eq("active", true)
 				.order("surname", { ascending: true });
@@ -155,7 +184,19 @@ export async function memberRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return data;
+			try {
+				const emailMap = await getAuthEmails(
+					(data || []).map((member) => String(member.user_id)),
+				);
+
+				return (data || []).map((member) => ({
+					...member,
+					email: emailMap.get(String(member.user_id)) ?? "",
+				}));
+			} catch (authError) {
+				request.log.error({ err: authError }, "Failed to fetch auth emails");
+				throw new DatabaseError();
+			}
 		},
 	);
 
@@ -186,7 +227,17 @@ export async function memberRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return data;
+			try {
+				const email = await getAuthEmail(userId);
+
+				return {
+					...decryptRecord(data, SENSITIVE_MEMBER_FIELDS),
+					email,
+				};
+			} catch (authError) {
+				request.log.error({ err: authError }, "Failed to fetch auth email");
+				throw new DatabaseError();
+			}
 		},
 	);
 
@@ -205,10 +256,13 @@ export async function memberRoutes(server: FastifyInstance) {
 
 			const body = UpdateMemberSchema.parse(request.body);
 
-			const memberData = {
-				...body,
-				user_id: userId,
-			};
+			const memberData = encryptRecord(
+				{
+					...body,
+					user_id: userId,
+				},
+				SENSITIVE_MEMBER_FIELDS,
+			);
 
 			const { data, error } = await getSupabase()
 				.from("members")
@@ -224,7 +278,17 @@ export async function memberRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return data;
+			try {
+				const email = await getAuthEmail(userId);
+
+				return {
+					...decryptRecord(data, SENSITIVE_MEMBER_FIELDS),
+					email,
+				};
+			} catch (authError) {
+				request.log.error({ err: authError }, "Failed to fetch auth email");
+				throw new DatabaseError();
+			}
 		},
 	);
 }
