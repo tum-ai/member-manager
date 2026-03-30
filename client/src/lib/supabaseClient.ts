@@ -1,17 +1,44 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+type SupabaseBrowserEnv = {
+	PROD: boolean;
+	VITE_SUPABASE_URL?: string;
+	VITE_SUPABASE_ANON_KEY?: string;
+};
 
 function allowInsecureTransport(hostname: string): boolean {
 	return hostname === "127.0.0.1" || hostname === "localhost";
 }
 
-function assertSecureRemoteUrl(rawUrl: string, envName: string): void {
-	const parsedUrl = new URL(rawUrl);
+function requireEnv(rawValue: string | undefined, envName: string): string {
+	const value = rawValue?.trim();
+
+	if (!value) {
+		throw new Error(
+			`Missing ${envName}. Add it to client/.env.local or client/.env.`,
+		);
+	}
+
+	return value;
+}
+
+function parseUrl(rawUrl: string, envName: string): URL {
+	try {
+		return new URL(rawUrl);
+	} catch {
+		throw new Error(`${envName} must be a valid URL`);
+	}
+}
+
+function assertSecureRemoteUrl(
+	rawUrl: string,
+	envName: string,
+	isProduction: boolean,
+): void {
+	const parsedUrl = parseUrl(rawUrl, envName);
 
 	if (
-		import.meta.env.PROD &&
+		isProduction &&
 		parsedUrl.protocol !== "https:" &&
 		!allowInsecureTransport(parsedUrl.hostname)
 	) {
@@ -19,6 +46,23 @@ function assertSecureRemoteUrl(rawUrl: string, envName: string): void {
 	}
 }
 
-assertSecureRemoteUrl(supabaseUrl, "VITE_SUPABASE_URL");
+export function getSupabaseConfigFromEnv(env: SupabaseBrowserEnv): {
+	supabaseUrl: string;
+	supabaseAnonKey: string;
+} {
+	const supabaseUrl = requireEnv(env.VITE_SUPABASE_URL, "VITE_SUPABASE_URL");
+	const supabaseAnonKey = requireEnv(
+		env.VITE_SUPABASE_ANON_KEY,
+		"VITE_SUPABASE_ANON_KEY",
+	);
+
+	assertSecureRemoteUrl(supabaseUrl, "VITE_SUPABASE_URL", env.PROD);
+
+	return { supabaseUrl, supabaseAnonKey };
+}
+
+const { supabaseUrl, supabaseAnonKey } = getSupabaseConfigFromEnv(
+	import.meta.env,
+);
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

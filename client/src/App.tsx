@@ -8,7 +8,7 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import { ToastProvider } from "./contexts/ToastContext";
 import Auth from "./features/auth/Auth";
@@ -86,12 +86,14 @@ export default function App(): JSX.Element {
 					<BrowserRouter>
 						<MainLayout user={user} onLogout={handleLogout}>
 							<Routes>
-								<Route path="/" element={<MemberList />} />
-								<Route path="/profile" element={<ProfilePage user={user} />} />
+								<Route path="/" element={<ProfilePage user={user} />} />
+								<Route path="/profile" element={<Navigate to="/" replace />} />
+								<Route path="/members" element={<MemberList />} />
 								<Route
 									path="/engagement-certificate"
 									element={<EngagementCertificatePage user={user} />}
 								/>
+								<Route path="*" element={<Navigate to="/" replace />} />
 							</Routes>
 						</MainLayout>
 					</BrowserRouter>

@@ -100,10 +100,10 @@ export default function MemberList() {
 			>
 				<Box>
 					<Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>
-						Members
+						All Members
 					</Typography>
 					<Typography variant="body2" color="text.secondary">
-						{filtered.length} active member{filtered.length !== 1 ? "s" : ""}
+						Browse the active network and search across member profiles
 					</Typography>
 				</Box>
 				<TextField

@@ -75,6 +75,7 @@ export default function Auth({ onLogin }: AuthProps) {
 
 			const role = memberData?.role || "user";
 			onLogin({ ...user, role });
+			window.history.replaceState(null, "", "/");
 		} catch (err) {
 			console.error("Unexpected error in post-login:", err);
 			setMessage("Failed to load user profile.");

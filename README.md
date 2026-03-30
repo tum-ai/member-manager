@@ -1,22 +1,68 @@
 # Member Manager
 
-A lightweight member management app built with **React**, **Supabase**, **Vite**, and **TailwindCSS**. It features authentication (login/register), email confirmation, and PDF generation using jsPDF.
+A member management app for the TUM.ai network built with **React**, **Supabase**, **Fastify**, and **Vite**.
+
+## Product Scope
+
+### Current MVP
+
+The current repository is focused on the authenticated member portal:
+
+- Members sign in and land on **My Profile**
+- Members can edit their own information
+- Members can switch to **All Members** to browse the active network
+- Banking details and privacy-policy agreement handling remain internal/private
+- Admin APIs exist for internal member operations
+
+### Future Direction
+
+The longer-term direction is a public-facing network overview:
+
+- A graph view of the TUM.ai network
+- Grouping by structured member attributes such as university, studies, and current work
+- Public exploration without exposing internal-only data
+
+That public graph is out of scope for the current MVP. This repo should be treated as the member-data and authentication foundation for that future experience.
+
+## Current User Experience
+
+### Authentication
+
+- Email/password sign-in and registration are supported
+- Slack OAuth sign-in is supported through Supabase OIDC
+- After login, users are routed to **My Profile**
+
+### Authenticated Navigation
+
+- `/` -> My Profile
+- `/members` -> All Members directory
+- `/engagement-certificate` -> Engagement certificate flow
+- `/profile` -> legacy alias that redirects to `/`
+
+### Data Visibility
+
+- The authenticated directory exposes lightweight member information for browsing and search
+- Full member profiles are only visible to the member themself or an admin
+- SEPA data and agreement state are private/internal
+- Sensitive fields are encrypted server-side before storage
+- A future public graph should use an explicit publication model instead of exposing private profile data directly
 
 ## Features
 
-- Email/Password Authentication via Supabase
-- Email confirmation flow for registration
-- TailwindCSS styling
-- PDF export support using jsPDF
-- Fast development with Vite
+- Authenticated profile editing
+- Searchable authenticated member directory
+- SEPA mandate and privacy-policy flows
+- Membership and engagement certificate generation
+- Encrypted handling of sensitive personal and banking data
+- Local Supabase development setup
 
 ## Tech Stack
 
-- React 18
-- Supabase v2
-- TailwindCSS
-- Vite
-- jsPDF
+- Client: React 18, Vite, MUI, React Query
+- Server: Fastify, Zod
+- Database/Auth: Supabase
+- Tooling: pnpm, TypeScript, Biome, Vitest, Node test runner
+- PDF: jsPDF
 
 ## Getting Started
 
@@ -82,7 +128,8 @@ PORT=3000
 ```env
 VITE_SUPABASE_URL=http://127.0.0.1:54321
 VITE_SUPABASE_ANON_KEY=<anon key from supabase status>
-VITE_API_URL=http://localhost:3000
+# Optional: only needed when Slack OAuth is enabled locally
+VITE_SLACK_CALLBACK_URL=http://localhost:5173/
 ```
 
 #### Run Development with Local Database
@@ -140,7 +187,7 @@ If you need to connect to the production Supabase instance:
    pnpm dev
    ```
 
-Then open [http://localhost:5173](http://localhost:5173) in your browser.
+Then open `http://localhost:5173` in your browser.
 
 ### Sensitive Data Encryption
 
@@ -162,14 +209,64 @@ pnpm --filter @member-manager/server backfill:encryption
 
 ```
 member-manager/
-├── client/          # React frontend (Vite)
-├── server/          # Fastify backend
-├── supabase/        # Database migrations and config
-│   ├── config.toml  # Local Supabase configuration
-│   ├── migrations/  # SQL migration files
-│   └── seed.sql     # Test data for local development
-└── package.json     # Root workspace config
+├── client/              # React frontend (member portal)
+├── server/              # Fastify API
+├── supabase/            # Supabase config, migrations, seed data
+│   ├── config.toml      # Local Supabase configuration
+│   ├── migrations/      # SQL migration files
+│   └── seed.sql         # Local test data
+├── package.json         # Workspace scripts
+├── pnpm-workspace.yaml  # pnpm workspace definition
+└── README.md            # Repo overview and setup guide
 ```
+
+## Repository Architecture
+
+### Client
+
+The client in `client/` handles:
+
+- authentication UI
+- profile editing
+- the authenticated member directory
+- certificate-related user flows
+
+### Server
+
+The Fastify API in `server/` handles:
+
+- authenticated member CRUD
+- SEPA and agreement data
+- admin-only endpoints
+- encryption and decryption of sensitive fields
+
+### Supabase
+
+The `supabase/` directory contains the schema, migrations, seed data, and local development configuration.
+
+## API Overview
+
+### Member APIs
+
+- `POST /api/members` creates the caller's member record if it does not exist
+- `GET /api/members` returns the authenticated member directory
+- `GET /api/members/:userId` returns the full member profile for the owner or an admin
+- `PUT /api/members/:userId` updates the member profile for the owner or an admin
+
+### SEPA APIs
+
+- `POST /api/sepa`
+- `GET /api/sepa/:userId`
+- `PUT /api/sepa/:userId`
+
+These are authenticated and intended for internal/private use.
+
+### Admin APIs
+
+- `GET /api/admin/members`
+- `PATCH /api/admin/members/:userId/status`
+
+These require an admin role.
 
 ## Available Scripts
 
@@ -185,3 +282,12 @@ member-manager/
 | `pnpm supabase:stop` | Stop local Supabase |
 | `pnpm supabase:status` | Show local Supabase status |
 | `pnpm supabase:reset` | Reset database with migrations and seeds |
+
+## Roadmap Notes
+
+- The current MVP is centered on member information and the authenticated directory
+- University-based grouping is the first intended grouping dimension once richer member data is available
+- The future public graph should complement the internal/private portal, not replace it
+- Banking details and privacy workflows should remain internal-only even after the public graph launches
+
+A more concrete product and technical roadmap lives in `ROADMAP.md`.
