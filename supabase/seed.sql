@@ -77,9 +77,7 @@ insert into public.members (
     department,
     member_role,
     degree,
-    school,
-    skills,
-    profile_picture_url
+    school
 ) values
 (
     '00000000-0000-0000-0000-000000000001',
@@ -94,8 +92,6 @@ insert into public.members (
     'Munich',
     'Germany',
     true,
-    null,
-    null,
     null,
     null,
     null,
@@ -119,9 +115,7 @@ insert into public.members (
     'Tech',
     'Software Engineer',
     'B.Sc.',
-    'TUM',
-    ARRAY['TypeScript', 'React', 'Node.js']::text[],
-    'https://example.com/profile.png'
+    'TUM'
 )
 on conflict (user_id) do update set
     given_name = excluded.given_name,
@@ -139,9 +133,7 @@ on conflict (user_id) do update set
     department = excluded.department,
     member_role = excluded.member_role,
     degree = excluded.degree,
-    school = excluded.school,
-    skills = excluded.skills,
-    profile_picture_url = excluded.profile_picture_url;
+    school = excluded.school;
 
 -- Seed user roles
 insert into public.user_roles (user_id, role) values

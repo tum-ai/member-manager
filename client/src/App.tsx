@@ -7,7 +7,7 @@ import {
 } from "@mui/material";
 import type { User } from "@supabase/supabase-js";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import { ToastProvider } from "./contexts/ToastContext";
@@ -17,13 +17,20 @@ import MemberList from "./features/members/MemberList";
 import ProfilePage from "./features/profile/ProfilePage";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
-import getAppTheme from "./theme";
-
-const theme = getAppTheme();
+import {
+	type AppColorMode,
+	COLOR_MODE_STORAGE_KEY,
+	default as getAppTheme,
+	getPreferredColorMode,
+} from "./theme";
 
 export default function App(): JSX.Element {
 	const [user, setUser] = useState<User | null>(null);
 	const [loading, setLoading] = useState(true);
+	const [colorMode, setColorMode] = useState<AppColorMode>(() =>
+		getPreferredColorMode(),
+	);
+	const theme = useMemo(() => getAppTheme(colorMode), [colorMode]);
 
 	useEffect(() => {
 		supabase.auth.getSession().then(({ data: { session } }) => {
@@ -42,9 +49,17 @@ export default function App(): JSX.Element {
 		};
 	}, []);
 
+	useEffect(() => {
+		window.localStorage.setItem(COLOR_MODE_STORAGE_KEY, colorMode);
+	}, [colorMode]);
+
 	async function handleLogout(): Promise<void> {
 		await supabase.auth.signOut();
 		setUser(null);
+	}
+
+	function toggleColorMode(): void {
+		setColorMode((currentMode) => (currentMode === "light" ? "dark" : "light"));
 	}
 
 	if (loading) {
@@ -73,7 +88,11 @@ export default function App(): JSX.Element {
 		return (
 			<ThemeProvider theme={theme}>
 				<CssBaseline />
-				<Auth onLogin={setUser} />
+				<Auth
+					onLogin={setUser}
+					colorMode={colorMode}
+					onToggleColorMode={toggleColorMode}
+				/>
 			</ThemeProvider>
 		);
 	}
@@ -84,7 +103,12 @@ export default function App(): JSX.Element {
 			<QueryClientProvider client={queryClient}>
 				<ToastProvider>
 					<BrowserRouter>
-						<MainLayout user={user} onLogout={handleLogout}>
+						<MainLayout
+							user={user}
+							onLogout={handleLogout}
+							colorMode={colorMode}
+							onToggleColorMode={toggleColorMode}
+						>
 							<Routes>
 								<Route path="/" element={<ProfilePage user={user} />} />
 								<Route path="/profile" element={<Navigate to="/" replace />} />

@@ -5,9 +5,9 @@ import "./theme-augmentation";
 import { Box, Typography } from "@mui/material";
 import CssBaseline from "@mui/material/CssBaseline";
 import { ThemeProvider } from "@mui/material/styles";
-import getAppTheme from "./theme";
+import getAppTheme, { getPreferredColorMode } from "./theme";
 
-const darkTheme = getAppTheme();
+const startupTheme = getAppTheme(getPreferredColorMode());
 
 function getErrorMessage(error: unknown): string {
 	if (error instanceof Error) {
@@ -26,7 +26,7 @@ function renderStartupError(message: string): void {
 
 	ReactDOM.createRoot(rootElement).render(
 		<React.StrictMode>
-			<ThemeProvider theme={darkTheme}>
+			<ThemeProvider theme={startupTheme}>
 				<CssBaseline />
 				<Box
 					sx={{
@@ -67,10 +67,7 @@ async function bootstrap(): Promise<void> {
 		console.log("Root element found, mounting...");
 		ReactDOM.createRoot(rootElement).render(
 			<React.StrictMode>
-				<ThemeProvider theme={darkTheme}>
-					<CssBaseline />
-					<App />
-				</ThemeProvider>
+				<App />
 			</React.StrictMode>,
 		);
 		console.log("App mounted successfully.");

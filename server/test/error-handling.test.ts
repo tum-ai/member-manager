@@ -29,7 +29,7 @@ describe("Error Handling", async () => {
 			resetDatabase();
 			const invalidPayload = mockMemberPayload({
 				user_id: testUserIds.user,
-				profile_picture_url: "not-a-url",
+				date_of_birth: "not-a-date",
 			});
 
 			const response = await app.inject({
@@ -45,7 +45,7 @@ describe("Error Handling", async () => {
 			assert.strictEqual(response.statusCode, 400);
 			const payload = JSON.parse(response.payload);
 			assert.ok(payload.error);
-			assert.match(payload.error, /url/i);
+			assert.match(payload.error, /date_of_birth/i);
 		});
 
 		test("Invalid IBAN returns 400 with specific error message", async () => {

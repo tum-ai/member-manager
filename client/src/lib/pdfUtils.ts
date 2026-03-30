@@ -47,10 +47,15 @@ export function loadImageAsBase64(src: string): Promise<string> {
 	});
 }
 
-export function formatGermanDate(dateString: string): string {
-	const date = new Date(dateString);
+export function formatGermanDate(dateString?: string | null): string {
+	const normalizedDate = dateString?.trim();
+	if (!normalizedDate) {
+		return "Not provided";
+	}
+
+	const date = new Date(normalizedDate);
 	if (Number.isNaN(date.getTime())) {
-		return "Invalid Date";
+		return "Not provided";
 	}
 	return date.toLocaleDateString("de-DE", {
 		year: "numeric",

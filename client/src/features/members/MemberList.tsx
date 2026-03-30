@@ -9,7 +9,9 @@ import {
 	InputAdornment,
 	TextField,
 	Typography,
+	useTheme,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { useMemo, useState } from "react";
 
 import GlassCard from "../../components/ui/GlassCard";
@@ -20,15 +22,6 @@ function getInitials(member: Member): string {
 	const first = member.given_name?.charAt(0) || "";
 	const last = member.surname?.charAt(0) || "";
 	return (first + last).toUpperCase();
-}
-
-function stringToColor(str: string): string {
-	let hash = 0;
-	for (let i = 0; i < str.length; i++) {
-		hash = str.charCodeAt(i) + ((hash << 5) - hash);
-	}
-	const hue = Math.abs(hash) % 360;
-	return `hsl(${hue}, 45%, 45%)`;
 }
 
 export default function MemberList() {
@@ -46,15 +39,13 @@ export default function MemberList() {
 			const batch = (m.batch || "").toLowerCase();
 			const degree = (m.degree || "").toLowerCase();
 			const school = (m.school || "").toLowerCase();
-			const skills = (m.skills || []).join(" ").toLowerCase();
 			return (
 				name.includes(q) ||
 				dept.includes(q) ||
 				role.includes(q) ||
 				batch.includes(q) ||
 				degree.includes(q) ||
-				school.includes(q) ||
-				skills.includes(q)
+				school.includes(q)
 			);
 		});
 	}, [members, search]);
@@ -88,48 +79,62 @@ export default function MemberList() {
 
 	return (
 		<Box sx={{ py: 2 }}>
-			<Box
-				sx={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					mb: 4,
-					flexWrap: "wrap",
-					gap: 2,
-				}}
-			>
-				<Box>
-					<Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>
-						All Members
-					</Typography>
-					<Typography variant="body2" color="text.secondary">
-						Browse the active network and search across member profiles
-					</Typography>
-				</Box>
-				<TextField
-					size="small"
-					placeholder="Search members..."
-					value={search}
-					onChange={(e) => setSearch(e.target.value)}
-					slotProps={{
-						input: {
-							startAdornment: (
-								<InputAdornment position="start">
-									<SearchIcon fontSize="small" />
-								</InputAdornment>
-							),
-						},
-					}}
-					sx={{ minWidth: 260 }}
-				/>
-			</Box>
+			<GlassCard variant="elevated" sx={{ mb: 4, overflow: "hidden" }}>
+				<CardContent sx={{ p: { xs: 3, md: 4 } }}>
+					<Box
+						sx={{
+							display: "flex",
+							justifyContent: "space-between",
+							alignItems: { xs: "flex-start", md: "center" },
+							flexDirection: { xs: "column", md: "row" },
+							gap: 3,
+						}}
+					>
+						<Box sx={{ maxWidth: 620 }}>
+							<Typography variant="h3" sx={{ mb: 1.5 }}>
+								All Members
+							</Typography>
+							<Typography variant="body1" color="text.secondary">
+								Browse the active network and search across current member
+								profiles.
+							</Typography>
+						</Box>
+
+						<Box sx={{ width: "100%", maxWidth: 340 }}>
+							<TextField
+								size="small"
+								placeholder="Search members..."
+								value={search}
+								onChange={(e) => setSearch(e.target.value)}
+								slotProps={{
+									input: {
+										startAdornment: (
+											<InputAdornment position="start">
+												<SearchIcon fontSize="small" />
+											</InputAdornment>
+										),
+									},
+								}}
+							/>
+							<Typography
+								variant="body2"
+								color="text.secondary"
+								sx={{ mt: 1.5 }}
+							>
+								{filtered.length} active member
+								{filtered.length !== 1 ? "s" : ""}
+							</Typography>
+						</Box>
+					</Box>
+				</CardContent>
+			</GlassCard>
 
 			{filtered.length === 0 ? (
-				<Box sx={{ textAlign: "center", py: 8 }}>
+				<GlassCard sx={{ textAlign: "center", py: 8 }}>
 					<Typography color="text.secondary">
 						{search ? "No members match your search." : "No members found."}
 					</Typography>
-				</Box>
+				</GlassCard>
 			) : (
 				<Grid container spacing={2}>
 					{filtered.map((member) => (
@@ -148,21 +153,26 @@ interface MemberCardProps {
 }
 
 function MemberCard({ member }: MemberCardProps) {
+	const theme = useTheme();
 	const fullName = `${member.given_name} ${member.surname}`.trim();
 
 	return (
-		<GlassCard>
+		<GlassCard variant="interactive">
 			<CardContent sx={{ p: 2.5 }}>
 				<Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
 					<Avatar
-						src={member.profile_picture_url || undefined}
 						sx={{
 							width: 56,
 							height: 56,
-							bgcolor: stringToColor(fullName || member.email),
-							fontSize: 20,
-							fontWeight: 600,
+							bgcolor:
+								theme.palette.mode === "light"
+									? alpha(theme.palette.text.primary, 0.06)
+									: alpha(theme.palette.common.white, 0.08),
+							color: theme.palette.text.primary,
+							fontSize: 18,
+							fontWeight: 700,
 							flexShrink: 0,
+							boxShadow: "none",
 						}}
 					>
 						{getInitials(member)}
@@ -171,7 +181,7 @@ function MemberCard({ member }: MemberCardProps) {
 						<Typography
 							variant="subtitle1"
 							sx={{
-								fontWeight: 600,
+								fontWeight: 700,
 								lineHeight: 1.3,
 								overflow: "hidden",
 								textOverflow: "ellipsis",
@@ -225,28 +235,6 @@ function MemberCard({ member }: MemberCardProps) {
 						/>
 					)}
 				</Box>
-
-				{member.skills && member.skills.length > 0 && (
-					<Box sx={{ mt: 1, display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-						{member.skills.slice(0, 5).map((skill, index) => (
-							<Chip
-								key={`${index}-${skill}`}
-								label={skill}
-								size="small"
-								color="primary"
-								variant="outlined"
-								sx={{ fontSize: "0.7rem", height: 22 }}
-							/>
-						))}
-						{member.skills.length > 5 && (
-							<Chip
-								label={`+${member.skills.length - 5}`}
-								size="small"
-								sx={{ fontSize: "0.7rem", height: 22 }}
-							/>
-						)}
-					</Box>
-				)}
 			</CardContent>
 		</GlassCard>
 	);

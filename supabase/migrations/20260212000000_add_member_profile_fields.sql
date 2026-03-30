@@ -6,9 +6,7 @@ ALTER TABLE "public"."members"
     ADD COLUMN IF NOT EXISTS "department" "text",
     ADD COLUMN IF NOT EXISTS "member_role" "text",
     ADD COLUMN IF NOT EXISTS "degree" "text",
-    ADD COLUMN IF NOT EXISTS "school" "text",
-    ADD COLUMN IF NOT EXISTS "skills" "text"[],
-    ADD COLUMN IF NOT EXISTS "profile_picture_url" "text";
+    ADD COLUMN IF NOT EXISTS "school" "text";
 
 -- Add an RLS policy so all authenticated users can read all member rows.
 -- This is needed for the member directory / member list feature.

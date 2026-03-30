@@ -37,14 +37,32 @@ const MemberSchema = z.object({
 	surname: z.string().optional().default(""),
 	date_of_birth: z
 		.string()
-		.refine(isValidDate, "Invalid date_of_birth")
+		.refine(
+			(value) => value.trim() === "" || isValidDate(value),
+			"Invalid date_of_birth",
+		)
 		.optional()
-		.default("1900-01-01"),
-	street: z.string().optional().default(""),
-	number: z.string().optional().default(""),
-	postal_code: z.string().optional().default(""),
-	city: z.string().optional().default(""),
-	country: z.string().optional().default(""),
+		.default(""),
+	street: z
+		.string()
+		.nullish()
+		.transform((value) => value || ""),
+	number: z
+		.string()
+		.nullish()
+		.transform((value) => value || ""),
+	postal_code: z
+		.string()
+		.nullish()
+		.transform((value) => value || ""),
+	city: z
+		.string()
+		.nullish()
+		.transform((value) => value || ""),
+	country: z
+		.string()
+		.nullish()
+		.transform((value) => value || ""),
 	active: z.boolean().optional().default(true),
 	salutation: z.string().optional().default(""),
 	title: z.string().optional().default(""),
@@ -68,20 +86,45 @@ const MemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => v || null),
-	skills: z
-		.array(z.string())
-		.nullish()
-		.transform((v) => (v && v.length > 0 ? v : null)),
-	profile_picture_url: z
-		.string()
-		.url()
-		.nullish()
-		.transform((v) => v || null),
 });
 
-const UpdateMemberSchema = MemberSchema.omit({
-	user_id: true,
-	active: true,
+const UpdateMemberSchema = z.object({
+	given_name: z.string().optional(),
+	surname: z.string().optional(),
+	date_of_birth: z
+		.string()
+		.refine(
+			(value) => value.trim() === "" || isValidDate(value),
+			"Invalid date_of_birth",
+		)
+		.optional(),
+	street: z.string().optional(),
+	number: z.string().optional(),
+	postal_code: z.string().optional(),
+	city: z.string().optional(),
+	country: z.string().optional(),
+	salutation: z.string().optional(),
+	title: z.string().optional(),
+	batch: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v || null)),
+	department: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v || null)),
+	member_role: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v || null)),
+	degree: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v || null)),
+	school: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v || null)),
 });
 
 export async function memberRoutes(server: FastifyInstance) {
@@ -174,7 +217,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select(
-					"user_id, given_name, surname, batch, department, member_role, degree, school, skills, profile_picture_url, active",
+					"user_id, given_name, surname, batch, department, member_role, degree, school, active",
 				)
 				.eq("active", true)
 				.order("surname", { ascending: true });

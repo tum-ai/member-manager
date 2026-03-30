@@ -129,26 +129,6 @@ describe("Members Routes", async () => {
 			assert.match(data.error, /mismatch/i);
 		});
 
-		test("rejects invalid profile picture url", async () => {
-			resetDatabase();
-			const payload = mockMemberPayload({
-				user_id: testUserIds.user,
-				profile_picture_url: "not-a-url",
-			});
-
-			const response = await app.inject({
-				method: "POST",
-				url: "/api/members",
-				headers: {
-					...authHeaders(testTokens.user),
-					"content-type": "application/json",
-				},
-				payload: JSON.stringify(payload),
-			});
-
-			assert.strictEqual(response.statusCode, 400);
-		});
-
 		test("rejects invalid date_of_birth", async () => {
 			resetDatabase();
 			const payload = mockMemberPayload({
@@ -289,8 +269,6 @@ describe("Members Routes", async () => {
 			assert.ok("member_role" in member);
 			assert.ok("degree" in member);
 			assert.ok("school" in member);
-			assert.ok("skills" in member);
-			assert.ok("profile_picture_url" in member);
 			assert.ok("active" in member);
 		});
 
@@ -379,25 +357,6 @@ describe("Members Routes", async () => {
 			});
 
 			assert.strictEqual(response.statusCode, 403);
-		});
-
-		test("rejects invalid profile picture url in update", async () => {
-			resetDatabase();
-			const updatePayload = {
-				profile_picture_url: "not-a-url",
-			};
-
-			const response = await app.inject({
-				method: "PUT",
-				url: `/api/members/${testUserIds.user}`,
-				headers: {
-					...authHeaders(testTokens.user),
-					"content-type": "application/json",
-				},
-				payload: JSON.stringify(updatePayload),
-			});
-
-			assert.strictEqual(response.statusCode, 400);
 		});
 
 		test("rejects unauthenticated request", async () => {

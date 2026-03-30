@@ -26,7 +26,7 @@ import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
 import { DEPARTMENTS, WEEKLY_HOURS_OPTIONS } from "../../lib/constants";
-import { downloadPdfBlob } from "../../lib/pdfUtils";
+import { downloadPdfBlob, formatGermanDate } from "../../lib/pdfUtils";
 import {
 	type EngagementFormSchema,
 	type EngagementSchema,
@@ -163,6 +163,8 @@ export default function EngagementCertificatePage({
 		);
 	}
 
+	const birthDate = formatGermanDate(member.date_of_birth);
+
 	return (
 		<Box sx={{ maxWidth: 900, mx: "auto", p: 3 }}>
 			<Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
@@ -208,10 +210,10 @@ export default function EngagementCertificatePage({
 							<strong>
 								{member.salutation} {member.given_name} {member.surname}
 							</strong>
-							, born on{" "}
-							<strong>
-								{new Date(member.date_of_birth).toLocaleDateString("de-DE")}
-							</strong>
+							{birthDate === "Not provided" ? "" : ", born on "}
+							{birthDate === "Not provided" ? null : (
+								<strong>{birthDate}</strong>
+							)}
 							, has voluntarily engaged with <strong>TUM.ai</strong>.
 						</Typography>
 					</Box>

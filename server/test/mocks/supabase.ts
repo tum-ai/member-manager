@@ -64,8 +64,6 @@ export const mockDatabase: MockData = {
 			member_role: "Software Engineer",
 			degree: "B.Sc.",
 			school: "TUM",
-			skills: ["TypeScript", "React", "Node.js"],
-			profile_picture_url: null,
 		},
 		{
 			user_id: MOCK_ADMIN_ID,
@@ -87,8 +85,6 @@ export const mockDatabase: MockData = {
 			member_role: "Team Lead",
 			degree: "M.Sc.",
 			school: "TUM",
-			skills: ["Leadership", "Python"],
-			profile_picture_url: null,
 		},
 	],
 	sepa: [
@@ -410,8 +406,6 @@ export function resetMockDatabase(): void {
 			member_role: "Software Engineer",
 			degree: "B.Sc.",
 			school: "TUM",
-			skills: ["TypeScript", "React", "Node.js"],
-			profile_picture_url: null,
 		},
 		{
 			user_id: MOCK_ADMIN_ID,
@@ -433,8 +427,6 @@ export function resetMockDatabase(): void {
 			member_role: "Team Lead",
 			degree: "M.Sc.",
 			school: "TUM",
-			skills: ["Leadership", "Python"],
-			profile_picture_url: null,
 		},
 	];
 

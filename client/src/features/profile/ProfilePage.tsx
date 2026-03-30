@@ -5,7 +5,6 @@ import DownloadIcon from "@mui/icons-material/Download";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import SaveIcon from "@mui/icons-material/Save";
 import {
-	Autocomplete,
 	Box,
 	Button,
 	CardContent,
@@ -56,14 +55,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		return trimmed ? trimmed : null;
 	};
 
-	const normalizeSkillsValue = (value?: string[] | null): string[] | null => {
-		if (!value || value.length === 0) return null;
-		const cleaned = value
-			.map((item) => item.trim())
-			.filter((item) => item.length > 0);
-		return cleaned.length > 0 ? cleaned : null;
-	};
-
 	const {
 		member: memberData,
 		isLoading: isLoadingMember,
@@ -98,8 +89,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			member_role: "",
 			degree: "",
 			school: "",
-			skills: [],
-			profile_picture_url: "",
 		},
 	});
 
@@ -139,8 +128,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				member_role: memberData.member_role || "",
 				degree: memberData.degree || "",
 				school: memberData.school || "",
-				skills: memberData.skills || [],
-				profile_picture_url: memberData.profile_picture_url || "",
 			});
 		}
 	}, [memberData, memberForm, user.id]);
@@ -174,10 +161,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 						member_role: normalizeTextValue(memberValues.member_role),
 						degree: normalizeTextValue(memberValues.degree),
 						school: normalizeTextValue(memberValues.school),
-						profile_picture_url: normalizeTextValue(
-							memberValues.profile_picture_url,
-						),
-						skills: normalizeSkillsValue(memberValues.skills),
 					}),
 				);
 			}
@@ -239,66 +222,157 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 	return (
 		<Box sx={{ py: 2 }}>
-			<Box
-				sx={{
-					display: "flex",
-					justifyContent: "space-between",
-					alignItems: "center",
-					mb: 4,
-				}}
-			>
-				<Box>
-					<Typography variant="h4" sx={{ fontWeight: 600, mb: 0.5 }}>
-						Your Profile
-					</Typography>
-					<Typography variant="body2" color="text.secondary">
-						Manage your personal information and agreements
-					</Typography>
-				</Box>
-				<Box sx={{ display: "flex", gap: 2, alignItems: "center" }}>
-					<Chip
-						icon={
-							isActive ? (
-								<CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
-							) : (
-								<ErrorOutlineIcon sx={{ fontSize: 18 }} />
-							)
-						}
-						label={isActive ? "Active Member" : "Inactive"}
-						color={isActive ? "success" : "default"}
-						variant="outlined"
-					/>
-					<Button
-						component={Link}
-						to="/engagement-certificate"
-						variant="outlined"
-						size="small"
-						startIcon={<DescriptionIcon />}
+			<GlassCard variant="elevated" sx={{ mb: 4, overflow: "hidden" }}>
+				<CardContent sx={{ p: { xs: 3, md: 4 } }}>
+					<Box
+						sx={{
+							display: "flex",
+							justifyContent: "space-between",
+							alignItems: { xs: "flex-start", md: "center" },
+							flexDirection: { xs: "column", md: "row" },
+							gap: 3,
+						}}
 					>
-						Engagement Certificate
-					</Button>
-					<Button
-						variant="outlined"
-						size="small"
-						startIcon={
-							isGeneratingPdf ? (
-								<CircularProgress size={16} color="inherit" />
-							) : (
-								<DownloadIcon />
-							)
-						}
-						onClick={handleDownloadMembershipProof}
-						disabled={isGeneratingPdf || !memberData}
-					>
-						{isGeneratingPdf ? "Generating..." : "Proof of Membership"}
-					</Button>
-				</Box>
-			</Box>
+						<Box sx={{ maxWidth: 620 }}>
+							<Typography variant="h3" sx={{ mb: 1.25 }}>
+								Your Profile
+							</Typography>
+							<Typography variant="body1" color="text.secondary">
+								Manage your personal information and internal agreements.
+							</Typography>
+							<Box
+								sx={{
+									display: "flex",
+									flexWrap: "wrap",
+									gap: 1,
+									mt: 2.5,
+								}}
+							>
+								<Chip
+									icon={
+										isActive ? (
+											<CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
+										) : (
+											<ErrorOutlineIcon sx={{ fontSize: 18 }} />
+										)
+									}
+									label={isActive ? "Active Member" : "Inactive"}
+									color={isActive ? "success" : "default"}
+									variant="outlined"
+								/>
+							</Box>
+						</Box>
+						<Box
+							sx={{
+								display: "grid",
+								gridTemplateColumns: {
+									xs: "1fr",
+									sm: "repeat(2, minmax(0, 1fr))",
+								},
+								gap: 1.5,
+								width: { xs: "100%", md: "auto" },
+								minWidth: { md: 360 },
+							}}
+						>
+							<Box
+								sx={{
+									display: "grid",
+									gap: 0.75,
+								}}
+							>
+								<Typography
+									variant="caption"
+									color="text.secondary"
+									sx={{ px: 0.5 }}
+								>
+									University
+								</Typography>
+								<Box
+									sx={{
+										p: 2.25,
+										minHeight: 88,
+										borderRadius: 3,
+										backgroundColor:
+											theme.palette.mode === "light"
+												? "rgba(154, 100, 217, 0.06)"
+												: "rgba(24, 17, 47, 0.72)",
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "center",
+										textAlign: "center",
+									}}
+								>
+									<Typography sx={{ fontWeight: 700 }}>
+										{memberForm.watch("school") || "Not set"}
+									</Typography>
+								</Box>
+							</Box>
+							<Box
+								sx={{
+									display: "grid",
+									gap: 0.75,
+								}}
+							>
+								<Typography
+									variant="caption"
+									color="text.secondary"
+									sx={{ px: 0.5 }}
+								>
+									TUM.ai role
+								</Typography>
+								<Box
+									sx={{
+										p: 2.25,
+										minHeight: 88,
+										borderRadius: 3,
+										backgroundColor:
+											theme.palette.mode === "light"
+												? "rgba(154, 100, 217, 0.06)"
+												: "rgba(24, 17, 47, 0.72)",
+										display: "flex",
+										alignItems: "center",
+										justifyContent: "center",
+										textAlign: "center",
+									}}
+								>
+									<Typography sx={{ fontWeight: 700 }}>
+										{memberForm.watch("member_role") || "Member"}
+									</Typography>
+								</Box>
+							</Box>
+							<Button
+								component={Link}
+								to="/engagement-certificate"
+								variant="outlined"
+								startIcon={<DescriptionIcon />}
+								sx={{ minHeight: 52 }}
+							>
+								Engagement Certificate
+							</Button>
+							<Button
+								variant="outlined"
+								startIcon={
+									isGeneratingPdf ? (
+										<CircularProgress size={16} color="inherit" />
+									) : (
+										<DownloadIcon />
+									)
+								}
+								onClick={handleDownloadMembershipProof}
+								disabled={isGeneratingPdf || !memberData}
+								sx={{ minHeight: 52 }}
+							>
+								{isGeneratingPdf ? "Generating..." : "Proof of Membership"}
+							</Button>
+						</Box>
+					</Box>
+				</CardContent>
+			</GlassCard>
 
 			<form onSubmit={memberForm.handleSubmit(onSubmit)}>
 				<Grid container spacing={3}>
 					<Grid size={{ xs: 12, lg: 7 }}>
-						<GlassCard>
+						<GlassCard variant="elevated">
 							<CardContent sx={{ p: 3 }}>
 								<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
 									Personal Information
@@ -375,7 +449,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											helperText={
 												memberForm.formState.errors.date_of_birth?.message
 											}
-											required
 										/>
 									</Grid>
 
@@ -395,7 +468,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											{...memberForm.register("street")}
 											error={!!memberForm.formState.errors.street}
 											helperText={memberForm.formState.errors.street?.message}
-											required
 										/>
 									</Grid>
 									<Grid size={{ xs: 12, sm: 3 }}>
@@ -404,7 +476,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											{...memberForm.register("number")}
 											error={!!memberForm.formState.errors.number}
 											helperText={memberForm.formState.errors.number?.message}
-											required
 										/>
 									</Grid>
 
@@ -416,7 +487,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											helperText={
 												memberForm.formState.errors.postal_code?.message
 											}
-											required
 										/>
 									</Grid>
 									<Grid size={{ xs: 12, sm: 8 }}>
@@ -425,7 +495,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											{...memberForm.register("city")}
 											error={!!memberForm.formState.errors.city}
 											helperText={memberForm.formState.errors.city?.message}
-											required
 										/>
 									</Grid>
 
@@ -435,14 +504,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											{...memberForm.register("country")}
 											error={!!memberForm.formState.errors.country}
 											helperText={memberForm.formState.errors.country?.message}
-											required
 										/>
 									</Grid>
 								</Grid>
 							</CardContent>
 						</GlassCard>
 
-						<GlassCard sx={{ mt: 3 }}>
+						<GlassCard variant="elevated" sx={{ mt: 3 }}>
 							<CardContent sx={{ p: 3 }}>
 								<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
 									TUM.ai Profile
@@ -496,55 +564,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											{...memberForm.register("school")}
 										/>
 									</Grid>
-
-									<Grid size={12}>
-										<TextField
-											label="Profile Picture URL"
-											placeholder="https://..."
-											{...memberForm.register("profile_picture_url")}
-										/>
-									</Grid>
-
-									<Grid size={12}>
-										<Autocomplete
-											multiple
-											freeSolo
-											options={[]}
-											value={memberForm.watch("skills") || []}
-											onChange={(_e, newValue) => {
-												memberForm.setValue("skills", newValue as string[], {
-													shouldDirty: true,
-												});
-											}}
-											renderTags={(value, getTagProps) =>
-												value.map((option, index) => {
-													const { key, ...rest } = getTagProps({ index });
-													return (
-														<Chip
-															key={key}
-															label={option}
-															size="small"
-															{...rest}
-														/>
-													);
-												})
-											}
-											renderInput={(params) => (
-												<TextField
-													{...params}
-													label="Skills"
-													placeholder="Type a skill and press Enter"
-												/>
-											)}
-										/>
-									</Grid>
 								</Grid>
 							</CardContent>
 						</GlassCard>
 					</Grid>
 
 					<Grid size={{ xs: 12, lg: 5 }}>
-						<GlassCard>
+						<GlassCard variant="elevated">
 							<CardContent sx={{ p: 3 }}>
 								<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
 									Banking & Agreements
@@ -577,7 +603,10 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									sx={{
 										p: 2,
 										borderRadius: 2,
-										backgroundColor: "rgba(255, 255, 255, 0.03)",
+										backgroundColor:
+											theme.palette.mode === "light"
+												? "rgba(139, 92, 246, 0.04)"
+												: "rgba(255, 255, 255, 0.03)",
 										border: `1px solid ${theme.palette.divider}`,
 									}}
 								>

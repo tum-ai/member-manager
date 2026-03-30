@@ -309,7 +309,7 @@ export default function MemberForm({ user }: MemberFormProps) {
 									htmlFor="date_of_birth"
 									className="block text-sm font-medium text-gray-400 mb-1"
 								>
-									Date of Birth *
+									Date of Birth
 								</label>
 								<input
 									id="date_of_birth"

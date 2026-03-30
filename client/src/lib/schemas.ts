@@ -14,20 +14,23 @@ export const memberSchema = z.object({
 	title: z.string().optional(),
 	surname: z.string().min(1, "Surname is required"),
 	given_name: z.string().min(1, "Given Name is required"),
-	date_of_birth: z.string().min(1, "Date of birth is required"),
-	street: z.string().min(1, "Street is required"),
-	number: z.string().min(1, "Number is required"),
-	postal_code: z.string().min(1, "Postal Code is required"),
-	city: z.string().min(1, "City is required"),
-	country: z.string().min(1, "Country is required"),
+	date_of_birth: z
+		.string()
+		.refine(
+			(value) => value.trim() === "" || isValidDate(value),
+			"Invalid date",
+		),
+	street: z.string(),
+	number: z.string(),
+	postal_code: z.string(),
+	city: z.string(),
+	country: z.string(),
 	user_id: z.string(),
 	batch: z.string().nullish(),
 	department: z.string().nullish(),
 	member_role: z.string().nullish(),
 	degree: z.string().nullish(),
 	school: z.string().nullish(),
-	skills: z.array(z.string()).nullish(),
-	profile_picture_url: z.string().url().nullish(),
 });
 
 export const sepaSchema = z.object({

@@ -61,7 +61,10 @@ export async function generateEngagementCertificatePdf(
 	doc.setTextColor(PDF_COLORS.text[0], PDF_COLORS.text[1], PDF_COLORS.text[2]);
 	doc.setLineHeightFactor(1.5);
 
-	const intro = `We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in and contributed to the TUM.ai student initiative during the following periods.`;
+	const intro =
+		birthDate === "Not provided"
+			? `We hereby acknowledge that ${fullName} participated in and contributed to the TUM.ai student initiative during the following periods.`
+			: `We hereby acknowledge that ${fullName}, born on ${birthDate}, participated in and contributed to the TUM.ai student initiative during the following periods.`;
 	const wrappedIntro = doc.splitTextToSize(intro.trim(), maxWidth);
 	doc.text(wrappedIntro, margin, y);
 	y += wrappedIntro.length * 7 + 10;
