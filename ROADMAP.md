@@ -1,250 +1,247 @@
 # TUM.ai Member Manager Roadmap
 
-## Product Goal
+## Product Direction
 
-Build a member system with two clearly separated surfaces:
+Build two clearly separated surfaces:
 
-1. A private member portal where members authenticate, review pre-populated data, and maintain their own profile.
-2. A public network explorer that visualizes the TUM.ai community through structured member metadata.
+1. A private member portal where members authenticate, review or correct pre-populated data, and manage their own profile.
+2. A public network explorer where the community can be browsed by structured member metadata, starting with university.
 
-The current repository is the foundation for the private portal and the member-data model that will later power the public graph.
+The current implementation is still focused on the private portal. The public explorer and eventual graph remain future work.
 
 ## Product Principles
 
-- Private by default: internal and sensitive data never leaks into the public experience.
-- Structured data over free text: the graph only becomes useful when member attributes are normalized.
-- Member-owned updates: authenticated users should be able to claim and maintain their profile.
-- Progressive disclosure: the MVP should solve member data quality before taking on graph complexity.
+- Private by default: banking, agreements, admin state, and sensitive personal data never flow into the public surface.
+- Structured data before visualization: grouping only works if fields like university and degree are normalized.
+- Member-owned updates: members should be able to maintain their own record after signing in.
+- Public exposure must be explicit: public routes should consume a dedicated public data model, not private profile payloads.
+- Simplicity first: a grouped directory comes before a graph.
+
+## Current Baseline
+
+Today the repo already supports:
+
+- authenticated sign-in via email/password and Slack OAuth
+- default landing on `My Profile`
+- an authenticated `All Members` browse view
+- private SEPA and agreement handling
+- admin-only list and status operations
+- server-side encryption for sensitive fields
+
+This means the current MVP is not starting from zero. The main gap is data quality and separation between private and eventually public member information.
 
 ## Scope Split
 
-### Internal / Private
+### Private Portal
 
-- Authentication
-- Member profile editing
-- Banking details
-- Privacy-policy and mandate workflows
-- Admin review and member operations
+- authentication
+- profile editing
+- member directory for logged-in users
+- certificate flow
+- banking and consent workflows
+- admin operations
 
-### Public
+### Public Explorer
 
-- Searchable member graph
-- Grouping by university first
-- Additional groupings later, such as field of study, graduation path, current role, and company
+- public directory
+- grouping by university first
+- later grouping by degree, field of study, current role, company, or location
+- eventual graph visualization
 
-## Phase Plan
+## Roadmap Phases
 
-### Phase 0: Current Baseline
+### Phase 1: Data Model and Profile Quality
 
-Status: in progress
-
-- Authenticated member portal exists
-- Members can edit their profile
-- Members directory exists for authenticated users
-- Internal/private data handling and encryption are already part of the backend
-
-### Phase 1: MVP Data Foundation
-
-Goal: make member information complete, structured, and usable.
+Goal: make member records usable, structured, and safe to project into a public view later.
 
 User-facing outcomes:
 
-- Members log in with Slack or email and land on their profile
-- Profiles are pre-populated where possible
-- Members can edit and save their public-facing information
-- Authenticated users can browse the member directory
-- Members can be grouped by university in the directory or downstream graph views
+- members log in and land on their own profile
+- profile data can be reviewed and corrected
+- key attributes needed for browsing are captured consistently
+- authenticated members can already browse other members internally
 
-Required product work:
+Product work:
 
-- Define the minimum public member profile schema
-- Separate public profile fields from internal-only fields
-- Decide which profile fields are editable by members
-- Decide which fields are required before a profile is considered complete
-- Add completeness indicators for members and admins
+- define the minimum public-safe member profile
+- classify fields as private, internal-only, or public-safe
+- normalize core grouping dimensions, especially university
+- support pre-population and cleanup of missing member data
 
-Required data fields for MVP:
+Near-term schema priorities:
 
-- Full name
-- University
-- Degree / course of study
-- Current status or role
-- Batch / cohort
-- Optional profile image
-- Optional skills / tags
+- name
+- university
+- degree or course of study
+- TUM.ai role
+- batch or cohort
+- current role or current organization when available
 
 Success criteria:
 
-- A large majority of active members have complete university data
-- Authenticated users can search and browse members reliably
-- Internal/private data remains separate from public-profile data
+- university data is present and normalized for most active members
+- authenticated browsing is useful without exposing internal-only data
+- the repo has a clear distinction between private workflows and future public fields
 
-### Phase 2: Public Directory
+### Phase 2: Grouped Authenticated Directory
 
-Goal: expose a safe public listing before building the graph.
+Goal: improve the internal browse experience before opening anything publicly.
 
 User-facing outcomes:
 
-- Public visitors can browse the network without logging in
-- The default grouping is by university
-- Public profile cards show only explicitly public information
+- authenticated users can browse members grouped by university
+- search and filtering work on structured fields
+- the directory acts as the proving ground for the future public explorer
 
-Required product work:
+Product work:
 
-- Add a publication flag or public-profile projection
-- Add moderation/admin controls for public visibility
-- Define a public route and API shape independent of private member APIs
+- add grouping by university to the member browse view
+- improve search/filter UX around normalized member attributes
+- define empty and incomplete-data states
 
 Success criteria:
 
-- Public directory uses only approved public fields
-- Private portal continues to function independently
+- grouped browsing is stable and understandable
+- the internal UI validates the chosen public-safe fields and grouping model
 
-### Phase 3: Public Graph
+### Phase 3: Public Directory
 
-Goal: launch the CDTМ-style network view on top of clean member data.
+Goal: ship a safe public read-only surface before attempting a graph.
 
 User-facing outcomes:
 
-- Public graph of members and groups
-- First grouping: university
-- Additional groupings later: studies, current work, role, company, location
+- public visitors can browse the network without authentication
+- university is the default grouping
+- only explicitly public member fields are shown
 
-Required product work:
+Product work:
 
-- Choose graph interaction model: force graph, clustered graph, or grouped explorer
-- Add drill-down from group to members
-- Add search, filters, and detail panels
-- Decide what is shown for members with incomplete data
+- introduce a public projection or public-profile table/view
+- define publication and moderation rules
+- build public routes and public APIs separate from private APIs
 
 Success criteria:
 
-- Graph remains understandable with real data volume
-- Public graph performance is acceptable on mobile and desktop
+- no private fields are exposed through public routes
+- the public directory can evolve independently from the private portal
 
-## Technical Roadmap
+### Phase 4: Public Graph
 
-### 1. Introduce a Public Profile Model
+Goal: build the visual network explorer once the underlying data is clean enough.
+
+User-facing outcomes:
+
+- public graph or grouped network explorer
+- drill-down from university groups to member cards
+- later filters for studies, role, current work, or company
+
+Product work:
+
+- choose the graph model only after real data quality is known
+- add search, filters, and detail panels
+- define how to handle incomplete or ambiguous member data
+
+Success criteria:
+
+- the graph stays understandable at real community scale
+- performance is acceptable on desktop and mobile
+
+## Technical Tracks
+
+### 1. Public Profile Projection
 
 Current risk:
 
-- The `members` table mixes internal operational data with data that could become public-facing.
+- the `members` table currently carries both operational/private data and fields that may later become public-facing.
 
-Target:
+Direction:
 
-- Explicit separation between internal member data and public-profile data.
+- create an explicit public projection instead of serving the raw private member record.
 
-Recommended approach:
+Preferred approach:
 
-- Keep sensitive and operational data private
-- Add a public-profile projection, either:
-  - in the same table with clearly scoped public fields and a `is_public` flag, or
-  - in a dedicated `public_member_profiles` table/view
+- dedicated `public_member_profiles` table or view
+- publication state controlled separately from private member editing
 
-Preferred direction:
-
-- A dedicated public projection is safer and easier to reason about than reusing the full member record.
-
-### 2. Normalize Grouping Dimensions
+### 2. Controlled Vocabularies
 
 Current risk:
 
-- University, degree, and similar dimensions will fragment if they stay as uncontrolled free text.
+- free-text values for university, degree, or role will fragment grouping.
 
-Target:
+Direction:
 
-- Stable grouping values for public exploration and analytics.
+- introduce stable keys and display labels for the first grouping dimensions.
 
-Recommended approach:
+Initial focus:
 
-- Introduce controlled vocabularies for:
-  - university
-  - degree type
-  - field of study
-  - current role category
-- Use display label plus stable internal key
+- university
+- degree type
+- field of study
+- current role category
 
-### 3. Improve Profile Completion Workflow
+### 3. Public API Boundary
 
-Target:
+Direction:
 
-- Members should see what information is still missing and why it matters.
+- public explorer features must use dedicated public endpoints.
 
-Recommended implementation:
-
-- Add profile completeness calculation on the server or client
-- Show missing required public fields on the profile page
-- Optionally block public visibility until required fields are complete
-
-### 4. Add Public APIs
-
-Target:
-
-- Public graph and public directory should not consume authenticated private APIs.
-
-Recommended endpoints:
+Candidate endpoints:
 
 - `GET /api/public/members`
 - `GET /api/public/groups/universities`
 - `GET /api/public/graph`
 
-Design rules:
+Rules:
 
-- Return only public data
-- No banking, mandate, agreement, address, birthdate, or admin-only metadata
-- Cache-friendly responses
+- no banking data
+- no agreement state
+- no private address or birthdate data
+- no admin metadata
 
-### 5. Prepare Frontend Architecture for Two Surfaces
+### 4. Frontend Separation
 
-Target:
+Direction:
 
-- One codebase can serve both private portal and public explorer without entangling them.
+- keep authenticated member flows and public explorer flows separate inside the client architecture.
 
-Recommended approach:
+Guidelines:
 
-- Keep authenticated app routes separate from public routes
-- Create dedicated public components and query hooks
-- Avoid reusing private profile components for public rendering unless the data contracts match exactly
+- private routes stay under the authenticated app shell
+- public explorer gets dedicated components and data hooks
+- do not reuse private profile components blindly for public rendering
 
-### 6. Graph Readiness
+### 5. Data Onboarding and Cleanup
 
-The graph should only start after:
+Direction:
 
-- public profile fields are defined
-- university data is normalized
-- enough member profiles are complete
-- public APIs exist
+- support pre-populated member records and a predictable cleanup path.
 
-Before that, a grouped directory is the correct intermediate step.
+Needed capabilities:
 
-## Suggested Backlog
+- import or sync initial member data
+- admin review for incorrect records
+- normalization tooling for grouped dimensions
 
-### Immediate
+## Immediate Backlog
 
-- Define MVP public member fields
-- Add university as a first-class member field if needed
-- Add profile completeness status
-- Keep authenticated default route on profile
-- Keep member directory as explicit secondary navigation
+- document private vs public-safe member fields
+- make university the first-class grouping field across docs and UI
+- group the authenticated directory by university
+- define the public-profile projection strategy
+- keep internal workflows separate from public-facing features
 
-### Near Term
+## Later Backlog
 
-- Add public/private field classification in code and docs
-- Add public-profile API contract
-- Add admin tooling for profile completeness and publication state
-- Add grouped member directory by university
-
-### Later
-
-- Build public directory
-- Build graph API
-- Build public graph UI
-- Add richer grouping dimensions
+- add public directory routes and APIs
+- build moderation and publication controls
+- add richer grouping dimensions
+- build the graph UI only after grouped browsing is validated
 
 ## Open Questions
 
-- Should every authenticated member automatically have a public profile, or must they opt in?
-- Which fields are mandatory for public visibility?
-- Will Slack be the primary identity provider, with email/password as fallback, or will both stay first-class?
-- Should university be a single value in the MVP, even if some members have multiple affiliations?
-- Who owns data moderation for incorrect or outdated public profiles?
+- should public visibility be opt-in per member or managed centrally by admins?
+- which fields are mandatory before a member can appear publicly?
+- is Slack the primary long-term identity provider, with email/password as fallback?
+- should university remain single-valued for the MVP?
+- who owns data moderation for outdated or incorrect public-facing member records?
