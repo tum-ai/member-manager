@@ -52,3 +52,6 @@ desktop.ini
 
 # Misc
 *.Zone.Identifier
+
+# Tum.ai member data
+/data
