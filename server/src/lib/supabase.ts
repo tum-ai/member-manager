@@ -17,17 +17,14 @@ function resolveEnvPath(envPath: string): string {
 		: path.resolve(packageRoot, envPath);
 }
 
-// Support custom .env file path via DOTENV_CONFIG_PATH for local development
+// `pnpm dev` should use `.env`; `pnpm dev:local` opts into `.env.local`
+// through DOTENV_CONFIG_PATH so local and hosted setups do not get mixed.
 const envPath = process.env.DOTENV_CONFIG_PATH;
-const isProduction = process.env.NODE_ENV === "production";
 
 if (envPath) {
 	dotenv.config({ path: resolveEnvPath(envPath), override: true });
 } else {
 	dotenv.config({ path: resolveEnvPath(".env") });
-	if (!isProduction) {
-		dotenv.config({ path: resolveEnvPath(".env.local"), override: true });
-	}
 }
 
 const supabaseUrl = process.env.SUPABASE_URL;
