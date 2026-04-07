@@ -158,3 +158,7 @@ Admin APIs:
 - `PATCH /api/admin/members/:userId/status`
 
 These are authenticated and intended for internal/private use.
+
+## Production Deployment
+
+Production is deployed on Vercel. The static client is served from `client/dist`, and `api/[...path].ts` exposes the Fastify server as a Vercel Node.js function for same-origin `/api/*` requests.
