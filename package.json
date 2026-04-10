@@ -1,6 +1,7 @@
 {
 	"name": "member-manager",
 	"private": true,
+	"type": "module",
 	"scripts": {
 		"dev": "pnpm -r --parallel run dev",
 		"dev:local": "pnpm supabase:start && pnpm -r --parallel run dev:local",

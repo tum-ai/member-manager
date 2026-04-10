@@ -1,12 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { buildApp } from "../server/src/app.js";
 
-let appPromise: Promise<any> | undefined;
+let appPromise: ReturnType<typeof buildApp> | undefined;
 
 async function getApp() {
 	if (!appPromise) {
-		// Dynamic import() required: the server package is ESM but Vercel
-		// compiles this API route as CommonJS.
-		const { buildApp } = await import("../server/src/app.js");
 		appPromise = buildApp();
 	}
 
