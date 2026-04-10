@@ -17,7 +17,8 @@ export async function authenticate(
 	const {
 		data: { user },
 		error,
-	} = await getSupabase().auth.getUser(token);
+		// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+	} = await (getSupabase().auth as any).getUser(token);
 
 	if (error || !user) {
 		return reply.status(401).send({ error: "Invalid token" });

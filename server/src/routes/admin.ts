@@ -77,7 +77,8 @@ export async function adminRoutes(server: FastifyInstance) {
 
 			try {
 				const emailMap = await getAuthEmails(
-					(members || []).map((member) => String(member.user_id)),
+					// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+					(members || []).map((member: any) => String(member.user_id)),
 				);
 
 				// Transform data to ensure sepa is an object (Supabase might return array)
@@ -93,7 +94,8 @@ export async function adminRoutes(server: FastifyInstance) {
 
 				const normalizedSearch = search?.trim().toLowerCase();
 				const filtered = normalizedSearch
-					? joined.filter((member) =>
+					// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+					? joined.filter((member: any) =>
 							`${member.given_name} ${member.surname} ${member.email}`
 								.toLowerCase()
 								.includes(normalizedSearch),
