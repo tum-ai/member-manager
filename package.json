@@ -1,6 +1,7 @@
 {
 	"name": "member-manager",
 	"private": true,
+	"type": "module",
 	"scripts": {
 		"dev": "pnpm -r --parallel run dev",
 		"dev:local": "pnpm supabase:start && pnpm -r --parallel run dev:local",
@@ -14,6 +15,7 @@
 		"supabase:reset": "supabase db reset"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.3.7"
+		"@biomejs/biome": "^2.3.7",
+		"@types/node": "^20.11.25"
 	}
 }

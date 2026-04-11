@@ -229,10 +229,12 @@ export async function memberRoutes(server: FastifyInstance) {
 
 			try {
 				const emailMap = await getAuthEmails(
-					(data || []).map((member) => String(member.user_id)),
+					// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+					(data || []).map((member: any) => String(member.user_id)),
 				);
 
-				return (data || []).map((member) => ({
+				// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+				return (data || []).map((member: any) => ({
 					...member,
 					email: emailMap.get(String(member.user_id)) ?? "",
 				}));
