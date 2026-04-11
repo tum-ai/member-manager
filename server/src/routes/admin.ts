@@ -94,8 +94,8 @@ export async function adminRoutes(server: FastifyInstance) {
 
 				const normalizedSearch = search?.trim().toLowerCase();
 				const filtered = normalizedSearch
-					// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
-					? joined.filter((member: any) =>
+					? // biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+						joined.filter((member: any) =>
 							`${member.given_name} ${member.surname} ${member.email}`
 								.toLowerCase()
 								.includes(normalizedSearch),
