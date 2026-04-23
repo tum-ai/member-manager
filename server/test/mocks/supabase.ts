@@ -289,7 +289,11 @@ function createQueryBuilder(table: string): QueryBuilder {
 				// Auto-assign an id for tables that use UUID PKs (the real schema
 				// has `default gen_random_uuid()`). Without this, INSERTs followed
 				// by SELECT/DELETE-by-id don't line up in tests.
-				if (rec.id === undefined && rec.id_uuid === undefined) {
+				if (
+					table === "member_role_history" &&
+					rec.id === undefined &&
+					rec.id_uuid === undefined
+				) {
 					rec.id = `mock-${Math.random().toString(36).slice(2, 10)}`;
 				}
 				if (rec.created_at === undefined) {

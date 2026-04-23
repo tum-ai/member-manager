@@ -31,7 +31,6 @@ const StatusSchema = z.object({
 // Canonical member roles. Keep in sync with:
 //   - `supabase/migrations/20260423160500_member_role_enum_and_alumni.sql`
 //   - `client/src/lib/constants.ts` (MEMBER_ROLES)
-//   - `client/src/lib/schemas.ts` (memberSchema.member_role)
 export const MEMBER_ROLES = [
 	"Member",
 	"Team Lead",

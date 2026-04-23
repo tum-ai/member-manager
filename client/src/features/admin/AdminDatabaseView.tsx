@@ -36,11 +36,12 @@ function rowsToCsv(
 	rows: Array<Record<string, unknown>>,
 	columns: string[],
 ): string {
+	const lineEnding = "\r\n";
 	const header = columns.map(escapeCsvCell).join(",");
 	const body = rows
 		.map((row) => columns.map((col) => escapeCsvCell(row[col])).join(","))
-		.join("\n");
-	return `${header}\n${body}\n`;
+		.join(lineEnding);
+	return `${header}${lineEnding}${body}${lineEnding}`;
 }
 
 function RoleHistoryPanel({

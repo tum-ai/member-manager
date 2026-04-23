@@ -5,8 +5,12 @@ import {
 	CardContent,
 	Chip,
 	CircularProgress,
+	FormControl,
 	Grid,
 	InputAdornment,
+	InputLabel,
+	MenuItem,
+	Select,
 	TextField,
 	Typography,
 	useTheme,
@@ -16,6 +20,7 @@ import { useMemo, useState } from "react";
 
 import GlassCard from "../../components/ui/GlassCard";
 import { useMembersListData } from "../../hooks/useMembersListData";
+import { DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
 import type { Member } from "../../types";
 
 function getInitials(member: Member): string {
@@ -27,28 +32,37 @@ function getInitials(member: Member): string {
 export default function MemberList() {
 	const { members, isLoading, error } = useMembersListData();
 	const [search, setSearch] = useState("");
+	const [department, setDepartment] = useState("");
+	const [role, setRole] = useState("");
 
 	const filtered = useMemo(() => {
 		if (!members) return [];
-		if (!search.trim()) return members;
-		const q = search.toLowerCase();
+		const q = search.trim().toLowerCase();
 		return members.filter((m) => {
 			const name = `${m.given_name} ${m.surname}`.toLowerCase();
 			const dept = (m.department || "").toLowerCase();
-			const role = (m.member_role || "").toLowerCase();
+			const memberRole = (m.member_role || "").toLowerCase();
 			const batch = (m.batch || "").toLowerCase();
 			const degree = (m.degree || "").toLowerCase();
 			const school = (m.school || "").toLowerCase();
-			return (
-				name.includes(q) ||
-				dept.includes(q) ||
-				role.includes(q) ||
-				batch.includes(q) ||
-				degree.includes(q) ||
-				school.includes(q)
-			);
+			if (
+				q &&
+				!(
+					name.includes(q) ||
+					dept.includes(q) ||
+					memberRole.includes(q) ||
+					batch.includes(q) ||
+					degree.includes(q) ||
+					school.includes(q)
+				)
+			) {
+				return false;
+			}
+			if (department && m.department !== department) return false;
+			if (role && m.member_role !== role) return false;
+			return true;
 		});
-	}, [members, search]);
+	}, [members, search, department, role]);
 
 	if (isLoading) {
 		return (
@@ -115,16 +129,62 @@ export default function MemberList() {
 										),
 									},
 								}}
+								fullWidth
 							/>
-							<Typography
-								variant="body2"
-								color="text.secondary"
-								sx={{ mt: 1.5 }}
-							>
-								{filtered.length} active member
-								{filtered.length !== 1 ? "s" : ""}
-							</Typography>
 						</Box>
+					</Box>
+
+					<Box
+						sx={{
+							mt: 3,
+							display: "flex",
+							flexWrap: "wrap",
+							gap: 2,
+							alignItems: "center",
+						}}
+					>
+						<FormControl size="small" sx={{ minWidth: 220 }}>
+							<InputLabel id="member-list-department-label">
+								Department
+							</InputLabel>
+							<Select
+								labelId="member-list-department-label"
+								value={department}
+								label="Department"
+								onChange={(e) => setDepartment(e.target.value)}
+							>
+								<MenuItem value="">All</MenuItem>
+								{DEPARTMENTS.map((item) => (
+									<MenuItem key={item} value={item}>
+										{item}
+									</MenuItem>
+								))}
+							</Select>
+						</FormControl>
+
+						<FormControl size="small" sx={{ minWidth: 220 }}>
+							<InputLabel id="member-list-role-label">Role</InputLabel>
+							<Select
+								labelId="member-list-role-label"
+								value={role}
+								label="Role"
+								onChange={(e) => setRole(e.target.value)}
+							>
+								<MenuItem value="">All</MenuItem>
+								{MEMBER_ROLES.filter((item) => item !== "Alumni").map(
+									(item) => (
+										<MenuItem key={item} value={item}>
+											{item}
+										</MenuItem>
+									),
+								)}
+							</Select>
+						</FormControl>
+
+						<Typography variant="body2" color="text.secondary">
+							{filtered.length} active member
+							{filtered.length !== 1 ? "s" : ""}
+						</Typography>
 					</Box>
 				</CardContent>
 			</GlassCard>
