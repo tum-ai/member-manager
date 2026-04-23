@@ -24,7 +24,11 @@ At a glance:
 - `docs/`: project docs and vendored TUM.ai brand reference material
 - `.agents/skills/`: repo-local Codex skills, including the TUM.ai CI skill
 
-For a full breakdown of directories and responsibilities, see [docs/repo-structure.md](./docs/repo-structure.md).
+More reading:
+
+- [docs/repo-structure.md](./docs/repo-structure.md) — full directory breakdown
+- [docs/development.md](./docs/development.md) — env precedence, `dev` vs `dev:local`, Slack OIDC, DNS quirks, testing, common failure modes
+- [docs/deployment.md](./docs/deployment.md) — Vercel env vars, Supabase dashboard config, Slack prod config, `FIELD_ENCRYPTION_KEY` warning
 
 ## Current App Flow
 
@@ -160,3 +164,5 @@ These are authenticated and intended for internal/private use.
 ## Production Deployment
 
 Production is deployed on Vercel. The static client is served from `client/dist`, and `api/[...path].ts` exposes the Fastify server as a Vercel Node.js function for same-origin `/api/*` requests.
+
+See [docs/deployment.md](./docs/deployment.md) for the full checklist (Vercel env vars, Supabase dashboard config, Slack app redirect URLs, `FIELD_ENCRYPTION_KEY` rotation warning, post-deploy smoke tests).
