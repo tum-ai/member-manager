@@ -3,6 +3,10 @@ import * as XLSX from "xlsx";
 import { useToast } from "../../contexts/ToastContext";
 import { useAdminData } from "../../hooks/useAdminData";
 import {
+	useMemberRoleHistory,
+	type NewRoleHistoryEntry,
+} from "../../hooks/useMemberRoleHistory";
+import {
 	DEPARTMENTS,
 	MEMBER_ROLES,
 	type MemberRole,
@@ -36,9 +40,191 @@ function rowsToCsv(rows: Array<Record<string, unknown>>, columns: string[]): str
 	return `${header}\n${body}\n`;
 }
 
+function RoleHistoryPanel({
+	member,
+	onClose,
+}: {
+	member: Member;
+	onClose: () => void;
+}) {
+	const { entries, isLoading, addEntry, deleteEntry } = useMemberRoleHistory(
+		member.user_id,
+	);
+	const [draft, setDraft] = useState<NewRoleHistoryEntry>({
+		role: "Member",
+		semester: "",
+		started_at: "",
+		ended_at: "",
+		note: "",
+	});
+
+	async function handleAdd() {
+		const payload: NewRoleHistoryEntry = {
+			role: draft.role,
+			semester: draft.semester?.trim() || null,
+			started_at: draft.started_at?.trim() || null,
+			ended_at: draft.ended_at?.trim() || null,
+			note: draft.note?.trim() || null,
+		};
+		try {
+			await addEntry(payload);
+			setDraft({
+				role: "Member",
+				semester: "",
+				started_at: "",
+				ended_at: "",
+				note: "",
+			});
+		} catch (err) {
+			console.error(err);
+		}
+	}
+
+	return (
+		<div
+			className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4"
+			onClick={onClose}
+			onKeyDown={(e) => {
+				if (e.key === "Escape") onClose();
+			}}
+			role="dialog"
+			tabIndex={-1}
+		>
+			<div
+				className="relative z-50 w-full max-w-3xl rounded-lg border border-gray-700 bg-gray-900 p-6 text-white shadow-2xl"
+				onClick={(e) => e.stopPropagation()}
+				onKeyDown={(e) => e.stopPropagation()}
+				role="document"
+			>
+				<div className="mb-4 flex items-start justify-between gap-4">
+					<div>
+						<h3 className="text-xl font-semibold">Role history</h3>
+						<p className="text-sm text-gray-400">
+							{member.given_name} {member.surname} · current role:{" "}
+							<strong>{member.member_role || "Member"}</strong>
+						</p>
+					</div>
+					<button
+						type="button"
+						onClick={onClose}
+						className="rounded px-2 py-1 text-sm hover:bg-gray-800"
+					>
+						Close
+					</button>
+				</div>
+
+				<div className="mb-4 rounded border border-gray-700 p-3">
+					<h4 className="mb-2 text-sm font-medium text-gray-300">
+						Add past role
+					</h4>
+					<div className="grid grid-cols-1 gap-2 md:grid-cols-5">
+						<select
+							value={draft.role}
+							onChange={(e) =>
+								setDraft((d) => ({ ...d, role: e.target.value as MemberRole }))
+							}
+							className="rounded bg-gray-800 p-2 text-sm"
+						>
+							{MEMBER_ROLES.map((r) => (
+								<option key={r} value={r}>
+									{r}
+								</option>
+							))}
+						</select>
+						<input
+							type="text"
+							placeholder="Semester (e.g. WS25/26)"
+							value={draft.semester ?? ""}
+							onChange={(e) =>
+								setDraft((d) => ({ ...d, semester: e.target.value }))
+							}
+							className="rounded bg-gray-800 p-2 text-sm"
+						/>
+						<input
+							type="date"
+							value={draft.started_at ?? ""}
+							onChange={(e) =>
+								setDraft((d) => ({ ...d, started_at: e.target.value }))
+							}
+							className="rounded bg-gray-800 p-2 text-sm"
+						/>
+						<input
+							type="date"
+							value={draft.ended_at ?? ""}
+							onChange={(e) =>
+								setDraft((d) => ({ ...d, ended_at: e.target.value }))
+							}
+							className="rounded bg-gray-800 p-2 text-sm"
+						/>
+						<button
+							type="button"
+							onClick={handleAdd}
+							className="rounded bg-purple-600 px-3 py-2 text-sm font-medium hover:bg-purple-700"
+						>
+							Add
+						</button>
+					</div>
+					<input
+						type="text"
+						placeholder="Note (optional)"
+						value={draft.note ?? ""}
+						onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))}
+						className="mt-2 w-full rounded bg-gray-800 p-2 text-sm"
+					/>
+				</div>
+
+				<div className="max-h-[50vh] overflow-y-auto">
+					{isLoading ? (
+						<p className="text-sm text-gray-400">Loading...</p>
+					) : entries.length === 0 ? (
+						<p className="text-sm text-gray-400">No past roles recorded.</p>
+					) : (
+						<table className="w-full border-collapse text-sm">
+							<thead className="bg-gray-800 text-left">
+								<tr>
+									<th className="p-2">Role</th>
+									<th className="p-2">Semester</th>
+									<th className="p-2">From</th>
+									<th className="p-2">To</th>
+									<th className="p-2">Note</th>
+									<th className="p-2" />
+								</tr>
+							</thead>
+							<tbody>
+								{entries.map((entry) => (
+									<tr
+										key={entry.id}
+										className="border-b border-gray-800 align-top"
+									>
+										<td className="p-2 font-medium">{entry.role}</td>
+										<td className="p-2">{entry.semester ?? "—"}</td>
+										<td className="p-2">{entry.started_at ?? "—"}</td>
+										<td className="p-2">{entry.ended_at ?? "—"}</td>
+										<td className="p-2">{entry.note ?? ""}</td>
+										<td className="p-2">
+											<button
+												type="button"
+												onClick={() => deleteEntry(entry.id)}
+												className="rounded bg-red-700 px-2 py-1 text-xs hover:bg-red-800"
+											>
+												Delete
+											</button>
+										</td>
+									</tr>
+								))}
+							</tbody>
+						</table>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+}
+
 export default function AdminDatabaseView() {
 	const { showToast } = useToast();
 	const { members, isLoading, error, updateRole } = useAdminData();
+	const [historyMember, setHistoryMember] = useState<Member | null>(null);
 
 	const [filters, setFilters] = useState<Filters>({
 		search: "",
@@ -359,6 +545,7 @@ export default function AdminDatabaseView() {
 								{ key: "mandate_agreed", label: "SEPA" },
 								{ key: "privacy_agreed", label: "Privacy" },
 								{ key: "active", label: "Active" },
+								{ key: "actions", label: "" },
 							].map(({ key, label }) => (
 								<th
 									key={key}
@@ -405,11 +592,20 @@ export default function AdminDatabaseView() {
 								<td className="p-3">{String(row.sepa?.mandate_agreed ?? false)}</td>
 								<td className="p-3">{String(row.sepa?.privacy_agreed ?? false)}</td>
 								<td className="p-3">{String(row.active)}</td>
+								<td className="p-3">
+									<button
+										type="button"
+										onClick={() => setHistoryMember(row)}
+										className="rounded bg-gray-900 px-2 py-1 text-xs hover:bg-gray-700"
+									>
+										History
+									</button>
+								</td>
 							</tr>
 						))}
 						{filtered.length === 0 && (
 							<tr>
-								<td colSpan={10} className="p-8 text-center text-gray-400">
+								<td colSpan={11} className="p-8 text-center text-gray-400">
 									No records found.
 								</td>
 							</tr>
@@ -417,6 +613,13 @@ export default function AdminDatabaseView() {
 					</tbody>
 				</table>
 			</div>
+
+			{historyMember && (
+				<RoleHistoryPanel
+					member={historyMember}
+					onClose={() => setHistoryMember(null)}
+				/>
+			)}
 		</div>
 	);
 }

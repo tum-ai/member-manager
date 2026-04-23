@@ -246,6 +246,98 @@ describe("Admin Routes", async () => {
 		});
 	});
 
+	describe("Admin member_role_history CRUD", () => {
+		// Past-role terms live in a separate `member_role_history` table so that
+		// the current role (members.member_role) remains the authoritative "now"
+		// snapshot while admins can curate the full trajectory per member.
+
+		test("admin can list a member's role history (empty initially)", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "GET",
+				url: `/api/admin/members/${testUserIds.user}/role-history`,
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.ok(Array.isArray(payload));
+		});
+
+		test("admin can add a past role term", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "POST",
+				url: `/api/admin/members/${testUserIds.user}/role-history`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					role: "Team Lead",
+					semester: "WS25/26",
+					started_at: "2025-10-01",
+					ended_at: "2026-03-31",
+					note: "Department X",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 201);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.role, "Team Lead");
+			assert.strictEqual(payload.semester, "WS25/26");
+			assert.strictEqual(payload.user_id, testUserIds.user);
+		});
+
+		test("rejects role outside canonical 5 in history", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "POST",
+				url: `/api/admin/members/${testUserIds.user}/role-history`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ role: "Chief Wizard" }),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
+
+		test("regular user denied from reading someone else's history", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "GET",
+				url: `/api/admin/members/${testUserIds.admin}/role-history`,
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("admin can delete a past role entry", async () => {
+			resetDatabase();
+			const createResponse = await app.inject({
+				method: "POST",
+				url: `/api/admin/members/${testUserIds.user}/role-history`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ role: "Member", semester: "SS25" }),
+			});
+			const { id } = JSON.parse(createResponse.payload);
+
+			const response = await app.inject({
+				method: "DELETE",
+				url: `/api/admin/members/${testUserIds.user}/role-history/${id}`,
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 204);
+		});
+	});
+
 	describe("PATCH /api/admin/members/:userId/status", () => {
 		test("admin can update member status", async () => {
 			resetDatabase();

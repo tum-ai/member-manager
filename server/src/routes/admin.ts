@@ -45,6 +45,14 @@ const RoleSchema = z.object({
 	member_role: z.enum(MEMBER_ROLES),
 });
 
+const RoleHistoryCreateSchema = z.object({
+	role: z.enum(MEMBER_ROLES),
+	semester: z.string().optional().nullable(),
+	started_at: z.string().optional().nullable(),
+	ended_at: z.string().optional().nullable(),
+	note: z.string().optional().nullable(),
+});
+
 export async function adminRoutes(server: FastifyInstance) {
 	server.get(
 		"/admin/members",
@@ -179,6 +187,96 @@ export async function adminRoutes(server: FastifyInstance) {
 			}
 
 			return decryptRecord(data, SENSITIVE_MEMBER_FIELDS);
+		},
+	);
+
+	// --- member_role_history CRUD (admin-only) ---
+	//
+	// History rows are ordered so the UI can render a timeline. Start/end dates
+	// are optional strings (YYYY-MM-DD) because admins often only know the
+	// semester label (e.g. "WS25/26").
+
+	server.get<{ Params: { userId: string } }>(
+		"/admin/members/:userId/role-history",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, _reply) => {
+			const { userId } = request.params;
+			const { data, error } = await getSupabase()
+				.from("member_role_history")
+				.select("*")
+				.eq("user_id", userId)
+				.order("started_at", { ascending: false });
+
+			if (error) {
+				request.log.error(
+					{ err: error },
+					"Failed to fetch member role history",
+				);
+				throw new DatabaseError();
+			}
+			return data ?? [];
+		},
+	);
+
+	server.post<{ Params: { userId: string } }>(
+		"/admin/members/:userId/role-history",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const { userId } = request.params;
+			const parsed = RoleHistoryCreateSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid role history entry",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const payload = {
+				user_id: userId,
+				role: parsed.data.role,
+				semester: parsed.data.semester ?? null,
+				started_at: parsed.data.started_at ?? null,
+				ended_at: parsed.data.ended_at ?? null,
+				note: parsed.data.note ?? null,
+			};
+
+			const { data, error } = await getSupabase()
+				.from("member_role_history")
+				.insert(payload)
+				.select()
+				.single();
+
+			if (error) {
+				request.log.error(
+					{ err: error },
+					"Failed to insert member role history entry",
+				);
+				throw new DatabaseError();
+			}
+
+			return reply.status(201).send(data);
+		},
+	);
+
+	server.delete<{ Params: { userId: string; id: string } }>(
+		"/admin/members/:userId/role-history/:id",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const { userId, id } = request.params;
+			const { error } = await getSupabase()
+				.from("member_role_history")
+				.delete()
+				.eq("id", id)
+				.eq("user_id", userId);
+
+			if (error) {
+				request.log.error(
+					{ err: error },
+					"Failed to delete member role history entry",
+				);
+				throw new DatabaseError();
+			}
+			return reply.status(204).send();
 		},
 	);
 

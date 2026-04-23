@@ -42,5 +42,10 @@ export async function apiClient<T = any>(
 		throw new Error(errorData.error || response.statusText);
 	}
 
+	// 204 No Content has no body; callers may still `await` the result.
+	if (response.status === 204) {
+		return undefined as T;
+	}
+
 	return response.json();
 }
