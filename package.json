@@ -5,11 +5,13 @@
 	"scripts": {
 		"dev": "pnpm -r --parallel run dev",
 		"dev:local": "pnpm supabase:start && pnpm setup:local && pnpm -r --parallel run dev:local",
+		"gate": "pnpm lint && pnpm build && pnpm test",
 		"build": "pnpm -r run build",
 		"test": "pnpm test:scripts && pnpm -r run test",
 		"test:scripts": "node --test scripts/*.test.mjs",
 		"lint": "biome check api && pnpm -r run lint",
 		"lint:apply": "pnpm -r --parallel run lint:apply",
+		"hooks:install": "node scripts/install-git-hooks.mjs",
 		"setup:local": "node scripts/setup-local-env.mjs",
 		"supabase:start": "node scripts/supabase-start.mjs",
 		"supabase:stop": "supabase stop",
