@@ -9,7 +9,7 @@ import {
 	NotFoundError,
 } from "../lib/errors.js";
 import {
-	decryptRecord,
+	decryptRecordSafely,
 	encryptRecord,
 	SENSITIVE_MEMBER_FIELDS,
 } from "../lib/sensitiveData.js";
@@ -170,7 +170,16 @@ export async function memberRoutes(server: FastifyInstance) {
 					throw new DatabaseError();
 				}
 				return {
-					...decryptRecord(memberData, SENSITIVE_MEMBER_FIELDS),
+					...decryptRecordSafely(
+						memberData,
+						SENSITIVE_MEMBER_FIELDS,
+						({ field, error }) => {
+							request.log.warn(
+								{ err: error, userId: body.user_id, field },
+								"Failed to decrypt member field; returning blank value",
+							);
+						},
+					),
 					email: user.email ?? "",
 				};
 			}
@@ -204,7 +213,16 @@ export async function memberRoutes(server: FastifyInstance) {
 			}
 
 			return {
-				...decryptRecord(data, SENSITIVE_MEMBER_FIELDS),
+				...decryptRecordSafely(
+					data,
+					SENSITIVE_MEMBER_FIELDS,
+					({ field, error }) => {
+						request.log.warn(
+							{ err: error, userId: body.user_id, field },
+							"Failed to decrypt member field; returning blank value",
+						);
+					},
+				),
 				email: user.email ?? "",
 			};
 		},
@@ -280,7 +298,16 @@ export async function memberRoutes(server: FastifyInstance) {
 				const email = await getAuthEmail(userId);
 
 				return {
-					...decryptRecord(data, SENSITIVE_MEMBER_FIELDS),
+					...decryptRecordSafely(
+						data,
+						SENSITIVE_MEMBER_FIELDS,
+						({ field, error }) => {
+							request.log.warn(
+								{ err: error, userId, field },
+								"Failed to decrypt member field; returning blank value",
+							);
+						},
+					),
 					email,
 				};
 			} catch (authError) {
@@ -331,7 +358,16 @@ export async function memberRoutes(server: FastifyInstance) {
 				const email = await getAuthEmail(userId);
 
 				return {
-					...decryptRecord(data, SENSITIVE_MEMBER_FIELDS),
+					...decryptRecordSafely(
+						data,
+						SENSITIVE_MEMBER_FIELDS,
+						({ field, error }) => {
+							request.log.warn(
+								{ err: error, userId, field },
+								"Failed to decrypt member field; returning blank value",
+							);
+						},
+					),
 					email,
 				};
 			} catch (authError) {

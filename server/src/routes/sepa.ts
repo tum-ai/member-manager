@@ -9,7 +9,7 @@ import {
 	NotFoundError,
 } from "../lib/errors.js";
 import {
-	decryptRecord,
+	decryptRecordSafely,
 	encryptRecord,
 	SENSITIVE_SEPA_FIELDS,
 } from "../lib/sensitiveData.js";
@@ -89,7 +89,16 @@ export async function sepaRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return decryptRecord(data, SENSITIVE_SEPA_FIELDS);
+			return decryptRecordSafely(
+				data,
+				SENSITIVE_SEPA_FIELDS,
+				({ field, error }) => {
+					request.log.warn(
+						{ err: error, userId, field },
+						"Failed to decrypt SEPA field; returning blank value",
+					);
+				},
+			);
 		},
 	);
 
@@ -126,7 +135,16 @@ export async function sepaRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return decryptRecord(data, SENSITIVE_SEPA_FIELDS);
+			return decryptRecordSafely(
+				data,
+				SENSITIVE_SEPA_FIELDS,
+				({ field, error }) => {
+					request.log.warn(
+						{ err: error, userId, field },
+						"Failed to decrypt SEPA field; returning blank value",
+					);
+				},
+			);
 		},
 	);
 }

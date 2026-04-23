@@ -131,6 +131,26 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(member.sepa.iban, "DE89370400440532013000");
 		});
 
+		test("admin list blanks undecryptable fields instead of failing", async () => {
+			resetDatabase();
+			mockDatabase.members[0].city =
+				"enc-v1:AAAAAAAAAAAAAAAA:BBBBBBBBBBBBBBBBBBBBBB:CCCC";
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/admin/members",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			const member = payload.data.find(
+				(m: { user_id: string }) => m.user_id === testUserIds.user,
+			);
+			assert.ok(member);
+			assert.strictEqual(member.city, "");
+		});
+
 		test("active filter works", async () => {
 			resetDatabase();
 			const response = await app.inject({

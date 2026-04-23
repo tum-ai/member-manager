@@ -4,6 +4,7 @@ import { getAuthEmails } from "../lib/authEmails.js";
 import { DatabaseError } from "../lib/errors.js";
 import {
 	decryptRecord,
+	decryptRecordSafely,
 	SENSITIVE_MEMBER_FIELDS,
 	SENSITIVE_SEPA_FIELDS,
 } from "../lib/sensitiveData.js";
@@ -142,11 +143,26 @@ export async function adminRoutes(server: FastifyInstance) {
 				// Transform data to ensure sepa is an object (Supabase might return array)
 				// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
 				const joined = (members || []).map((m: any) => ({
-					...decryptRecord(m, SENSITIVE_MEMBER_FIELDS),
+					...decryptRecordSafely(
+						m,
+						SENSITIVE_MEMBER_FIELDS,
+						({ field, error }) => {
+							request.log.warn(
+								{ err: error, userId: m.user_id, field },
+								"Failed to decrypt member field; returning blank value",
+							);
+						},
+					),
 					email: emailMap.get(String(m.user_id)) ?? "",
-					sepa: decryptRecord(
+					sepa: decryptRecordSafely(
 						Array.isArray(m.sepa) ? m.sepa[0] || {} : m.sepa || {},
 						SENSITIVE_SEPA_FIELDS,
+						({ field, error }) => {
+							request.log.warn(
+								{ err: error, userId: m.user_id, field },
+								"Failed to decrypt SEPA field; returning blank value",
+							);
+						},
 					),
 				}));
 
