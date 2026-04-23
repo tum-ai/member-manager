@@ -23,6 +23,7 @@ interface MainLayoutProps {
 	children: React.ReactNode;
 	colorMode: AppColorMode;
 	user: User | null;
+	isAdmin?: boolean;
 	onLogout: () => void;
 	onToggleColorMode: () => void;
 }
@@ -31,6 +32,7 @@ export default function MainLayout({
 	children,
 	colorMode,
 	user,
+	isAdmin = false,
 	onLogout,
 	onToggleColorMode,
 }: MainLayoutProps) {
@@ -41,9 +43,11 @@ export default function MainLayout({
 	const navigationValue =
 		location.pathname === "/members"
 			? "/members"
-			: location.pathname === "/" || location.pathname === "/profile"
-				? "/"
-				: "";
+			: location.pathname === "/admin"
+				? "/admin"
+				: location.pathname === "/" || location.pathname === "/profile"
+					? "/"
+					: "";
 
 	const handleNavigationChange = (event: SelectChangeEvent<string>) => {
 		const nextPath = event.target.value;
@@ -159,6 +163,7 @@ export default function MainLayout({
 								</MenuItem>
 								<MenuItem value="/">My Profile</MenuItem>
 								<MenuItem value="/members">All Members</MenuItem>
+								{isAdmin && <MenuItem value="/admin">Admin</MenuItem>}
 							</Select>
 						</FormControl>
 

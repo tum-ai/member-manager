@@ -146,10 +146,17 @@ max_indexes = 5
 [auth]
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
-# in emails.
-site_url = "http://127.0.0.1:5173"
+# in emails. Keep this in sync with the URL the Vite dev server prints.
+site_url = "http://localhost:5173"
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["http://localhost:5173", "http://127.0.0.1:5173"]
+# GoTrue is trailing-slash-sensitive here, so we include both forms and both hosts; if an OAuth
+# flow's redirect_to is not on this list, GoTrue silently falls back to `site_url`.
+additional_redirect_urls = [
+    "http://localhost:5173",
+    "http://localhost:5173/",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:5173/",
+]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to the local API URL (http://127.0.0.1:<port>/auth/v1).
@@ -312,6 +319,22 @@ url = ""
 skip_nonce_check = false
 # If enabled, it will allow the user to successfully authenticate when the provider does not return an email address.
 email_optional = false
+
+# Slack Sign-In via OpenID Connect (the "Continue with Slack" button).
+# Client ID / secret are taken from the Slack app registered against the
+# hosted TUM.ai Supabase project; set them via supabase/.env.local so they
+# are not committed to git. `scripts/supabase-start.mjs` loads that file
+# before spawning `supabase start`.
+#
+# For this to work end-to-end, the Slack app's "Redirect URLs" must include:
+#   http://127.0.0.1:54321/auth/v1/callback
+[auth.external.slack_oidc]
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_SLACK_OIDC_CLIENT_ID)"
+secret = "env(SUPABASE_AUTH_EXTERNAL_SLACK_OIDC_SECRET)"
+redirect_uri = ""
+url = ""
+skip_nonce_check = false
 
 # Allow Solana wallet holders to sign in to your project via the Sign in with Solana (SIWS, EIP-4361) standard.
 # You can configure "web3" rate limit in the [auth.rate_limit] section and set up [auth.captcha] if self-hosting.

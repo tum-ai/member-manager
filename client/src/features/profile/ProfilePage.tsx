@@ -43,6 +43,48 @@ interface ProfilePageProps {
 	user: User;
 }
 
+function extractSlackProfile(user: User): {
+	given_name: string;
+	surname: string;
+} {
+	const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+	const getString = (key: string): string => {
+		const value = metadata[key];
+		return typeof value === "string" ? value.trim() : "";
+	};
+
+	let given = getString("given_name") || getString("first_name");
+	let family = getString("family_name") || getString("last_name");
+
+	if (!given || !family) {
+		const fullName = getString("name") || getString("full_name");
+		if (fullName) {
+			const parts = fullName.split(/\s+/);
+			if (!given) given = parts[0] ?? "";
+			if (!family && parts.length > 1) family = parts.slice(1).join(" ");
+		}
+	}
+
+	return { given_name: given, surname: family };
+}
+
+// TUM semester convention:
+//   WS (Wintersemester): Oct–Mar, labeled WSYY/YY (e.g. WS25/26)
+//   SS (Sommersemester): Apr–Sep, labeled SSYY (e.g. SS26)
+function getCurrentBatch(reference: Date = new Date()): string {
+	const month = reference.getMonth();
+	const year = reference.getFullYear();
+	const yy = (n: number): string => String(n % 100).padStart(2, "0");
+
+	if (month >= 3 && month <= 8) {
+		return `SS${yy(year)}`;
+	}
+	if (month >= 9) {
+		return `WS${yy(year)}/${yy(year + 1)}`;
+	}
+	return `WS${yy(year - 1)}/${yy(year)}`;
+}
+
 export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const theme = useTheme();
 	const { showToast } = useToast();
@@ -109,28 +151,32 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const isActive = memberForm.watch("active");
 
 	useEffect(() => {
-		if (memberData) {
-			memberForm.reset({
-				active: memberData.active,
-				salutation: memberData.salutation || "",
-				title: memberData.title || "",
-				surname: memberData.surname || "",
-				given_name: memberData.given_name || "",
-				date_of_birth: memberData.date_of_birth || "",
-				street: memberData.street || "",
-				number: memberData.number || "",
-				postal_code: memberData.postal_code || "",
-				city: memberData.city || "",
-				country: memberData.country || "Germany",
-				user_id: user.id,
-				batch: memberData.batch || "",
-				department: memberData.department || "",
-				member_role: memberData.member_role || "",
-				degree: memberData.degree || "",
-				school: memberData.school || "",
-			});
-		}
-	}, [memberData, memberForm, user.id]);
+		if (isLoadingMember) return;
+
+		const slackProfile = extractSlackProfile(user);
+		const slackBatch = getCurrentBatch();
+		const existing = memberData ?? {};
+
+		memberForm.reset({
+			active: existing.active ?? true,
+			salutation: existing.salutation || "",
+			title: existing.title || "",
+			surname: existing.surname || slackProfile.surname,
+			given_name: existing.given_name || slackProfile.given_name,
+			date_of_birth: existing.date_of_birth || "",
+			street: existing.street || "",
+			number: existing.number || "",
+			postal_code: existing.postal_code || "",
+			city: existing.city || "",
+			country: existing.country || "Germany",
+			user_id: user.id,
+			batch: existing.batch || slackBatch,
+			department: existing.department || "",
+			member_role: existing.member_role || "",
+			degree: existing.degree || "",
+			school: existing.school || "",
+		});
+	}, [memberData, isLoadingMember, memberForm, user]);
 
 	useEffect(() => {
 		if (sepaData) {

@@ -4,12 +4,14 @@
 	"type": "module",
 	"scripts": {
 		"dev": "pnpm -r --parallel run dev",
-		"dev:local": "pnpm supabase:start && pnpm -r --parallel run dev:local",
+		"dev:local": "pnpm supabase:start && pnpm setup:local && pnpm -r --parallel run dev:local",
 		"build": "pnpm -r run build",
-		"test": "pnpm -r run test",
+		"test": "pnpm test:scripts && pnpm -r run test",
+		"test:scripts": "node --test scripts/*.test.mjs",
 		"lint": "biome check api && pnpm -r run lint",
 		"lint:apply": "pnpm -r --parallel run lint:apply",
-		"supabase:start": "supabase start",
+		"setup:local": "node scripts/setup-local-env.mjs",
+		"supabase:start": "node scripts/supabase-start.mjs",
 		"supabase:stop": "supabase stop",
 		"supabase:status": "supabase status",
 		"supabase:reset": "supabase db reset"

@@ -73,29 +73,27 @@ The local Supabase status output gives you the credentials for the next step.
 
 ### 3. Create local environment files
 
-Create `server/.env.local`:
+Generate `client/.env.local` and `server/.env.local` from the running Supabase stack:
 
-```env
-SUPABASE_URL=http://127.0.0.1:54321
-SUPABASE_SERVICE_ROLE_KEY=<service_role key from supabase status>
-FIELD_ENCRYPTION_KEY=<long random secret>
-PORT=3000
-CORS_ORIGIN=http://localhost:5173,http://127.0.0.1:5173
+```bash
+pnpm setup:local
 ```
 
-Create `client/.env.local`:
+This shells out to `supabase status -o env`, parses the current anon / service-role keys, and writes both `.env.local` files. It is idempotent and preserves any `FIELD_ENCRYPTION_KEY` you have already set locally.
 
-```env
-VITE_SUPABASE_URL=http://127.0.0.1:54321
-VITE_SUPABASE_ANON_KEY=<anon key from supabase status>
-VITE_SLACK_CALLBACK_URL=http://localhost:5173/
-```
+`pnpm dev:local` also runs this step automatically, so most of the time you can skip straight to step 4.
+
+**Optional — "Continue with Slack" login locally:**
+
+To exercise Slack OIDC against the local stack, copy `supabase/.env.example` to `supabase/.env.local` and fill in the Slack app's client ID and secret. `pnpm supabase:start` (invoked via `scripts/supabase-start.mjs`) loads this file into the CLI's environment before spawning so the `env(...)` refs in `supabase/config.toml` resolve. You also need to add `http://127.0.0.1:54321/auth/v1/callback` to the Slack app's allowed redirect URLs.
 
 ### 4. Run the app
 
 ```bash
 pnpm dev:local
 ```
+
+This boots local Supabase, refreshes the `.env.local` files, and starts the client (`vite`) and server (`tsx watch`) in parallel against the local stack.
 
 Local URLs:
 

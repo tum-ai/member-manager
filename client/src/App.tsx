@@ -11,10 +11,12 @@ import { useEffect, useMemo, useState } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import { ToastProvider } from "./contexts/ToastContext";
+import AdminDatabaseView from "./features/admin/AdminDatabaseView";
 import Auth from "./features/auth/Auth";
 import EngagementCertificatePage from "./features/certificate/EngagementCertificatePage";
 import MemberList from "./features/members/MemberList";
 import ProfilePage from "./features/profile/ProfilePage";
+import { useIsAdmin } from "./hooks/useIsAdmin";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
 import {
@@ -33,10 +35,37 @@ export default function App(): JSX.Element {
 	const theme = useMemo(() => getAppTheme(colorMode), [colorMode]);
 
 	useEffect(() => {
-		supabase.auth.getSession().then(({ data: { session } }) => {
-			setUser(session?.user ?? null);
+		// Don't let a slow or unreachable auth service freeze the UI:
+		// if getSession() hasn't resolved within 5s (e.g. Supabase URL is
+		// down or DNS-failing), assume no session and render the login screen.
+		const AUTH_BOOTSTRAP_TIMEOUT_MS = 5_000;
+		let cancelled = false;
+
+		const timeoutId = window.setTimeout(() => {
+			if (cancelled) return;
+			console.warn(
+				"supabase.auth.getSession() timed out; rendering login screen.",
+			);
+			setUser(null);
 			setLoading(false);
-		});
+		}, AUTH_BOOTSTRAP_TIMEOUT_MS);
+
+		supabase.auth
+			.getSession()
+			.then(({ data: { session } }) => {
+				if (cancelled) return;
+				setUser(session?.user ?? null);
+				setLoading(false);
+			})
+			.catch((error) => {
+				if (cancelled) return;
+				console.error("Failed to load auth session:", error);
+				setUser(null);
+				setLoading(false);
+			})
+			.finally(() => {
+				window.clearTimeout(timeoutId);
+			});
 
 		const { data: listener } = supabase.auth.onAuthStateChange(
 			(_event, session) => {
@@ -45,6 +74,8 @@ export default function App(): JSX.Element {
 		);
 
 		return () => {
+			cancelled = true;
+			window.clearTimeout(timeoutId);
 			listener.subscription.unsubscribe();
 		};
 	}, []);
@@ -88,11 +119,7 @@ export default function App(): JSX.Element {
 		return (
 			<ThemeProvider theme={theme}>
 				<CssBaseline />
-				<Auth
-					onLogin={setUser}
-					colorMode={colorMode}
-					onToggleColorMode={toggleColorMode}
-				/>
+				<Auth colorMode={colorMode} onToggleColorMode={toggleColorMode} />
 			</ThemeProvider>
 		);
 	}
@@ -103,26 +130,58 @@ export default function App(): JSX.Element {
 			<QueryClientProvider client={queryClient}>
 				<ToastProvider>
 					<BrowserRouter>
-						<MainLayout
+						<AuthenticatedApp
 							user={user}
-							onLogout={handleLogout}
 							colorMode={colorMode}
+							onLogout={handleLogout}
 							onToggleColorMode={toggleColorMode}
-						>
-							<Routes>
-								<Route path="/" element={<ProfilePage user={user} />} />
-								<Route path="/profile" element={<Navigate to="/" replace />} />
-								<Route path="/members" element={<MemberList />} />
-								<Route
-									path="/engagement-certificate"
-									element={<EngagementCertificatePage user={user} />}
-								/>
-								<Route path="*" element={<Navigate to="/" replace />} />
-							</Routes>
-						</MainLayout>
+						/>
 					</BrowserRouter>
 				</ToastProvider>
 			</QueryClientProvider>
 		</ThemeProvider>
+	);
+}
+
+interface AuthenticatedAppProps {
+	user: User;
+	colorMode: AppColorMode;
+	onLogout: () => void;
+	onToggleColorMode: () => void;
+}
+
+function AuthenticatedApp({
+	user,
+	colorMode,
+	onLogout,
+	onToggleColorMode,
+}: AuthenticatedAppProps): JSX.Element {
+	const { isAdmin } = useIsAdmin(user.id);
+
+	return (
+		<MainLayout
+			user={user}
+			isAdmin={isAdmin}
+			onLogout={onLogout}
+			colorMode={colorMode}
+			onToggleColorMode={onToggleColorMode}
+		>
+			<Routes>
+				<Route path="/" element={<ProfilePage user={user} />} />
+				<Route path="/profile" element={<Navigate to="/" replace />} />
+				<Route path="/members" element={<MemberList />} />
+				<Route
+					path="/engagement-certificate"
+					element={<EngagementCertificatePage user={user} />}
+				/>
+				<Route
+					path="/admin"
+					element={
+						isAdmin ? <AdminDatabaseView /> : <Navigate to="/" replace />
+					}
+				/>
+				<Route path="*" element={<Navigate to="/" replace />} />
+			</Routes>
+		</MainLayout>
 	);
 }

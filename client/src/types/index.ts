@@ -19,6 +19,7 @@ export interface Member {
 	member_role?: string | null;
 	degree?: string | null;
 	school?: string | null;
+	avatar_url?: string | null;
 	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
 	[key: string]: any;
 }

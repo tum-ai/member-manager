@@ -5,7 +5,13 @@
 -- Note: In local development, you can also create users via the Supabase Studio UI
 -- or use the Auth API. These are seeded for convenience.
 
--- Insert a test admin user
+-- Insert test auth users.
+--
+-- GoTrue's Go driver scans several nullable VARCHAR columns in auth.users
+-- (confirmation_token, recovery_token, email_change_token_new, email_change)
+-- as plain Go strings and crashes with "converting NULL to string is
+-- unsupported" on login if they are left NULL. The DB has no DEFAULT '' for
+-- those columns, so we must pass empty strings explicitly.
 insert into auth.users (
     id,
     instance_id,
@@ -17,8 +23,13 @@ insert into auth.users (
     raw_app_meta_data,
     raw_user_meta_data,
     aud,
-    role
-) values (
+    role,
+    confirmation_token,
+    recovery_token,
+    email_change_token_new,
+    email_change
+) values
+(
     '00000000-0000-0000-0000-000000000001',
     '00000000-0000-0000-0000-000000000000',
     'admin@example.com',
@@ -29,23 +40,13 @@ insert into auth.users (
     '{"provider": "email", "providers": ["email"]}',
     '{}',
     'authenticated',
-    'authenticated'
-) on conflict (id) do nothing;
-
--- Insert a test regular user
-insert into auth.users (
-    id,
-    instance_id,
-    email,
-    encrypted_password,
-    email_confirmed_at,
-    created_at,
-    updated_at,
-    raw_app_meta_data,
-    raw_user_meta_data,
-    aud,
-    role
-) values (
+    'authenticated',
+    '',
+    '',
+    '',
+    ''
+),
+(
     '00000000-0000-0000-0000-000000000002',
     '00000000-0000-0000-0000-000000000000',
     'user@example.com',
@@ -56,8 +57,56 @@ insert into auth.users (
     '{"provider": "email", "providers": ["email"]}',
     '{}',
     'authenticated',
-    'authenticated'
-) on conflict (id) do nothing;
+    'authenticated',
+    '',
+    '',
+    '',
+    ''
+)
+on conflict (id) do nothing;
+
+-- Matching identity rows so Supabase Auth can resolve the email provider.
+insert into auth.identities (
+    id,
+    user_id,
+    provider,
+    provider_id,
+    identity_data,
+    last_sign_in_at,
+    created_at,
+    updated_at
+) values
+(
+    gen_random_uuid(),
+    '00000000-0000-0000-0000-000000000001',
+    'email',
+    '00000000-0000-0000-0000-000000000001',
+    jsonb_build_object(
+        'sub', '00000000-0000-0000-0000-000000000001',
+        'email', 'admin@example.com',
+        'email_verified', true,
+        'provider', 'email'
+    ),
+    now(),
+    now(),
+    now()
+),
+(
+    gen_random_uuid(),
+    '00000000-0000-0000-0000-000000000002',
+    'email',
+    '00000000-0000-0000-0000-000000000002',
+    jsonb_build_object(
+        'sub', '00000000-0000-0000-0000-000000000002',
+        'email', 'user@example.com',
+        'email_verified', true,
+        'provider', 'email'
+    ),
+    now(),
+    now(),
+    now()
+)
+on conflict (provider, provider_id) do nothing;
 
 -- Seed member profiles
 insert into public.members (

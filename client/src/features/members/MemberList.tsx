@@ -161,6 +161,8 @@ function MemberCard({ member }: MemberCardProps) {
 			<CardContent sx={{ p: 2.5 }}>
 				<Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
 					<Avatar
+						src={member.avatar_url || undefined}
+						alt={`${member.given_name} ${member.surname}`.trim() || undefined}
 						sx={{
 							width: 56,
 							height: 56,

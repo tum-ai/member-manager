@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { ensureOwnerOrAdmin } from "../lib/auth.js";
-import { getAuthEmail, getAuthEmails } from "../lib/authEmails.js";
+import { getAuthEmail, getAuthProfiles } from "../lib/authEmails.js";
 import {
 	DatabaseError,
 	ForbiddenError,
@@ -228,18 +228,22 @@ export async function memberRoutes(server: FastifyInstance) {
 			}
 
 			try {
-				const emailMap = await getAuthEmails(
+				const profileMap = await getAuthProfiles(
 					// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
 					(data || []).map((member: any) => String(member.user_id)),
 				);
 
 				// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
-				return (data || []).map((member: any) => ({
-					...member,
-					email: emailMap.get(String(member.user_id)) ?? "",
-				}));
+				return (data || []).map((member: any) => {
+					const profile = profileMap.get(String(member.user_id));
+					return {
+						...member,
+						email: profile?.email ?? "",
+						avatar_url: profile?.avatar_url ?? "",
+					};
+				});
 			} catch (authError) {
-				request.log.error({ err: authError }, "Failed to fetch auth emails");
+				request.log.error({ err: authError }, "Failed to fetch auth profiles");
 				throw new DatabaseError();
 			}
 		},
