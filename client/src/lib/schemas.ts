@@ -10,7 +10,7 @@ function isValidDate(dateString: string): boolean {
 
 export const memberSchema = z.object({
 	active: z.boolean(),
-	salutation: z.string().min(1, "Salutation is required"),
+	salutation: z.string(),
 	title: z.string().optional(),
 	surname: z.string().min(1, "Surname is required"),
 	given_name: z.string().min(1, "Given Name is required"),

@@ -331,7 +331,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									color="text.secondary"
 									sx={{ px: 0.5 }}
 								>
-									University
+									Department
 								</Typography>
 								<Box
 									sx={{
@@ -349,7 +349,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									}}
 								>
 									<Typography sx={{ fontWeight: 700 }}>
-										{memberForm.watch("school") || "Not set"}
+										{memberForm.watch("department") || "Not set"}
 									</Typography>
 								</Box>
 							</Box>
@@ -428,15 +428,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									<Grid size={{ xs: 12, sm: 4 }}>
 										<TextField
 											select
-											label="Salutation"
+											label="Salutation (optional)"
 											{...memberForm.register("salutation")}
-											value={memberForm.watch("salutation")}
+											value={memberForm.watch("salutation") || ""}
 											error={!!memberForm.formState.errors.salutation}
 											helperText={
 												memberForm.formState.errors.salutation?.message
 											}
 										>
-											<MenuItem value="">Select...</MenuItem>
+											<MenuItem value="">None</MenuItem>
 											<MenuItem value="Mr.">Mr.</MenuItem>
 											<MenuItem value="Ms.">Ms.</MenuItem>
 											<MenuItem value="Mx.">Mx.</MenuItem>

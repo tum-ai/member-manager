@@ -55,7 +55,15 @@ export default function Modal({
 			PaperProps={{
 				sx: {
 					borderRadius: isMobile ? 0 : 3,
-					backgroundColor: "rgba(30, 30, 30, 0.95)",
+					// Theme-aware glass surface. Previously hard-coded to a dark
+					// rgba, which made body copy (e.g. the SEPA mandate + privacy
+					// policy text using theme.text.primary) unreadable in light
+					// mode: dark-on-dark.
+					backgroundColor:
+						theme.palette.mode === "light"
+							? "rgba(255, 255, 255, 0.96)"
+							: "rgba(30, 30, 30, 0.95)",
+					color: theme.palette.text.primary,
 					backdropFilter: "blur(20px)",
 					border: isMobile ? "none" : `1px solid ${theme.palette.divider}`,
 				},
@@ -63,7 +71,10 @@ export default function Modal({
 			slotProps={{
 				backdrop: {
 					sx: {
-						backgroundColor: "rgba(0, 0, 0, 0.7)",
+						backgroundColor:
+							theme.palette.mode === "light"
+								? "rgba(20, 16, 40, 0.35)"
+								: "rgba(0, 0, 0, 0.7)",
 						backdropFilter: "blur(4px)",
 					},
 				},
@@ -86,7 +97,10 @@ export default function Modal({
 					sx={{
 						color: theme.palette.text.secondary,
 						"&:hover": {
-							backgroundColor: "rgba(255, 255, 255, 0.1)",
+							backgroundColor:
+								theme.palette.mode === "light"
+									? "rgba(0, 0, 0, 0.06)"
+									: "rgba(255, 255, 255, 0.1)",
 						},
 					}}
 					aria-label="Close"
