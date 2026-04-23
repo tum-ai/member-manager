@@ -45,13 +45,47 @@ const RoleSchema = z.object({
 	member_role: z.enum(MEMBER_ROLES),
 });
 
-const RoleHistoryCreateSchema = z.object({
-	role: z.enum(MEMBER_ROLES),
-	semester: z.string().optional().nullable(),
-	started_at: z.string().optional().nullable(),
-	ended_at: z.string().optional().nullable(),
-	note: z.string().optional().nullable(),
-});
+const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+const DateOnlySchema = z
+	.string()
+	.regex(DATE_ONLY_REGEX, "Expected date in YYYY-MM-DD format")
+	.refine((value) => {
+		const [year, month, day] = value.split("-").map(Number);
+		const date = new Date(Date.UTC(year, month - 1, day));
+		return (
+			date.getUTCFullYear() === year &&
+			date.getUTCMonth() === month - 1 &&
+			date.getUTCDate() === day
+		);
+	}, "Invalid calendar date");
+
+const NullableDateOnlySchema = z
+	.string()
+	.optional()
+	.nullable()
+	.transform((value) => {
+		const trimmed = value?.trim();
+		return trimmed ? trimmed : null;
+	})
+	.pipe(DateOnlySchema.nullable());
+
+const RoleHistoryCreateSchema = z
+	.object({
+		role: z.enum(MEMBER_ROLES),
+		semester: z.string().optional().nullable(),
+		started_at: NullableDateOnlySchema,
+		ended_at: NullableDateOnlySchema,
+		note: z.string().optional().nullable(),
+	})
+	.refine(
+		(data) =>
+			!(data.started_at && data.ended_at && data.ended_at < data.started_at),
+		{
+			message: "ended_at must be on or after started_at",
+			path: ["ended_at"],
+		},
+	);
 
 export async function adminRoutes(server: FastifyInstance) {
 	server.get(
@@ -171,7 +205,7 @@ export async function adminRoutes(server: FastifyInstance) {
 			// on a BEFORE trigger (which mocks in tests do not simulate).
 			const update = {
 				member_role: role,
-				active: role === "Alumni" ? false : true,
+				active: role !== "Alumni",
 			};
 
 			const { data, error } = await getSupabase()
@@ -182,6 +216,9 @@ export async function adminRoutes(server: FastifyInstance) {
 				.single();
 
 			if (error) {
+				if (error.code === "PGRST116") {
+					return reply.status(404).send({ error: "Member not found" });
+				}
 				request.log.error({ err: error }, "Failed to update member role");
 				throw new DatabaseError();
 			}

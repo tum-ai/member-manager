@@ -233,6 +233,24 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(response.statusCode, 403);
 		});
 
+		test("unknown member returns 404", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: "/api/admin/members/missing-user/role",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ member_role: "President" }),
+			});
+
+			assert.strictEqual(response.statusCode, 404);
+			assert.deepStrictEqual(JSON.parse(response.payload), {
+				error: "Member not found",
+			});
+		});
+
 		test("unauthenticated request denied", async () => {
 			resetDatabase();
 			const response = await app.inject({
@@ -299,6 +317,43 @@ describe("Admin Routes", async () => {
 					"content-type": "application/json",
 				},
 				payload: JSON.stringify({ role: "Chief Wizard" }),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
+
+		test("rejects invalid date formats in history", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "POST",
+				url: `/api/admin/members/${testUserIds.user}/role-history`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					role: "Team Lead",
+					started_at: "2025-02-30",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
+
+		test("rejects ended_at earlier than started_at", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "POST",
+				url: `/api/admin/members/${testUserIds.user}/role-history`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					role: "Team Lead",
+					started_at: "2026-04-01",
+					ended_at: "2026-03-31",
+				}),
 			});
 
 			assert.strictEqual(response.statusCode, 400);

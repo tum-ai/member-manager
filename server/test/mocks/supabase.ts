@@ -191,9 +191,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 			const realTable = mockDatabase[table as keyof MockData];
 			for (let i = 0; i < realTable.length; i++) {
 				const row = realTable[i];
-				const matches = state.filters.every(
-					(f) => row[f.column] === f.value,
-				);
+				const matches = state.filters.every((f) => row[f.column] === f.value);
 				if (matches) {
 					realTable[i] = { ...realTable[i], ...state.pendingUpdate };
 				}
@@ -213,9 +211,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 			const realTable = mockDatabase[table as keyof MockData];
 			const keep: Array<Record<string, unknown>> = [];
 			for (const row of realTable) {
-				const matches = state.filters.every(
-					(f) => row[f.column] === f.value,
-				);
+				const matches = state.filters.every((f) => row[f.column] === f.value);
 				if (!matches) keep.push(row);
 			}
 			realTable.length = 0;

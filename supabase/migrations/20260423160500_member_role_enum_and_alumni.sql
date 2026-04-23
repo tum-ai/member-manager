@@ -69,6 +69,14 @@ begin
         end if;
     end if;
 
+    -- Final normalization: always enforce the invariant, including when both
+    -- columns are changed in the same UPDATE statement.
+    if new."active" = false then
+        new."member_role" := 'Alumni';
+    elsif new."member_role" = 'Alumni' then
+        new."active" := false;
+    end if;
+
     return new;
 end;
 $$;

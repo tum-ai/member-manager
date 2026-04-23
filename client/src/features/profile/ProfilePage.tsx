@@ -754,8 +754,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 														}}
 														sx={{
 															mb:
-																selectedSchoolOption ===
-																SCHOOL_CUSTOM_OPTION
+																selectedSchoolOption === SCHOOL_CUSTOM_OPTION
 																	? 2
 																	: 0,
 														}}
@@ -775,11 +774,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 															label="Custom school / university"
 															value={storedSchool}
 															onChange={(e) =>
-																memberForm.setValue(
-																	"school",
-																	e.target.value,
-																	{ shouldDirty: true },
-																)
+																memberForm.setValue("school", e.target.value, {
+																	shouldDirty: true,
+																})
 															}
 														/>
 													)}

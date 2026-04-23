@@ -55,10 +55,9 @@ export function useMemberRoleHistory(userId: string | null) {
 	const deleteEntry = useMutation({
 		mutationFn: async (entryId: string) => {
 			if (!userId) throw new Error("No user selected");
-			await apiClient(
-				`/api/admin/members/${userId}/role-history/${entryId}`,
-				{ method: "DELETE" },
-			);
+			await apiClient(`/api/admin/members/${userId}/role-history/${entryId}`, {
+				method: "DELETE",
+			});
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey });

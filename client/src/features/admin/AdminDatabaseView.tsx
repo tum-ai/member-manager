@@ -1,10 +1,10 @@
-import { useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { useToast } from "../../contexts/ToastContext";
 import { useAdminData } from "../../hooks/useAdminData";
 import {
-	useMemberRoleHistory,
 	type NewRoleHistoryEntry,
+	useMemberRoleHistory,
 } from "../../hooks/useMemberRoleHistory";
 import {
 	DEPARTMENTS,
@@ -32,7 +32,10 @@ function escapeCsvCell(value: unknown): string {
 	return str;
 }
 
-function rowsToCsv(rows: Array<Record<string, unknown>>, columns: string[]): string {
+function rowsToCsv(
+	rows: Array<Record<string, unknown>>,
+	columns: string[],
+): string {
 	const header = columns.map(escapeCsvCell).join(",");
 	const body = rows
 		.map((row) => columns.map((col) => escapeCsvCell(row[col])).join(","))
@@ -50,6 +53,9 @@ function RoleHistoryPanel({
 	const { entries, isLoading, addEntry, deleteEntry } = useMemberRoleHistory(
 		member.user_id,
 	);
+	const dialogRef = useRef<HTMLDivElement>(null);
+	const titleId = useId();
+	const descriptionId = useId();
 	const [draft, setDraft] = useState<NewRoleHistoryEntry>({
 		role: "Member",
 		semester: "",
@@ -57,6 +63,10 @@ function RoleHistoryPanel({
 		ended_at: "",
 		note: "",
 	});
+
+	useEffect(() => {
+		dialogRef.current?.focus();
+	}, []);
 
 	async function handleAdd() {
 		const payload: NewRoleHistoryEntry = {
@@ -81,25 +91,36 @@ function RoleHistoryPanel({
 	}
 
 	return (
-		<div
-			className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4"
-			onClick={onClose}
-			onKeyDown={(e) => {
-				if (e.key === "Escape") onClose();
-			}}
-			role="dialog"
-			tabIndex={-1}
-		>
+		<div className="fixed inset-0 z-40 flex items-center justify-center p-4">
+			<button
+				type="button"
+				aria-label="Close role history dialog"
+				className="absolute inset-0 bg-black/60"
+				onClick={onClose}
+			/>
 			<div
+				ref={dialogRef}
 				className="relative z-50 w-full max-w-3xl rounded-lg border border-gray-700 bg-gray-900 p-6 text-white shadow-2xl"
 				onClick={(e) => e.stopPropagation()}
-				onKeyDown={(e) => e.stopPropagation()}
-				role="document"
+				onKeyDown={(e) => {
+					if (e.key === "Escape") {
+						e.preventDefault();
+						e.stopPropagation();
+						onClose();
+					}
+				}}
+				role="dialog"
+				aria-modal="true"
+				aria-labelledby={titleId}
+				aria-describedby={descriptionId}
+				tabIndex={-1}
 			>
 				<div className="mb-4 flex items-start justify-between gap-4">
 					<div>
-						<h3 className="text-xl font-semibold">Role history</h3>
-						<p className="text-sm text-gray-400">
+						<h3 id={titleId} className="text-xl font-semibold">
+							Role history
+						</h3>
+						<p id={descriptionId} className="text-sm text-gray-400">
 							{member.given_name} {member.surname} · current role:{" "}
 							<strong>{member.member_role || "Member"}</strong>
 						</p>
@@ -243,8 +264,14 @@ export default function AdminDatabaseView() {
 		if (!members) return [];
 		return (members || [])
 			.filter((row) => {
-				const { search, mandateAgreed, privacyAgreed, activeOnly, department, role } =
-					filters;
+				const {
+					search,
+					mandateAgreed,
+					privacyAgreed,
+					activeOnly,
+					department,
+					role,
+				} = filters;
 				const text =
 					`${row.surname} ${row.given_name} ${row.email} ${row.phone} ${row.sepa?.iban || ""} ${row.sepa?.bic || ""} ${row.sepa?.bank_name || ""}`.toLowerCase();
 
@@ -572,9 +599,7 @@ export default function AdminDatabaseView() {
 								<td className="p-3">{row.department || "—"}</td>
 								<td className="p-3">
 									<select
-										value={
-											(row.member_role as MemberRole | null) || "Member"
-										}
+										value={(row.member_role as MemberRole | null) || "Member"}
 										onChange={(e) =>
 											handleRoleChange(row, e.target.value as MemberRole)
 										}
@@ -589,8 +614,12 @@ export default function AdminDatabaseView() {
 								</td>
 								<td className="p-3">{row.sepa?.iban || ""}</td>
 								<td className="p-3">{row.sepa?.bank_name || ""}</td>
-								<td className="p-3">{String(row.sepa?.mandate_agreed ?? false)}</td>
-								<td className="p-3">{String(row.sepa?.privacy_agreed ?? false)}</td>
+								<td className="p-3">
+									{String(row.sepa?.mandate_agreed ?? false)}
+								</td>
+								<td className="p-3">
+									{String(row.sepa?.privacy_agreed ?? false)}
+								</td>
 								<td className="p-3">{String(row.active)}</td>
 								<td className="p-3">
 									<button
