@@ -55,11 +55,17 @@ export function loadEnvChain(
 
 	const merged: Record<string, string> = {};
 
+	// dotenv types `processEnv` as `Record<string, string>` but accepts any
+	// object-like target at runtime (including `NodeJS.ProcessEnv`, whose
+	// values are `string | undefined`). The cast keeps callers - including
+	// the default `process.env` - ergonomic without a lossy public type.
+	const processEnvTarget = target as Record<string, string> | undefined;
+
 	for (const { file, override } of effective) {
 		const result = dotenv.config({
 			path: resolve(file),
 			override,
-			processEnv: target,
+			processEnv: processEnvTarget,
 		});
 		if (result.parsed) {
 			Object.assign(merged, result.parsed);
