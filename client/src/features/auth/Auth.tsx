@@ -12,6 +12,7 @@ import {
 } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 import { useState } from "react";
+import { getSlackRedirectUrl } from "../../lib/authRedirect";
 import { supabase } from "../../lib/supabaseClient";
 import type { AppColorMode } from "../../theme";
 
@@ -53,7 +54,11 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 		const { error } = await supabase.auth.signInWithOAuth({
 			provider: "slack_oidc",
 			options: {
-				redirectTo: import.meta.env.VITE_SLACK_CALLBACK_URL,
+				redirectTo: getSlackRedirectUrl({
+					currentOrigin:
+						typeof window === "undefined" ? undefined : window.location.origin,
+					configuredRedirectUrl: import.meta.env.VITE_SLACK_CALLBACK_URL,
+				}),
 			},
 		});
 
