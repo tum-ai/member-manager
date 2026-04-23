@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+
+echo "[pre-push] Running full gate (lint + build + test)"
+pnpm --dir "$ROOT_DIR" gate

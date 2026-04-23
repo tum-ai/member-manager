@@ -77,6 +77,28 @@ Run all: `pnpm test`. Run one workspace: `pnpm --filter @member-manager/server t
 
 Verification tests that hit a running local stack live in `scripts/verify-*.test.mjs`. They skip silently if Supabase isn't reachable, so they're safe to run by default.
 
+## Full gate before push
+
+The merge gate is:
+
+```bash
+pnpm gate
+```
+
+That expands to:
+
+```bash
+pnpm lint && pnpm build && pnpm test
+```
+
+To enforce that locally before every push, install the repo-managed Git hook once:
+
+```bash
+pnpm hooks:install
+```
+
+This writes `.git/hooks/pre-push`, which runs `pnpm gate` and blocks the push on any failure. The installer is intentionally conservative: it refuses to overwrite a custom existing `pre-push` hook.
+
 ## Schema migrations
 
 - Local: add SQL files to `supabase/migrations/` (timestamp-prefixed), then `pnpm supabase:reset` to re-apply the full chain against a fresh DB.

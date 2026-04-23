@@ -145,3 +145,34 @@ export function decryptRecord<T extends Record<string, unknown>>(
 
 	return clone as T;
 }
+
+export function decryptRecordSafely<T extends Record<string, unknown>>(
+	record: T,
+	fields: readonly SensitiveField[],
+	onError?: (context: {
+		field: SensitiveField;
+		value: unknown;
+		error: Error;
+	}) => void,
+): T {
+	const clone = { ...record } as Record<string, unknown>;
+
+	for (const field of fields) {
+		if (!(field in clone)) continue;
+
+		try {
+			clone[field] = decryptValue(clone[field]);
+		} catch (error) {
+			const normalizedError =
+				error instanceof Error ? error : new Error(String(error));
+			onError?.({
+				field,
+				value: clone[field],
+				error: normalizedError,
+			});
+			clone[field] = "";
+		}
+	}
+
+	return clone as T;
+}

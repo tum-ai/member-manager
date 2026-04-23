@@ -48,23 +48,26 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | --- | --- |
 | `VITE_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | anon key from Supabase dashboard |
-| `VITE_SLACK_CALLBACK_URL` | `https://<prod-domain>/` (trailing slash matters — see below) |
+| `VITE_SLACK_CALLBACK_URL` | optional fallback override; usually `https://<prod-domain>/` |
 
-> Preview deploys get their own domain (`*.vercel.app`). If Slack login should work on them, add that domain to Supabase redirect URLs and the Slack app, and set `VITE_SLACK_CALLBACK_URL` accordingly per environment.
+> Preview deploys get their own domain (`*.vercel.app`). The client now redirects OAuth back to `window.location.origin`, so previews return to the preview deployment automatically. For that to work, Supabase must allow the preview hostname pattern in its Redirect URLs list.
 
 ### 2. Supabase dashboard
 
 **Authentication → URL Configuration:**
 
 - `Site URL`: `https://<prod-domain>`
-- `Redirect URLs` (allow-list — exact match, trailing slash sensitive): add **all four** variants for each domain you expect OAuth to return to:
+- `Redirect URLs` (allow-list): add the prod domain plus a wildcard for Vercel previews:
 
     ```
     https://<prod-domain>
     https://<prod-domain>/
+    https://*-tum-ai.vercel.app/**
     ```
 
-  Add staging / preview domains the same way. GoTrue silently falls back to `Site URL` if the requested `redirect_to` isn't on this list — the failure mode is "Slack login sends me to the wrong URL", not an error.
+  `https://*-tum-ai.vercel.app/**` matches preview deployments like `https://member-manager-1g1lmdm6b-tum-ai.vercel.app/`.
+
+  If the requested `redirect_to` isn't on this list, Supabase falls back to `Site URL`, which is why preview Slack logins end up on production.
 
 **Authentication → Providers → Slack (OIDC):**
 
@@ -79,7 +82,7 @@ In the TUM.ai Slack app → OAuth & Permissions → Redirect URLs:
 - Production: `https://<project-ref>.supabase.co/auth/v1/callback`
 - Local (optional, if you want to test Slack login locally): `http://127.0.0.1:54321/auth/v1/callback`
 
-Both can coexist.
+Both can coexist. Preview deployments do **not** need their own Slack redirect URL when they share the same Supabase project; Slack always returns to the Supabase callback first, and Supabase then redirects the browser to the preview deployment.
 
 ### 4. Database migrations
 

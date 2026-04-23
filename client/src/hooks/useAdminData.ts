@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../lib/apiClient";
+import type { MemberRole } from "../lib/constants";
 import type { Member, Sepa } from "../types";
 
 interface AdminMember extends Member {
@@ -48,11 +49,31 @@ export function useAdminData() {
 		},
 	});
 
+	const updateRoleMutation = useMutation({
+		mutationFn: async ({
+			userId,
+			role,
+		}: {
+			userId: string;
+			role: MemberRole;
+		}) => {
+			await apiClient(`/api/admin/members/${userId}/role`, {
+				method: "PATCH",
+				body: JSON.stringify({ member_role: role }),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+		},
+	});
+
 	return {
 		members,
 		isLoading,
 		error,
 		toggleStatus: toggleStatusMutation.mutateAsync,
 		isToggling: toggleStatusMutation.isPending,
+		updateRole: updateRoleMutation.mutateAsync,
+		isUpdatingRole: updateRoleMutation.isPending,
 	};
 }

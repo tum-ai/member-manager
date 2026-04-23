@@ -40,6 +40,7 @@ interface MockData {
 	members: Array<Record<string, unknown>>;
 	sepa: Array<Record<string, unknown>>;
 	user_roles: Array<Record<string, unknown>>;
+	member_role_history: Array<Record<string, unknown>>;
 }
 
 export const mockDatabase: MockData = {
@@ -109,6 +110,7 @@ export const mockDatabase: MockData = {
 			role: "admin",
 		},
 	],
+	member_role_history: [],
 };
 
 type QueryResult = Promise<{
@@ -125,6 +127,7 @@ interface QueryBuilder {
 		data: Record<string, unknown> | Array<Record<string, unknown>>,
 		options?: { onConflict?: string; ignoreDuplicates?: boolean },
 	) => QueryBuilder;
+	delete: () => QueryBuilder;
 	eq: (column: string, value: unknown) => QueryBuilder;
 	or: (query: string) => QueryBuilder;
 	order: (column: string, options?: { ascending?: boolean }) => QueryBuilder;
@@ -143,6 +146,10 @@ function createQueryBuilder(table: string): QueryBuilder {
 		rangeConfig: undefined as { from: number; to: number } | undefined,
 		selectConfig: undefined as { count?: string } | undefined,
 		insertedData: null as Array<Record<string, unknown>> | null,
+		// Pending UPDATE payload. Applied at execute() time so filters set via
+		// `.eq()` AFTER `.update()` still take effect (real PostgREST usage).
+		pendingUpdate: null as Record<string, unknown> | null,
+		pendingDelete: false,
 	};
 
 	const execute = (isSingle = false) => {
@@ -176,6 +183,40 @@ function createQueryBuilder(table: string): QueryBuilder {
 			tableData = tableData.filter(
 				(row) => row[filter.column] === filter.value,
 			);
+		}
+
+		// Apply a pending UPDATE now that filters are known. Mutates the real
+		// mockDatabase[table] in place so subsequent reads observe the change.
+		if (state.pendingUpdate && !state.insertedData) {
+			const realTable = mockDatabase[table as keyof MockData];
+			for (let i = 0; i < realTable.length; i++) {
+				const row = realTable[i];
+				const matches = state.filters.every((f) => row[f.column] === f.value);
+				if (matches) {
+					realTable[i] = { ...realTable[i], ...state.pendingUpdate };
+				}
+			}
+			tableData = tableData.map((row) => {
+				const key = row.user_id ?? row.id ?? row.id_uuid;
+				const updated = realTable.find(
+					(candidate) =>
+						(candidate.user_id ?? candidate.id ?? candidate.id_uuid) === key,
+				);
+				return updated ? { ...updated } : row;
+			});
+		}
+
+		// Apply a pending DELETE now that filters are known.
+		if (state.pendingDelete && !state.insertedData) {
+			const realTable = mockDatabase[table as keyof MockData];
+			const keep: Array<Record<string, unknown>> = [];
+			for (const row of realTable) {
+				const matches = state.filters.every((f) => row[f.column] === f.value);
+				if (!matches) keep.push(row);
+			}
+			realTable.length = 0;
+			realTable.push(...keep);
+			tableData = [];
 		}
 
 		// Handle joins for admin members query
@@ -243,22 +284,37 @@ function createQueryBuilder(table: string): QueryBuilder {
 
 		insert: (data: unknown) => {
 			const tableData = mockDatabase[table as keyof MockData];
-			const records = Array.isArray(data) ? data : [data];
+			const records = (Array.isArray(data) ? data : [data]).map((r) => {
+				const rec = r as Record<string, unknown>;
+				// Auto-assign an id for tables that use UUID PKs (the real schema
+				// has `default gen_random_uuid()`). Without this, INSERTs followed
+				// by SELECT/DELETE-by-id don't line up in tests.
+				if (
+					table === "member_role_history" &&
+					rec.id === undefined &&
+					rec.id_uuid === undefined
+				) {
+					rec.id = `mock-${Math.random().toString(36).slice(2, 10)}`;
+				}
+				if (rec.created_at === undefined) {
+					rec.created_at = new Date().toISOString();
+				}
+				return rec;
+			});
 			tableData.push(...records);
 			state.insertedData = records as Array<Record<string, unknown>>;
 			return proxyBuilder;
 		},
 
 		update: (data: Record<string, unknown>) => {
-			const tableData = mockDatabase[table as keyof MockData];
-			for (const filter of state.filters) {
-				const index = tableData.findIndex(
-					(row) => row[filter.column] === filter.value,
-				);
-				if (index !== -1) {
-					tableData[index] = { ...tableData[index], ...data };
-				}
-			}
+			// Defer the actual mutation to execute() so that any `.eq()` filters
+			// chained AFTER `.update(...)` are respected.
+			state.pendingUpdate = data;
+			return proxyBuilder;
+		},
+
+		delete: () => {
+			state.pendingDelete = true;
 			return proxyBuilder;
 		},
 
@@ -453,4 +509,6 @@ export function resetMockDatabase(): void {
 			role: "admin",
 		},
 	];
+
+	mockDatabase.member_role_history = [];
 }

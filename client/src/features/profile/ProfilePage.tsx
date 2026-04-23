@@ -27,7 +27,14 @@ import Modal from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
 import { useSepaData } from "../../hooks/useSepaData";
-import { DEPARTMENTS } from "../../lib/constants";
+import {
+	DEGREE_PROGRAM_CUSTOM_OPTION,
+	DEGREE_PROGRAM_PRESETS,
+	DEGREE_TYPES,
+	DEPARTMENTS,
+	SCHOOL_CUSTOM_OPTION,
+	SCHOOL_PRESETS,
+} from "../../lib/constants";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
 import {
 	type MemberSchema,
@@ -66,6 +73,34 @@ function extractSlackProfile(user: User): {
 	}
 
 	return { given_name: given, surname: family };
+}
+
+// The DB stores `degree` as a single text column. To give the UI a constrained
+// "degree type" select + a (preset-or-custom) program select, we split/join at
+// the UI boundary:
+//   stored value:  "B.Sc. Computer Science"
+//     -> type:     "B.Sc."
+//     -> program:  "Computer Science"
+// If only a program or only a type is set, the other half is left blank.
+function splitDegree(stored: string): { type: string; program: string } {
+	const trimmed = (stored ?? "").trim();
+	for (const candidate of DEGREE_TYPES) {
+		if (trimmed === candidate) return { type: candidate, program: "" };
+		if (trimmed.startsWith(`${candidate} `)) {
+			return {
+				type: candidate,
+				program: trimmed.slice(candidate.length + 1).trim(),
+			};
+		}
+	}
+	return { type: "", program: trimmed };
+}
+
+function joinDegree(type: string, program: string): string {
+	const t = type.trim();
+	const p = program.trim();
+	if (t && p) return `${t} ${p}`;
+	return t || p;
 }
 
 // TUM semester convention:
@@ -331,7 +366,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									color="text.secondary"
 									sx={{ px: 0.5 }}
 								>
-									University
+									Department
 								</Typography>
 								<Box
 									sx={{
@@ -349,7 +384,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									}}
 								>
 									<Typography sx={{ fontWeight: 700 }}>
-										{memberForm.watch("school") || "Not set"}
+										{memberForm.watch("department") || "Not set"}
 									</Typography>
 								</Box>
 							</Box>
@@ -428,15 +463,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									<Grid size={{ xs: 12, sm: 4 }}>
 										<TextField
 											select
-											label="Salutation"
+											label="Salutation (optional)"
 											{...memberForm.register("salutation")}
-											value={memberForm.watch("salutation")}
+											value={memberForm.watch("salutation") || ""}
 											error={!!memberForm.formState.errors.salutation}
 											helperText={
 												memberForm.formState.errors.salutation?.message
 											}
 										>
-											<MenuItem value="">Select...</MenuItem>
+											<MenuItem value="">None</MenuItem>
 											<MenuItem value="Mr.">Mr.</MenuItem>
 											<MenuItem value="Ms.">Ms.</MenuItem>
 											<MenuItem value="Mx.">Mx.</MenuItem>
@@ -591,24 +626,163 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									<Grid size={{ xs: 12, sm: 6 }}>
 										<TextField
 											label="Role in TUM.ai"
-											placeholder="e.g. Team Lead, Member"
-											{...memberForm.register("member_role")}
+											value={memberForm.watch("member_role") || "Member"}
+											helperText="Roles are assigned by admins"
+											disabled
 										/>
 									</Grid>
 									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											label="Degree"
-											placeholder="e.g. B.Sc., M.Sc., Ph.D."
-											{...memberForm.register("degree")}
-										/>
+										{(() => {
+											const storedDegree = memberForm.watch("degree") || "";
+											const { type, program } = splitDegree(storedDegree);
+											return (
+												<TextField
+													select
+													label="Degree"
+													value={type}
+													onChange={(e) => {
+														memberForm.setValue(
+															"degree",
+															joinDegree(e.target.value, program),
+															{ shouldDirty: true },
+														);
+													}}
+												>
+													<MenuItem value="">None</MenuItem>
+													{DEGREE_TYPES.map((t) => (
+														<MenuItem key={t} value={t}>
+															{t}
+														</MenuItem>
+													))}
+												</TextField>
+											);
+										})()}
+									</Grid>
+									<Grid size={12}>
+										{(() => {
+											const storedDegree = memberForm.watch("degree") || "";
+											const { type, program } = splitDegree(storedDegree);
+											const isPresetProgram =
+												program === "" ||
+												(DEGREE_PROGRAM_PRESETS as readonly string[]).includes(
+													program,
+												);
+											const selectedProgramOption = isPresetProgram
+												? program
+												: DEGREE_PROGRAM_CUSTOM_OPTION;
+											return (
+												<>
+													<TextField
+														select
+														label="Program"
+														value={selectedProgramOption}
+														onChange={(e) => {
+															const chosen = e.target.value;
+															if (chosen === DEGREE_PROGRAM_CUSTOM_OPTION) {
+																memberForm.setValue(
+																	"degree",
+																	joinDegree(type, ""),
+																	{ shouldDirty: true },
+																);
+															} else {
+																memberForm.setValue(
+																	"degree",
+																	joinDegree(type, chosen),
+																	{ shouldDirty: true },
+																);
+															}
+														}}
+														sx={{ mb: isPresetProgram ? 0 : 2 }}
+													>
+														<MenuItem value="">None</MenuItem>
+														{DEGREE_PROGRAM_PRESETS.map((p) => (
+															<MenuItem key={p} value={p}>
+																{p}
+															</MenuItem>
+														))}
+														<MenuItem value={DEGREE_PROGRAM_CUSTOM_OPTION}>
+															Other (custom)
+														</MenuItem>
+													</TextField>
+													{!isPresetProgram && (
+														<TextField
+															label="Custom program name"
+															value={program}
+															onChange={(e) =>
+																memberForm.setValue(
+																	"degree",
+																	joinDegree(type, e.target.value),
+																	{ shouldDirty: true },
+																)
+															}
+														/>
+													)}
+												</>
+											);
+										})()}
 									</Grid>
 
 									<Grid size={12}>
-										<TextField
-											label="School / University"
-											placeholder="e.g. TUM School of Computation, Information and Technology"
-											{...memberForm.register("school")}
-										/>
+										{(() => {
+											const storedSchool = memberForm.watch("school") || "";
+											const isPresetSchool = (
+												SCHOOL_PRESETS as readonly string[]
+											).includes(storedSchool);
+											const selectedSchoolOption =
+												storedSchool === ""
+													? ""
+													: isPresetSchool
+														? storedSchool
+														: SCHOOL_CUSTOM_OPTION;
+											return (
+												<>
+													<TextField
+														select
+														label="School / University"
+														value={selectedSchoolOption}
+														onChange={(e) => {
+															const chosen = e.target.value;
+															if (chosen === SCHOOL_CUSTOM_OPTION) {
+																memberForm.setValue("school", "", {
+																	shouldDirty: true,
+																});
+															} else {
+																memberForm.setValue("school", chosen, {
+																	shouldDirty: true,
+																});
+															}
+														}}
+														sx={{
+															mb:
+																selectedSchoolOption === SCHOOL_CUSTOM_OPTION
+																	? 2
+																	: 0,
+														}}
+													>
+														<MenuItem value="">None</MenuItem>
+														{SCHOOL_PRESETS.map((s) => (
+															<MenuItem key={s} value={s}>
+																{s}
+															</MenuItem>
+														))}
+														<MenuItem value={SCHOOL_CUSTOM_OPTION}>
+															Other (custom)
+														</MenuItem>
+													</TextField>
+													{selectedSchoolOption === SCHOOL_CUSTOM_OPTION && (
+														<TextField
+															label="Custom school / university"
+															value={storedSchool}
+															onChange={(e) =>
+																memberForm.setValue("school", e.target.value, {
+																	shouldDirty: true,
+																})
+															}
+														/>
+													)}
+												</>
+											);
+										})()}
 									</Grid>
 								</Grid>
 							</CardContent>

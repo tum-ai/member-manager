@@ -9,7 +9,7 @@ import {
 	NotFoundError,
 } from "../lib/errors.js";
 import {
-	decryptRecord,
+	decryptRecordSafely,
 	encryptRecord,
 	SENSITIVE_MEMBER_FIELDS,
 } from "../lib/sensitiveData.js";
@@ -113,10 +113,6 @@ const UpdateMemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
-	member_role: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v || null)),
 	degree: z
 		.string()
 		.nullish()
@@ -125,6 +121,10 @@ const UpdateMemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
+	// Note: `member_role` is intentionally NOT in this schema. It is admin-only
+	// and is mutated exclusively via `PATCH /api/admin/members/:userId/role`
+	// (see server/src/routes/admin.ts). Any `member_role` in the request body
+	// is silently dropped by zod's strip behaviour.
 });
 
 export async function memberRoutes(server: FastifyInstance) {
@@ -170,7 +170,16 @@ export async function memberRoutes(server: FastifyInstance) {
 					throw new DatabaseError();
 				}
 				return {
-					...decryptRecord(memberData, SENSITIVE_MEMBER_FIELDS),
+					...decryptRecordSafely(
+						memberData,
+						SENSITIVE_MEMBER_FIELDS,
+						({ field, error }) => {
+							request.log.warn(
+								{ err: error, userId: body.user_id, field },
+								"Failed to decrypt member field; returning blank value",
+							);
+						},
+					),
 					email: user.email ?? "",
 				};
 			}
@@ -204,7 +213,16 @@ export async function memberRoutes(server: FastifyInstance) {
 			}
 
 			return {
-				...decryptRecord(data, SENSITIVE_MEMBER_FIELDS),
+				...decryptRecordSafely(
+					data,
+					SENSITIVE_MEMBER_FIELDS,
+					({ field, error }) => {
+						request.log.warn(
+							{ err: error, userId: body.user_id, field },
+							"Failed to decrypt member field; returning blank value",
+						);
+					},
+				),
 				email: user.email ?? "",
 			};
 		},
@@ -280,7 +298,16 @@ export async function memberRoutes(server: FastifyInstance) {
 				const email = await getAuthEmail(userId);
 
 				return {
-					...decryptRecord(data, SENSITIVE_MEMBER_FIELDS),
+					...decryptRecordSafely(
+						data,
+						SENSITIVE_MEMBER_FIELDS,
+						({ field, error }) => {
+							request.log.warn(
+								{ err: error, userId, field },
+								"Failed to decrypt member field; returning blank value",
+							);
+						},
+					),
 					email,
 				};
 			} catch (authError) {
@@ -331,7 +358,16 @@ export async function memberRoutes(server: FastifyInstance) {
 				const email = await getAuthEmail(userId);
 
 				return {
-					...decryptRecord(data, SENSITIVE_MEMBER_FIELDS),
+					...decryptRecordSafely(
+						data,
+						SENSITIVE_MEMBER_FIELDS,
+						({ field, error }) => {
+							request.log.warn(
+								{ err: error, userId, field },
+								"Failed to decrypt member field; returning blank value",
+							);
+						},
+					),
 					email,
 				};
 			} catch (authError) {
