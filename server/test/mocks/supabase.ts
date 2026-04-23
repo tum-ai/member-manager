@@ -143,6 +143,9 @@ function createQueryBuilder(table: string): QueryBuilder {
 		rangeConfig: undefined as { from: number; to: number } | undefined,
 		selectConfig: undefined as { count?: string } | undefined,
 		insertedData: null as Array<Record<string, unknown>> | null,
+		// Pending UPDATE payload. Applied at execute() time so filters set via
+		// `.eq()` AFTER `.update()` still take effect (real PostgREST usage).
+		pendingUpdate: null as Record<string, unknown> | null,
 	};
 
 	const execute = (isSingle = false) => {
@@ -176,6 +179,29 @@ function createQueryBuilder(table: string): QueryBuilder {
 			tableData = tableData.filter(
 				(row) => row[filter.column] === filter.value,
 			);
+		}
+
+		// Apply a pending UPDATE now that filters are known. Mutates the real
+		// mockDatabase[table] in place so subsequent reads observe the change.
+		if (state.pendingUpdate && !state.insertedData) {
+			const realTable = mockDatabase[table as keyof MockData];
+			for (let i = 0; i < realTable.length; i++) {
+				const row = realTable[i];
+				const matches = state.filters.every(
+					(f) => row[f.column] === f.value,
+				);
+				if (matches) {
+					realTable[i] = { ...realTable[i], ...state.pendingUpdate };
+				}
+			}
+			tableData = tableData.map((row) => {
+				const key = row.user_id ?? row.id ?? row.id_uuid;
+				const updated = realTable.find(
+					(candidate) =>
+						(candidate.user_id ?? candidate.id ?? candidate.id_uuid) === key,
+				);
+				return updated ? { ...updated } : row;
+			});
 		}
 
 		// Handle joins for admin members query
@@ -250,15 +276,9 @@ function createQueryBuilder(table: string): QueryBuilder {
 		},
 
 		update: (data: Record<string, unknown>) => {
-			const tableData = mockDatabase[table as keyof MockData];
-			for (const filter of state.filters) {
-				const index = tableData.findIndex(
-					(row) => row[filter.column] === filter.value,
-				);
-				if (index !== -1) {
-					tableData[index] = { ...tableData[index], ...data };
-				}
-			}
+			// Defer the actual mutation to execute() so that any `.eq()` filters
+			// chained AFTER `.update(...)` are respected.
+			state.pendingUpdate = data;
 			return proxyBuilder;
 		},
 

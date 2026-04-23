@@ -162,6 +162,90 @@ describe("Admin Routes", async () => {
 		});
 	});
 
+	describe("PATCH /api/admin/members/:userId/role", () => {
+		// Admin role assignment is the only legitimate path to mutate
+		// `members.member_role`. Regular users must not be able to change their
+		// own role (or anyone else's) via the member profile PUT. See also the
+		// assertions in members.test.ts.
+
+		test("admin can set a canonical role", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/role`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ member_role: "Team Lead" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.member_role, "Team Lead");
+		});
+
+		test("setting role=Alumni also deactivates the member", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/role`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ member_role: "Alumni" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.member_role, "Alumni");
+			assert.strictEqual(payload.active, false);
+		});
+
+		test("rejects roles outside the canonical 5", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/role`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ member_role: "Chief Wizard" }),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
+
+		test("regular user denied access", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/role`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ member_role: "President" }),
+			});
+
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("unauthenticated request denied", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/role`,
+				headers: { "content-type": "application/json" },
+				payload: JSON.stringify({ member_role: "President" }),
+			});
+
+			assert.strictEqual(response.statusCode, 401);
+		});
+	});
+
 	describe("PATCH /api/admin/members/:userId/status", () => {
 		test("admin can update member status", async () => {
 			resetDatabase();

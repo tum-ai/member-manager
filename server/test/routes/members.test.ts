@@ -374,5 +374,36 @@ describe("Members Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 401);
 		});
+
+		test("user-facing PUT silently ignores member_role (admin-only field)", async () => {
+			// Regression: self-service profile save must not let users escalate
+			// their own role. Role changes go through PATCH /admin/members/:id/role.
+			resetDatabase();
+			const storedBefore = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			const originalRole = storedBefore?.member_role;
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					given_name: "Self",
+					member_role: "President",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const storedAfter = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.strictEqual(storedAfter?.member_role, originalRole);
+			const body = JSON.parse(response.payload);
+			assert.notStrictEqual(body.member_role, "President");
+		});
 	});
 });

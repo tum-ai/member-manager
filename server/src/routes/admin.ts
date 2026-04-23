@@ -28,6 +28,23 @@ const StatusSchema = z.object({
 	active: z.boolean(),
 });
 
+// Canonical member roles. Keep in sync with:
+//   - `supabase/migrations/20260423160500_member_role_enum_and_alumni.sql`
+//   - `client/src/lib/constants.ts` (MEMBER_ROLES)
+//   - `client/src/lib/schemas.ts` (memberSchema.member_role)
+export const MEMBER_ROLES = [
+	"Member",
+	"Team Lead",
+	"Vice-President",
+	"President",
+	"Alumni",
+] as const;
+type MemberRole = (typeof MEMBER_ROLES)[number];
+
+const RoleSchema = z.object({
+	member_role: z.enum(MEMBER_ROLES),
+});
+
 export async function adminRoutes(server: FastifyInstance) {
 	server.get(
 		"/admin/members",
@@ -124,6 +141,44 @@ export async function adminRoutes(server: FastifyInstance) {
 				request.log.error({ err: authError }, "Failed to fetch auth emails");
 				throw new DatabaseError();
 			}
+		},
+	);
+
+	server.patch<{ Params: { userId: string } }>(
+		"/admin/members/:userId/role",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const { userId } = request.params;
+			const parsed = RoleSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid member_role",
+					details: parsed.error.flatten(),
+				});
+			}
+			const role: MemberRole = parsed.data.member_role;
+
+			// Alumni <-> inactive invariant: DB trigger enforces this on write,
+			// but we set both explicitly so behavior is observable without relying
+			// on a BEFORE trigger (which mocks in tests do not simulate).
+			const update = {
+				member_role: role,
+				active: role === "Alumni" ? false : true,
+			};
+
+			const { data, error } = await getSupabase()
+				.from("members")
+				.update(update)
+				.eq("user_id", userId)
+				.select()
+				.single();
+
+			if (error) {
+				request.log.error({ err: error }, "Failed to update member role");
+				throw new DatabaseError();
+			}
+
+			return decryptRecord(data, SENSITIVE_MEMBER_FIELDS);
 		},
 	);
 
