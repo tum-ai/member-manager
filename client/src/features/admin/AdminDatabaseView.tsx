@@ -17,6 +17,7 @@ import {
 	DialogActions,
 	DialogContent,
 	DialogTitle,
+	Divider,
 	Grid,
 	InputAdornment,
 	MenuItem,
@@ -39,7 +40,11 @@ import { type ReactNode, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
-import { useAdminData } from "../../hooks/useAdminData";
+import {
+	type EngagementCertificateRequest,
+	type MemberChangeRequest,
+	useAdminData,
+} from "../../hooks/useAdminData";
 import { DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
 import {
 	getMemberStatusLabel,
@@ -112,6 +117,8 @@ export default function AdminDatabaseView() {
 	const [editAccessRole, setEditAccessRole] = useState<"user" | "admin">(
 		"user",
 	);
+	const [certificateRequestBeingViewed, setCertificateRequestBeingViewed] =
+		useState<EngagementCertificateRequest | null>(null);
 	const [exportAnchorEl, setExportAnchorEl] = useState<HTMLElement | null>(
 		null,
 	);
@@ -195,44 +202,86 @@ export default function AdminDatabaseView() {
 	function getMemberDisplayName(userId: string): string {
 		const member = allMembers.find((entry) => entry.user_id === userId);
 		if (!member) {
-			return userId;
+			return "Unknown member";
 		}
 
-		return `${member.given_name} ${member.surname}`.trim() || userId;
+		return `${member.given_name} ${member.surname}`.trim() || "Unknown member";
 	}
 
-	function formatRequestedChanges(changes: Record<string, unknown>): string {
+	function formatRequestedChanges(request: MemberChangeRequest): string {
+		const member = allMembers.find(
+			(entry) => entry.user_id === request.user_id,
+		);
+		const currentRole =
+			typeof member?.member_role === "string" && member.member_role.trim()
+				? member.member_role
+				: "Member";
+		const currentDepartment = resolveDepartmentForMemberRole(
+			currentRole,
+			typeof member?.department === "string" || member?.department === null
+				? member.department
+				: null,
+		);
 		const requestedRole =
-			typeof changes.member_role === "string" ? changes.member_role : undefined;
+			typeof request.changes.member_role === "string"
+				? request.changes.member_role
+				: undefined;
+		const requestedDepartmentValue =
+			typeof request.changes.department === "string" ||
+			request.changes.department === null
+				? request.changes.department
+				: currentDepartment;
 		const effectiveDepartment =
-			Object.hasOwn(changes, "department") || requestedRole
+			Object.hasOwn(request.changes, "department") || requestedRole
 				? resolveDepartmentForMemberRole(
-						requestedRole,
-						typeof changes.department === "string" ||
-							changes.department === null
-							? changes.department
-							: undefined,
+						requestedRole ?? currentRole,
+						requestedDepartmentValue,
 					)
 				: undefined;
-		const entries: Array<[string, string]> = [];
+		const entries: string[] = [];
 
-		if (effectiveDepartment !== undefined) {
-			entries.push(["department", effectiveDepartment ?? "None"]);
+		if (
+			effectiveDepartment !== undefined &&
+			effectiveDepartment !== currentDepartment
+		) {
+			entries.push(
+				`Department: ${formatAdminValue(currentDepartment)} -> ${formatAdminValue(
+					effectiveDepartment,
+				)}`,
+			);
 		}
-		if (typeof changes.member_role === "string") {
-			entries.push(["member_role", changes.member_role]);
+		if (
+			typeof request.changes.member_role === "string" &&
+			request.changes.member_role !== currentRole
+		) {
+			entries.push(`Role: ${currentRole} -> ${request.changes.member_role}`);
 		}
-		if (typeof changes.degree === "string") {
-			entries.push(["degree", changes.degree]);
+		if (
+			typeof request.changes.degree === "string" &&
+			request.changes.degree !== (member?.degree ?? null)
+		) {
+			entries.push(
+				`Degree: ${formatAdminValue(member?.degree)} -> ${request.changes.degree}`,
+			);
 		}
-		if (typeof changes.school === "string") {
-			entries.push(["school", changes.school]);
+		if (
+			typeof request.changes.school === "string" &&
+			request.changes.school !== (member?.school ?? null)
+		) {
+			entries.push(
+				`School: ${formatAdminValue(member?.school)} -> ${request.changes.school}`,
+			);
 		}
-		if (typeof changes.batch === "string") {
-			entries.push(["batch", changes.batch]);
+		if (
+			typeof request.changes.batch === "string" &&
+			request.changes.batch !== (member?.batch ?? null)
+		) {
+			entries.push(
+				`Batch: ${formatAdminValue(member?.batch)} -> ${request.changes.batch}`,
+			);
 		}
 
-		return entries.map(([field, value]) => `${field}: ${value}`).join(", ");
+		return entries.length > 0 ? entries.join(", ") : "No requested changes";
 	}
 
 	async function saveMemberChanges() {
@@ -573,158 +622,16 @@ export default function AdminDatabaseView() {
 				</CardContent>
 			</GlassCard>
 
-			<Grid container spacing={3} sx={{ mb: 3 }}>
-				<Grid size={{ xs: 12, xl: 6 }}>
-					<GlassCard sx={{ height: "100%" }}>
-						<CardContent sx={{ p: 3 }}>
-							<Typography variant="h6" sx={{ mb: 2 }}>
-								Member Change Requests
-							</Typography>
-							<Stack spacing={1.5}>
-								{changeRequests.filter(
-									(request) => request.status === "pending",
-								).length === 0 ? (
-									<Typography color="text.secondary">
-										No pending member change requests.
-									</Typography>
-								) : (
-									changeRequests
-										.filter((request) => request.status === "pending")
-										.map((request) => (
-											<Box
-												key={request.id}
-												sx={{
-													p: 2,
-													borderRadius: 3,
-													backgroundColor:
-														theme.palette.mode === "light"
-															? "rgba(154, 100, 217, 0.06)"
-															: "rgba(27, 0, 73, 0.36)",
-												}}
-											>
-												<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-													Request `{request.id}`
-												</Typography>
-												<Typography variant="body2" color="text.secondary">
-													Member: {getMemberDisplayName(request.user_id)}
-												</Typography>
-												{request.reason && (
-													<Typography
-														variant="body2"
-														color="text.secondary"
-														sx={{ mt: 0.5 }}
-													>
-														Reason: {request.reason}
-													</Typography>
-												)}
-												<Typography variant="body2" sx={{ mt: 1 }}>
-													Requested changes:{" "}
-													{formatRequestedChanges(request.changes)}
-												</Typography>
-												<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
-													<Button
-														type="button"
-														variant="contained"
-														size="small"
-														onClick={() =>
-															reviewChangeRequest(request.id, "approved")
-														}
-														disabled={isReviewingChangeRequest}
-														aria-label={`Approve ${request.id}`}
-													>
-														Approve
-													</Button>
-													<Button
-														type="button"
-														variant="outlined"
-														size="small"
-														onClick={() =>
-															reviewChangeRequest(request.id, "rejected")
-														}
-														disabled={isReviewingChangeRequest}
-													>
-														Reject
-													</Button>
-												</Stack>
-											</Box>
-										))
-								)}
-							</Stack>
-						</CardContent>
-					</GlassCard>
-				</Grid>
-
-				<Grid size={{ xs: 12, xl: 6 }}>
-					<GlassCard sx={{ height: "100%" }}>
-						<CardContent sx={{ p: 3 }}>
-							<Typography variant="h6" sx={{ mb: 2 }}>
-								Engagement Certificate Requests
-							</Typography>
-							<Stack spacing={1.5}>
-								{certificateRequests.filter(
-									(request) => request.status === "pending",
-								).length === 0 ? (
-									<Typography color="text.secondary">
-										No pending engagement certificate requests.
-									</Typography>
-								) : (
-									certificateRequests
-										.filter((request) => request.status === "pending")
-										.map((request) => (
-											<Box
-												key={request.id}
-												sx={{
-													p: 2,
-													borderRadius: 3,
-													backgroundColor:
-														theme.palette.mode === "light"
-															? "rgba(154, 100, 217, 0.06)"
-															: "rgba(27, 0, 73, 0.36)",
-												}}
-											>
-												<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-													Request `{request.id}`
-												</Typography>
-												<Typography variant="body2" color="text.secondary">
-													Member: {getMemberDisplayName(request.user_id)}
-												</Typography>
-												<Typography variant="body2" sx={{ mt: 1 }}>
-													Engagement entries: {request.engagements.length}
-												</Typography>
-												<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
-													<Button
-														type="button"
-														variant="contained"
-														size="small"
-														onClick={() =>
-															reviewCertificateRequest(request.id, "approved")
-														}
-														disabled={isReviewingCertificateRequest}
-													>
-														Approve
-													</Button>
-													<Button
-														type="button"
-														variant="outlined"
-														size="small"
-														onClick={() =>
-															reviewCertificateRequest(request.id, "rejected")
-														}
-														disabled={isReviewingCertificateRequest}
-													>
-														Reject
-													</Button>
-												</Stack>
-											</Box>
-										))
-								)}
-							</Stack>
-						</CardContent>
-					</GlassCard>
-				</Grid>
-			</Grid>
-
-			<GlassCard variant="elevated" sx={{ overflow: "hidden" }}>
+			<GlassCard variant="elevated" sx={{ mb: 3, overflow: "hidden" }}>
+				<CardContent sx={{ px: 3, pt: 3, pb: 2 }}>
+					<Typography variant="h6" component="h2">
+						Members
+					</Typography>
+					<Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+						{filtered.length} member{filtered.length === 1 ? "" : "s"} match the
+						current filters.
+					</Typography>
+				</CardContent>
 				<TableContainer
 					sx={{
 						overflowX: "auto",
@@ -925,6 +832,254 @@ export default function AdminDatabaseView() {
 				</TableContainer>
 			</GlassCard>
 
+			<Grid container spacing={3}>
+				<Grid size={{ xs: 12, xl: 6 }}>
+					<GlassCard sx={{ height: "100%" }}>
+						<CardContent sx={{ p: 3 }}>
+							<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+								Member Change Requests
+							</Typography>
+							<Stack spacing={1.5}>
+								{changeRequests.filter(
+									(request) => request.status === "pending",
+								).length === 0 ? (
+									<Typography color="text.secondary">
+										No pending member change requests.
+									</Typography>
+								) : (
+									changeRequests
+										.filter((request) => request.status === "pending")
+										.map((request) => {
+											const memberName = getMemberDisplayName(request.user_id);
+											return (
+												<Box
+													key={request.id}
+													sx={{
+														p: 2,
+														borderRadius: 3,
+														backgroundColor:
+															theme.palette.mode === "light"
+																? "rgba(154, 100, 217, 0.06)"
+																: "rgba(27, 0, 73, 0.36)",
+													}}
+												>
+													<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+														Change request for {memberName}
+													</Typography>
+													<Typography variant="body2" color="text.secondary">
+														Member: {memberName}
+													</Typography>
+													{request.reason && (
+														<Typography
+															variant="body2"
+															color="text.secondary"
+															sx={{ mt: 0.5 }}
+														>
+															Reason: {request.reason}
+														</Typography>
+													)}
+													<Typography variant="body2" sx={{ mt: 1 }}>
+														Requested changes: {formatRequestedChanges(request)}
+													</Typography>
+													<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+														<Button
+															type="button"
+															variant="contained"
+															size="small"
+															onClick={() =>
+																reviewChangeRequest(request.id, "approved")
+															}
+															disabled={isReviewingChangeRequest}
+															aria-label={`Approve change request for ${memberName}`}
+														>
+															Approve
+														</Button>
+														<Button
+															type="button"
+															variant="outlined"
+															size="small"
+															onClick={() =>
+																reviewChangeRequest(request.id, "rejected")
+															}
+															disabled={isReviewingChangeRequest}
+															aria-label={`Reject change request for ${memberName}`}
+														>
+															Reject
+														</Button>
+													</Stack>
+												</Box>
+											);
+										})
+								)}
+							</Stack>
+						</CardContent>
+					</GlassCard>
+				</Grid>
+
+				<Grid size={{ xs: 12, xl: 6 }}>
+					<GlassCard sx={{ height: "100%" }}>
+						<CardContent sx={{ p: 3 }}>
+							<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+								Engagement Certificate Requests
+							</Typography>
+							<Stack spacing={1.5}>
+								{certificateRequests.filter(
+									(request) => request.status === "pending",
+								).length === 0 ? (
+									<Typography color="text.secondary">
+										No pending engagement certificate requests.
+									</Typography>
+								) : (
+									certificateRequests
+										.filter((request) => request.status === "pending")
+										.map((request) => {
+											const memberName = getMemberDisplayName(request.user_id);
+											return (
+												<Box
+													key={request.id}
+													sx={{
+														p: 2,
+														borderRadius: 3,
+														backgroundColor:
+															theme.palette.mode === "light"
+																? "rgba(154, 100, 217, 0.06)"
+																: "rgba(27, 0, 73, 0.36)",
+													}}
+												>
+													<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+														Engagement certificate request for {memberName}
+													</Typography>
+													<Typography variant="body2" color="text.secondary">
+														Member: {memberName}
+													</Typography>
+													<Typography variant="body2" sx={{ mt: 1 }}>
+														Submitted engagements: {request.engagements.length}
+													</Typography>
+													<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+														<Button
+															type="button"
+															variant="text"
+															size="small"
+															onClick={() =>
+																setCertificateRequestBeingViewed(request)
+															}
+															aria-label={`View engagement certificate details for ${memberName}`}
+														>
+															View details
+														</Button>
+														<Button
+															type="button"
+															variant="contained"
+															size="small"
+															onClick={() =>
+																reviewCertificateRequest(request.id, "approved")
+															}
+															disabled={isReviewingCertificateRequest}
+															aria-label={`Approve engagement certificate request for ${memberName}`}
+														>
+															Approve
+														</Button>
+														<Button
+															type="button"
+															variant="outlined"
+															size="small"
+															onClick={() =>
+																reviewCertificateRequest(request.id, "rejected")
+															}
+															disabled={isReviewingCertificateRequest}
+															aria-label={`Reject engagement certificate request for ${memberName}`}
+														>
+															Reject
+														</Button>
+													</Stack>
+												</Box>
+											);
+										})
+								)}
+							</Stack>
+						</CardContent>
+					</GlassCard>
+				</Grid>
+			</Grid>
+
+			<Dialog
+				open={Boolean(certificateRequestBeingViewed)}
+				onClose={() => setCertificateRequestBeingViewed(null)}
+				maxWidth="md"
+				fullWidth
+			>
+				<DialogTitle>
+					{certificateRequestBeingViewed
+						? `Engagement certificate request for ${getMemberDisplayName(
+								certificateRequestBeingViewed.user_id,
+							)}`
+						: "Engagement certificate request"}
+				</DialogTitle>
+				<DialogContent dividers>
+					<Stack spacing={2}>
+						{certificateRequestBeingViewed?.engagements.map(
+							(engagement, index) => (
+								<Box key={String(engagement.id ?? index)}>
+									<Typography sx={{ fontWeight: 700, mb: 1 }}>
+										Engagement {index + 1}
+									</Typography>
+									<Stack spacing={1}>
+										<CertificateDetailRow
+											label="Start Date"
+											value={engagement.startDate}
+										/>
+										<CertificateDetailRow
+											label="End Date"
+											value={
+												engagement.isStillActive === true
+													? "Still active"
+													: engagement.endDate
+											}
+										/>
+										<CertificateDetailRow
+											label="Weekly Hours"
+											value={
+												typeof engagement.weeklyHours === "string" &&
+												engagement.weeklyHours.trim()
+													? `${engagement.weeklyHours} hours`
+													: null
+											}
+										/>
+										<CertificateDetailRow
+											label="Department"
+											value={engagement.department}
+										/>
+										<CertificateDetailRow
+											label="Leadership"
+											value={
+												engagement.isTeamLead === true ? "Team Lead" : "Member"
+											}
+										/>
+										<CertificateDetailRow
+											label="Tasks / Responsibilities"
+											value={engagement.tasksDescription}
+											preserveWhitespace
+										/>
+									</Stack>
+									{index <
+										(certificateRequestBeingViewed?.engagements.length ?? 0) -
+											1 && <Divider sx={{ mt: 2 }} />}
+								</Box>
+							),
+						)}
+					</Stack>
+				</DialogContent>
+				<DialogActions>
+					<Button
+						type="button"
+						variant="text"
+						onClick={() => setCertificateRequestBeingViewed(null)}
+					>
+						Close
+					</Button>
+				</DialogActions>
+			</Dialog>
+
 			<Dialog
 				open={Boolean(memberBeingEdited)}
 				onClose={() => {
@@ -1028,10 +1183,44 @@ export default function AdminDatabaseView() {
 	);
 }
 
+function formatAdminValue(value: unknown): string {
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		return trimmed || "Not set";
+	}
+
+	return value === null || value === undefined ? "Not set" : String(value);
+}
+
 interface MetricCardProps {
 	icon: ReactNode;
 	label: string;
 	value: number;
+}
+
+interface CertificateDetailRowProps {
+	label: string;
+	value: unknown;
+	preserveWhitespace?: boolean;
+}
+
+function CertificateDetailRow({
+	label,
+	value,
+	preserveWhitespace = false,
+}: CertificateDetailRowProps) {
+	return (
+		<Box>
+			<Typography variant="caption" color="text.secondary">
+				{label}
+			</Typography>
+			<Typography
+				sx={{ whiteSpace: preserveWhitespace ? "pre-wrap" : "normal" }}
+			>
+				{formatAdminValue(value)}
+			</Typography>
+		</Box>
+	);
 }
 
 function MetricCard({ icon, label, value }: MetricCardProps) {
