@@ -74,8 +74,34 @@ describe("MemberList", () => {
 			await screen.findByRole("option", { name: "Computer Science" }),
 		);
 
-		expect(screen.getByText("Alice Example")).toBeInTheDocument();
+		expect(screen.getAllByText("Alice Example").length).toBeGreaterThan(0);
 		expect(screen.queryByText("Bob Example")).not.toBeInTheDocument();
 		expect(screen.queryByText("Carla Example")).not.toBeInTheDocument();
+	});
+
+	it("renders an org chart from the filtered member data", async () => {
+		const user = userEvent.setup();
+		renderMemberList();
+
+		expect(
+			screen.getByRole("heading", { name: /org chart/i }),
+		).toBeInTheDocument();
+		expect(screen.getAllByText("Marketing").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Software Development").length).toBeGreaterThan(
+			0,
+		);
+
+		await user.click(screen.getByLabelText(/degree/i));
+		await user.click(await screen.findByRole("option", { name: "B.Sc." }));
+
+		await user.click(screen.getByLabelText(/major \/ program/i));
+		await user.click(
+			await screen.findByRole("option", { name: "Computer Science" }),
+		);
+
+		expect(screen.getAllByText("Software Development").length).toBeGreaterThan(
+			0,
+		);
+		expect(screen.queryByText("Marketing")).not.toBeInTheDocument();
 	});
 });

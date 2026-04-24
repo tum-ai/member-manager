@@ -49,6 +49,10 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 	const [message, setMessage] = useState("");
 
 	const theme = useTheme();
+	const logoSrc =
+		theme.palette.mode === "light"
+			? "/img/logo_purple.svg"
+			: "/img/tum_ai_logo_new.svg";
 
 	const signInWithSlack = async () => {
 		const { error } = await supabase.auth.signInWithOAuth({
@@ -133,11 +137,7 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 			</Tooltip>
 
 			<AuthCard sx={{ position: "relative", zIndex: 1 }}>
-				<img
-					src="/img/tum_ai_logo_new.svg"
-					alt="TUM.ai Logo"
-					style={{ width: 168 }}
-				/>
+				<img src={logoSrc} alt="TUM.ai Logo" style={{ width: 168 }} />
 				<Typography variant="h4" component="h1" align="center">
 					Member Manager
 				</Typography>
