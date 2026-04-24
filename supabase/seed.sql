@@ -141,10 +141,10 @@ insert into public.members (
     'Munich',
     'Germany',
     true,
-    null,
-    null,
-    null,
-    null,
+    'WS22',
+    'Board',
+    'President',
+    'PhD',
     null
 ),
 (
@@ -160,10 +160,10 @@ insert into public.members (
     'Berlin',
     'Germany',
     true,
-    'WS23/24',
-    'Tech',
-    'Software Engineer',
-    'B.Sc.',
+    'WS23',
+    'Software Development',
+    'Member',
+    'B.Sc. Computer Science',
     'TUM'
 )
 on conflict (user_id) do update set

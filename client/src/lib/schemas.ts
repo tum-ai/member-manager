@@ -8,6 +8,8 @@ function isValidDate(dateString: string): boolean {
 	return date.toISOString().slice(0, 10) === dateString;
 }
 
+const BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
+
 export const memberSchema = z.object({
 	active: z.boolean(),
 	member_status: z.string().optional(),
@@ -27,7 +29,17 @@ export const memberSchema = z.object({
 	city: z.string(),
 	country: z.string(),
 	user_id: z.string(),
-	batch: z.string().nullish(),
+	batch: z
+		.string()
+		.nullish()
+		.refine(
+			(value) =>
+				value === null ||
+				value === undefined ||
+				value === "" ||
+				BATCH_REGEX.test(value),
+			"Choose a valid batch",
+		),
 	department: z.string().nullish(),
 	member_role: z.string().nullish(),
 	degree: z.string().nullish(),

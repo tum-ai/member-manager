@@ -25,14 +25,17 @@ import { Link } from "react-router-dom";
 import GlassCard from "../../components/ui/GlassCard";
 import Modal from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
+import { useIsAdmin } from "../../hooks/useIsAdmin";
 import { useMemberChangeRequests } from "../../hooks/useMemberChangeRequests";
 import { useMemberData } from "../../hooks/useMemberData";
 import { useSepaData } from "../../hooks/useSepaData";
 import {
+	BATCH_OPTIONS,
 	DEGREE_PROGRAM_CUSTOM_OPTION,
 	DEGREE_PROGRAM_PRESETS,
 	DEGREE_TYPES,
 	DEPARTMENTS,
+	getCurrentBatch,
 	MEMBER_ROLES,
 	SCHOOL_CUSTOM_OPTION,
 	SCHOOL_PRESETS,
@@ -85,23 +88,6 @@ function extractSlackProfile(user: User): {
 	return { given_name: given, surname: family };
 }
 
-// TUM semester convention:
-//   WS (Wintersemester): Oct–Mar, labeled WSYY/YY (e.g. WS25/26)
-//   SS (Sommersemester): Apr–Sep, labeled SSYY (e.g. SS26)
-function getCurrentBatch(reference: Date = new Date()): string {
-	const month = reference.getMonth();
-	const year = reference.getFullYear();
-	const yy = (n: number): string => String(n % 100).padStart(2, "0");
-
-	if (month >= 3 && month <= 8) {
-		return `SS${yy(year)}`;
-	}
-	if (month >= 9) {
-		return `WS${yy(year)}/${yy(year + 1)}`;
-	}
-	return `WS${yy(year - 1)}/${yy(year)}`;
-}
-
 export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const theme = useTheme();
 	const { showToast } = useToast();
@@ -123,6 +109,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		updateMemberAsync,
 		isUpdating: isUpdatingMember,
 	} = useMemberData(user.id);
+	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
 	const {
 		requests: memberChangeRequests,
 		submitChangeRequestAsync,
@@ -227,14 +214,25 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			const promises: Promise<unknown>[] = [];
 			if (memberValid) {
 				const memberValues = memberForm.getValues();
-				promises.push(
-					updateMemberAsync({
-						...buildSelfServiceMemberUpdatePayload(memberValues),
-						batch: normalizeTextValue(memberValues.batch),
-						degree: normalizeTextValue(memberValues.degree),
-						school: normalizeTextValue(memberValues.school),
+				const memberPayload = {
+					...buildSelfServiceMemberUpdatePayload(memberValues, {
+						includeAdminManagedFields: isAdmin,
 					}),
-				);
+					batch: normalizeTextValue(memberValues.batch),
+					degree: normalizeTextValue(memberValues.degree),
+					school: normalizeTextValue(memberValues.school),
+				};
+				if (isAdmin) {
+					const normalizedRole = normalizeTextValue(memberValues.member_role);
+					Object.assign(memberPayload, {
+						member_role: normalizedRole || "Member",
+						department: resolveDepartmentForMemberRole(
+							normalizedRole || "Member",
+							normalizeTextValue(memberValues.department),
+						),
+					});
+				}
+				promises.push(updateMemberAsync(memberPayload));
 			}
 			if (sepaValid) {
 				promises.push(updateSepaAsync(sepaForm.getValues()));
@@ -272,7 +270,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		}
 	};
 
-	const isLoading = isLoadingMember || isLoadingSepa;
+	const isLoading = isLoadingMember || isLoadingSepa || isLoadingAdminRole;
 	const isUpdating = isUpdatingMember || isUpdatingSepa;
 	const latestMemberChangeRequest = memberChangeRequests[0];
 
@@ -627,29 +625,98 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								<Grid container spacing={2}>
 									<Grid size={{ xs: 12, sm: 6 }}>
 										<TextField
+											select
 											label="Batch"
-											placeholder="e.g. Fall 2023"
 											{...memberForm.register("batch")}
+											value={memberForm.watch("batch") || ""}
 											error={!!memberForm.formState.errors.batch}
-											helperText={memberForm.formState.errors.batch?.message}
-										/>
+											helperText={
+												memberForm.formState.errors.batch?.message ||
+												"Choose your starting semester."
+											}
+										>
+											<MenuItem value="">None</MenuItem>
+											{BATCH_OPTIONS.map((batch) => (
+												<MenuItem key={batch} value={batch}>
+													{batch}
+												</MenuItem>
+											))}
+										</TextField>
 									</Grid>
 									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											label="Department"
-											value={memberForm.watch("department") || ""}
-											helperText="Departments are managed by admins"
-											disabled
-										/>
+										{isAdmin ? (
+											<TextField
+												select
+												label="Department"
+												value={memberForm.watch("department") || ""}
+												onChange={(event) =>
+													memberForm.setValue(
+														"department",
+														event.target.value,
+														{
+															shouldDirty: true,
+														},
+													)
+												}
+												disabled={isBoardLeadershipRole(
+													memberForm.watch("member_role"),
+												)}
+												helperText={
+													isBoardLeadershipRole(memberForm.watch("member_role"))
+														? "President and Vice-President are always in Board."
+														: "You can edit this directly because you are an admin."
+												}
+											>
+												<MenuItem value="">None</MenuItem>
+												{DEPARTMENTS.map((department) => (
+													<MenuItem key={department} value={department}>
+														{department}
+													</MenuItem>
+												))}
+											</TextField>
+										) : (
+											<TextField
+												label="Department"
+												value={memberForm.watch("department") || ""}
+												helperText="Departments are managed by admins"
+												disabled
+											/>
+										)}
 									</Grid>
 
 									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											label="Role in TUM.ai"
-											value={memberForm.watch("member_role") || "Member"}
-											helperText="Roles are assigned by admins"
-											disabled
-										/>
+										{isAdmin ? (
+											<TextField
+												select
+												label="Role in TUM.ai"
+												value={memberForm.watch("member_role") || "Member"}
+												onChange={(event) => {
+													const nextRole = event.target.value;
+													memberForm.setValue("member_role", nextRole, {
+														shouldDirty: true,
+													});
+													if (isBoardLeadershipRole(nextRole)) {
+														memberForm.setValue("department", "Board", {
+															shouldDirty: true,
+														});
+													}
+												}}
+												helperText="You can edit this directly because you are an admin."
+											>
+												{MEMBER_ROLES.map((role) => (
+													<MenuItem key={role} value={role}>
+														{role}
+													</MenuItem>
+												))}
+											</TextField>
+										) : (
+											<TextField
+												label="Role in TUM.ai"
+												value={memberForm.watch("member_role") || "Member"}
+												helperText="Roles are assigned by admins"
+												disabled
+											/>
+										)}
 									</Grid>
 									<Grid size={{ xs: 12, sm: 6 }}>
 										{(() => {
@@ -808,119 +875,121 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 							</CardContent>
 						</GlassCard>
 
-						<GlassCard variant="elevated" sx={{ mt: 3 }}>
-							<CardContent sx={{ p: 3 }}>
-								<Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
-									Request Admin Changes
-								</Typography>
-								<Typography
-									variant="body2"
-									color="text.secondary"
-									sx={{ mb: 3 }}
-								>
-									Role and department changes are handled by admins. Submit a
-									request here if your internal assignment needs an update.
-								</Typography>
+						{!isAdmin && (
+							<GlassCard variant="elevated" sx={{ mt: 3 }}>
+								<CardContent sx={{ p: 3 }}>
+									<Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
+										Request Admin Changes
+									</Typography>
+									<Typography
+										variant="body2"
+										color="text.secondary"
+										sx={{ mb: 3 }}
+									>
+										Role and department changes are handled by admins. Submit a
+										request here if your internal assignment needs an update.
+									</Typography>
 
-								<Grid container spacing={2}>
-									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											select
-											label="Requested department"
-											value={requestedDepartment}
-											onChange={(event) =>
-												setRequestedDepartment(event.target.value)
-											}
-											disabled={isBoardLeadershipRole(requestedRole)}
-											helperText={
-												isBoardLeadershipRole(requestedRole)
-													? "President and Vice-President are always in Board."
-													: undefined
-											}
-										>
-											<MenuItem value="">No change</MenuItem>
-											{DEPARTMENTS.map((department) => (
-												<MenuItem key={department} value={department}>
-													{department}
-												</MenuItem>
-											))}
-										</TextField>
-									</Grid>
-									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											select
-											label="Requested role"
-											value={requestedRole}
-											onChange={(event) => {
-												const nextRole = event.target.value;
-												setRequestedRole(nextRole);
-												if (isBoardLeadershipRole(nextRole)) {
-													setRequestedDepartment("Board");
+									<Grid container spacing={2}>
+										<Grid size={{ xs: 12, sm: 6 }}>
+											<TextField
+												select
+												label="Requested department"
+												value={requestedDepartment}
+												onChange={(event) =>
+													setRequestedDepartment(event.target.value)
 												}
+												disabled={isBoardLeadershipRole(requestedRole)}
+												helperText={
+													isBoardLeadershipRole(requestedRole)
+														? "President and Vice-President are always in Board."
+														: undefined
+												}
+											>
+												<MenuItem value="">No change</MenuItem>
+												{DEPARTMENTS.map((department) => (
+													<MenuItem key={department} value={department}>
+														{department}
+													</MenuItem>
+												))}
+											</TextField>
+										</Grid>
+										<Grid size={{ xs: 12, sm: 6 }}>
+											<TextField
+												select
+												label="Requested role"
+												value={requestedRole}
+												onChange={(event) => {
+													const nextRole = event.target.value;
+													setRequestedRole(nextRole);
+													if (isBoardLeadershipRole(nextRole)) {
+														setRequestedDepartment("Board");
+													}
+												}}
+											>
+												<MenuItem value="">No change</MenuItem>
+												{MEMBER_ROLES.map((role) => (
+													<MenuItem key={role} value={role}>
+														{role}
+													</MenuItem>
+												))}
+											</TextField>
+										</Grid>
+										<Grid size={12}>
+											<TextField
+												label="Reason"
+												value={changeRequestReason}
+												onChange={(event) =>
+													setChangeRequestReason(event.target.value)
+												}
+												multiline
+												rows={3}
+												placeholder="Briefly explain why the admin-managed fields should change."
+											/>
+										</Grid>
+									</Grid>
+
+									{latestMemberChangeRequest && (
+										<Box
+											sx={{
+												mt: 2.5,
+												p: 2,
+												borderRadius: 2,
+												backgroundColor:
+													theme.palette.mode === "light"
+														? "rgba(154, 100, 217, 0.06)"
+														: "rgba(27, 0, 73, 0.36)",
 											}}
 										>
-											<MenuItem value="">No change</MenuItem>
-											{MEMBER_ROLES.map((role) => (
-												<MenuItem key={role} value={role}>
-													{role}
-												</MenuItem>
-											))}
-										</TextField>
-									</Grid>
-									<Grid size={12}>
-										<TextField
-											label="Reason"
-											value={changeRequestReason}
-											onChange={(event) =>
-												setChangeRequestReason(event.target.value)
-											}
-											multiline
-											rows={3}
-											placeholder="Briefly explain why the admin-managed fields should change."
-										/>
-									</Grid>
-								</Grid>
-
-								{latestMemberChangeRequest && (
-									<Box
-										sx={{
-											mt: 2.5,
-											p: 2,
-											borderRadius: 2,
-											backgroundColor:
-												theme.palette.mode === "light"
-													? "rgba(154, 100, 217, 0.06)"
-													: "rgba(27, 0, 73, 0.36)",
-										}}
-									>
-										<Typography variant="subtitle2" sx={{ mb: 0.5 }}>
-											Latest request:{" "}
-											{latestMemberChangeRequest.status
-												.charAt(0)
-												.toUpperCase() +
-												latestMemberChangeRequest.status.slice(1)}
-										</Typography>
-										{latestMemberChangeRequest.reason && (
-											<Typography variant="body2" color="text.secondary">
-												Reason: {latestMemberChangeRequest.reason}
+											<Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+												Latest request:{" "}
+												{latestMemberChangeRequest.status
+													.charAt(0)
+													.toUpperCase() +
+													latestMemberChangeRequest.status.slice(1)}
 											</Typography>
-										)}
-									</Box>
-								)}
+											{latestMemberChangeRequest.reason && (
+												<Typography variant="body2" color="text.secondary">
+													Reason: {latestMemberChangeRequest.reason}
+												</Typography>
+											)}
+										</Box>
+									)}
 
-								<Button
-									type="button"
-									variant="outlined"
-									onClick={handleSubmitMemberChangeRequest}
-									disabled={isSubmittingChangeRequest}
-									sx={{ mt: 2.5 }}
-								>
-									{isSubmittingChangeRequest
-										? "Submitting request..."
-										: "Request admin change"}
-								</Button>
-							</CardContent>
-						</GlassCard>
+									<Button
+										type="button"
+										variant="outlined"
+										onClick={handleSubmitMemberChangeRequest}
+										disabled={isSubmittingChangeRequest}
+										sx={{ mt: 2.5 }}
+									>
+										{isSubmittingChangeRequest
+											? "Submitting request..."
+											: "Request admin change"}
+									</Button>
+								</CardContent>
+							</GlassCard>
+						)}
 					</Grid>
 
 					<Grid size={{ xs: 12, lg: 5 }}>

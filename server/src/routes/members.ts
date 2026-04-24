@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { ensureOwnerOrAdmin } from "../lib/auth.js";
+import { checkAdminRole, ensureOwnerOrAdmin } from "../lib/auth.js";
 import { getAuthEmail, getAuthProfiles } from "../lib/authEmails.js";
 import {
 	DatabaseError,
@@ -15,6 +15,9 @@ import {
 import {
 	DEFAULT_MEMBER_ROLE,
 	DEFAULT_MEMBER_STATUS,
+	memberRoleSchema,
+	normalizeMemberBatch,
+	resolveDepartmentForMemberRole,
 } from "../lib/memberMetadata.js";
 import {
 	decryptRecordSafely,
@@ -76,7 +79,7 @@ const MemberSchema = z.object({
 	batch: z
 		.string()
 		.nullish()
-		.transform((v) => v || null),
+		.transform((v) => normalizeMemberBatch(v)),
 	degree: z
 		.string()
 		.nullish()
@@ -107,7 +110,12 @@ const UpdateMemberSchema = z.object({
 	batch: z
 		.string()
 		.nullish()
+		.transform((v) => (v === undefined ? undefined : normalizeMemberBatch(v))),
+	department: z
+		.string()
+		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
+	member_role: memberRoleSchema.optional(),
 	degree: z
 		.string()
 		.nullish()
@@ -116,10 +124,6 @@ const UpdateMemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
-	// Note: `member_role` is intentionally NOT in this schema. It is admin-only
-	// and is mutated exclusively via `PATCH /api/admin/members/:userId/role`
-	// (see server/src/routes/admin.ts). Any `member_role` in the request body
-	// is silently dropped by zod's strip behaviour.
 });
 
 export async function memberRoutes(server: FastifyInstance) {
@@ -367,14 +371,57 @@ export async function memberRoutes(server: FastifyInstance) {
 			);
 
 			const body = UpdateMemberSchema.parse(request.body);
+			let isAdmin = false;
+			try {
+				isAdmin = await checkAdminRole(user.id);
+			} catch (roleError) {
+				request.log.error(
+					{ err: roleError, userId: user.id },
+					"Failed to determine admin role for profile update",
+				);
+				throw new DatabaseError();
+			}
 
-			const memberData = encryptRecord(
-				{
-					...body,
-					user_id: userId,
-				},
-				SENSITIVE_MEMBER_FIELDS,
-			);
+			const updatePayload: Record<string, unknown> = {
+				...body,
+				user_id: userId,
+			};
+			if (!isAdmin) {
+				delete updatePayload.department;
+				delete updatePayload.member_role;
+			} else if (
+				Object.hasOwn(body, "department") ||
+				Object.hasOwn(body, "member_role")
+			) {
+				const { data: existingMember, error: existingMemberError } =
+					await getSupabase()
+						.from("members")
+						.select("member_role")
+						.eq("user_id", userId)
+						.single();
+
+				if (existingMemberError && !isNotFoundError(existingMemberError)) {
+					request.log.error(
+						{ err: existingMemberError, userId },
+						"Failed to fetch existing member before admin profile update",
+					);
+					throw new DatabaseError();
+				}
+
+				const nextRole =
+					body.member_role ??
+					String(
+						(existingMember as { member_role?: string | null } | null)
+							?.member_role ?? DEFAULT_MEMBER_ROLE,
+					);
+				updatePayload.member_role = nextRole;
+				updatePayload.department = resolveDepartmentForMemberRole(
+					nextRole,
+					body.department,
+				);
+			}
+
+			const memberData = encryptRecord(updatePayload, SENSITIVE_MEMBER_FIELDS);
 
 			const { data, error } = await getSupabase()
 				.from("members")

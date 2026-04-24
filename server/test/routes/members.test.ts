@@ -486,6 +486,34 @@ describe("Members Routes", async () => {
 			assert.strictEqual(data.email, "user@test.com");
 		});
 
+		test("admin can update own department and role through the profile route", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.admin}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Legal & Finance",
+					member_role: "President",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.member_role, "President");
+			assert.strictEqual(data.department, "Board");
+
+			const storedMember = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.admin,
+			);
+			assert.strictEqual(storedMember?.member_role, "President");
+			assert.strictEqual(storedMember?.department, "Board");
+		});
+
 		test("user cannot update other's profile", async () => {
 			resetDatabase();
 			const updatePayload = {
@@ -579,6 +607,24 @@ describe("Members Routes", async () => {
 			assert.strictEqual(storedAfter?.department, originalDepartment);
 			const body = JSON.parse(response.payload);
 			assert.strictEqual(body.department, originalDepartment);
+		});
+
+		test("rejects invalid batch formats", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					batch: "WS25/26",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
 		});
 	});
 });

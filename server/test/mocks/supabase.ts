@@ -63,7 +63,7 @@ export const mockDatabase: MockData = {
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Mr",
 			title: "",
-			batch: "WS23/24",
+			batch: "WS23",
 			department: "Software Development",
 			member_role: "Member",
 			degree: "B.Sc.",
@@ -85,7 +85,7 @@ export const mockDatabase: MockData = {
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Ms",
 			title: "Dr",
-			batch: "WS22/23",
+			batch: "WS22",
 			department: "Board",
 			member_role: "Team Lead",
 			degree: "M.Sc.",
@@ -340,6 +340,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 		) => {
 			const tableData = mockDatabase[table as keyof MockData];
 			const records = Array.isArray(data) ? data : [data];
+			const upsertedRecords: Array<Record<string, unknown>> = [];
 
 			for (const record of records) {
 				const conflictKey = options?.onConflict || "user_id";
@@ -354,10 +355,15 @@ function createQueryBuilder(table: string): QueryBuilder {
 							...record,
 						};
 					}
+					upsertedRecords.push({
+						...tableData[existingIndex],
+					});
 				} else {
 					tableData.push(record);
+					upsertedRecords.push({ ...record });
 				}
 			}
+			state.insertedData = upsertedRecords;
 			return proxyBuilder;
 		},
 
@@ -479,7 +485,7 @@ export function resetMockDatabase(): void {
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Mr",
 			title: "",
-			batch: "WS23/24",
+			batch: "WS23",
 			department: "Software Development",
 			member_role: "Member",
 			degree: "B.Sc.",
@@ -501,7 +507,7 @@ export function resetMockDatabase(): void {
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Ms",
 			title: "Dr",
-			batch: "WS22/23",
+			batch: "WS22",
 			department: "Board",
 			member_role: "Team Lead",
 			degree: "M.Sc.",
