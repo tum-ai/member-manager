@@ -328,6 +328,7 @@ export default function AdminDatabaseView() {
 									}))
 								}
 								slotProps={{
+									inputLabel: { shrink: true },
 									select: getSelectProps(BOOLEAN_FILTER_OPTIONS),
 								}}
 							>
@@ -352,6 +353,7 @@ export default function AdminDatabaseView() {
 									}))
 								}
 								slotProps={{
+									inputLabel: { shrink: true },
 									select: getSelectProps(BOOLEAN_FILTER_OPTIONS),
 								}}
 							>
@@ -376,6 +378,7 @@ export default function AdminDatabaseView() {
 									}))
 								}
 								slotProps={{
+									inputLabel: { shrink: true },
 									select: getSelectProps(ACTIVE_FILTER_OPTIONS),
 								}}
 							>
@@ -447,8 +450,13 @@ export default function AdminDatabaseView() {
 			</GlassCard>
 
 			<GlassCard variant="elevated" sx={{ overflow: "hidden" }}>
-				<TableContainer sx={{ maxHeight: "72vh" }}>
-					<Table stickyHeader size="small" sx={{ minWidth: 1480 }}>
+				<TableContainer
+					sx={{
+						overflowX: "auto",
+						overflowY: "visible",
+					}}
+				>
+					<Table size="small" sx={{ minWidth: 1480 }}>
 						<TableHead>
 							<TableRow>
 								{sortableColumns.map((column) => (

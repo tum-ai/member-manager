@@ -91,6 +91,10 @@ export function buildServerEnv({
 		existingEnv,
 		"LOCAL_ADMIN_EMAILS",
 	);
+	const preservedLocalAdminBootstrapFlag = extractExistingServerValue(
+		existingEnv,
+		"ENABLE_LOCAL_ADMIN_BOOTSTRAP",
+	);
 
 	return [
 		GENERATED_HEADER,
@@ -99,6 +103,9 @@ export function buildServerEnv({
 		`FIELD_ENCRYPTION_KEY=${resolvedEncryptionKey}`,
 		`PORT=${port}`,
 		`CORS_ORIGIN=${corsOrigin}`,
+		...(preservedLocalAdminBootstrapFlag
+			? [`ENABLE_LOCAL_ADMIN_BOOTSTRAP=${preservedLocalAdminBootstrapFlag}`]
+			: []),
 		...(preservedLocalAdminEmails
 			? [`LOCAL_ADMIN_EMAILS=${preservedLocalAdminEmails}`]
 			: []),

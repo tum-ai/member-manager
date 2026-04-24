@@ -8,10 +8,44 @@ import {
 
 describe("local admin helpers", () => {
 	test("enables local admin bootstrap only for localhost Supabase URLs", () => {
-		assert.equal(isLocalAdminBootstrapEnabled("http://127.0.0.1:54321"), true);
-		assert.equal(isLocalAdminBootstrapEnabled("http://localhost:54321"), true);
 		assert.equal(
-			isLocalAdminBootstrapEnabled("https://project.supabase.co"),
+			isLocalAdminBootstrapEnabled(
+				"http://127.0.0.1:54321",
+				"true",
+				"development",
+			),
+			true,
+		);
+		assert.equal(
+			isLocalAdminBootstrapEnabled(
+				"http://localhost:54321",
+				"true",
+				"development",
+			),
+			true,
+		);
+		assert.equal(
+			isLocalAdminBootstrapEnabled(
+				"https://project.supabase.co",
+				"true",
+				"development",
+			),
+			false,
+		);
+		assert.equal(
+			isLocalAdminBootstrapEnabled(
+				"http://127.0.0.1:54321",
+				"false",
+				"development",
+			),
+			false,
+		);
+		assert.equal(
+			isLocalAdminBootstrapEnabled(
+				"http://127.0.0.1:54321",
+				"true",
+				"production",
+			),
 			false,
 		);
 	});
@@ -19,8 +53,8 @@ describe("local admin helpers", () => {
 	test("matches allowlisted emails case-insensitively", () => {
 		assert.equal(
 			isLocalAdminEmail(
-				"Jakob.Friedrich05@gmail.com",
-				" other@example.com, jakob.friedrich05@gmail.com ",
+				"User@example.com",
+				" other@example.com, user@example.com ",
 			),
 			true,
 		);

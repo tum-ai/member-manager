@@ -35,9 +35,10 @@ export function useIsAdmin(userId: string | undefined): {
 				} catch (error) {
 					if (
 						error instanceof Error &&
-						/not in the local admin allowlist/i.test(error.message)
+						(/not in the local admin allowlist/i.test(error.message) ||
+							/not found/i.test(error.message))
 					) {
-						// Not every local user should be admin; continue with a normal role read.
+						// Local bootstrap is optional; fall back to a normal role read.
 					} else {
 						console.error("Failed to bootstrap local admin role:", error);
 					}

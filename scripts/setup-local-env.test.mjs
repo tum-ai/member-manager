@@ -116,6 +116,17 @@ test("buildServerEnv preserves LOCAL_ADMIN_EMAILS when already configured", () =
 	);
 });
 
+test("buildServerEnv preserves ENABLE_LOCAL_ADMIN_BOOTSTRAP when configured", () => {
+	const env = buildServerEnv({
+		apiUrl: "http://127.0.0.1:54321",
+		serviceRoleKey: "service-abc",
+		existingEnv:
+			"FIELD_ENCRYPTION_KEY=reused-secret-from-previous-run\nENABLE_LOCAL_ADMIN_BOOTSTRAP=true\n",
+	});
+
+	assert.match(env, /^ENABLE_LOCAL_ADMIN_BOOTSTRAP=true$/m);
+});
+
 test("writeEnvFiles writes client and server .env.local and is idempotent", () => {
 	const tmp = mkdtempSync(join(tmpdir(), "member-manager-env-"));
 	try {
