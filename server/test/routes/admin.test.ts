@@ -386,6 +386,21 @@ describe("Admin Routes", async () => {
 			const payload = JSON.parse(response.payload);
 			assert.strictEqual(payload.department, "Board");
 		});
+
+		test("rejects department updates when the department field is omitted", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/department`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
 	});
 
 	describe("PATCH /api/admin/members/:userId/access-role", () => {
@@ -408,8 +423,12 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(updatedRole?.role, "admin");
 		});
 
-		test("admin can revoke admin access back to user", async () => {
+		test("admin can revoke admin access back to user when another admin remains", async () => {
 			resetDatabase();
+			mockDatabase.user_roles.push({
+				user_id: testUserIds.user,
+				role: "admin",
+			});
 			const response = await app.inject({
 				method: "PATCH",
 				url: `/api/admin/members/${testUserIds.admin}/access-role`,
@@ -425,6 +444,55 @@ describe("Admin Routes", async () => {
 				(entry) => entry.user_id === testUserIds.admin,
 			);
 			assert.strictEqual(updatedRole?.role, "user");
+		});
+
+		test("cannot revoke the last remaining admin", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.admin}/access-role`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ access_role: "user" }),
+			});
+
+			assert.strictEqual(response.statusCode, 409);
+			assert.match(response.payload, /at least one admin/i);
+		});
+	});
+
+	describe("PATCH /api/admin/members/:userId", () => {
+		test("admin can save member edits through one combined endpoint", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Legal & Finance",
+					member_role: "President",
+					member_status: "inactive",
+					access_role: "admin",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updatedMember = mockDatabase.members.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.strictEqual(updatedMember?.member_role, "President");
+			assert.strictEqual(updatedMember?.department, "Board");
+			assert.strictEqual(updatedMember?.member_status, "inactive");
+			assert.strictEqual(updatedMember?.active, false);
+			const updatedRole = mockDatabase.user_roles.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.strictEqual(updatedRole?.role, "admin");
 		});
 	});
 

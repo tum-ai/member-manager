@@ -20,7 +20,11 @@ create table if not exists "public"."engagement_certificate_requests" (
     constraint "engagement_certificate_requests_review_state_check"
         check (
             ("status" = 'pending' and "reviewed_by" is null and "reviewed_at" is null)
-            or ("status" in ('approved', 'rejected'))
+            or (
+                "status" in ('approved', 'rejected')
+                and "reviewed_by" is not null
+                and "reviewed_at" is not null
+            )
         )
 );
 
@@ -69,8 +73,8 @@ create policy "Members read own engagement certificate requests"
     to authenticated
     using ("user_id" = auth.uid());
 
-grant all on table "public"."engagement_certificate_requests" to "anon";
-grant all on table "public"."engagement_certificate_requests" to "authenticated";
+revoke all on table "public"."engagement_certificate_requests" from "anon";
+grant select, insert on table "public"."engagement_certificate_requests" to "authenticated";
 grant all on table "public"."engagement_certificate_requests" to "service_role";
 
 commit;

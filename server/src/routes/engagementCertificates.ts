@@ -97,6 +97,12 @@ export async function engagementCertificateRoutes(server: FastifyInstance) {
 				.single();
 
 			if (memberError) {
+				if (memberError.code === "PGRST116") {
+					return reply.status(404).send({
+						error:
+							"Complete your member profile before requesting an engagement certificate",
+					});
+				}
 				request.log.error(
 					{ err: memberError },
 					"Failed to fetch member for certificate request",

@@ -93,10 +93,7 @@ export default function AdminDatabaseView() {
 		certificateRequests,
 		isLoading,
 		error,
-		updateDepartmentAsync,
-		updateRoleAsync,
-		updateStatusAsync,
-		updateAccessRoleAsync,
+		updateMemberAsync,
 		reviewChangeRequestAsync,
 		reviewCertificateRequestAsync,
 		isSavingMember,
@@ -246,24 +243,13 @@ export default function AdminDatabaseView() {
 		);
 
 		try {
-			await Promise.all([
-				updateDepartmentAsync({
-					userId: memberBeingEdited.user_id,
-					department: effectiveDepartment,
-				}),
-				updateRoleAsync({
-					userId: memberBeingEdited.user_id,
-					member_role: editRole,
-				}),
-				updateStatusAsync({
-					userId: memberBeingEdited.user_id,
-					member_status: editStatus,
-				}),
-				updateAccessRoleAsync({
-					userId: memberBeingEdited.user_id,
-					access_role: editAccessRole,
-				}),
-			]);
+			await updateMemberAsync({
+				userId: memberBeingEdited.user_id,
+				department: effectiveDepartment,
+				member_role: editRole,
+				member_status: editStatus,
+				access_role: editAccessRole,
+			});
 			showToast("Member updated successfully", "success");
 			setMemberBeingEdited(null);
 		} catch (err: unknown) {

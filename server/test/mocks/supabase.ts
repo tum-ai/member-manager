@@ -135,6 +135,7 @@ interface QueryBuilder {
 	) => QueryBuilder;
 	delete: () => QueryBuilder;
 	eq: (column: string, value: unknown) => QueryBuilder;
+	in: (column: string, values: unknown[]) => QueryBuilder;
 	or: (query: string) => QueryBuilder;
 	order: (column: string, options?: { ascending?: boolean }) => QueryBuilder;
 	range: (from: number, to: number) => QueryBuilder;
@@ -145,6 +146,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 	const state = {
 		selectedColumns: "*",
 		filters: [] as Array<{ column: string; value: unknown }>,
+		inFilters: [] as Array<{ column: string; values: unknown[] }>,
 		orQuery: "" as string,
 		orderByConfig: undefined as
 			| { column: string; ascending: boolean }
@@ -188,6 +190,12 @@ function createQueryBuilder(table: string): QueryBuilder {
 		for (const filter of state.filters) {
 			tableData = tableData.filter(
 				(row) => row[filter.column] === filter.value,
+			);
+		}
+
+		for (const filter of state.inFilters) {
+			tableData = tableData.filter((row) =>
+				filter.values.includes(row[filter.column]),
 			);
 		}
 
@@ -355,6 +363,11 @@ function createQueryBuilder(table: string): QueryBuilder {
 
 		eq: (column: string, value: unknown) => {
 			state.filters.push({ column, value });
+			return proxyBuilder;
+		},
+
+		in: (column: string, values: unknown[]) => {
+			state.inFilters.push({ column, values });
 			return proxyBuilder;
 		},
 

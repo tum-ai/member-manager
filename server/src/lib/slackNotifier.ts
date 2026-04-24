@@ -1,7 +1,13 @@
-import { getAuthEmails } from "./authEmails.js";
+import { getAuthEmail } from "./authEmails.js";
 import { getSupabase } from "./supabase.js";
 
 const SLACK_API_BASE_URL = "https://slack.com/api";
+const ADMIN_EMAIL_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let cachedAdminEmails: {
+	emails: string[];
+	expiresAt: number;
+} | null = null;
 
 export interface EngagementCertificateSlackNotification {
 	requestId: string;
@@ -16,6 +22,10 @@ type SlackNotifier = (
 ) => Promise<void>;
 
 async function fetchAdminEmails(): Promise<string[]> {
+	if (cachedAdminEmails && cachedAdminEmails.expiresAt > Date.now()) {
+		return [...cachedAdminEmails.emails];
+	}
+
 	const { data, error } = await getSupabase()
 		.from("user_roles")
 		.select("user_id")
@@ -28,10 +38,19 @@ async function fetchAdminEmails(): Promise<string[]> {
 	const userIds = (data ?? [])
 		.map((row) => String((row as { user_id?: unknown }).user_id ?? ""))
 		.filter(Boolean);
-	const emailMap = await getAuthEmails(userIds);
-	return userIds
-		.map((userId) => emailMap.get(userId) ?? "")
+	const emails = await Promise.all(
+		userIds.map((userId) => getAuthEmail(userId)),
+	);
+	const resolvedEmails = emails
+		.map((email) => email.trim())
 		.filter((email) => email !== "");
+
+	cachedAdminEmails = {
+		emails: resolvedEmails,
+		expiresAt: Date.now() + ADMIN_EMAIL_CACHE_TTL_MS,
+	};
+
+	return [...resolvedEmails];
 }
 
 async function slackApi<T>(
@@ -126,13 +145,16 @@ async function defaultSlackNotifier(
 	}
 
 	const adminEmails = await fetchAdminEmails();
-	for (const adminEmail of adminEmails) {
-		const slackUserId = await lookupSlackUserIdByEmail(adminEmail);
-		if (!slackUserId) {
-			continue;
-		}
-		await postDirectMessage(slackUserId, buildMessage(payload));
-	}
+	const message = buildMessage(payload);
+	await Promise.all(
+		adminEmails.map(async (adminEmail) => {
+			const slackUserId = await lookupSlackUserIdByEmail(adminEmail);
+			if (!slackUserId) {
+				return;
+			}
+			await postDirectMessage(slackUserId, message);
+		}),
+	);
 }
 
 let activeSlackNotifier: SlackNotifier = defaultSlackNotifier;
@@ -149,4 +171,5 @@ export function setSlackNotifier(notifier: SlackNotifier): void {
 
 export function resetSlackNotifier(): void {
 	activeSlackNotifier = defaultSlackNotifier;
+	cachedAdminEmails = null;
 }

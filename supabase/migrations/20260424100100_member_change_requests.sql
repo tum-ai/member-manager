@@ -21,7 +21,11 @@ create table if not exists "public"."member_change_requests" (
     constraint "member_change_requests_review_state_check"
         check (
             ("status" = 'pending' and "reviewed_by" is null and "reviewed_at" is null)
-            or ("status" in ('approved', 'rejected'))
+            or (
+                "status" in ('approved', 'rejected')
+                and "reviewed_by" is not null
+                and "reviewed_at" is not null
+            )
         )
 );
 
@@ -70,8 +74,8 @@ create policy "Members read own change requests"
     to authenticated
     using ("user_id" = auth.uid());
 
-grant all on table "public"."member_change_requests" to "anon";
-grant all on table "public"."member_change_requests" to "authenticated";
+revoke all on table "public"."member_change_requests" from "anon";
+grant select, insert on table "public"."member_change_requests" to "authenticated";
 grant all on table "public"."member_change_requests" to "service_role";
 
 commit;

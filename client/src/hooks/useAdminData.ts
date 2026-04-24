@@ -147,6 +147,35 @@ export function useAdminData() {
 		},
 	});
 
+	const updateMemberMutation = useMutation({
+		mutationFn: async ({
+			userId,
+			department,
+			member_role,
+			member_status,
+			access_role,
+		}: {
+			userId: string;
+			department: string | null;
+			member_role: string;
+			member_status: string;
+			access_role: "user" | "admin";
+		}) => {
+			await apiClient(`/api/admin/members/${userId}`, {
+				method: "PATCH",
+				body: JSON.stringify({
+					department,
+					member_role,
+					member_status,
+					access_role,
+				}),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+		},
+	});
+
 	const reviewChangeRequestMutation = useMutation({
 		mutationFn: async ({
 			requestId,
@@ -210,13 +239,15 @@ export function useAdminData() {
 		updateRoleAsync: updateRoleMutation.mutateAsync,
 		updateStatusAsync: updateStatusMutation.mutateAsync,
 		updateAccessRoleAsync: updateAccessRoleMutation.mutateAsync,
+		updateMemberAsync: updateMemberMutation.mutateAsync,
 		reviewChangeRequestAsync: reviewChangeRequestMutation.mutateAsync,
 		reviewCertificateRequestAsync: reviewCertificateRequestMutation.mutateAsync,
 		isSavingMember:
 			updateDepartmentMutation.isPending ||
 			updateRoleMutation.isPending ||
 			updateStatusMutation.isPending ||
-			updateAccessRoleMutation.isPending,
+			updateAccessRoleMutation.isPending ||
+			updateMemberMutation.isPending,
 		isReviewingChangeRequest: reviewChangeRequestMutation.isPending,
 		isReviewingCertificateRequest: reviewCertificateRequestMutation.isPending,
 	};

@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { getAuthEmails } from "../lib/authEmails.js";
 import { DatabaseError } from "../lib/errors.js";
@@ -42,9 +42,15 @@ const RoleSchema = z.object({
 	member_role: memberRoleSchema,
 });
 const DepartmentSchema = z.object({
-	department: z.string().nullish().transform(normalizeNullableText),
+	department: z.string().nullable().transform(normalizeNullableText),
 });
 const AccessRoleSchema = z.object({
+	access_role: z.enum(["user", "admin"]),
+});
+const MemberUpdateSchema = z.object({
+	department: z.string().nullable().transform(normalizeNullableText),
+	member_role: memberRoleSchema,
+	member_status: memberStatusSchema,
 	access_role: z.enum(["user", "admin"]),
 });
 const MEMBER_DB_SORT_COLUMNS = new Set([
@@ -171,8 +177,30 @@ export async function adminRoutes(server: FastifyInstance) {
 					// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
 					rows: any[],
 				) => {
+					if (rows.length === 0) {
+						return rows;
+					}
+
+					const userIds = Array.from(
+						new Set(
+							rows
+								.map((member) => String(member.user_id ?? ""))
+								.filter((userId) => userId.length > 0),
+						),
+					);
+
+					if (userIds.length === 0) {
+						return rows.map((member) => ({
+							...member,
+							access_role: "user",
+						}));
+					}
+
 					const { data: accessRoles, error: accessRolesError } =
-						await getSupabase().from("user_roles").select("user_id, role");
+						await getSupabase()
+							.from("user_roles")
+							.select("user_id, role")
+							.in("user_id", userIds);
 
 					if (accessRolesError) {
 						request.log.error(
@@ -343,6 +371,175 @@ export async function adminRoutes(server: FastifyInstance) {
 		},
 	);
 
+	async function getCurrentAccessRole(
+		userId: string,
+		request: FastifyRequest,
+	): Promise<"user" | "admin"> {
+		const { data: accessRoleRow, error: accessRoleError } = await getSupabase()
+			.from("user_roles")
+			.select("role")
+			.eq("user_id", userId)
+			.single();
+
+		if (accessRoleError && accessRoleError.code !== "PGRST116") {
+			request.log.error(
+				{ err: accessRoleError, userId },
+				"Failed to fetch current access role",
+			);
+			throw new DatabaseError();
+		}
+
+		return (accessRoleRow as { role?: string } | null)?.role === "admin"
+			? "admin"
+			: "user";
+	}
+
+	async function ensureAdminRevocationIsSafe(
+		currentAccessRole: "user" | "admin",
+		nextAccessRole: "user" | "admin",
+		reply: FastifyReply,
+	): Promise<boolean> {
+		if (!(currentAccessRole === "admin" && nextAccessRole === "user")) {
+			return true;
+		}
+
+		const { data: adminRoles, error: adminRolesError } = await getSupabase()
+			.from("user_roles")
+			.select("user_id")
+			.eq("role", "admin");
+
+		if (adminRolesError) {
+			throw new DatabaseError();
+		}
+
+		if ((adminRoles ?? []).length <= 1) {
+			reply.status(409).send({
+				error: "At least one admin must remain in the workspace",
+			});
+			return false;
+		}
+
+		return true;
+	}
+
+	server.patch<{ Params: { userId: string } }>(
+		"/admin/members/:userId",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const { userId } = request.params;
+			const parsed = MemberUpdateSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid member update payload",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const { data: existingMember, error: memberLookupError } =
+				await getSupabase()
+					.from("members")
+					.select("department, member_role, member_status, active")
+					.eq("user_id", userId)
+					.single();
+
+			if (memberLookupError) {
+				if (memberLookupError.code === "PGRST116") {
+					return reply.status(404).send({ error: "Member not found" });
+				}
+				request.log.error(
+					{ err: memberLookupError },
+					"Failed to fetch member before combined update",
+				);
+				throw new DatabaseError();
+			}
+
+			const currentAccessRole = await getCurrentAccessRole(userId, request);
+			if (
+				!(await ensureAdminRevocationIsSafe(
+					currentAccessRole,
+					parsed.data.access_role,
+					reply,
+				))
+			) {
+				return reply;
+			}
+
+			const memberUpdate = {
+				department: resolveDepartmentForMemberRole(
+					parsed.data.member_role,
+					parsed.data.department,
+				),
+				member_role: parsed.data.member_role,
+				member_status: parsed.data.member_status,
+				active: statusToLegacyActive(parsed.data.member_status),
+			};
+
+			const { data: updatedMember, error: memberUpdateError } =
+				await getSupabase()
+					.from("members")
+					.update(memberUpdate)
+					.eq("user_id", userId)
+					.select()
+					.single();
+
+			if (memberUpdateError) {
+				if (memberUpdateError.code === "PGRST116") {
+					return reply.status(404).send({ error: "Member not found" });
+				}
+				request.log.error(
+					{ err: memberUpdateError },
+					"Failed to update member profile",
+				);
+				throw new DatabaseError();
+			}
+
+			const { error: accessRoleUpdateError } = await getSupabase()
+				.from("user_roles")
+				.upsert(
+					{
+						user_id: userId,
+						role: parsed.data.access_role,
+					},
+					{ onConflict: "user_id" },
+				);
+
+			if (accessRoleUpdateError) {
+				request.log.error(
+					{ err: accessRoleUpdateError },
+					"Failed to update access role during combined member save",
+				);
+				const rollbackPayload = {
+					department:
+						(existingMember as { department?: string | null }).department ??
+						null,
+					member_role:
+						(existingMember as { member_role?: string | null }).member_role ??
+						null,
+					member_status:
+						(existingMember as { member_status?: string | null })
+							.member_status ?? null,
+					active: Boolean((existingMember as { active?: boolean }).active),
+				};
+				const { error: rollbackError } = await getSupabase()
+					.from("members")
+					.update(rollbackPayload)
+					.eq("user_id", userId);
+				if (rollbackError) {
+					request.log.error(
+						{ err: rollbackError },
+						"Failed to roll back member after access role update error",
+					);
+				}
+				throw new DatabaseError();
+			}
+
+			return {
+				...decryptRecord(updatedMember, SENSITIVE_MEMBER_FIELDS),
+				access_role: parsed.data.access_role,
+			};
+		},
+	);
+
 	server.patch<{ Params: { userId: string } }>(
 		"/admin/members/:userId/role",
 		{ preHandler: [authenticate, requireAdmin] },
@@ -470,6 +667,17 @@ export async function adminRoutes(server: FastifyInstance) {
 					"Failed to fetch member before access-role update",
 				);
 				throw new DatabaseError();
+			}
+
+			const currentAccessRole = await getCurrentAccessRole(userId, request);
+			if (
+				!(await ensureAdminRevocationIsSafe(
+					currentAccessRole,
+					parsed.data.access_role,
+					reply,
+				))
+			) {
+				return reply;
 			}
 
 			const { error } = await getSupabase().from("user_roles").upsert(

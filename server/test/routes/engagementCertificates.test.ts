@@ -106,6 +106,39 @@ describe("Engagement Certificate Routes", async () => {
 		assert.strictEqual(payload[0].id, "cert-1");
 	});
 
+	test("returns 404 when the user has no member profile yet", async () => {
+		resetDatabase();
+		mockDatabase.members = mockDatabase.members.filter(
+			(member) => member.user_id !== testUserIds.user,
+		);
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/engagement-certificates",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				engagements: [
+					{
+						id: "eng-missing-member",
+						startDate: "2025-10-01",
+						endDate: "2026-03-31",
+						isStillActive: false,
+						weeklyHours: "10",
+						department: "Software Development",
+						isTeamLead: false,
+						tasksDescription: "Built internal tooling",
+					},
+				],
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 404);
+		assert.match(response.payload, /complete your member profile/i);
+	});
+
 	test("admin can review and approve an engagement certificate request", async () => {
 		resetDatabase();
 		mockDatabase.engagement_certificate_requests.push({

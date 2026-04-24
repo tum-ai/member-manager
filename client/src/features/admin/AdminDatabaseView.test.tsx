@@ -6,17 +6,11 @@ import getAppTheme from "../../theme";
 import AdminDatabaseView from "./AdminDatabaseView";
 
 const {
-	updateDepartmentAsync,
-	updateRoleAsync,
-	updateStatusAsync,
-	updateAccessRoleAsync,
+	updateMemberAsync,
 	reviewChangeRequestAsync,
 	reviewCertificateRequestAsync,
 } = vi.hoisted(() => ({
-	updateDepartmentAsync: vi.fn(),
-	updateRoleAsync: vi.fn(),
-	updateStatusAsync: vi.fn(),
-	updateAccessRoleAsync: vi.fn(),
+	updateMemberAsync: vi.fn(),
 	reviewChangeRequestAsync: vi.fn(),
 	reviewCertificateRequestAsync: vi.fn(),
 }));
@@ -59,10 +53,7 @@ vi.mock("../../hooks/useAdminData", () => ({
 		],
 		isLoading: false,
 		error: null,
-		updateDepartmentAsync,
-		updateRoleAsync,
-		updateStatusAsync,
-		updateAccessRoleAsync,
+		updateMemberAsync,
 		reviewChangeRequestAsync,
 		reviewCertificateRequestAsync,
 		isSavingMember: false,
@@ -102,20 +93,11 @@ describe("AdminDatabaseView", () => {
 		);
 
 		await waitFor(() => {
-			expect(updateDepartmentAsync).toHaveBeenCalledWith({
+			expect(updateMemberAsync).toHaveBeenCalledWith({
 				userId: "member-1",
 				department: "Board",
-			});
-			expect(updateRoleAsync).toHaveBeenCalledWith({
-				userId: "member-1",
 				member_role: "President",
-			});
-			expect(updateStatusAsync).toHaveBeenCalledWith({
-				userId: "member-1",
 				member_status: "inactive",
-			});
-			expect(updateAccessRoleAsync).toHaveBeenCalledWith({
-				userId: "member-1",
 				access_role: "admin",
 			});
 		});
