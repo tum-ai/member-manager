@@ -24,6 +24,7 @@ import { useNavigate } from "react-router-dom";
 
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
+import { useEngagementCertificateRequests } from "../../hooks/useEngagementCertificateRequests";
 import { useMemberData } from "../../hooks/useMemberData";
 import { DEPARTMENTS, WEEKLY_HOURS_OPTIONS } from "../../lib/constants";
 import { downloadPdfBlob, formatGermanDate } from "../../lib/pdfUtils";
@@ -55,6 +56,8 @@ export default function EngagementCertificatePage({
 	user,
 }: Props): JSX.Element {
 	const { member, isLoading, error: fetchError } = useMemberData(user.id);
+	const { requests, submitRequestAsync, isSubmitting } =
+		useEngagementCertificateRequests(user.id);
 	const { showToast } = useToast();
 	const [isGenerating, setIsGenerating] = useState(false);
 	const navigate = useNavigate();
@@ -71,9 +74,39 @@ export default function EngagementCertificatePage({
 		name: "engagements",
 	});
 
-	const handleDownload = async (data: EngagementFormSchema): Promise<void> => {
+	const latestRequest = requests[0];
+	const approvedRequest = requests.find(
+		(request) => request.status === "approved",
+	);
+	const isRequestPending = latestRequest?.status === "pending";
+
+	const handleSubmitForApproval = async (
+		data: EngagementFormSchema,
+	): Promise<void> => {
 		if (!member) {
 			showToast("Member data not available", "error");
+			return;
+		}
+
+		try {
+			await submitRequestAsync(data);
+			showToast("Certificate request submitted for admin approval.", "success");
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			showToast(
+				`Error submitting certificate request: ${errorMessage}`,
+				"error",
+			);
+		} finally {
+			form.reset({
+				engagements: data.engagements,
+			});
+		}
+	};
+
+	const handleDownloadApproved = async (): Promise<void> => {
+		if (!member || !approvedRequest || isGenerating) {
 			return;
 		}
 
@@ -81,19 +114,16 @@ export default function EngagementCertificatePage({
 		try {
 			const pdfBlob = await generateEngagementCertificatePdf(
 				member,
-				data.engagements,
+				approvedRequest.engagements,
 			);
 			const safeGivenName = member.given_name.replace(/[^a-zA-Z0-9-_]/g, "-");
 			const safeSurname = member.surname.replace(/[^a-zA-Z0-9-_]/g, "-");
 			const fullName = `${safeGivenName}-${safeSurname}`;
 			downloadPdfBlob(pdfBlob, `TUMai_Engagement_Certificate_${fullName}.pdf`);
-			showToast("Certificate downloaded successfully!", "success");
+			showToast("Approved certificate downloaded successfully!", "success");
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
-			if (import.meta.env.DEV) {
-				console.error("Error generating PDF:", error);
-			}
 			showToast(`Error generating certificate: ${errorMessage}`, "error");
 		} finally {
 			setIsGenerating(false);
@@ -153,7 +183,10 @@ export default function EngagementCertificatePage({
 		);
 	}
 
-	if (!member.active) {
+	if (
+		(member.member_status || (member.active ? "active" : "inactive")) !==
+		"active"
+	) {
 		return (
 			<Box sx={{ p: 3 }}>
 				<Typography color="text.secondary">
@@ -185,17 +218,38 @@ export default function EngagementCertificatePage({
 					</Typography>
 
 					<Typography variant="body1" sx={{ mb: 2 }}>
-						This form generates a personalized <strong>PDF certificate</strong>{" "}
-						confirming your voluntary engagement with <strong>TUM.ai</strong>.
-						Please enter <strong>accurate information</strong> for each period
-						you were actively involved.
+						Submit your engagement details for an admin review before the final
+						certificate is released. Please enter{" "}
+						<strong>accurate information</strong> for each period you were
+						actively involved.
 					</Typography>
 
 					<Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-						<strong>Important:</strong> Everything you enter below will directly
-						appear in the final certificate. Make sure names, dates, and
-						responsibilities are correct and complete.
+						<strong>Important:</strong> Everything you enter below will be
+						reviewed by an admin and appear in the final certificate only after
+						approval. Make sure names, dates, and responsibilities are correct
+						and complete.
 					</Typography>
+
+					{latestRequest && (
+						<Box
+							sx={{
+								p: 2,
+								borderRadius: 1,
+								bgcolor: "rgba(154, 100, 217, 0.08)",
+								mb: 2,
+							}}
+						>
+							<Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+								Current request status: {latestRequest.status}
+							</Typography>
+							{latestRequest.review_note && (
+								<Typography variant="body2" color="text.secondary">
+									Admin note: {latestRequest.review_note}
+								</Typography>
+							)}
+						</Box>
+					)}
 
 					<Box
 						sx={{
@@ -220,7 +274,7 @@ export default function EngagementCertificatePage({
 				</Box>
 			</GlassCard>
 
-			<form onSubmit={form.handleSubmit(handleDownload)}>
+			<form onSubmit={form.handleSubmit(handleSubmitForApproval)}>
 				{fields.map((field, index) => (
 					<GlassCard key={field.id} sx={{ mb: 3 }}>
 						<Box sx={{ p: 3 }}>
@@ -330,6 +384,13 @@ export default function EngagementCertificatePage({
 										select
 										fullWidth
 										label="Department"
+										slotProps={{
+											select: {
+												SelectDisplayProps: {
+													"aria-label": "Department",
+												},
+											},
+										}}
 										{...form.register(`engagements.${index}.department`)}
 										value={form.watch(`engagements.${index}.department`) || ""}
 										error={
@@ -422,17 +483,43 @@ export default function EngagementCertificatePage({
 						variant="contained"
 						size="large"
 						startIcon={
-							isGenerating ? (
+							isSubmitting ? (
 								<CircularProgress size={20} color="inherit" />
 							) : (
 								<DownloadIcon />
 							)
 						}
-						disabled={isGenerating}
+						disabled={isSubmitting || isRequestPending}
 					>
-						{isGenerating ? "Generating..." : "Download Certificate"}
+						{isSubmitting
+							? "Submitting..."
+							: isRequestPending
+								? "Awaiting Admin Review"
+								: "Submit for Approval"}
 					</Button>
 				</Box>
+
+				{approvedRequest && (
+					<Box sx={{ display: "flex", justifyContent: "flex-end", mb: 3 }}>
+						<Button
+							type="button"
+							variant="outlined"
+							startIcon={
+								isGenerating ? (
+									<CircularProgress size={18} color="inherit" />
+								) : (
+									<DownloadIcon />
+								)
+							}
+							onClick={handleDownloadApproved}
+							disabled={isGenerating}
+						>
+							{isGenerating
+								? "Generating approved certificate..."
+								: "Download Approved Certificate"}
+						</Button>
+					</Box>
+				)}
 
 				<Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}>
 					* All fields are required

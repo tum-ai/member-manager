@@ -41,6 +41,8 @@ interface MockData {
 	sepa: Array<Record<string, unknown>>;
 	user_roles: Array<Record<string, unknown>>;
 	member_role_history: Array<Record<string, unknown>>;
+	member_change_requests: Array<Record<string, unknown>>;
+	engagement_certificate_requests: Array<Record<string, unknown>>;
 }
 
 export const mockDatabase: MockData = {
@@ -57,12 +59,13 @@ export const mockDatabase: MockData = {
 			country: "DE",
 			phone: "+49123456789",
 			active: true,
+			member_status: "active",
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Mr",
 			title: "",
 			batch: "WS23/24",
-			department: "Tech",
-			member_role: "Software Engineer",
+			department: "Software Development",
+			member_role: "Member",
 			degree: "B.Sc.",
 			school: "TUM",
 		},
@@ -78,11 +81,12 @@ export const mockDatabase: MockData = {
 			country: "DE",
 			phone: "+49987654321",
 			active: true,
+			member_status: "active",
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Ms",
 			title: "Dr",
 			batch: "WS22/23",
-			department: "Management",
+			department: "Board",
 			member_role: "Team Lead",
 			degree: "M.Sc.",
 			school: "TUM",
@@ -111,6 +115,8 @@ export const mockDatabase: MockData = {
 		},
 	],
 	member_role_history: [],
+	member_change_requests: [],
+	engagement_certificate_requests: [],
 };
 
 type QueryResult = Promise<{
@@ -129,6 +135,7 @@ interface QueryBuilder {
 	) => QueryBuilder;
 	delete: () => QueryBuilder;
 	eq: (column: string, value: unknown) => QueryBuilder;
+	in: (column: string, values: unknown[]) => QueryBuilder;
 	or: (query: string) => QueryBuilder;
 	order: (column: string, options?: { ascending?: boolean }) => QueryBuilder;
 	range: (from: number, to: number) => QueryBuilder;
@@ -139,6 +146,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 	const state = {
 		selectedColumns: "*",
 		filters: [] as Array<{ column: string; value: unknown }>,
+		inFilters: [] as Array<{ column: string; values: unknown[] }>,
 		orQuery: "" as string,
 		orderByConfig: undefined as
 			| { column: string; ascending: boolean }
@@ -182,6 +190,12 @@ function createQueryBuilder(table: string): QueryBuilder {
 		for (const filter of state.filters) {
 			tableData = tableData.filter(
 				(row) => row[filter.column] === filter.value,
+			);
+		}
+
+		for (const filter of state.inFilters) {
+			tableData = tableData.filter((row) =>
+				filter.values.includes(row[filter.column]),
 			);
 		}
 
@@ -290,7 +304,9 @@ function createQueryBuilder(table: string): QueryBuilder {
 				// has `default gen_random_uuid()`). Without this, INSERTs followed
 				// by SELECT/DELETE-by-id don't line up in tests.
 				if (
-					table === "member_role_history" &&
+					(table === "member_role_history" ||
+						table === "member_change_requests" ||
+						table === "engagement_certificate_requests") &&
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {
@@ -347,6 +363,11 @@ function createQueryBuilder(table: string): QueryBuilder {
 
 		eq: (column: string, value: unknown) => {
 			state.filters.push({ column, value });
+			return proxyBuilder;
+		},
+
+		in: (column: string, values: unknown[]) => {
+			state.inFilters.push({ column, values });
 			return proxyBuilder;
 		},
 
@@ -454,12 +475,13 @@ export function resetMockDatabase(): void {
 			country: "DE",
 			phone: "+49123456789",
 			active: true,
+			member_status: "active",
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Mr",
 			title: "",
 			batch: "WS23/24",
-			department: "Tech",
-			member_role: "Software Engineer",
+			department: "Software Development",
+			member_role: "Member",
 			degree: "B.Sc.",
 			school: "TUM",
 		},
@@ -475,11 +497,12 @@ export function resetMockDatabase(): void {
 			country: "DE",
 			phone: "+49987654321",
 			active: true,
+			member_status: "active",
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Ms",
 			title: "Dr",
 			batch: "WS22/23",
-			department: "Management",
+			department: "Board",
 			member_role: "Team Lead",
 			degree: "M.Sc.",
 			school: "TUM",
@@ -511,4 +534,6 @@ export function resetMockDatabase(): void {
 	];
 
 	mockDatabase.member_role_history = [];
+	mockDatabase.member_change_requests = [];
+	mockDatabase.engagement_certificate_requests = [];
 }

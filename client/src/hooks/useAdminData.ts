@@ -9,6 +9,29 @@ interface AdminResponse {
 	limit: number;
 }
 
+export interface MemberChangeRequest {
+	id: string;
+	user_id: string;
+	status: "pending" | "approved" | "rejected";
+	reason?: string | null;
+	review_note?: string | null;
+	changes: {
+		department?: string | null;
+		member_role?: string | null;
+		degree?: string | null;
+		school?: string | null;
+		batch?: string | null;
+	};
+}
+
+export interface EngagementCertificateRequest {
+	id: string;
+	user_id: string;
+	status: "pending" | "approved" | "rejected";
+	review_note?: string | null;
+	engagements: Array<Record<string, unknown>>;
+}
+
 export function useAdminData() {
 	const queryClient = useQueryClient();
 
@@ -26,17 +49,43 @@ export function useAdminData() {
 		},
 	});
 
-	const toggleStatusMutation = useMutation({
+	const {
+		data: changeRequests,
+		isLoading: isLoadingChangeRequests,
+		error: changeRequestsError,
+	} = useQuery({
+		queryKey: ["admin-member-change-requests"],
+		queryFn: async () => {
+			return await apiClient<MemberChangeRequest[]>(
+				"/api/admin/member-change-requests",
+			);
+		},
+	});
+
+	const {
+		data: certificateRequests,
+		isLoading: isLoadingCertificateRequests,
+		error: certificateRequestsError,
+	} = useQuery({
+		queryKey: ["admin-engagement-certificate-requests"],
+		queryFn: async () => {
+			return await apiClient<EngagementCertificateRequest[]>(
+				"/api/admin/engagement-certificate-requests",
+			);
+		},
+	});
+
+	const updateDepartmentMutation = useMutation({
 		mutationFn: async ({
 			userId,
-			newStatus,
+			department,
 		}: {
 			userId: string;
-			newStatus: boolean;
+			department: string | null;
 		}) => {
-			await apiClient(`/api/admin/members/${userId}/status`, {
+			await apiClient(`/api/admin/members/${userId}/department`, {
 				method: "PATCH",
-				body: JSON.stringify({ active: newStatus }),
+				body: JSON.stringify({ department }),
 			});
 		},
 		onSuccess: () => {
@@ -44,11 +93,162 @@ export function useAdminData() {
 		},
 	});
 
+	const updateRoleMutation = useMutation({
+		mutationFn: async ({
+			userId,
+			member_role,
+		}: {
+			userId: string;
+			member_role: string;
+		}) => {
+			await apiClient(`/api/admin/members/${userId}/role`, {
+				method: "PATCH",
+				body: JSON.stringify({ member_role }),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+		},
+	});
+
+	const updateStatusMutation = useMutation({
+		mutationFn: async ({
+			userId,
+			member_status,
+		}: {
+			userId: string;
+			member_status: string;
+		}) => {
+			await apiClient(`/api/admin/members/${userId}/status`, {
+				method: "PATCH",
+				body: JSON.stringify({ member_status }),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+		},
+	});
+
+	const updateAccessRoleMutation = useMutation({
+		mutationFn: async ({
+			userId,
+			access_role,
+		}: {
+			userId: string;
+			access_role: "user" | "admin";
+		}) => {
+			await apiClient(`/api/admin/members/${userId}/access-role`, {
+				method: "PATCH",
+				body: JSON.stringify({ access_role }),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+		},
+	});
+
+	const updateMemberMutation = useMutation({
+		mutationFn: async ({
+			userId,
+			department,
+			member_role,
+			member_status,
+			access_role,
+		}: {
+			userId: string;
+			department: string | null;
+			member_role: string;
+			member_status: string;
+			access_role: "user" | "admin";
+		}) => {
+			await apiClient(`/api/admin/members/${userId}`, {
+				method: "PATCH",
+				body: JSON.stringify({
+					department,
+					member_role,
+					member_status,
+					access_role,
+				}),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+		},
+	});
+
+	const reviewChangeRequestMutation = useMutation({
+		mutationFn: async ({
+			requestId,
+			decision,
+			review_note,
+		}: {
+			requestId: string;
+			decision: "approved" | "rejected";
+			review_note?: string;
+		}) => {
+			await apiClient(`/api/admin/member-change-requests/${requestId}`, {
+				method: "PATCH",
+				body: JSON.stringify({ decision, review_note }),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["admin-member-change-requests"],
+			});
+			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+			queryClient.invalidateQueries({ queryKey: ["member"] });
+		},
+	});
+
+	const reviewCertificateRequestMutation = useMutation({
+		mutationFn: async ({
+			requestId,
+			decision,
+			review_note,
+		}: {
+			requestId: string;
+			decision: "approved" | "rejected";
+			review_note?: string;
+		}) => {
+			await apiClient(
+				`/api/admin/engagement-certificate-requests/${requestId}`,
+				{
+					method: "PATCH",
+					body: JSON.stringify({ decision, review_note }),
+				},
+			);
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["admin-engagement-certificate-requests"],
+			});
+			queryClient.invalidateQueries({
+				queryKey: ["engagement-certificate-requests"],
+			});
+		},
+	});
+
 	return {
 		members,
-		isLoading,
-		error,
-		toggleStatus: toggleStatusMutation.mutateAsync,
-		isToggling: toggleStatusMutation.isPending,
+		changeRequests: changeRequests ?? [],
+		certificateRequests: certificateRequests ?? [],
+		isLoading:
+			isLoading || isLoadingChangeRequests || isLoadingCertificateRequests,
+		error: error || changeRequestsError || certificateRequestsError,
+		updateDepartmentAsync: updateDepartmentMutation.mutateAsync,
+		updateRoleAsync: updateRoleMutation.mutateAsync,
+		updateStatusAsync: updateStatusMutation.mutateAsync,
+		updateAccessRoleAsync: updateAccessRoleMutation.mutateAsync,
+		updateMemberAsync: updateMemberMutation.mutateAsync,
+		reviewChangeRequestAsync: reviewChangeRequestMutation.mutateAsync,
+		reviewCertificateRequestAsync: reviewCertificateRequestMutation.mutateAsync,
+		isSavingMember:
+			updateDepartmentMutation.isPending ||
+			updateRoleMutation.isPending ||
+			updateStatusMutation.isPending ||
+			updateAccessRoleMutation.isPending ||
+			updateMemberMutation.isPending,
+		isReviewingChangeRequest: reviewChangeRequestMutation.isPending,
+		isReviewingCertificateRequest: reviewCertificateRequestMutation.isPending,
 	};
 }

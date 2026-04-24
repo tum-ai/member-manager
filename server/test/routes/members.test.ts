@@ -67,6 +67,41 @@ describe("Members Routes", async () => {
 			assert.match(String(storedMember?.city), /^enc-v1:/);
 		});
 
+		test("creation ignores admin-managed fields from self-service payloads", async () => {
+			resetDatabase();
+			const newUserId = testUserIds.otherUser;
+			const payload = mockMemberPayload({
+				user_id: newUserId,
+				department: "Board",
+				member_role: "President",
+				active: false,
+			});
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/members",
+				headers: {
+					...authHeaders(testTokens.otherUser),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify(payload),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.department, null);
+			assert.strictEqual(data.member_role, "Member");
+			assert.strictEqual(data.active, true);
+
+			const storedMember = mockDatabase.members.find(
+				(member) => member.user_id === newUserId,
+			);
+			assert.ok(storedMember);
+			assert.strictEqual(storedMember?.department, null);
+			assert.strictEqual(storedMember?.member_role, "Member");
+			assert.strictEqual(storedMember?.active, true);
+		});
+
 		test("returns existing member if already exists", async () => {
 			resetDatabase();
 			const payload = mockMemberPayload({
@@ -515,6 +550,35 @@ describe("Members Routes", async () => {
 			assert.strictEqual(storedAfter?.member_role, originalRole);
 			const body = JSON.parse(response.payload);
 			assert.notStrictEqual(body.member_role, "President");
+		});
+
+		test("user-facing PUT silently ignores department (admin-only field)", async () => {
+			resetDatabase();
+			const storedBefore = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			const originalDepartment = storedBefore?.department;
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					given_name: "Self",
+					department: "Board",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const storedAfter = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.strictEqual(storedAfter?.department, originalDepartment);
+			const body = JSON.parse(response.payload);
+			assert.strictEqual(body.department, originalDepartment);
 		});
 	});
 });

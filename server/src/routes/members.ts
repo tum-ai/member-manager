@@ -13,6 +13,10 @@ import {
 	isLocalAdminEmail,
 } from "../lib/localAdmin.js";
 import {
+	DEFAULT_MEMBER_ROLE,
+	DEFAULT_MEMBER_STATUS,
+} from "../lib/memberMetadata.js";
+import {
 	decryptRecordSafely,
 	encryptRecord,
 	SENSITIVE_MEMBER_FIELDS,
@@ -67,18 +71,9 @@ const MemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((value) => value || ""),
-	active: z.boolean().optional().default(true),
 	salutation: z.string().optional().default(""),
 	title: z.string().optional().default(""),
 	batch: z
-		.string()
-		.nullish()
-		.transform((v) => v || null),
-	department: z
-		.string()
-		.nullish()
-		.transform((v) => v || null),
-	member_role: z
 		.string()
 		.nullish()
 		.transform((v) => v || null),
@@ -110,10 +105,6 @@ const UpdateMemberSchema = z.object({
 	salutation: z.string().optional(),
 	title: z.string().optional(),
 	batch: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v || null)),
-	department: z
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
@@ -220,7 +211,16 @@ export async function memberRoutes(server: FastifyInstance) {
 				};
 			}
 
-			const memberData = encryptRecord(body, SENSITIVE_MEMBER_FIELDS);
+			const memberData = encryptRecord(
+				{
+					...body,
+					department: null,
+					member_role: DEFAULT_MEMBER_ROLE,
+					member_status: DEFAULT_MEMBER_STATUS,
+					active: true,
+				},
+				SENSITIVE_MEMBER_FIELDS,
+			);
 			const { data, error } = await getSupabase()
 				.from("members")
 				.insert(memberData)
@@ -271,9 +271,9 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select(
-					"user_id, given_name, surname, batch, department, member_role, degree, school, active",
+					"user_id, given_name, surname, batch, department, member_role, degree, school, active, member_status",
 				)
-				.eq("active", true)
+				.eq("member_status", DEFAULT_MEMBER_STATUS)
 				.order("surname", { ascending: true });
 
 			if (error) {

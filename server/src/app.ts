@@ -4,6 +4,8 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import errorHandler from "./plugins/errorHandler.js";
 import { adminRoutes } from "./routes/admin.js";
+import { changeRequestRoutes } from "./routes/changeRequests.js";
+import { engagementCertificateRoutes } from "./routes/engagementCertificates.js";
 import { memberRoutes } from "./routes/members.js";
 import { sepaRoutes } from "./routes/sepa.js";
 
@@ -44,6 +46,8 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(memberRoutes);
 			await api.register(sepaRoutes);
 			await api.register(adminRoutes);
+			await api.register(changeRequestRoutes);
+			await api.register(engagementCertificateRoutes);
 		},
 		{ prefix: "/api" },
 	);

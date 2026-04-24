@@ -20,7 +20,8 @@ import { useMemo, useState } from "react";
 
 import GlassCard from "../../components/ui/GlassCard";
 import { useMembersListData } from "../../hooks/useMembersListData";
-import { DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
+import { DEGREE_TYPES, DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
+import { splitDegree } from "../../lib/memberMetadata";
 import type { Member } from "../../types";
 
 function getInitials(member: Member): string {
@@ -34,11 +35,25 @@ export default function MemberList() {
 	const [search, setSearch] = useState("");
 	const [department, setDepartment] = useState("");
 	const [role, setRole] = useState("");
+	const [degreeType, setDegreeType] = useState("");
+	const [degreeProgram, setDegreeProgram] = useState("");
+
+	const degreePrograms = useMemo(() => {
+		if (!members) return [];
+		return [
+			...new Set(
+				members.map((member) => splitDegree(member.degree || "").program),
+			),
+		]
+			.filter((program) => program !== "")
+			.sort((left, right) => left.localeCompare(right));
+	}, [members]);
 
 	const filtered = useMemo(() => {
 		if (!members) return [];
 		const q = search.trim().toLowerCase();
 		return members.filter((m) => {
+			const { type, program } = splitDegree(m.degree || "");
 			const name = `${m.given_name} ${m.surname}`.toLowerCase();
 			const dept = (m.department || "").toLowerCase();
 			const memberRole = (m.member_role || "").toLowerCase();
@@ -60,9 +75,11 @@ export default function MemberList() {
 			}
 			if (department && m.department !== department) return false;
 			if (role && m.member_role !== role) return false;
+			if (degreeType && type !== degreeType) return false;
+			if (degreeProgram && program !== degreeProgram) return false;
 			return true;
 		});
-	}, [members, search, department, role]);
+	}, [members, search, department, role, degreeProgram, degreeType]);
 
 	if (isLoading) {
 		return (
@@ -178,6 +195,42 @@ export default function MemberList() {
 										</MenuItem>
 									),
 								)}
+							</Select>
+						</FormControl>
+
+						<FormControl size="small" sx={{ minWidth: 220 }}>
+							<InputLabel id="member-list-degree-label">Degree</InputLabel>
+							<Select
+								labelId="member-list-degree-label"
+								value={degreeType}
+								label="Degree"
+								onChange={(e) => setDegreeType(e.target.value)}
+							>
+								<MenuItem value="">All</MenuItem>
+								{DEGREE_TYPES.map((item) => (
+									<MenuItem key={item} value={item}>
+										{item}
+									</MenuItem>
+								))}
+							</Select>
+						</FormControl>
+
+						<FormControl size="small" sx={{ minWidth: 240 }}>
+							<InputLabel id="member-list-program-label">
+								Major / Program
+							</InputLabel>
+							<Select
+								labelId="member-list-program-label"
+								value={degreeProgram}
+								label="Major / Program"
+								onChange={(e) => setDegreeProgram(e.target.value)}
+							>
+								<MenuItem value="">All</MenuItem>
+								{degreePrograms.map((item) => (
+									<MenuItem key={item} value={item}>
+										{item}
+									</MenuItem>
+								))}
 							</Select>
 						</FormControl>
 

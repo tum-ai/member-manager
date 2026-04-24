@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 
 export interface Member {
 	active: boolean;
+	member_status?: string | null;
 	salutation: string;
 	title: string;
 	surname: string;
@@ -17,6 +18,7 @@ export interface Member {
 	batch?: string | null;
 	department?: string | null;
 	member_role?: string | null;
+	access_role?: string | null;
 	degree?: string | null;
 	school?: string | null;
 	avatar_url?: string | null;
