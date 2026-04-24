@@ -5,8 +5,8 @@
 // every fresh start. Copy-pasting them by hand is error-prone; this script
 // keeps both .env.local files in sync with whatever the CLI reports.
 //
-// Idempotent: preserves any FIELD_ENCRYPTION_KEY already set in server/.env.local
-// so local dev can keep a stable encryption key across Supabase restarts.
+// Idempotent: preserves user-managed values already present in server/.env.local
+// so local dev can keep stable local-only config across Supabase restarts.
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -69,9 +69,9 @@ export function buildClientEnv({ apiUrl, anonKey }) {
 	].join("\n");
 }
 
-function extractEncryptionKey(existingEnv) {
+function extractExistingServerValue(existingEnv, key) {
 	if (!existingEnv) return null;
-	const match = existingEnv.match(/^FIELD_ENCRYPTION_KEY=(.+)$/m);
+	const match = existingEnv.match(new RegExp(`^${key}=(.+)$`, "m"));
 	return match ? match[1].trim() : null;
 }
 
@@ -84,9 +84,17 @@ export function buildServerEnv({
 	corsOrigin = "http://localhost:5173,http://127.0.0.1:5173",
 }) {
 	const resolvedEncryptionKey =
-		extractEncryptionKey(existingEnv) ??
+		extractExistingServerValue(existingEnv, "FIELD_ENCRYPTION_KEY") ??
 		encryptionKey ??
 		DEFAULT_LOCAL_ENCRYPTION_KEY;
+	const preservedLocalAdminEmails = extractExistingServerValue(
+		existingEnv,
+		"LOCAL_ADMIN_EMAILS",
+	);
+	const preservedLocalAdminBootstrapFlag = extractExistingServerValue(
+		existingEnv,
+		"ENABLE_LOCAL_ADMIN_BOOTSTRAP",
+	);
 
 	return [
 		GENERATED_HEADER,
@@ -95,6 +103,12 @@ export function buildServerEnv({
 		`FIELD_ENCRYPTION_KEY=${resolvedEncryptionKey}`,
 		`PORT=${port}`,
 		`CORS_ORIGIN=${corsOrigin}`,
+		...(preservedLocalAdminBootstrapFlag
+			? [`ENABLE_LOCAL_ADMIN_BOOTSTRAP=${preservedLocalAdminBootstrapFlag}`]
+			: []),
+		...(preservedLocalAdminEmails
+			? [`LOCAL_ADMIN_EMAILS=${preservedLocalAdminEmails}`]
+			: []),
 		"",
 	].join("\n");
 }

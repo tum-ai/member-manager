@@ -9,6 +9,10 @@ import {
 	NotFoundError,
 } from "../lib/errors.js";
 import {
+	isLocalAdminBootstrapEnabled,
+	isLocalAdminEmail,
+} from "../lib/localAdmin.js";
+import {
 	decryptRecordSafely,
 	encryptRecord,
 	SENSITIVE_MEMBER_FIELDS,
@@ -128,6 +132,38 @@ const UpdateMemberSchema = z.object({
 });
 
 export async function memberRoutes(server: FastifyInstance) {
+	server.post(
+		"/members/bootstrap-local-admin",
+		{ preHandler: authenticate },
+		async (request, reply) => {
+			if (!isLocalAdminBootstrapEnabled()) {
+				return reply.status(404).send({ error: "Not found" });
+			}
+
+			const user = (request as AuthenticatedRequest).user;
+			if (!isLocalAdminEmail(user.email)) {
+				return reply.status(403).send({
+					error: "This account is not in the local admin allowlist",
+				});
+			}
+
+			const { error } = await getSupabase().from("user_roles").upsert(
+				{
+					user_id: user.id,
+					role: "admin",
+				},
+				{ onConflict: "user_id" },
+			);
+
+			if (error) {
+				request.log.error({ err: error }, "Failed to bootstrap local admin");
+				throw new DatabaseError();
+			}
+
+			return { granted: true, role: "admin" };
+		},
+	);
+
 	server.post(
 		"/members",
 		{ preHandler: authenticate },

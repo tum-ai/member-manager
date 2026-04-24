@@ -44,6 +44,19 @@ type MemberRole = (typeof MEMBER_ROLES)[number];
 const RoleSchema = z.object({
 	member_role: z.enum(MEMBER_ROLES),
 });
+const MEMBER_DB_SORT_COLUMNS = new Set([
+	"active",
+	"batch",
+	"created_at",
+	"degree",
+	"department",
+	"given_name",
+	"member_role",
+	"phone",
+	"school",
+	"surname",
+	"user_id",
+]);
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -105,76 +118,143 @@ export async function adminRoutes(server: FastifyInstance) {
 			} = query;
 			const from = (page - 1) * limit;
 			const to = from + limit - 1;
-
-			// Determine if we need to filter on SEPA, which requires an inner join logic
-			// for the filter to work on the parent rows in PostgREST.
-			const filterSepa =
+			const normalizedSearch = search?.trim().toLowerCase();
+			const hasAgreementFilter =
 				(mandate_agreed !== undefined && mandate_agreed !== "") ||
 				(privacy_agreed !== undefined && privacy_agreed !== "");
-
-			const selectQuery = filterSepa ? "*, sepa!inner(*)" : "*, sepa(*)";
-
-			let dbQuery = getSupabase().from("members").select(selectQuery);
-
-			if (active !== undefined && active !== "") {
-				dbQuery = dbQuery.eq("active", active === "true");
-			}
-
-			if (mandate_agreed !== undefined && mandate_agreed !== "") {
-				dbQuery = dbQuery.eq("sepa.mandate_agreed", mandate_agreed === "true");
-			}
-			if (privacy_agreed !== undefined && privacy_agreed !== "") {
-				dbQuery = dbQuery.eq("sepa.privacy_agreed", privacy_agreed === "true");
-			}
-
-			const { data: members, error: membersError } = await dbQuery;
-
-			if (membersError) {
-				request.log.error({ err: membersError }, "Failed to fetch members");
-				throw new DatabaseError();
-			}
+			const needsFullEmailMap =
+				Boolean(normalizedSearch) || sort_by === "email";
+			const canUsePagedDbQuery =
+				!normalizedSearch &&
+				!hasAgreementFilter &&
+				!needsFullEmailMap &&
+				MEMBER_DB_SORT_COLUMNS.has(sort_by);
 
 			try {
-				const emailMap = await getAuthEmails(
-					// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
-					(members || []).map((member: any) => String(member.user_id)),
-				);
+				const hydrateMembers = (
+					// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
+					rawMembers: any[],
+					emailMap: Map<string, string> = new Map(),
+				) =>
+					rawMembers.map((member) => ({
+						...decryptRecordSafely(
+							member,
+							SENSITIVE_MEMBER_FIELDS,
+							({ field, error }) => {
+								request.log.warn(
+									{ err: error, userId: member.user_id, field },
+									"Failed to decrypt member field; returning blank value",
+								);
+							},
+						),
+						email: emailMap.get(String(member.user_id)) ?? "",
+						sepa: decryptRecordSafely(
+							Array.isArray(member.sepa)
+								? member.sepa[0] || {}
+								: member.sepa || {},
+							SENSITIVE_SEPA_FIELDS,
+							({ field, error }) => {
+								request.log.warn(
+									{ err: error, userId: member.user_id, field },
+									"Failed to decrypt SEPA field; returning blank value",
+								);
+							},
+						),
+					}));
 
-				// Transform data to ensure sepa is an object (Supabase might return array)
-				// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
-				const joined = (members || []).map((m: any) => ({
-					...decryptRecordSafely(
-						m,
-						SENSITIVE_MEMBER_FIELDS,
-						({ field, error }) => {
-							request.log.warn(
-								{ err: error, userId: m.user_id, field },
-								"Failed to decrypt member field; returning blank value",
-							);
-						},
-					),
-					email: emailMap.get(String(m.user_id)) ?? "",
-					sepa: decryptRecordSafely(
-						Array.isArray(m.sepa) ? m.sepa[0] || {} : m.sepa || {},
-						SENSITIVE_SEPA_FIELDS,
-						({ field, error }) => {
-							request.log.warn(
-								{ err: error, userId: m.user_id, field },
-								"Failed to decrypt SEPA field; returning blank value",
-							);
-						},
-					),
-				}));
+				if (canUsePagedDbQuery) {
+					let membersQuery = getSupabase()
+						.from("members")
+						.select("*, sepa(*)", { count: "exact" });
 
-				const normalizedSearch = search?.trim().toLowerCase();
-				const filtered = normalizedSearch
-					? // biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
-						joined.filter((member: any) =>
-							`${member.given_name} ${member.surname} ${member.email}`
-								.toLowerCase()
-								.includes(normalizedSearch),
+					if (active !== undefined && active !== "") {
+						membersQuery = membersQuery.eq("active", active === "true");
+					}
+
+					const {
+						data: pagedMembers,
+						error: membersError,
+						count,
+					} = await membersQuery
+						.order(sort_by, { ascending: sort_asc })
+						.range(from, to);
+
+					if (membersError) {
+						request.log.error({ err: membersError }, "Failed to fetch members");
+						throw new DatabaseError();
+					}
+
+					const pageRows = hydrateMembers(pagedMembers || []);
+					const emailMap = await getAuthEmails(
+						pageRows.map((member) => String(member.user_id)),
+					);
+
+					return {
+						data: pageRows.map((member) => ({
+							...member,
+							email: emailMap.get(String(member.user_id)) ?? "",
+						})),
+						total: count ?? 0,
+						page,
+						limit,
+					};
+				}
+
+				let membersQuery = getSupabase().from("members").select("*, sepa(*)");
+				if (active !== undefined && active !== "") {
+					membersQuery = membersQuery.eq("active", active === "true");
+				}
+
+				const { data: members, error: membersError } = await membersQuery;
+				if (membersError) {
+					request.log.error({ err: membersError }, "Failed to fetch members");
+					throw new DatabaseError();
+				}
+
+				const fullEmailMap = needsFullEmailMap
+					? await getAuthEmails(
+							// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+							(members || []).map((member: any) => String(member.user_id)),
 						)
-					: joined;
+					: new Map<string, string>();
+
+				const joined = hydrateMembers(members || [], fullEmailMap);
+				const filtered = joined.filter(
+					// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+					(member: any) => {
+						if (
+							normalizedSearch &&
+							!`${member.given_name} ${member.surname} ${member.email}`
+								.toLowerCase()
+								.includes(normalizedSearch)
+						) {
+							return false;
+						}
+
+						if (active !== undefined && active !== "") {
+							const isActive = active === "true";
+							if (member.active !== isActive) {
+								return false;
+							}
+						}
+
+						if (mandate_agreed !== undefined && mandate_agreed !== "") {
+							const hasMandate = Boolean(member.sepa?.mandate_agreed);
+							if (hasMandate !== (mandate_agreed === "true")) {
+								return false;
+							}
+						}
+
+						if (privacy_agreed !== undefined && privacy_agreed !== "") {
+							const hasPrivacyAgreement = Boolean(member.sepa?.privacy_agreed);
+							if (hasPrivacyAgreement !== (privacy_agreed === "true")) {
+								return false;
+							}
+						}
+
+						return true;
+					},
+				);
 
 				const getSortValue = (member: (typeof filtered)[number]) => {
 					// biome-ignore lint/suspicious/noExplicitAny: dynamic admin sorting
@@ -187,9 +267,26 @@ export async function adminRoutes(server: FastifyInstance) {
 					const comparison = leftValue.localeCompare(rightValue);
 					return sort_asc ? comparison : comparison * -1;
 				});
+				const paged = sorted.slice(from, to + 1);
+
+				if (!needsFullEmailMap) {
+					const pageEmailMap = await getAuthEmails(
+						paged.map((member) => String(member.user_id)),
+					);
+
+					return {
+						data: paged.map((member) => ({
+							...member,
+							email: pageEmailMap.get(String(member.user_id)) ?? "",
+						})),
+						total: filtered.length,
+						page,
+						limit,
+					};
+				}
 
 				return {
-					data: sorted.slice(from, to + 1),
+					data: paged,
 					total: filtered.length,
 					page,
 					limit,

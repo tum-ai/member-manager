@@ -5,7 +5,7 @@
 	"scripts": {
 		"dev": "pnpm -r --parallel run dev",
 		"dev:local": "pnpm supabase:start && pnpm setup:local && pnpm -r --parallel run dev:local",
-		"gate": "pnpm lint && pnpm build && pnpm test",
+		"gate": "pnpm lint && pnpm test && pnpm build",
 		"build": "pnpm -r run build",
 		"test": "pnpm test:scripts && pnpm -r run test",
 		"test:scripts": "node --test scripts/*.test.mjs",

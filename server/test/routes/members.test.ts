@@ -13,6 +13,17 @@ import {
 } from "../helpers.js";
 import { mockDatabase } from "../mocks/supabase.js";
 
+function restoreEnvVar(
+	key: "SUPABASE_URL" | "LOCAL_ADMIN_EMAILS" | "ENABLE_LOCAL_ADMIN_BOOTSTRAP",
+	previousValue: string | undefined,
+) {
+	if (previousValue === undefined) {
+		delete process.env[key];
+		return;
+	}
+	process.env[key] = previousValue;
+}
+
 describe("Members Routes", async () => {
 	let app: FastifyInstance;
 
@@ -284,6 +295,106 @@ describe("Members Routes", async () => {
 			const data = JSON.parse(response.payload);
 			for (let i = 0; i < data.length - 1; i++) {
 				assert.ok(data[i].surname.localeCompare(data[i + 1].surname) <= 0);
+			}
+		});
+	});
+
+	describe("POST /api/members/bootstrap-local-admin", () => {
+		test("returns 404 when local admin bootstrap is not explicitly enabled", async () => {
+			resetDatabase();
+			const previousSupabaseUrl = process.env.SUPABASE_URL;
+			const previousEnableLocalAdminBootstrap =
+				process.env.ENABLE_LOCAL_ADMIN_BOOTSTRAP;
+			process.env.SUPABASE_URL = "http://127.0.0.1:54321";
+			delete process.env.ENABLE_LOCAL_ADMIN_BOOTSTRAP;
+
+			try {
+				const response = await app.inject({
+					method: "POST",
+					url: "/api/members/bootstrap-local-admin",
+					headers: authHeaders(testTokens.user),
+				});
+
+				assert.strictEqual(response.statusCode, 404);
+			} finally {
+				restoreEnvVar("SUPABASE_URL", previousSupabaseUrl);
+				restoreEnvVar(
+					"ENABLE_LOCAL_ADMIN_BOOTSTRAP",
+					previousEnableLocalAdminBootstrap,
+				);
+			}
+		});
+
+		test("promotes an allowlisted local user to admin", async () => {
+			resetDatabase();
+			const previousSupabaseUrl = process.env.SUPABASE_URL;
+			const previousLocalAdminEmails = process.env.LOCAL_ADMIN_EMAILS;
+			const previousEnableLocalAdminBootstrap =
+				process.env.ENABLE_LOCAL_ADMIN_BOOTSTRAP;
+			process.env.SUPABASE_URL = "http://127.0.0.1:54321";
+			process.env.ENABLE_LOCAL_ADMIN_BOOTSTRAP = "true";
+			process.env.LOCAL_ADMIN_EMAILS = "user@test.com";
+
+			try {
+				const response = await app.inject({
+					method: "POST",
+					url: "/api/members/bootstrap-local-admin",
+					headers: authHeaders(testTokens.user),
+				});
+
+				assert.strictEqual(response.statusCode, 200);
+				const payload = JSON.parse(response.payload);
+				assert.strictEqual(payload.role, "admin");
+				assert.strictEqual(payload.granted, true);
+				assert.deepStrictEqual(
+					mockDatabase.user_roles.find(
+						(row) => row.user_id === testUserIds.user,
+					),
+					{ user_id: testUserIds.user, role: "admin" },
+				);
+			} finally {
+				restoreEnvVar("SUPABASE_URL", previousSupabaseUrl);
+				restoreEnvVar("LOCAL_ADMIN_EMAILS", previousLocalAdminEmails);
+				restoreEnvVar(
+					"ENABLE_LOCAL_ADMIN_BOOTSTRAP",
+					previousEnableLocalAdminBootstrap,
+				);
+			}
+		});
+
+		test("does not promote users outside the local admin allowlist", async () => {
+			resetDatabase();
+			const previousSupabaseUrl = process.env.SUPABASE_URL;
+			const previousLocalAdminEmails = process.env.LOCAL_ADMIN_EMAILS;
+			const previousEnableLocalAdminBootstrap =
+				process.env.ENABLE_LOCAL_ADMIN_BOOTSTRAP;
+			process.env.SUPABASE_URL = "http://127.0.0.1:54321";
+			process.env.ENABLE_LOCAL_ADMIN_BOOTSTRAP = "true";
+			process.env.LOCAL_ADMIN_EMAILS = "someone-else@example.com";
+
+			try {
+				const response = await app.inject({
+					method: "POST",
+					url: "/api/members/bootstrap-local-admin",
+					headers: authHeaders(testTokens.user),
+				});
+
+				assert.strictEqual(response.statusCode, 403);
+				const payload = JSON.parse(response.payload);
+				assert.match(payload.error, /allowlist/i);
+				assert.deepStrictEqual(
+					mockDatabase.user_roles.find(
+						(row) => row.user_id === testUserIds.user,
+					),
+					{ user_id: testUserIds.user, role: "user" },
+				);
+			} finally {
+				restoreEnvVar("SUPABASE_URL", previousSupabaseUrl);
+				restoreEnvVar("LOCAL_ADMIN_EMAILS", previousLocalAdminEmails);
+				restoreEnvVar(
+					"ENABLE_LOCAL_ADMIN_BOOTSTRAP",
+					previousEnableLocalAdminBootstrap,
+				);
 			}
 		});
 	});
