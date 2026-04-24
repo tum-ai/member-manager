@@ -32,11 +32,8 @@ function readAnonKey() {
 async function healthy(url) {
 	try {
 		const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
-		if (!response.ok) {
-			return false;
-		}
 		const body = await response.json().catch(() => null);
-		return body?.status === "ok";
+		return response.status === 200 && body?.status === "ok";
 	} catch {
 		return false;
 	}

@@ -105,29 +105,9 @@ export async function adminRoutes(server: FastifyInstance) {
 			} = query;
 			const from = (page - 1) * limit;
 			const to = from + limit - 1;
-
-			// Determine if we need to filter on SEPA, which requires an inner join logic
-			// for the filter to work on the parent rows in PostgREST.
-			const filterSepa =
-				(mandate_agreed !== undefined && mandate_agreed !== "") ||
-				(privacy_agreed !== undefined && privacy_agreed !== "");
-
-			const selectQuery = filterSepa ? "*, sepa!inner(*)" : "*, sepa(*)";
-
-			let dbQuery = getSupabase().from("members").select(selectQuery);
-
-			if (active !== undefined && active !== "") {
-				dbQuery = dbQuery.eq("active", active === "true");
-			}
-
-			if (mandate_agreed !== undefined && mandate_agreed !== "") {
-				dbQuery = dbQuery.eq("sepa.mandate_agreed", mandate_agreed === "true");
-			}
-			if (privacy_agreed !== undefined && privacy_agreed !== "") {
-				dbQuery = dbQuery.eq("sepa.privacy_agreed", privacy_agreed === "true");
-			}
-
-			const { data: members, error: membersError } = await dbQuery;
+			const { data: members, error: membersError } = await getSupabase()
+				.from("members")
+				.select("*, sepa(*)");
 
 			if (membersError) {
 				request.log.error({ err: membersError }, "Failed to fetch members");
@@ -167,14 +147,42 @@ export async function adminRoutes(server: FastifyInstance) {
 				}));
 
 				const normalizedSearch = search?.trim().toLowerCase();
-				const filtered = normalizedSearch
-					? // biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
-						joined.filter((member: any) =>
-							`${member.given_name} ${member.surname} ${member.email}`
+				const filtered = joined.filter(
+					// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+					(member: any) => {
+						if (
+							normalizedSearch &&
+							!`${member.given_name} ${member.surname} ${member.email}`
 								.toLowerCase()
-								.includes(normalizedSearch),
-						)
-					: joined;
+								.includes(normalizedSearch)
+						) {
+							return false;
+						}
+
+						if (active !== undefined && active !== "") {
+							const isActive = active === "true";
+							if (member.active !== isActive) {
+								return false;
+							}
+						}
+
+						if (mandate_agreed !== undefined && mandate_agreed !== "") {
+							const hasMandate = Boolean(member.sepa?.mandate_agreed);
+							if (hasMandate !== (mandate_agreed === "true")) {
+								return false;
+							}
+						}
+
+						if (privacy_agreed !== undefined && privacy_agreed !== "") {
+							const hasPrivacyAgreement = Boolean(member.sepa?.privacy_agreed);
+							if (hasPrivacyAgreement !== (privacy_agreed === "true")) {
+								return false;
+							}
+						}
+
+						return true;
+					},
+				);
 
 				const getSortValue = (member: (typeof filtered)[number]) => {
 					// biome-ignore lint/suspicious/noExplicitAny: dynamic admin sorting

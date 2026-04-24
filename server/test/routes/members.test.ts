@@ -288,6 +288,67 @@ describe("Members Routes", async () => {
 		});
 	});
 
+	describe("POST /api/members/bootstrap-local-admin", () => {
+		test("promotes an allowlisted local user to admin", async () => {
+			resetDatabase();
+			const previousSupabaseUrl = process.env.SUPABASE_URL;
+			const previousLocalAdminEmails = process.env.LOCAL_ADMIN_EMAILS;
+			process.env.SUPABASE_URL = "http://127.0.0.1:54321";
+			process.env.LOCAL_ADMIN_EMAILS = "user@test.com";
+
+			try {
+				const response = await app.inject({
+					method: "POST",
+					url: "/api/members/bootstrap-local-admin",
+					headers: authHeaders(testTokens.user),
+				});
+
+				assert.strictEqual(response.statusCode, 200);
+				const payload = JSON.parse(response.payload);
+				assert.strictEqual(payload.role, "admin");
+				assert.strictEqual(payload.granted, true);
+				assert.deepStrictEqual(
+					mockDatabase.user_roles.find(
+						(row) => row.user_id === testUserIds.user,
+					),
+					{ user_id: testUserIds.user, role: "admin" },
+				);
+			} finally {
+				process.env.SUPABASE_URL = previousSupabaseUrl;
+				process.env.LOCAL_ADMIN_EMAILS = previousLocalAdminEmails;
+			}
+		});
+
+		test("does not promote users outside the local admin allowlist", async () => {
+			resetDatabase();
+			const previousSupabaseUrl = process.env.SUPABASE_URL;
+			const previousLocalAdminEmails = process.env.LOCAL_ADMIN_EMAILS;
+			process.env.SUPABASE_URL = "http://127.0.0.1:54321";
+			process.env.LOCAL_ADMIN_EMAILS = "someone-else@example.com";
+
+			try {
+				const response = await app.inject({
+					method: "POST",
+					url: "/api/members/bootstrap-local-admin",
+					headers: authHeaders(testTokens.user),
+				});
+
+				assert.strictEqual(response.statusCode, 403);
+				const payload = JSON.parse(response.payload);
+				assert.match(payload.error, /allowlist/i);
+				assert.deepStrictEqual(
+					mockDatabase.user_roles.find(
+						(row) => row.user_id === testUserIds.user,
+					),
+					{ user_id: testUserIds.user, role: "user" },
+				);
+			} finally {
+				process.env.SUPABASE_URL = previousSupabaseUrl;
+				process.env.LOCAL_ADMIN_EMAILS = previousLocalAdminEmails;
+			}
+		});
+	});
+
 	describe("PUT /api/members/:userId", () => {
 		test("owner can update own profile", async () => {
 			resetDatabase();

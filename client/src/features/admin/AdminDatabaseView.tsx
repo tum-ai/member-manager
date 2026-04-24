@@ -1,380 +1,187 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import AccountBalanceOutlinedIcon from "@mui/icons-material/AccountBalanceOutlined";
+import DownloadIcon from "@mui/icons-material/Download";
+import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
+import SearchIcon from "@mui/icons-material/Search";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
+import SwapHorizOutlinedIcon from "@mui/icons-material/SwapHorizOutlined";
+import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
+import {
+	Avatar,
+	Box,
+	Button,
+	CardContent,
+	Chip,
+	CircularProgress,
+	Dialog,
+	DialogActions,
+	DialogContent,
+	DialogTitle,
+	Grid,
+	InputAdornment,
+	MenuItem,
+	MenuList,
+	Popover,
+	Stack,
+	Table,
+	TableBody,
+	TableCell,
+	TableContainer,
+	TableHead,
+	TableRow,
+	TableSortLabel,
+	TextField,
+	Typography,
+	useTheme,
+} from "@mui/material";
+import { alpha } from "@mui/material/styles";
+import { type ReactNode, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
+import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useAdminData } from "../../hooks/useAdminData";
 import {
-	type NewRoleHistoryEntry,
-	useMemberRoleHistory,
-} from "../../hooks/useMemberRoleHistory";
-import {
-	DEPARTMENTS,
-	MEMBER_ROLES,
-	type MemberRole,
-} from "../../lib/constants";
-import type { Member } from "../../types";
+	ACTIVE_FILTER_OPTIONS,
+	type AdminFilters,
+	type AdminMember,
+	type AdminSortKey,
+	BOOLEAN_FILTER_OPTIONS,
+	filterAdminMembers,
+	getAdminMemberInitials,
+	hasMandateAgreement,
+	hasPrivacyAgreement,
+	sortAdminMembers,
+} from "./adminUtils";
 
-interface Filters {
-	search: string;
-	mandateAgreed: string;
-	privacyAgreed: string;
-	activeOnly: boolean;
-	department: string;
-	role: string;
-}
+const initialFilters: AdminFilters = {
+	search: "",
+	mandateAgreed: "",
+	privacyAgreed: "",
+	active: "",
+};
 
-// CSV serialization: RFC-4180. Any field containing a comma, quote, CR, or LF
-// is wrapped in double-quotes, and embedded double-quotes are doubled.
-function escapeCsvCell(value: unknown): string {
-	const str = value === null || value === undefined ? "" : String(value);
-	if (/[",\r\n]/.test(str)) {
-		return `"${str.replace(/"/g, '""')}"`;
-	}
-	return str;
-}
-
-function rowsToCsv(
-	rows: Array<Record<string, unknown>>,
-	columns: string[],
-): string {
-	const lineEnding = "\r\n";
-	const header = columns.map(escapeCsvCell).join(",");
-	const body = rows
-		.map((row) => columns.map((col) => escapeCsvCell(row[col])).join(","))
-		.join(lineEnding);
-	return `${header}${lineEnding}${body}${lineEnding}`;
-}
-
-function RoleHistoryPanel({
-	member,
-	onClose,
-}: {
-	member: Member;
-	onClose: () => void;
-}) {
-	const { entries, isLoading, addEntry, deleteEntry } = useMemberRoleHistory(
-		member.user_id,
-	);
-	const dialogRef = useRef<HTMLDivElement>(null);
-	const titleId = useId();
-	const descriptionId = useId();
-	const [draft, setDraft] = useState<NewRoleHistoryEntry>({
-		role: "Member",
-		semester: "",
-		started_at: "",
-		ended_at: "",
-		note: "",
-	});
-
-	useEffect(() => {
-		dialogRef.current?.focus();
-	}, []);
-
-	async function handleAdd() {
-		const payload: NewRoleHistoryEntry = {
-			role: draft.role,
-			semester: draft.semester?.trim() || null,
-			started_at: draft.started_at?.trim() || null,
-			ended_at: draft.ended_at?.trim() || null,
-			note: draft.note?.trim() || null,
-		};
-		try {
-			await addEntry(payload);
-			setDraft({
-				role: "Member",
-				semester: "",
-				started_at: "",
-				ended_at: "",
-				note: "",
-			});
-		} catch (err) {
-			console.error(err);
-		}
-	}
-
-	return (
-		<div className="fixed inset-0 z-40 flex items-center justify-center p-4">
-			<button
-				type="button"
-				aria-label="Close role history dialog"
-				className="absolute inset-0 bg-black/60"
-				onClick={onClose}
-			/>
-			<div
-				ref={dialogRef}
-				className="relative z-50 w-full max-w-3xl rounded-lg border border-gray-700 bg-gray-900 p-6 text-white shadow-2xl"
-				onClick={(e) => e.stopPropagation()}
-				onKeyDown={(e) => {
-					if (e.key === "Escape") {
-						e.preventDefault();
-						e.stopPropagation();
-						onClose();
-					}
-				}}
-				role="dialog"
-				aria-modal="true"
-				aria-labelledby={titleId}
-				aria-describedby={descriptionId}
-				tabIndex={-1}
-			>
-				<div className="mb-4 flex items-start justify-between gap-4">
-					<div>
-						<h3 id={titleId} className="text-xl font-semibold">
-							Role history
-						</h3>
-						<p id={descriptionId} className="text-sm text-gray-400">
-							{member.given_name} {member.surname} · current role:{" "}
-							<strong>{member.member_role || "Member"}</strong>
-						</p>
-					</div>
-					<button
-						type="button"
-						onClick={onClose}
-						className="rounded px-2 py-1 text-sm hover:bg-gray-800"
-					>
-						Close
-					</button>
-				</div>
-
-				<div className="mb-4 rounded border border-gray-700 p-3">
-					<h4 className="mb-2 text-sm font-medium text-gray-300">
-						Add past role
-					</h4>
-					<div className="grid grid-cols-1 gap-2 md:grid-cols-5">
-						<select
-							value={draft.role}
-							onChange={(e) =>
-								setDraft((d) => ({ ...d, role: e.target.value as MemberRole }))
-							}
-							className="rounded bg-gray-800 p-2 text-sm"
-						>
-							{MEMBER_ROLES.map((r) => (
-								<option key={r} value={r}>
-									{r}
-								</option>
-							))}
-						</select>
-						<input
-							type="text"
-							placeholder="Semester (e.g. WS25/26)"
-							value={draft.semester ?? ""}
-							onChange={(e) =>
-								setDraft((d) => ({ ...d, semester: e.target.value }))
-							}
-							className="rounded bg-gray-800 p-2 text-sm"
-						/>
-						<input
-							type="date"
-							value={draft.started_at ?? ""}
-							onChange={(e) =>
-								setDraft((d) => ({ ...d, started_at: e.target.value }))
-							}
-							className="rounded bg-gray-800 p-2 text-sm"
-						/>
-						<input
-							type="date"
-							value={draft.ended_at ?? ""}
-							onChange={(e) =>
-								setDraft((d) => ({ ...d, ended_at: e.target.value }))
-							}
-							className="rounded bg-gray-800 p-2 text-sm"
-						/>
-						<button
-							type="button"
-							onClick={handleAdd}
-							className="rounded bg-purple-600 px-3 py-2 text-sm font-medium hover:bg-purple-700"
-						>
-							Add
-						</button>
-					</div>
-					<input
-						type="text"
-						placeholder="Note (optional)"
-						value={draft.note ?? ""}
-						onChange={(e) => setDraft((d) => ({ ...d, note: e.target.value }))}
-						className="mt-2 w-full rounded bg-gray-800 p-2 text-sm"
-					/>
-				</div>
-
-				<div className="max-h-[50vh] overflow-y-auto">
-					{isLoading ? (
-						<p className="text-sm text-gray-400">Loading...</p>
-					) : entries.length === 0 ? (
-						<p className="text-sm text-gray-400">No past roles recorded.</p>
-					) : (
-						<table className="w-full border-collapse text-sm">
-							<thead className="bg-gray-800 text-left">
-								<tr>
-									<th className="p-2">Role</th>
-									<th className="p-2">Semester</th>
-									<th className="p-2">From</th>
-									<th className="p-2">To</th>
-									<th className="p-2">Note</th>
-									<th className="p-2" />
-								</tr>
-							</thead>
-							<tbody>
-								{entries.map((entry) => (
-									<tr
-										key={entry.id}
-										className="border-b border-gray-800 align-top"
-									>
-										<td className="p-2 font-medium">{entry.role}</td>
-										<td className="p-2">{entry.semester ?? "—"}</td>
-										<td className="p-2">{entry.started_at ?? "—"}</td>
-										<td className="p-2">{entry.ended_at ?? "—"}</td>
-										<td className="p-2">{entry.note ?? ""}</td>
-										<td className="p-2">
-											<button
-												type="button"
-												onClick={() => deleteEntry(entry.id)}
-												className="rounded bg-red-700 px-2 py-1 text-xs hover:bg-red-800"
-											>
-												Delete
-											</button>
-										</td>
-									</tr>
-								))}
-							</tbody>
-						</table>
-					)}
-				</div>
-			</div>
-		</div>
-	);
-}
+const sortableColumns: Array<{
+	key: AdminSortKey;
+	label: string;
+	width?: number;
+}> = [
+	{ key: "surname", label: "Member", width: 260 },
+	{ key: "department", label: "Department", width: 160 },
+	{ key: "member_role", label: "Role", width: 160 },
+	{ key: "phone", label: "Phone", width: 150 },
+	{ key: "iban", label: "IBAN", width: 220 },
+	{ key: "bic", label: "BIC", width: 150 },
+	{ key: "bank_name", label: "Bank", width: 180 },
+	{ key: "mandate_agreed", label: "SEPA", width: 140 },
+	{ key: "privacy_agreed", label: "Privacy", width: 140 },
+	{ key: "active", label: "Status", width: 140 },
+];
 
 export default function AdminDatabaseView() {
+	const theme = useTheme();
 	const { showToast } = useToast();
-	const { members, isLoading, error, updateRole } = useAdminData();
-	const [historyMember, setHistoryMember] = useState<Member | null>(null);
+	const { members, isLoading, error, toggleStatus, isToggling } =
+		useAdminData();
 
-	const [filters, setFilters] = useState<Filters>({
-		search: "",
-		mandateAgreed: "",
-		privacyAgreed: "",
-		// Default: show everyone (active + alumni). This is the "All Members"
-		// tab behaviour requested for this release.
-		activeOnly: false,
-		department: "",
-		role: "",
-	});
-	const [sortBy, setSortBy] = useState<string>("surname");
+	const [filters, setFilters] = useState<AdminFilters>(initialFilters);
+	const [sortBy, setSortBy] = useState<AdminSortKey>("surname");
 	const [sortAsc, setSortAsc] = useState(true);
+	const [memberPendingToggle, setMemberPendingToggle] =
+		useState<AdminMember | null>(null);
+	const [exportAnchorEl, setExportAnchorEl] = useState<HTMLElement | null>(
+		null,
+	);
 
-	const filtered = useMemo(() => {
-		if (!members) return [];
-		return (members || [])
-			.filter((row) => {
-				const {
-					search,
-					mandateAgreed,
-					privacyAgreed,
-					activeOnly,
-					department,
-					role,
-				} = filters;
-				const text =
-					`${row.surname} ${row.given_name} ${row.email} ${row.phone} ${row.sepa?.iban || ""} ${row.sepa?.bic || ""} ${row.sepa?.bank_name || ""}`.toLowerCase();
+	const allMembers = members ?? [];
+	const filtered = useMemo(
+		() =>
+			sortAdminMembers(
+				filterAdminMembers(allMembers, filters),
+				sortBy,
+				sortAsc,
+			),
+		[allMembers, filters, sortAsc, sortBy],
+	);
 
-				if (search && !text.includes(search.toLowerCase())) return false;
-				if (
-					mandateAgreed !== "" &&
-					String(row.sepa?.mandate_agreed) !== mandateAgreed
-				)
-					return false;
-				if (
-					privacyAgreed !== "" &&
-					String(row.sepa?.privacy_agreed) !== privacyAgreed
-				)
-					return false;
-				if (activeOnly && !row.active) return false;
-				if (department && row.department !== department) return false;
-				if (role && row.member_role !== role) return false;
-
-				return true;
-			})
-			.sort((a, b) => {
-				// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
-				const valA = (a as any)[sortBy] ?? (a.sepa as any)?.[sortBy] ?? "";
-				// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
-				const valB = (b as any)[sortBy] ?? (b.sepa as any)?.[sortBy] ?? "";
-				return sortAsc
-					? String(valA).localeCompare(String(valB))
-					: String(valB).localeCompare(String(valA));
-			});
-	}, [members, filters, sortBy, sortAsc]);
+	const stats = useMemo(
+		() => ({
+			total: allMembers.length,
+			active: allMembers.filter((member) => member.active).length,
+			sepaAccepted: allMembers.filter((member) => hasMandateAgreement(member))
+				.length,
+			privacyAccepted: allMembers.filter((member) =>
+				hasPrivacyAgreement(member),
+			).length,
+		}),
+		[allMembers],
+	);
 
 	if (isLoading)
-		return <div className="text-white text-center p-8">Loading data...</div>;
+		return (
+			<Box sx={{ py: 2 }}>
+				<GlassCard variant="elevated">
+					<CardContent
+						sx={{
+							p: 4,
+							display: "flex",
+							alignItems: "center",
+							justifyContent: "center",
+							gap: 2,
+						}}
+					>
+						<CircularProgress size={24} />
+						<Typography color="text.secondary">
+							Loading admin workspace...
+						</Typography>
+					</CardContent>
+				</GlassCard>
+			</Box>
+		);
 	if (error)
 		return (
-			<div className="text-red-500 text-center p-8">Error: {error.message}</div>
+			<Box sx={{ py: 2 }}>
+				<GlassCard variant="elevated">
+					<CardContent sx={{ p: 4, textAlign: "center" }}>
+						<Typography color="error" sx={{ fontWeight: 700, mb: 1 }}>
+							Unable to load the admin workspace
+						</Typography>
+						<Typography color="text.secondary">{error.message}</Typography>
+					</CardContent>
+				</GlassCard>
+			</Box>
 		);
 
-	function getRowStyle(member: Member) {
-		if (!member.active || member.member_role === "Alumni") {
-			return "bg-slate-600 text-white";
-		}
-		if (member.sepa?.mandate_agreed) {
-			return "bg-green-700 text-white";
-		}
-		return "bg-orange-500 text-white";
+	function handleSortChange(column: AdminSortKey) {
+		setSortBy(column);
+		setSortAsc((previousValue) => (sortBy === column ? !previousValue : true));
 	}
 
-	async function handleRoleChange(member: Member, newRole: MemberRole) {
-		if (newRole === member.member_role) return;
-
-		const confirmMsg = `Change ${member.given_name} ${member.surname}'s role to "${newRole}"?${
-			newRole === "Alumni" ? "\n\nThis will also mark them as inactive." : ""
-		}`;
-		if (!window.confirm(confirmMsg)) return;
-
+	async function confirmToggleStatus() {
+		if (!memberPendingToggle) return;
 		try {
-			await updateRole({ userId: member.user_id, role: newRole });
-			showToast(`Role updated to ${newRole}`, "success");
+			await toggleStatus({
+				userId: memberPendingToggle.user_id,
+				newStatus: !memberPendingToggle.active,
+			});
+			showToast("Status updated successfully", "success");
+			setMemberPendingToggle(null);
 		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : "Unknown error";
-			showToast(`Failed to update role: ${msg}`, "error");
+			const errorMessage = err instanceof Error ? err.message : "Unknown error";
+			showToast(`Failed to update status: ${errorMessage}`, "error");
 		}
+	}
+
+	function exportToExcel() {
+		const exportData = buildExportRows(filtered);
+		const worksheet = XLSX.utils.json_to_sheet(exportData);
+		const workbook = XLSX.utils.book_new();
+		XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
+		XLSX.writeFile(workbook, "members_export.xlsx");
 	}
 
 	function exportToCsv() {
-		const columns = [
-			"Surname",
-			"Given Name",
-			"Email",
-			"Phone",
-			"Department",
-			"Role",
-			"Batch",
-			"Degree",
-			"School",
-			"IBAN",
-			"BIC",
-			"Bank Name",
-			"SEPA Mandate",
-			"Privacy Agreed",
-			"Active",
-		];
-		const rows = filtered.map((m) => ({
-			Surname: m.surname,
-			"Given Name": m.given_name,
-			Email: m.email,
-			Phone: m.phone,
-			Department: m.department || "",
-			Role: m.member_role || "",
-			Batch: m.batch || "",
-			Degree: m.degree || "",
-			School: m.school || "",
-			IBAN: m.sepa?.iban || "",
-			BIC: m.sepa?.bic || "",
-			"Bank Name": m.sepa?.bank_name || "",
-			"SEPA Mandate": String(m.sepa?.mandate_agreed ?? false),
-			"Privacy Agreed": String(m.sepa?.privacy_agreed ?? false),
-			Active: String(m.active),
-		}));
-
-		const csv = rowsToCsv(rows, columns);
+		const exportData = buildExportRows(filtered);
+		const csv = rowsToCsv(exportData);
 		const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
 		const url = URL.createObjectURL(blob);
 		const link = document.createElement("a");
@@ -386,29 +193,23 @@ export default function AdminDatabaseView() {
 		URL.revokeObjectURL(url);
 	}
 
-	function exportToExcel() {
-		const exportData = filtered.map((member) => ({
+	function buildExportRows(rows: AdminMember[]) {
+		return rows.map((member) => ({
 			Surname: member.surname,
 			"Given Name": member.given_name,
 			Email: member.email,
 			Phone: member.phone,
 			Department: member.department || "",
 			Role: member.member_role || "",
-			Batch: member.batch || "",
-			Degree: member.degree || "",
-			School: member.school || "",
 			IBAN: member.sepa?.iban || "",
 			BIC: member.sepa?.bic || "",
 			"Bank Name": member.sepa?.bank_name || "",
-			"SEPA Mandate": String(member.sepa?.mandate_agreed),
-			"Privacy Agreed": String(member.sepa?.privacy_agreed),
-			Active: String(member.active),
+			"SEPA Mandate": hasMandateAgreement(member) ? "Accepted" : "Not accepted",
+			"Privacy Agreed": hasPrivacyAgreement(member)
+				? "Accepted"
+				: "Not accepted",
+			Status: member.active ? "Active" : "Alumni",
 		}));
-
-		const worksheet = XLSX.utils.json_to_sheet(exportData);
-		const workbook = XLSX.utils.book_new();
-		XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
-		XLSX.writeFile(workbook, "members_export.xlsx");
 	}
 
 	function downloadEmails() {
@@ -427,229 +228,571 @@ export default function AdminDatabaseView() {
 		URL.revokeObjectURL(url);
 	}
 
-	const boolOptions = [
-		{ label: "All", value: "" },
-		{ label: "Yes", value: "true" },
-		{ label: "No", value: "false" },
-	];
+	function closeExportMenu() {
+		setExportAnchorEl(null);
+	}
 
 	return (
-		<div className="min-h-screen p-8 text-white">
-			<h2 className="text-3xl font-bold mb-6">Admin Database View</h2>
-
-			<div className="flex flex-wrap gap-4 mb-6 p-4 bg-gray-800 rounded-lg">
-				<input
-					type="text"
-					placeholder="Search text..."
-					value={filters.search}
-					onChange={(e) =>
-						setFilters((f) => ({ ...f, search: e.target.value }))
-					}
-					className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none focus:border-blue-500 w-full md:w-64"
-				/>
-
-				<div className="flex items-center gap-2">
-					<span>Department:</span>
-					<select
-						value={filters.department}
-						onChange={(e) =>
-							setFilters((f) => ({ ...f, department: e.target.value }))
-						}
-						className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none"
+		<Box sx={{ py: 2 }}>
+			<GlassCard variant="elevated" sx={{ mb: 4, overflow: "hidden" }}>
+				<CardContent sx={{ p: { xs: 3, md: 4 } }}>
+					<Box
+						sx={{
+							display: "flex",
+							justifyContent: "space-between",
+							alignItems: { xs: "flex-start", md: "center" },
+							flexDirection: { xs: "column", md: "row" },
+							gap: 3,
+						}}
 					>
-						<option value="">All</option>
-						{DEPARTMENTS.map((d) => (
-							<option key={d} value={d}>
-								{d}
-							</option>
-						))}
-					</select>
-				</div>
+						<Box sx={{ maxWidth: 680 }}>
+							<Typography variant="h3" sx={{ mb: 1.25 }}>
+								Admin Workspace
+							</Typography>
+							<Typography variant="body1" color="text.secondary">
+								Review membership records, agreement status, and banking data.
+							</Typography>
+						</Box>
+					</Box>
 
-				<div className="flex items-center gap-2">
-					<span>Role:</span>
-					<select
-						value={filters.role}
-						onChange={(e) =>
-							setFilters((f) => ({ ...f, role: e.target.value }))
-						}
-						className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none"
-					>
-						<option value="">All</option>
-						{MEMBER_ROLES.map((r) => (
-							<option key={r} value={r}>
-								{r}
-							</option>
-						))}
-					</select>
-				</div>
+					<Grid container spacing={1.5} sx={{ mt: 0.5 }}>
+						<Grid size={{ xs: 12, sm: 6, xl: 3 }}>
+							<MetricCard
+								icon={<PeopleAltOutlinedIcon fontSize="small" />}
+								label="Total members"
+								value={stats.total}
+							/>
+						</Grid>
+						<Grid size={{ xs: 12, sm: 6, xl: 3 }}>
+							<MetricCard
+								icon={<VerifiedUserOutlinedIcon fontSize="small" />}
+								label="Active members"
+								value={stats.active}
+							/>
+						</Grid>
+						<Grid size={{ xs: 12, sm: 6, xl: 3 }}>
+							<MetricCard
+								icon={<AccountBalanceOutlinedIcon fontSize="small" />}
+								label="SEPA accepted"
+								value={stats.sepaAccepted}
+							/>
+						</Grid>
+						<Grid size={{ xs: 12, sm: 6, xl: 3 }}>
+							<MetricCard
+								icon={<ShieldOutlinedIcon fontSize="small" />}
+								label="Privacy accepted"
+								value={stats.privacyAccepted}
+							/>
+						</Grid>
+					</Grid>
+				</CardContent>
+			</GlassCard>
 
-				<div className="flex items-center gap-2">
-					<span>SEPA Mandate:</span>
-					<select
-						value={filters.mandateAgreed}
-						onChange={(e) =>
-							setFilters((f) => ({ ...f, mandateAgreed: e.target.value }))
-						}
-						className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none"
-					>
-						{boolOptions.map((opt) => (
-							<option key={opt.value} value={opt.value}>
-								{opt.label}
-							</option>
-						))}
-					</select>
-				</div>
+			<GlassCard sx={{ mb: 3 }}>
+				<CardContent sx={{ p: 3 }}>
+					<Grid container spacing={2}>
+						<Grid size={{ xs: 12, lg: 5 }}>
+							<TextField
+								size="small"
+								label="Search members"
+								placeholder="Name, email, phone, IBAN, department..."
+								value={filters.search}
+								onChange={(event) =>
+									setFilters((currentValue) => ({
+										...currentValue,
+										search: event.target.value,
+									}))
+								}
+								slotProps={{
+									input: {
+										startAdornment: (
+											<InputAdornment position="start">
+												<SearchIcon fontSize="small" />
+											</InputAdornment>
+										),
+									},
+								}}
+							/>
+						</Grid>
 
-				<div className="flex items-center gap-2">
-					<span>Privacy Agreed:</span>
-					<select
-						value={filters.privacyAgreed}
-						onChange={(e) =>
-							setFilters((f) => ({ ...f, privacyAgreed: e.target.value }))
-						}
-						className="p-2 rounded bg-gray-700 border border-gray-600 focus:outline-none"
-					>
-						{boolOptions.map((opt) => (
-							<option key={opt.value} value={opt.value}>
-								{opt.label}
-							</option>
-						))}
-					</select>
-				</div>
-
-				<label className="flex items-center gap-2 cursor-pointer select-none">
-					<input
-						type="checkbox"
-						checked={filters.activeOnly}
-						onChange={(e) =>
-							setFilters((f) => ({ ...f, activeOnly: e.target.checked }))
-						}
-						className="h-4 w-4"
-					/>
-					Active only (hide Alumni)
-				</label>
-			</div>
-
-			<div className="flex gap-4 mb-6 flex-wrap">
-				<button
-					type="button"
-					onClick={exportToCsv}
-					className="px-4 py-2 bg-purple-600 hover:bg-purple-700 rounded font-medium transition-colors"
-				>
-					Export CSV
-				</button>
-				<button
-					type="button"
-					onClick={exportToExcel}
-					className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded font-medium transition-colors"
-				>
-					Export Excel
-				</button>
-				<button
-					type="button"
-					onClick={downloadEmails}
-					className="px-4 py-2 bg-teal-600 hover:bg-teal-700 rounded font-medium transition-colors"
-				>
-					Download Filtered Emails
-				</button>
-				<span className="ml-auto self-center text-gray-300">
-					{filtered.length} of {members?.length ?? 0} members
-				</span>
-			</div>
-
-			<div className="overflow-x-auto rounded-lg border border-gray-700">
-				<table className="w-full border-collapse text-sm">
-					<thead>
-						<tr className="bg-gray-900 text-left">
-							{[
-								{ key: "surname", label: "Surname" },
-								{ key: "given_name", label: "Given Name" },
-								{ key: "email", label: "Email" },
-								{ key: "department", label: "Department" },
-								{ key: "member_role", label: "Role" },
-								{ key: "iban", label: "IBAN" },
-								{ key: "bank_name", label: "Bank" },
-								{ key: "mandate_agreed", label: "SEPA" },
-								{ key: "privacy_agreed", label: "Privacy" },
-								{ key: "active", label: "Active" },
-								{ key: "actions", label: "" },
-							].map(({ key, label }) => (
-								<th
-									key={key}
-									onClick={() => {
-										setSortBy(key);
-										setSortAsc((prev) => (sortBy === key ? !prev : true));
-									}}
-									className="p-3 cursor-pointer hover:bg-gray-800 select-none whitespace-nowrap"
-								>
-									{label} {sortBy === key ? (sortAsc ? "▲" : "▼") : ""}
-								</th>
-							))}
-						</tr>
-					</thead>
-					<tbody>
-						{filtered.map((row) => (
-							<tr
-								key={row.user_id}
-								className={`${getRowStyle(row)} border-b border-gray-700`}
+						<Grid size={{ xs: 12, sm: 4, lg: 2 }}>
+							<TextField
+								select
+								size="small"
+								label="SEPA mandate"
+								value={filters.mandateAgreed}
+								onChange={(event) =>
+									setFilters((currentValue) => ({
+										...currentValue,
+										mandateAgreed: event.target.value,
+									}))
+								}
+								slotProps={{
+									select: getSelectProps(BOOLEAN_FILTER_OPTIONS),
+								}}
 							>
-								<td className="p-3">{row.surname}</td>
-								<td className="p-3">{row.given_name}</td>
-								<td className="p-3">{row.email}</td>
-								<td className="p-3">{row.department || "—"}</td>
-								<td className="p-3">
-									<select
-										value={(row.member_role as MemberRole | null) || "Member"}
-										onChange={(e) =>
-											handleRoleChange(row, e.target.value as MemberRole)
-										}
-										className="p-1 rounded bg-gray-900 border border-gray-600 text-white text-xs"
-									>
-										{MEMBER_ROLES.map((r) => (
-											<option key={r} value={r}>
-												{r}
-											</option>
-										))}
-									</select>
-								</td>
-								<td className="p-3">{row.sepa?.iban || ""}</td>
-								<td className="p-3">{row.sepa?.bank_name || ""}</td>
-								<td className="p-3">
-									{String(row.sepa?.mandate_agreed ?? false)}
-								</td>
-								<td className="p-3">
-									{String(row.sepa?.privacy_agreed ?? false)}
-								</td>
-								<td className="p-3">{String(row.active)}</td>
-								<td className="p-3">
-									<button
-										type="button"
-										onClick={() => setHistoryMember(row)}
-										className="rounded bg-gray-900 px-2 py-1 text-xs hover:bg-gray-700"
-									>
-										History
-									</button>
-								</td>
-							</tr>
-						))}
-						{filtered.length === 0 && (
-							<tr>
-								<td colSpan={11} className="p-8 text-center text-gray-400">
-									No records found.
-								</td>
-							</tr>
-						)}
-					</tbody>
-				</table>
-			</div>
+								{BOOLEAN_FILTER_OPTIONS.map((option) => (
+									<MenuItem key={option.value} value={option.value}>
+										{option.label}
+									</MenuItem>
+								))}
+							</TextField>
+						</Grid>
 
-			{historyMember && (
-				<RoleHistoryPanel
-					member={historyMember}
-					onClose={() => setHistoryMember(null)}
-				/>
-			)}
-		</div>
+						<Grid size={{ xs: 12, sm: 4, lg: 2 }}>
+							<TextField
+								select
+								size="small"
+								label="Privacy policy"
+								value={filters.privacyAgreed}
+								onChange={(event) =>
+									setFilters((currentValue) => ({
+										...currentValue,
+										privacyAgreed: event.target.value,
+									}))
+								}
+								slotProps={{
+									select: getSelectProps(BOOLEAN_FILTER_OPTIONS),
+								}}
+							>
+								{BOOLEAN_FILTER_OPTIONS.map((option) => (
+									<MenuItem key={option.value} value={option.value}>
+										{option.label}
+									</MenuItem>
+								))}
+							</TextField>
+						</Grid>
+
+						<Grid size={{ xs: 12, sm: 4, lg: 2 }}>
+							<TextField
+								select
+								size="small"
+								label="Member status"
+								value={filters.active}
+								onChange={(event) =>
+									setFilters((currentValue) => ({
+										...currentValue,
+										active: event.target.value,
+									}))
+								}
+								slotProps={{
+									select: getSelectProps(ACTIVE_FILTER_OPTIONS),
+								}}
+							>
+								{ACTIVE_FILTER_OPTIONS.map((option) => (
+									<MenuItem key={option.value} value={option.value}>
+										{option.label}
+									</MenuItem>
+								))}
+							</TextField>
+						</Grid>
+					</Grid>
+
+					<Stack
+						direction={{ xs: "column", md: "row" }}
+						spacing={1.5}
+						sx={{ mt: 2.5, justifyContent: "space-between" }}
+					>
+						<Box />
+
+						<Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+							<Button
+								type="button"
+								variant="contained"
+								startIcon={<DownloadIcon />}
+								onClick={(event) => setExportAnchorEl(event.currentTarget)}
+								disabled={filtered.length === 0}
+							>
+								Export
+							</Button>
+							<Button
+								type="button"
+								variant="outlined"
+								startIcon={<EmailOutlinedIcon />}
+								onClick={downloadEmails}
+								disabled={filtered.length === 0}
+							>
+								Download emails
+							</Button>
+						</Stack>
+					</Stack>
+
+					<Popover
+						open={Boolean(exportAnchorEl)}
+						anchorEl={exportAnchorEl}
+						onClose={closeExportMenu}
+						anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+						transformOrigin={{ vertical: "top", horizontal: "left" }}
+					>
+						<MenuList sx={{ minWidth: 180 }}>
+							<MenuItem
+								onClick={() => {
+									exportToCsv();
+									closeExportMenu();
+								}}
+							>
+								Export as CSV
+							</MenuItem>
+							<MenuItem
+								onClick={() => {
+									exportToExcel();
+									closeExportMenu();
+								}}
+							>
+								Export as Excel
+							</MenuItem>
+						</MenuList>
+					</Popover>
+				</CardContent>
+			</GlassCard>
+
+			<GlassCard variant="elevated" sx={{ overflow: "hidden" }}>
+				<TableContainer sx={{ maxHeight: "72vh" }}>
+					<Table stickyHeader size="small" sx={{ minWidth: 1480 }}>
+						<TableHead>
+							<TableRow>
+								{sortableColumns.map((column) => (
+									<TableCell
+										key={column.key}
+										sx={{
+											minWidth: column.width,
+											backgroundColor:
+												theme.palette.mode === "light"
+													? alpha(theme.palette.background.paper, 0.98)
+													: alpha(theme.palette.background.paper, 0.94),
+											borderBottom: `1px solid ${theme.palette.divider}`,
+										}}
+									>
+										<TableSortLabel
+											active={sortBy === column.key}
+											direction={
+												sortBy === column.key && !sortAsc ? "desc" : "asc"
+											}
+											onClick={() => handleSortChange(column.key)}
+										>
+											{column.label}
+										</TableSortLabel>
+									</TableCell>
+								))}
+								<TableCell
+									sx={{
+										minWidth: 140,
+										backgroundColor:
+											theme.palette.mode === "light"
+												? alpha(theme.palette.background.paper, 0.98)
+												: alpha(theme.palette.background.paper, 0.94),
+										borderBottom: `1px solid ${theme.palette.divider}`,
+									}}
+								>
+									Actions
+								</TableCell>
+							</TableRow>
+						</TableHead>
+
+						<TableBody>
+							{filtered.map((row) => {
+								const sepaAccepted = hasMandateAgreement(row);
+								const privacyAccepted = hasPrivacyAgreement(row);
+								const fullName =
+									`${row.given_name} ${row.surname}`.trim() || "Unnamed member";
+
+								return (
+									<TableRow
+										key={row.user_id}
+										hover
+										sx={{
+											opacity: row.active ? 1 : 0.84,
+											transition:
+												"background-color 180ms ease, opacity 180ms ease",
+											"&:hover": {
+												backgroundColor:
+													theme.palette.mode === "light"
+														? alpha(theme.palette.primary.main, 0.04)
+														: alpha(theme.palette.primary.main, 0.08),
+											},
+											"& td": {
+												borderBottom: `1px solid ${alpha(
+													theme.palette.divider,
+													0.9,
+												)}`,
+											},
+										}}
+									>
+										<TableCell>
+											<Stack direction="row" spacing={1.5} alignItems="center">
+												<Avatar
+													src={row.avatar_url || undefined}
+													alt={fullName}
+													sx={{
+														width: 44,
+														height: 44,
+														bgcolor:
+															theme.palette.mode === "light"
+																? alpha(theme.palette.text.primary, 0.06)
+																: alpha(theme.palette.common.white, 0.08),
+														color: theme.palette.text.primary,
+														fontWeight: 700,
+													}}
+												>
+													{getAdminMemberInitials(row)}
+												</Avatar>
+												<Box sx={{ minWidth: 0 }}>
+													<Typography
+														sx={{
+															fontWeight: 700,
+															lineHeight: 1.3,
+															overflow: "hidden",
+															textOverflow: "ellipsis",
+															whiteSpace: "nowrap",
+														}}
+													>
+														{fullName}
+													</Typography>
+													<Typography
+														variant="body2"
+														color="text.secondary"
+														sx={{
+															overflow: "hidden",
+															textOverflow: "ellipsis",
+															whiteSpace: "nowrap",
+														}}
+													>
+														{row.email}
+													</Typography>
+												</Box>
+											</Stack>
+										</TableCell>
+
+										<TableCell>{row.department || "Not set"}</TableCell>
+										<TableCell>{row.member_role || "Member"}</TableCell>
+										<TableCell>{row.phone || "Not provided"}</TableCell>
+										<TableCell sx={{ fontFamily: "monospace" }}>
+											{row.sepa?.iban || "Not provided"}
+										</TableCell>
+										<TableCell sx={{ fontFamily: "monospace" }}>
+											{row.sepa?.bic || "Not provided"}
+										</TableCell>
+										<TableCell>
+											{row.sepa?.bank_name || "Not provided"}
+										</TableCell>
+										<TableCell>
+											<AgreementChip accepted={sepaAccepted} />
+										</TableCell>
+										<TableCell>
+											<AgreementChip accepted={privacyAccepted} />
+										</TableCell>
+										<TableCell>
+											<Chip
+												size="small"
+												label={row.active ? "Active" : "Alumni"}
+												color={row.active ? "success" : "default"}
+												variant={row.active ? "filled" : "outlined"}
+												sx={{
+													fontWeight: 600,
+													backgroundColor: row.active
+														? alpha(theme.palette.success.main, 0.14)
+														: alpha(theme.palette.text.secondary, 0.08),
+													color: row.active
+														? theme.palette.success.main
+														: theme.palette.text.secondary,
+													borderColor: alpha(
+														theme.palette.text.secondary,
+														0.18,
+													),
+												}}
+											/>
+										</TableCell>
+										<TableCell>
+											<Button
+												type="button"
+												size="small"
+												variant="outlined"
+												startIcon={<SwapHorizOutlinedIcon />}
+												onClick={() => setMemberPendingToggle(row)}
+											>
+												{row.active ? "Set Alumni" : "Set active"}
+											</Button>
+										</TableCell>
+									</TableRow>
+								);
+							})}
+
+							{filtered.length === 0 && (
+								<TableRow>
+									<TableCell colSpan={sortableColumns.length + 1}>
+										<Box sx={{ py: 7, textAlign: "center" }}>
+											<Typography sx={{ fontWeight: 700, mb: 1 }}>
+												No members match the current filters
+											</Typography>
+											<Typography color="text.secondary">
+												Try broadening the search or resetting the agreement
+												filters.
+											</Typography>
+										</Box>
+									</TableCell>
+								</TableRow>
+							)}
+						</TableBody>
+					</Table>
+				</TableContainer>
+			</GlassCard>
+
+			<Dialog
+				open={Boolean(memberPendingToggle)}
+				onClose={() => {
+					if (!isToggling) {
+						setMemberPendingToggle(null);
+					}
+				}}
+				maxWidth="xs"
+				fullWidth
+			>
+				<DialogTitle>Update member status</DialogTitle>
+				<DialogContent>
+					<Typography color="text.secondary">
+						{memberPendingToggle
+							? `Set ${memberPendingToggle.given_name} ${memberPendingToggle.surname} to ${memberPendingToggle.active ? "Alumni" : "active"}?`
+							: ""}
+					</Typography>
+				</DialogContent>
+				<DialogActions>
+					<Button
+						type="button"
+						variant="text"
+						onClick={() => setMemberPendingToggle(null)}
+						disabled={isToggling}
+					>
+						Cancel
+					</Button>
+					<Button
+						type="button"
+						variant="contained"
+						onClick={confirmToggleStatus}
+						disabled={isToggling}
+					>
+						{isToggling ? "Saving..." : "Confirm"}
+					</Button>
+				</DialogActions>
+			</Dialog>
+		</Box>
 	);
+}
+
+interface MetricCardProps {
+	icon: ReactNode;
+	label: string;
+	value: number;
+}
+
+function MetricCard({ icon, label, value }: MetricCardProps) {
+	const theme = useTheme();
+
+	return (
+		<Box
+			sx={{
+				p: 2.25,
+				borderRadius: 3,
+				backgroundColor:
+					theme.palette.mode === "light"
+						? alpha(theme.palette.primary.main, 0.06)
+						: alpha(theme.palette.primary.main, 0.12),
+				border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
+				display: "flex",
+				alignItems: "center",
+				gap: 1.5,
+			}}
+		>
+			<Box
+				sx={{
+					width: 40,
+					height: 40,
+					borderRadius: 2.5,
+					display: "grid",
+					placeItems: "center",
+					backgroundColor:
+						theme.palette.mode === "light"
+							? alpha(theme.palette.primary.main, 0.1)
+							: alpha(theme.palette.common.white, 0.08),
+					color: theme.palette.primary.main,
+					flexShrink: 0,
+				}}
+			>
+				{icon}
+			</Box>
+			<Box>
+				<Typography variant="caption" color="text.secondary">
+					{label}
+				</Typography>
+				<Typography variant="h5">{value}</Typography>
+			</Box>
+		</Box>
+	);
+}
+
+function AgreementChip({ accepted }: { accepted: boolean }) {
+	const theme = useTheme();
+
+	return (
+		<Chip
+			size="small"
+			label={accepted ? "Accepted" : "Not accepted"}
+			variant={accepted ? "filled" : "outlined"}
+			sx={{
+				fontWeight: 600,
+				backgroundColor: accepted
+					? alpha(theme.palette.primary.main, 0.14)
+					: alpha(theme.palette.warning.main, 0.12),
+				color: accepted
+					? theme.palette.primary.main
+					: theme.palette.warning.main,
+				borderColor: accepted
+					? alpha(theme.palette.primary.main, 0.16)
+					: alpha(theme.palette.warning.main, 0.22),
+			}}
+		/>
+	);
+}
+
+function getSelectProps(
+	options: ReadonlyArray<{ label: string; value: string }>,
+): {
+	displayEmpty: true;
+	renderValue: (selected: unknown) => string;
+} {
+	return {
+		displayEmpty: true,
+		renderValue: (selected) =>
+			options.find((option) => option.value === String(selected))?.label ??
+			"All",
+	};
+}
+
+function rowsToCsv(rows: Array<Record<string, string>>): string {
+	if (rows.length === 0) {
+		return "";
+	}
+
+	const columns = Object.keys(rows[0]);
+	const lineEnding = "\r\n";
+	const header = columns.map(escapeCsvCell).join(",");
+	const body = rows
+		.map((row) =>
+			columns.map((column) => escapeCsvCell(row[column] ?? "")).join(","),
+		)
+		.join(lineEnding);
+
+	return `${header}${lineEnding}${body}${lineEnding}`;
+}
+
+function escapeCsvCell(value: string): string {
+	const normalized = String(value);
+	if (
+		normalized.includes(",") ||
+		normalized.includes('"') ||
+		normalized.includes("\n") ||
+		normalized.includes("\r")
+	) {
+		return `"${normalized.replaceAll('"', '""')}"`;
+	}
+	return normalized;
 }
