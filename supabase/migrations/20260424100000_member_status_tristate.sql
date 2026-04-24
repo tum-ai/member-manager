@@ -9,6 +9,12 @@ begin;
 alter table "public"."members"
     add column if not exists "member_status" "text";
 
+-- The previous schema used a BEFORE trigger to keep `member_role='Alumni'`
+-- coupled to `active=false`. Disable it before backfilling, otherwise the
+-- normalization below gets rewritten back to `Alumni` mid-migration.
+drop trigger if exists "sync_member_role_active" on "public"."members";
+drop function if exists "public"."sync_member_role_active"();
+
 -- Legacy schema encoded both "inactive" and "alumni" as active=false plus
 -- member_role='Alumni'. We no longer have enough information to split those
 -- historical rows, so the safest automatic backfill is to map them to alumni.
@@ -34,9 +40,6 @@ alter table "public"."members"
     alter column "member_role" set not null,
     alter column "member_status" set default 'active',
     alter column "member_status" set not null;
-
-drop trigger if exists "sync_member_role_active" on "public"."members";
-drop function if exists "public"."sync_member_role_active"();
 
 alter table "public"."members"
     drop constraint if exists "members_member_role_check",
