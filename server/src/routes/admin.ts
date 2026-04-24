@@ -3,6 +3,14 @@ import { z } from "zod";
 import { getAuthEmails } from "../lib/authEmails.js";
 import { DatabaseError } from "../lib/errors.js";
 import {
+	MEMBER_ROLES,
+	memberRoleSchema,
+	memberStatusSchema,
+	normalizeNullableText,
+	resolveDepartmentForMemberRole,
+	statusToLegacyActive,
+} from "../lib/memberMetadata.js";
+import {
 	decryptRecord,
 	decryptRecordSafely,
 	SENSITIVE_MEMBER_FIELDS,
@@ -16,6 +24,7 @@ const QuerySchema = z.object({
 	limit: z.string().transform(Number).default("10"),
 	search: z.string().optional(),
 	active: z.string().optional(),
+	member_status: z.string().optional(),
 	mandate_agreed: z.string().optional(),
 	privacy_agreed: z.string().optional(),
 	sort_by: z.string().default("surname"),
@@ -26,23 +35,17 @@ const QuerySchema = z.object({
 });
 
 const StatusSchema = z.object({
-	active: z.boolean(),
+	member_status: memberStatusSchema,
 });
 
-// Canonical member roles. Keep in sync with:
-//   - `supabase/migrations/20260423160500_member_role_enum_and_alumni.sql`
-//   - `client/src/lib/constants.ts` (MEMBER_ROLES)
-export const MEMBER_ROLES = [
-	"Member",
-	"Team Lead",
-	"Vice-President",
-	"President",
-	"Alumni",
-] as const;
-type MemberRole = (typeof MEMBER_ROLES)[number];
-
 const RoleSchema = z.object({
-	member_role: z.enum(MEMBER_ROLES),
+	member_role: memberRoleSchema,
+});
+const DepartmentSchema = z.object({
+	department: z.string().nullish().transform(normalizeNullableText),
+});
+const AccessRoleSchema = z.object({
+	access_role: z.enum(["user", "admin"]),
 });
 const MEMBER_DB_SORT_COLUMNS = new Set([
 	"active",
@@ -56,6 +59,7 @@ const MEMBER_DB_SORT_COLUMNS = new Set([
 	"school",
 	"surname",
 	"user_id",
+	"member_status",
 ]);
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -111,6 +115,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				limit,
 				search,
 				active,
+				member_status,
 				mandate_agreed,
 				privacy_agreed,
 				sort_by,
@@ -162,12 +167,42 @@ export async function adminRoutes(server: FastifyInstance) {
 						),
 					}));
 
+				const attachAccessRoles = async (
+					// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
+					rows: any[],
+				) => {
+					const { data: accessRoles, error: accessRolesError } =
+						await getSupabase().from("user_roles").select("user_id, role");
+
+					if (accessRolesError) {
+						request.log.error(
+							{ err: accessRolesError },
+							"Failed to fetch access roles",
+						);
+						throw new DatabaseError();
+					}
+
+					const accessRoleMap = new Map(
+						(accessRoles || []).map((entry) => [
+							String((entry as { user_id?: string }).user_id ?? ""),
+							String((entry as { role?: string }).role ?? "user"),
+						]),
+					);
+
+					return rows.map((member) => ({
+						...member,
+						access_role: accessRoleMap.get(String(member.user_id)) ?? "user",
+					}));
+				};
+
 				if (canUsePagedDbQuery) {
 					let membersQuery = getSupabase()
 						.from("members")
 						.select("*, sepa(*)", { count: "exact" });
 
-					if (active !== undefined && active !== "") {
+					if (member_status !== undefined && member_status !== "") {
+						membersQuery = membersQuery.eq("member_status", member_status);
+					} else if (active !== undefined && active !== "") {
 						membersQuery = membersQuery.eq("active", active === "true");
 					}
 
@@ -190,10 +225,12 @@ export async function adminRoutes(server: FastifyInstance) {
 					);
 
 					return {
-						data: pageRows.map((member) => ({
-							...member,
-							email: emailMap.get(String(member.user_id)) ?? "",
-						})),
+						data: await attachAccessRoles(
+							pageRows.map((member) => ({
+								...member,
+								email: emailMap.get(String(member.user_id)) ?? "",
+							})),
+						),
 						total: count ?? 0,
 						page,
 						limit,
@@ -201,7 +238,9 @@ export async function adminRoutes(server: FastifyInstance) {
 				}
 
 				let membersQuery = getSupabase().from("members").select("*, sepa(*)");
-				if (active !== undefined && active !== "") {
+				if (member_status !== undefined && member_status !== "") {
+					membersQuery = membersQuery.eq("member_status", member_status);
+				} else if (active !== undefined && active !== "") {
 					membersQuery = membersQuery.eq("active", active === "true");
 				}
 
@@ -231,7 +270,11 @@ export async function adminRoutes(server: FastifyInstance) {
 							return false;
 						}
 
-						if (active !== undefined && active !== "") {
+						if (member_status !== undefined && member_status !== "") {
+							if (member.member_status !== member_status) {
+								return false;
+							}
+						} else if (active !== undefined && active !== "") {
 							const isActive = active === "true";
 							if (member.active !== isActive) {
 								return false;
@@ -275,10 +318,12 @@ export async function adminRoutes(server: FastifyInstance) {
 					);
 
 					return {
-						data: paged.map((member) => ({
-							...member,
-							email: pageEmailMap.get(String(member.user_id)) ?? "",
-						})),
+						data: await attachAccessRoles(
+							paged.map((member) => ({
+								...member,
+								email: pageEmailMap.get(String(member.user_id)) ?? "",
+							})),
+						),
 						total: filtered.length,
 						page,
 						limit,
@@ -286,7 +331,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				}
 
 				return {
-					data: paged,
+					data: await attachAccessRoles(paged),
 					total: filtered.length,
 					page,
 					limit,
@@ -310,19 +355,21 @@ export async function adminRoutes(server: FastifyInstance) {
 					details: parsed.error.flatten(),
 				});
 			}
-			const role: MemberRole = parsed.data.member_role;
-
-			// Alumni <-> inactive invariant: DB trigger enforces this on write,
-			// but we set both explicitly so behavior is observable without relying
-			// on a BEFORE trigger (which mocks in tests do not simulate).
-			const update = {
+			const role = parsed.data.member_role;
+			const updatePayload: {
+				member_role: string;
+				department?: string | null;
+			} = {
 				member_role: role,
-				active: role !== "Alumni",
 			};
+			const forcedDepartment = resolveDepartmentForMemberRole(role, undefined);
+			if (forcedDepartment !== null) {
+				updatePayload.department = forcedDepartment;
+			}
 
 			const { data, error } = await getSupabase()
 				.from("members")
-				.update(update)
+				.update(updatePayload)
 				.eq("user_id", userId)
 				.select()
 				.single();
@@ -336,6 +383,112 @@ export async function adminRoutes(server: FastifyInstance) {
 			}
 
 			return decryptRecord(data, SENSITIVE_MEMBER_FIELDS);
+		},
+	);
+
+	server.patch<{ Params: { userId: string } }>(
+		"/admin/members/:userId/department",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const { userId } = request.params;
+			const parsed = DepartmentSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid department",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const { data: existingMember, error: memberLookupError } =
+				await getSupabase()
+					.from("members")
+					.select("member_role")
+					.eq("user_id", userId)
+					.single();
+
+			if (memberLookupError) {
+				if (memberLookupError.code === "PGRST116") {
+					return reply.status(404).send({ error: "Member not found" });
+				}
+				request.log.error(
+					{ err: memberLookupError },
+					"Failed to fetch member before department update",
+				);
+				throw new DatabaseError();
+			}
+
+			const { data, error } = await getSupabase()
+				.from("members")
+				.update({
+					department: resolveDepartmentForMemberRole(
+						(existingMember as { member_role?: string | null }).member_role,
+						parsed.data.department,
+					),
+				})
+				.eq("user_id", userId)
+				.select()
+				.single();
+
+			if (error) {
+				if (error.code === "PGRST116") {
+					return reply.status(404).send({ error: "Member not found" });
+				}
+				request.log.error({ err: error }, "Failed to update member department");
+				throw new DatabaseError();
+			}
+
+			return decryptRecord(data, SENSITIVE_MEMBER_FIELDS);
+		},
+	);
+
+	server.patch<{ Params: { userId: string } }>(
+		"/admin/members/:userId/access-role",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const { userId } = request.params;
+			const parsed = AccessRoleSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid access_role",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const { data: existingMember, error: memberLookupError } =
+				await getSupabase()
+					.from("members")
+					.select("user_id")
+					.eq("user_id", userId)
+					.single();
+
+			if (memberLookupError || !existingMember) {
+				if (memberLookupError?.code === "PGRST116") {
+					return reply.status(404).send({ error: "Member not found" });
+				}
+				request.log.error(
+					{ err: memberLookupError },
+					"Failed to fetch member before access-role update",
+				);
+				throw new DatabaseError();
+			}
+
+			const { error } = await getSupabase().from("user_roles").upsert(
+				{
+					user_id: userId,
+					role: parsed.data.access_role,
+				},
+				{ onConflict: "user_id" },
+			);
+
+			if (error) {
+				request.log.error({ err: error }, "Failed to update access role");
+				throw new DatabaseError();
+			}
+
+			return {
+				user_id: userId,
+				access_role: parsed.data.access_role,
+			};
 		},
 	);
 
@@ -435,10 +588,14 @@ export async function adminRoutes(server: FastifyInstance) {
 		async (request, _reply) => {
 			const { userId } = request.params as { userId: string };
 			const body = StatusSchema.parse(request.body);
+			const isActive = statusToLegacyActive(body.member_status);
 
 			const { error } = await getSupabase()
 				.from("members")
-				.update({ active: body.active })
+				.update({
+					member_status: body.member_status,
+					active: isActive,
+				})
 				.eq("user_id", userId);
 
 			if (error) {

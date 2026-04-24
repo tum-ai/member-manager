@@ -31,8 +31,9 @@ export const BOOLEAN_FILTER_OPTIONS = [
 
 export const ACTIVE_FILTER_OPTIONS = [
 	{ label: "All", value: "" },
-	{ label: "Active", value: "true" },
-	{ label: "Alumni", value: "false" },
+	{ label: "Active", value: "active" },
+	{ label: "Inactive", value: "inactive" },
+	{ label: "Alumni", value: "alumni" },
 ] as const;
 
 export function hasMandateAgreement(member: AdminMember): boolean {
@@ -94,10 +95,9 @@ export function filterAdminMembers(
 			return false;
 		}
 
-		if (
-			filters.active !== "" &&
-			normalizeBooleanFilterValue(member.active) !== filters.active
-		) {
+		const memberStatus =
+			member.member_status || (member.active ? "active" : "inactive");
+		if (filters.active !== "" && memberStatus !== filters.active) {
 			return false;
 		}
 
@@ -121,7 +121,7 @@ export function getAdminSortValue(
 		case "privacy_agreed":
 			return hasPrivacyAgreement(member) ? "1" : "0";
 		case "active":
-			return member.active ? "1" : "0";
+			return member.member_status || (member.active ? "active" : "inactive");
 		case "surname":
 			return `${member.surname} ${member.given_name}`.trim();
 		default:

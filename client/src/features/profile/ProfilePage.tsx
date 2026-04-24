@@ -25,6 +25,7 @@ import { Link } from "react-router-dom";
 import GlassCard from "../../components/ui/GlassCard";
 import Modal from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
+import { useMemberChangeRequests } from "../../hooks/useMemberChangeRequests";
 import { useMemberData } from "../../hooks/useMemberData";
 import { useSepaData } from "../../hooks/useSepaData";
 import {
@@ -32,9 +33,17 @@ import {
 	DEGREE_PROGRAM_PRESETS,
 	DEGREE_TYPES,
 	DEPARTMENTS,
+	MEMBER_ROLES,
 	SCHOOL_CUSTOM_OPTION,
 	SCHOOL_PRESETS,
 } from "../../lib/constants";
+import {
+	getMemberStatusLabel,
+	isBoardLeadershipRole,
+	joinDegree,
+	resolveDepartmentForMemberRole,
+	splitDegree,
+} from "../../lib/memberMetadata";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
 import {
 	type MemberSchema,
@@ -45,6 +54,7 @@ import {
 import { generateMembershipProofPdf } from "../certificate/generators/membershipProofPdf";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
 import SepaMandate from "../sepa/SepaMandate";
+import { buildSelfServiceMemberUpdatePayload } from "./profileFormUtils";
 
 interface ProfilePageProps {
 	user: User;
@@ -75,34 +85,6 @@ function extractSlackProfile(user: User): {
 	return { given_name: given, surname: family };
 }
 
-// The DB stores `degree` as a single text column. To give the UI a constrained
-// "degree type" select + a (preset-or-custom) program select, we split/join at
-// the UI boundary:
-//   stored value:  "B.Sc. Computer Science"
-//     -> type:     "B.Sc."
-//     -> program:  "Computer Science"
-// If only a program or only a type is set, the other half is left blank.
-function splitDegree(stored: string): { type: string; program: string } {
-	const trimmed = (stored ?? "").trim();
-	for (const candidate of DEGREE_TYPES) {
-		if (trimmed === candidate) return { type: candidate, program: "" };
-		if (trimmed.startsWith(`${candidate} `)) {
-			return {
-				type: candidate,
-				program: trimmed.slice(candidate.length + 1).trim(),
-			};
-		}
-	}
-	return { type: "", program: trimmed };
-}
-
-function joinDegree(type: string, program: string): string {
-	const t = type.trim();
-	const p = program.trim();
-	if (t && p) return `${t} ${p}`;
-	return t || p;
-}
-
 // TUM semester convention:
 //   WS (Wintersemester): Oct–Mar, labeled WSYY/YY (e.g. WS25/26)
 //   SS (Sommersemester): Apr–Sep, labeled SSYY (e.g. SS26)
@@ -126,6 +108,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
 	const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+	const [requestedDepartment, setRequestedDepartment] = useState("");
+	const [requestedRole, setRequestedRole] = useState("");
+	const [changeRequestReason, setChangeRequestReason] = useState("");
 
 	const normalizeTextValue = (value?: string | null): string | null => {
 		const trimmed = value?.trim();
@@ -138,6 +123,11 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		updateMemberAsync,
 		isUpdating: isUpdatingMember,
 	} = useMemberData(user.id);
+	const {
+		requests: memberChangeRequests,
+		submitChangeRequestAsync,
+		isSubmitting: isSubmittingChangeRequest,
+	} = useMemberChangeRequests(user.id);
 
 	const {
 		sepa: sepaData,
@@ -150,6 +140,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		resolver: zodResolver(memberSchema),
 		defaultValues: {
 			active: true,
+			member_status: "active",
 			salutation: "",
 			title: "",
 			surname: "",
@@ -194,6 +185,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 		memberForm.reset({
 			active: existing.active ?? true,
+			member_status:
+				existing.member_status || (existing.active ? "active" : "inactive"),
 			salutation: existing.salutation || "",
 			title: existing.title || "",
 			surname: existing.surname || slackProfile.surname,
@@ -236,10 +229,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				const memberValues = memberForm.getValues();
 				promises.push(
 					updateMemberAsync({
-						...memberValues,
+						...buildSelfServiceMemberUpdatePayload(memberValues),
 						batch: normalizeTextValue(memberValues.batch),
-						department: normalizeTextValue(memberValues.department),
-						member_role: normalizeTextValue(memberValues.member_role),
 						degree: normalizeTextValue(memberValues.degree),
 						school: normalizeTextValue(memberValues.school),
 					}),
@@ -283,6 +274,42 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 	const isLoading = isLoadingMember || isLoadingSepa;
 	const isUpdating = isUpdatingMember || isUpdatingSepa;
+	const latestMemberChangeRequest = memberChangeRequests[0];
+
+	const handleSubmitMemberChangeRequest = async (): Promise<void> => {
+		const department = resolveDepartmentForMemberRole(
+			requestedRole,
+			normalizeTextValue(requestedDepartment),
+		);
+		const memberRole = normalizeTextValue(requestedRole);
+		const reason = changeRequestReason.trim();
+
+		if (!department && !memberRole) {
+			showToast(
+				"Select at least one admin-managed field to request.",
+				"warning",
+			);
+			return;
+		}
+
+		try {
+			await submitChangeRequestAsync({
+				changes: {
+					department,
+					member_role: memberRole,
+				},
+				reason: reason || undefined,
+			});
+			setRequestedDepartment("");
+			setRequestedRole("");
+			setChangeRequestReason("");
+			showToast("Change request sent to the admin team.", "success");
+		} catch (error) {
+			const errorMessage =
+				error instanceof Error ? error.message : "Unknown error";
+			showToast(`Failed to submit change request: ${errorMessage}`, "error");
+		}
+	};
 
 	if (isLoading) {
 		return (
@@ -337,7 +364,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											<ErrorOutlineIcon sx={{ fontSize: 18 }} />
 										)
 									}
-									label={isActive ? "Active Member" : "Inactive"}
+									label={`${getMemberStatusLabel(memberForm.watch("member_status"))} Member`}
 									color={isActive ? "success" : "default"}
 									variant="outlined"
 								/>
@@ -609,18 +636,11 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									</Grid>
 									<Grid size={{ xs: 12, sm: 6 }}>
 										<TextField
-											select
 											label="Department"
-											{...memberForm.register("department")}
 											value={memberForm.watch("department") || ""}
-										>
-											<MenuItem value="">None</MenuItem>
-											{DEPARTMENTS.map((dept) => (
-												<MenuItem key={dept} value={dept}>
-													{dept}
-												</MenuItem>
-											))}
-										</TextField>
+											helperText="Departments are managed by admins"
+											disabled
+										/>
 									</Grid>
 
 									<Grid size={{ xs: 12, sm: 6 }}>
@@ -785,6 +805,120 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 										})()}
 									</Grid>
 								</Grid>
+							</CardContent>
+						</GlassCard>
+
+						<GlassCard variant="elevated" sx={{ mt: 3 }}>
+							<CardContent sx={{ p: 3 }}>
+								<Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
+									Request Admin Changes
+								</Typography>
+								<Typography
+									variant="body2"
+									color="text.secondary"
+									sx={{ mb: 3 }}
+								>
+									Role and department changes are handled by admins. Submit a
+									request here if your internal assignment needs an update.
+								</Typography>
+
+								<Grid container spacing={2}>
+									<Grid size={{ xs: 12, sm: 6 }}>
+										<TextField
+											select
+											label="Requested department"
+											value={requestedDepartment}
+											onChange={(event) =>
+												setRequestedDepartment(event.target.value)
+											}
+											disabled={isBoardLeadershipRole(requestedRole)}
+											helperText={
+												isBoardLeadershipRole(requestedRole)
+													? "President and Vice-President are always in Board."
+													: undefined
+											}
+										>
+											<MenuItem value="">No change</MenuItem>
+											{DEPARTMENTS.map((department) => (
+												<MenuItem key={department} value={department}>
+													{department}
+												</MenuItem>
+											))}
+										</TextField>
+									</Grid>
+									<Grid size={{ xs: 12, sm: 6 }}>
+										<TextField
+											select
+											label="Requested role"
+											value={requestedRole}
+											onChange={(event) => {
+												const nextRole = event.target.value;
+												setRequestedRole(nextRole);
+												if (isBoardLeadershipRole(nextRole)) {
+													setRequestedDepartment("Board");
+												}
+											}}
+										>
+											<MenuItem value="">No change</MenuItem>
+											{MEMBER_ROLES.map((role) => (
+												<MenuItem key={role} value={role}>
+													{role}
+												</MenuItem>
+											))}
+										</TextField>
+									</Grid>
+									<Grid size={12}>
+										<TextField
+											label="Reason"
+											value={changeRequestReason}
+											onChange={(event) =>
+												setChangeRequestReason(event.target.value)
+											}
+											multiline
+											rows={3}
+											placeholder="Briefly explain why the admin-managed fields should change."
+										/>
+									</Grid>
+								</Grid>
+
+								{latestMemberChangeRequest && (
+									<Box
+										sx={{
+											mt: 2.5,
+											p: 2,
+											borderRadius: 2,
+											backgroundColor:
+												theme.palette.mode === "light"
+													? "rgba(154, 100, 217, 0.06)"
+													: "rgba(27, 0, 73, 0.36)",
+										}}
+									>
+										<Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+											Latest request:{" "}
+											{latestMemberChangeRequest.status
+												.charAt(0)
+												.toUpperCase() +
+												latestMemberChangeRequest.status.slice(1)}
+										</Typography>
+										{latestMemberChangeRequest.reason && (
+											<Typography variant="body2" color="text.secondary">
+												Reason: {latestMemberChangeRequest.reason}
+											</Typography>
+										)}
+									</Box>
+								)}
+
+								<Button
+									type="button"
+									variant="outlined"
+									onClick={handleSubmitMemberChangeRequest}
+									disabled={isSubmittingChangeRequest}
+									sx={{ mt: 2.5 }}
+								>
+									{isSubmittingChangeRequest
+										? "Submitting request..."
+										: "Request admin change"}
+								</Button>
 							</CardContent>
 						</GlassCard>
 					</Grid>

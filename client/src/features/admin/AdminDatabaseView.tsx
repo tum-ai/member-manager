@@ -1,10 +1,10 @@
 import AccountBalanceOutlinedIcon from "@mui/icons-material/AccountBalanceOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
-import SwapHorizOutlinedIcon from "@mui/icons-material/SwapHorizOutlined";
 import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
 import {
 	Avatar,
@@ -40,6 +40,13 @@ import * as XLSX from "xlsx";
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useAdminData } from "../../hooks/useAdminData";
+import { DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
+import {
+	getMemberStatusLabel,
+	isBoardLeadershipRole,
+	MEMBER_STATUSES,
+	resolveDepartmentForMemberRole,
+} from "../../lib/memberMetadata";
 import {
 	ACTIVE_FILTER_OPTIONS,
 	type AdminFilters,
@@ -80,14 +87,34 @@ const sortableColumns: Array<{
 export default function AdminDatabaseView() {
 	const theme = useTheme();
 	const { showToast } = useToast();
-	const { members, isLoading, error, toggleStatus, isToggling } =
-		useAdminData();
+	const {
+		members,
+		changeRequests,
+		certificateRequests,
+		isLoading,
+		error,
+		updateDepartmentAsync,
+		updateRoleAsync,
+		updateStatusAsync,
+		updateAccessRoleAsync,
+		reviewChangeRequestAsync,
+		reviewCertificateRequestAsync,
+		isSavingMember,
+		isReviewingChangeRequest,
+		isReviewingCertificateRequest,
+	} = useAdminData();
 
 	const [filters, setFilters] = useState<AdminFilters>(initialFilters);
 	const [sortBy, setSortBy] = useState<AdminSortKey>("surname");
 	const [sortAsc, setSortAsc] = useState(true);
-	const [memberPendingToggle, setMemberPendingToggle] =
+	const [memberBeingEdited, setMemberBeingEdited] =
 		useState<AdminMember | null>(null);
+	const [editDepartment, setEditDepartment] = useState("");
+	const [editRole, setEditRole] = useState("Member");
+	const [editStatus, setEditStatus] = useState("active");
+	const [editAccessRole, setEditAccessRole] = useState<"user" | "admin">(
+		"user",
+	);
 	const [exportAnchorEl, setExportAnchorEl] = useState<HTMLElement | null>(
 		null,
 	);
@@ -156,18 +183,127 @@ export default function AdminDatabaseView() {
 		setSortAsc((previousValue) => (sortBy === column ? !previousValue : true));
 	}
 
-	async function confirmToggleStatus() {
-		if (!memberPendingToggle) return;
+	function getResolvedStatus(member: AdminMember): string {
+		return member.member_status || (member.active ? "active" : "inactive");
+	}
+
+	function openMemberEditor(member: AdminMember) {
+		setMemberBeingEdited(member);
+		setEditDepartment(member.department || "");
+		setEditRole(member.member_role || "Member");
+		setEditStatus(getResolvedStatus(member));
+		setEditAccessRole(member.access_role === "admin" ? "admin" : "user");
+	}
+
+	function getMemberDisplayName(userId: string): string {
+		const member = allMembers.find((entry) => entry.user_id === userId);
+		if (!member) {
+			return userId;
+		}
+
+		return `${member.given_name} ${member.surname}`.trim() || userId;
+	}
+
+	function formatRequestedChanges(changes: Record<string, unknown>): string {
+		const requestedRole =
+			typeof changes.member_role === "string" ? changes.member_role : undefined;
+		const effectiveDepartment =
+			Object.hasOwn(changes, "department") || requestedRole
+				? resolveDepartmentForMemberRole(
+						requestedRole,
+						typeof changes.department === "string" ||
+							changes.department === null
+							? changes.department
+							: undefined,
+					)
+				: undefined;
+		const entries: Array<[string, string]> = [];
+
+		if (effectiveDepartment !== undefined) {
+			entries.push(["department", effectiveDepartment ?? "None"]);
+		}
+		if (typeof changes.member_role === "string") {
+			entries.push(["member_role", changes.member_role]);
+		}
+		if (typeof changes.degree === "string") {
+			entries.push(["degree", changes.degree]);
+		}
+		if (typeof changes.school === "string") {
+			entries.push(["school", changes.school]);
+		}
+		if (typeof changes.batch === "string") {
+			entries.push(["batch", changes.batch]);
+		}
+
+		return entries.map(([field, value]) => `${field}: ${value}`).join(", ");
+	}
+
+	async function saveMemberChanges() {
+		if (!memberBeingEdited) return;
+		const effectiveDepartment = resolveDepartmentForMemberRole(
+			editRole,
+			editDepartment || null,
+		);
+
 		try {
-			await toggleStatus({
-				userId: memberPendingToggle.user_id,
-				newStatus: !memberPendingToggle.active,
-			});
-			showToast("Status updated successfully", "success");
-			setMemberPendingToggle(null);
+			await Promise.all([
+				updateDepartmentAsync({
+					userId: memberBeingEdited.user_id,
+					department: effectiveDepartment,
+				}),
+				updateRoleAsync({
+					userId: memberBeingEdited.user_id,
+					member_role: editRole,
+				}),
+				updateStatusAsync({
+					userId: memberBeingEdited.user_id,
+					member_status: editStatus,
+				}),
+				updateAccessRoleAsync({
+					userId: memberBeingEdited.user_id,
+					access_role: editAccessRole,
+				}),
+			]);
+			showToast("Member updated successfully", "success");
+			setMemberBeingEdited(null);
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : "Unknown error";
-			showToast(`Failed to update status: ${errorMessage}`, "error");
+			showToast(`Failed to update member: ${errorMessage}`, "error");
+		}
+	}
+
+	async function reviewChangeRequest(
+		requestId: string,
+		decision: "approved" | "rejected",
+	) {
+		try {
+			await reviewChangeRequestAsync({
+				requestId,
+				decision,
+			});
+			showToast(`Change request ${decision}`, "success");
+		} catch (err: unknown) {
+			const errorMessage = err instanceof Error ? err.message : "Unknown error";
+			showToast(`Failed to review request: ${errorMessage}`, "error");
+		}
+	}
+
+	async function reviewCertificateRequest(
+		requestId: string,
+		decision: "approved" | "rejected",
+	) {
+		try {
+			await reviewCertificateRequestAsync({
+				requestId,
+				decision,
+			});
+			showToast(`Certificate request ${decision}`, "success");
+		} catch (err: unknown) {
+			const errorMessage = err instanceof Error ? err.message : "Unknown error";
+			showToast(
+				`Failed to review certificate request: ${errorMessage}`,
+				"error",
+			);
 		}
 	}
 
@@ -208,7 +344,9 @@ export default function AdminDatabaseView() {
 			"Privacy Agreed": hasPrivacyAgreement(member)
 				? "Accepted"
 				: "Not accepted",
-			Status: member.active ? "Active" : "Alumni",
+			Status: getMemberStatusLabel(
+				member.member_status || (member.active ? "active" : "inactive"),
+			),
 		}));
 	}
 
@@ -369,7 +507,7 @@ export default function AdminDatabaseView() {
 							<TextField
 								select
 								size="small"
-								label="Member status"
+								label="Member state"
 								value={filters.active}
 								onChange={(event) =>
 									setFilters((currentValue) => ({
@@ -449,6 +587,157 @@ export default function AdminDatabaseView() {
 				</CardContent>
 			</GlassCard>
 
+			<Grid container spacing={3} sx={{ mb: 3 }}>
+				<Grid size={{ xs: 12, xl: 6 }}>
+					<GlassCard sx={{ height: "100%" }}>
+						<CardContent sx={{ p: 3 }}>
+							<Typography variant="h6" sx={{ mb: 2 }}>
+								Member Change Requests
+							</Typography>
+							<Stack spacing={1.5}>
+								{changeRequests.filter(
+									(request) => request.status === "pending",
+								).length === 0 ? (
+									<Typography color="text.secondary">
+										No pending member change requests.
+									</Typography>
+								) : (
+									changeRequests
+										.filter((request) => request.status === "pending")
+										.map((request) => (
+											<Box
+												key={request.id}
+												sx={{
+													p: 2,
+													borderRadius: 3,
+													backgroundColor:
+														theme.palette.mode === "light"
+															? "rgba(154, 100, 217, 0.06)"
+															: "rgba(27, 0, 73, 0.36)",
+												}}
+											>
+												<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+													Request `{request.id}`
+												</Typography>
+												<Typography variant="body2" color="text.secondary">
+													Member: {getMemberDisplayName(request.user_id)}
+												</Typography>
+												{request.reason && (
+													<Typography
+														variant="body2"
+														color="text.secondary"
+														sx={{ mt: 0.5 }}
+													>
+														Reason: {request.reason}
+													</Typography>
+												)}
+												<Typography variant="body2" sx={{ mt: 1 }}>
+													Requested changes:{" "}
+													{formatRequestedChanges(request.changes)}
+												</Typography>
+												<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+													<Button
+														type="button"
+														variant="contained"
+														size="small"
+														onClick={() =>
+															reviewChangeRequest(request.id, "approved")
+														}
+														disabled={isReviewingChangeRequest}
+														aria-label={`Approve ${request.id}`}
+													>
+														Approve
+													</Button>
+													<Button
+														type="button"
+														variant="outlined"
+														size="small"
+														onClick={() =>
+															reviewChangeRequest(request.id, "rejected")
+														}
+														disabled={isReviewingChangeRequest}
+													>
+														Reject
+													</Button>
+												</Stack>
+											</Box>
+										))
+								)}
+							</Stack>
+						</CardContent>
+					</GlassCard>
+				</Grid>
+
+				<Grid size={{ xs: 12, xl: 6 }}>
+					<GlassCard sx={{ height: "100%" }}>
+						<CardContent sx={{ p: 3 }}>
+							<Typography variant="h6" sx={{ mb: 2 }}>
+								Engagement Certificate Requests
+							</Typography>
+							<Stack spacing={1.5}>
+								{certificateRequests.filter(
+									(request) => request.status === "pending",
+								).length === 0 ? (
+									<Typography color="text.secondary">
+										No pending engagement certificate requests.
+									</Typography>
+								) : (
+									certificateRequests
+										.filter((request) => request.status === "pending")
+										.map((request) => (
+											<Box
+												key={request.id}
+												sx={{
+													p: 2,
+													borderRadius: 3,
+													backgroundColor:
+														theme.palette.mode === "light"
+															? "rgba(154, 100, 217, 0.06)"
+															: "rgba(27, 0, 73, 0.36)",
+												}}
+											>
+												<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+													Request `{request.id}`
+												</Typography>
+												<Typography variant="body2" color="text.secondary">
+													Member: {getMemberDisplayName(request.user_id)}
+												</Typography>
+												<Typography variant="body2" sx={{ mt: 1 }}>
+													Engagement entries: {request.engagements.length}
+												</Typography>
+												<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+													<Button
+														type="button"
+														variant="contained"
+														size="small"
+														onClick={() =>
+															reviewCertificateRequest(request.id, "approved")
+														}
+														disabled={isReviewingCertificateRequest}
+													>
+														Approve
+													</Button>
+													<Button
+														type="button"
+														variant="outlined"
+														size="small"
+														onClick={() =>
+															reviewCertificateRequest(request.id, "rejected")
+														}
+														disabled={isReviewingCertificateRequest}
+													>
+														Reject
+													</Button>
+												</Stack>
+											</Box>
+										))
+								)}
+							</Stack>
+						</CardContent>
+					</GlassCard>
+				</Grid>
+			</Grid>
+
 			<GlassCard variant="elevated" sx={{ overflow: "hidden" }}>
 				<TableContainer
 					sx={{
@@ -482,18 +771,6 @@ export default function AdminDatabaseView() {
 										</TableSortLabel>
 									</TableCell>
 								))}
-								<TableCell
-									sx={{
-										minWidth: 140,
-										backgroundColor:
-											theme.palette.mode === "light"
-												? alpha(theme.palette.background.paper, 0.98)
-												: alpha(theme.palette.background.paper, 0.94),
-										borderBottom: `1px solid ${theme.palette.divider}`,
-									}}
-								>
-									Actions
-								</TableCell>
 							</TableRow>
 						</TableHead>
 
@@ -503,13 +780,14 @@ export default function AdminDatabaseView() {
 								const privacyAccepted = hasPrivacyAgreement(row);
 								const fullName =
 									`${row.given_name} ${row.surname}`.trim() || "Unnamed member";
+								const memberStatus = getResolvedStatus(row);
 
 								return (
 									<TableRow
 										key={row.user_id}
 										hover
 										sx={{
-											opacity: row.active ? 1 : 0.84,
+											opacity: memberStatus === "active" ? 1 : 0.84,
 											transition:
 												"background-color 180ms ease, opacity 180ms ease",
 											"&:hover": {
@@ -528,6 +806,27 @@ export default function AdminDatabaseView() {
 									>
 										<TableCell>
 											<Stack direction="row" spacing={1.5} alignItems="center">
+												<Button
+													type="button"
+													size="small"
+													variant="text"
+													onClick={() => openMemberEditor(row)}
+													aria-label={`Edit member ${fullName}`}
+													sx={{
+														minWidth: 0,
+														p: 0.75,
+														borderRadius: 999,
+														color: theme.palette.primary.main,
+														"&:hover": {
+															backgroundColor: alpha(
+																theme.palette.primary.main,
+																0.08,
+															),
+														},
+													}}
+												>
+													<EditOutlinedIcon fontSize="small" />
+												</Button>
 												<Avatar
 													src={row.avatar_url || undefined}
 													alt={fullName}
@@ -592,17 +891,23 @@ export default function AdminDatabaseView() {
 										<TableCell>
 											<Chip
 												size="small"
-												label={row.active ? "Active" : "Alumni"}
-												color={row.active ? "success" : "default"}
-												variant={row.active ? "filled" : "outlined"}
+												label={getMemberStatusLabel(memberStatus)}
+												color={
+													memberStatus === "active" ? "success" : "default"
+												}
+												variant={
+													memberStatus === "active" ? "filled" : "outlined"
+												}
 												sx={{
 													fontWeight: 600,
-													backgroundColor: row.active
-														? alpha(theme.palette.success.main, 0.14)
-														: alpha(theme.palette.text.secondary, 0.08),
-													color: row.active
-														? theme.palette.success.main
-														: theme.palette.text.secondary,
+													backgroundColor:
+														memberStatus === "active"
+															? alpha(theme.palette.success.main, 0.14)
+															: alpha(theme.palette.text.secondary, 0.08),
+													color:
+														memberStatus === "active"
+															? theme.palette.success.main
+															: theme.palette.text.secondary,
 													borderColor: alpha(
 														theme.palette.text.secondary,
 														0.18,
@@ -610,24 +915,13 @@ export default function AdminDatabaseView() {
 												}}
 											/>
 										</TableCell>
-										<TableCell>
-											<Button
-												type="button"
-												size="small"
-												variant="outlined"
-												startIcon={<SwapHorizOutlinedIcon />}
-												onClick={() => setMemberPendingToggle(row)}
-											>
-												{row.active ? "Set Alumni" : "Set active"}
-											</Button>
-										</TableCell>
 									</TableRow>
 								);
 							})}
 
 							{filtered.length === 0 && (
 								<TableRow>
-									<TableCell colSpan={sortableColumns.length + 1}>
+									<TableCell colSpan={sortableColumns.length}>
 										<Box sx={{ py: 7, textAlign: "center" }}>
 											<Typography sx={{ fontWeight: 700, mb: 1 }}>
 												No members match the current filters
@@ -646,39 +940,101 @@ export default function AdminDatabaseView() {
 			</GlassCard>
 
 			<Dialog
-				open={Boolean(memberPendingToggle)}
+				open={Boolean(memberBeingEdited)}
 				onClose={() => {
-					if (!isToggling) {
-						setMemberPendingToggle(null);
+					if (!isSavingMember) {
+						setMemberBeingEdited(null);
 					}
 				}}
-				maxWidth="xs"
+				maxWidth="sm"
 				fullWidth
 			>
-				<DialogTitle>Update member status</DialogTitle>
+				<DialogTitle>Edit member</DialogTitle>
 				<DialogContent>
-					<Typography color="text.secondary">
-						{memberPendingToggle
-							? `Set ${memberPendingToggle.given_name} ${memberPendingToggle.surname} to ${memberPendingToggle.active ? "Alumni" : "active"}?`
-							: ""}
-					</Typography>
+					<Stack spacing={2} sx={{ pt: 1 }}>
+						<Typography color="text.secondary">
+							{memberBeingEdited
+								? `Update ${memberBeingEdited.given_name} ${memberBeingEdited.surname}.`
+								: ""}
+						</Typography>
+						<TextField
+							select
+							label="Department"
+							value={editDepartment}
+							onChange={(event) => setEditDepartment(event.target.value)}
+							disabled={isBoardLeadershipRole(editRole)}
+							helperText={
+								isBoardLeadershipRole(editRole)
+									? "President and Vice-President are always in Board."
+									: undefined
+							}
+						>
+							<MenuItem value="">None</MenuItem>
+							{DEPARTMENTS.map((department) => (
+								<MenuItem key={department} value={department}>
+									{department}
+								</MenuItem>
+							))}
+						</TextField>
+						<TextField
+							select
+							label="Role"
+							value={editRole}
+							onChange={(event) => {
+								const nextRole = event.target.value;
+								setEditRole(nextRole);
+								if (isBoardLeadershipRole(nextRole)) {
+									setEditDepartment("Board");
+								}
+							}}
+						>
+							{MEMBER_ROLES.map((role) => (
+								<MenuItem key={role} value={role}>
+									{role}
+								</MenuItem>
+							))}
+						</TextField>
+						<TextField
+							select
+							label="Status"
+							value={editStatus}
+							onChange={(event) => setEditStatus(event.target.value)}
+						>
+							{MEMBER_STATUSES.map((status) => (
+								<MenuItem key={status} value={status}>
+									{getMemberStatusLabel(status)}
+								</MenuItem>
+							))}
+						</TextField>
+						<TextField
+							select
+							label="Access"
+							value={editAccessRole}
+							onChange={(event) =>
+								setEditAccessRole(event.target.value as "user" | "admin")
+							}
+						>
+							<MenuItem value="user">User</MenuItem>
+							<MenuItem value="admin">Admin</MenuItem>
+						</TextField>
+					</Stack>
 				</DialogContent>
 				<DialogActions>
 					<Button
 						type="button"
 						variant="text"
-						onClick={() => setMemberPendingToggle(null)}
-						disabled={isToggling}
+						onClick={() => setMemberBeingEdited(null)}
+						disabled={isSavingMember}
 					>
 						Cancel
 					</Button>
 					<Button
 						type="button"
 						variant="contained"
-						onClick={confirmToggleStatus}
-						disabled={isToggling}
+						onClick={saveMemberChanges}
+						disabled={isSavingMember}
 					>
-						{isToggling ? "Saving..." : "Confirm"}
+						{isSavingMember ? "Saving..." : "Save member changes"}
 					</Button>
 				</DialogActions>
 			</Dialog>

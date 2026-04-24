@@ -41,6 +41,8 @@ interface MockData {
 	sepa: Array<Record<string, unknown>>;
 	user_roles: Array<Record<string, unknown>>;
 	member_role_history: Array<Record<string, unknown>>;
+	member_change_requests: Array<Record<string, unknown>>;
+	engagement_certificate_requests: Array<Record<string, unknown>>;
 }
 
 export const mockDatabase: MockData = {
@@ -57,12 +59,13 @@ export const mockDatabase: MockData = {
 			country: "DE",
 			phone: "+49123456789",
 			active: true,
+			member_status: "active",
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Mr",
 			title: "",
 			batch: "WS23/24",
-			department: "Tech",
-			member_role: "Software Engineer",
+			department: "Software Development",
+			member_role: "Member",
 			degree: "B.Sc.",
 			school: "TUM",
 		},
@@ -78,11 +81,12 @@ export const mockDatabase: MockData = {
 			country: "DE",
 			phone: "+49987654321",
 			active: true,
+			member_status: "active",
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Ms",
 			title: "Dr",
 			batch: "WS22/23",
-			department: "Management",
+			department: "Board",
 			member_role: "Team Lead",
 			degree: "M.Sc.",
 			school: "TUM",
@@ -111,6 +115,8 @@ export const mockDatabase: MockData = {
 		},
 	],
 	member_role_history: [],
+	member_change_requests: [],
+	engagement_certificate_requests: [],
 };
 
 type QueryResult = Promise<{
@@ -290,7 +296,9 @@ function createQueryBuilder(table: string): QueryBuilder {
 				// has `default gen_random_uuid()`). Without this, INSERTs followed
 				// by SELECT/DELETE-by-id don't line up in tests.
 				if (
-					table === "member_role_history" &&
+					(table === "member_role_history" ||
+						table === "member_change_requests" ||
+						table === "engagement_certificate_requests") &&
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {
@@ -454,12 +462,13 @@ export function resetMockDatabase(): void {
 			country: "DE",
 			phone: "+49123456789",
 			active: true,
+			member_status: "active",
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Mr",
 			title: "",
 			batch: "WS23/24",
-			department: "Tech",
-			member_role: "Software Engineer",
+			department: "Software Development",
+			member_role: "Member",
 			degree: "B.Sc.",
 			school: "TUM",
 		},
@@ -475,11 +484,12 @@ export function resetMockDatabase(): void {
 			country: "DE",
 			phone: "+49987654321",
 			active: true,
+			member_status: "active",
 			created_at: "2024-01-01T00:00:00Z",
 			salutation: "Ms",
 			title: "Dr",
 			batch: "WS22/23",
-			department: "Management",
+			department: "Board",
 			member_role: "Team Lead",
 			degree: "M.Sc.",
 			school: "TUM",
@@ -511,4 +521,6 @@ export function resetMockDatabase(): void {
 	];
 
 	mockDatabase.member_role_history = [];
+	mockDatabase.member_change_requests = [];
+	mockDatabase.engagement_certificate_requests = [];
 }

@@ -237,7 +237,25 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(payload.member_role, "Team Lead");
 		});
 
-		test("setting role=Alumni also deactivates the member", async () => {
+		test("president and vice-president automatically map to the Board department", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/role`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ member_role: "President" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.member_role, "President");
+			assert.strictEqual(payload.department, "Board");
+		});
+
+		test("rejects role=Alumni because alumni is a member status", async () => {
 			resetDatabase();
 			const response = await app.inject({
 				method: "PATCH",
@@ -249,10 +267,7 @@ describe("Admin Routes", async () => {
 				payload: JSON.stringify({ member_role: "Alumni" }),
 			});
 
-			assert.strictEqual(response.statusCode, 200);
-			const payload = JSON.parse(response.payload);
-			assert.strictEqual(payload.member_role, "Alumni");
-			assert.strictEqual(payload.active, false);
+			assert.strictEqual(response.statusCode, 400);
 		});
 
 		test("rejects roles outside the canonical 5", async () => {
@@ -313,6 +328,103 @@ describe("Admin Routes", async () => {
 			});
 
 			assert.strictEqual(response.statusCode, 401);
+		});
+	});
+
+	describe("PATCH /api/admin/members/:userId/department", () => {
+		test("admin can update a member department", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/department`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ department: "Board" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.department, "Board");
+		});
+
+		test("regular user denied access", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/department`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ department: "Board" }),
+			});
+
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("board leadership stays in the Board department", async () => {
+			resetDatabase();
+			const member = mockDatabase.members.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			if (!member) throw new Error("Expected test member to exist");
+			member.member_role = "Vice-President";
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/department`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ department: "Legal & Finance" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.department, "Board");
+		});
+	});
+
+	describe("PATCH /api/admin/members/:userId/access-role", () => {
+		test("admin can grant admin access to another member", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/access-role`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ access_role: "admin" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updatedRole = mockDatabase.user_roles.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.strictEqual(updatedRole?.role, "admin");
+		});
+
+		test("admin can revoke admin access back to user", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.admin}/access-role`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ access_role: "user" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updatedRole = mockDatabase.user_roles.find(
+				(entry) => entry.user_id === testUserIds.admin,
+			);
+			assert.strictEqual(updatedRole?.role, "user");
 		});
 	});
 
@@ -446,7 +558,7 @@ describe("Admin Routes", async () => {
 	});
 
 	describe("PATCH /api/admin/members/:userId/status", () => {
-		test("admin can update member status", async () => {
+		test("admin can set member status to inactive", async () => {
 			resetDatabase();
 			const response = await app.inject({
 				method: "PATCH",
@@ -455,12 +567,37 @@ describe("Admin Routes", async () => {
 					...authHeaders(testTokens.admin),
 					"content-type": "application/json",
 				},
-				payload: JSON.stringify({ active: false }),
+				payload: JSON.stringify({ member_status: "inactive" }),
 			});
 
 			assert.strictEqual(response.statusCode, 200);
-			const payload = JSON.parse(response.payload);
-			assert.ok(payload.message);
+			const updatedMember = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.strictEqual(updatedMember?.member_status, "inactive");
+			assert.strictEqual(updatedMember?.active, false);
+			assert.strictEqual(updatedMember?.member_role, "Member");
+		});
+
+		test("admin can set member status to alumni without changing role", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/status`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ member_status: "alumni" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updatedMember = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.strictEqual(updatedMember?.member_status, "alumni");
+			assert.strictEqual(updatedMember?.active, false);
+			assert.strictEqual(updatedMember?.member_role, "Member");
 		});
 
 		test("regular user denied access", async () => {
@@ -472,13 +609,13 @@ describe("Admin Routes", async () => {
 					...authHeaders(testTokens.user),
 					"content-type": "application/json",
 				},
-				payload: JSON.stringify({ active: false }),
+				payload: JSON.stringify({ member_status: "inactive" }),
 			});
 
 			assert.strictEqual(response.statusCode, 403);
 		});
 
-		test("validates status is boolean", async () => {
+		test("validates status is one of active/inactive/alumni", async () => {
 			resetDatabase();
 			const response = await app.inject({
 				method: "PATCH",
@@ -487,7 +624,7 @@ describe("Admin Routes", async () => {
 					...authHeaders(testTokens.admin),
 					"content-type": "application/json",
 				},
-				payload: JSON.stringify({ active: "not-a-boolean" }),
+				payload: JSON.stringify({ member_status: "paused" }),
 			});
 
 			assert.strictEqual(response.statusCode, 400);
@@ -499,7 +636,7 @@ describe("Admin Routes", async () => {
 				method: "PATCH",
 				url: `/api/admin/members/${testUserIds.user}/status`,
 				headers: { "content-type": "application/json" },
-				payload: JSON.stringify({ active: false }),
+				payload: JSON.stringify({ member_status: "inactive" }),
 			});
 
 			assert.strictEqual(response.statusCode, 401);
