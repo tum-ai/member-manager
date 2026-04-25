@@ -59,7 +59,7 @@ begin
         ('00000000-0000-0000-0000-000000000017', 'research-lead@example.com', 'Rita', 'Research', 'WS23', 'Research', 'Team Lead', 'PhD', 'TUM', 'user'),
         ('00000000-0000-0000-0000-000000000018', 'research-member@example.com', 'Robin', 'Research', 'SS24', 'Research', 'Member', 'M.Sc. Computer Science', 'TUM', 'user'),
         ('00000000-0000-0000-0000-000000000019', 'software-development-lead@example.com', 'Sofia', 'Software', 'WS23', 'Software Development', 'Team Lead', 'M.Sc. Computer Science', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000020', 'software-development-member@example.com', 'Sam', 'Software', 'SS24', 'Software Development', 'Member', 'B.Sc. Computer Science', 'TUM', 'user'),
+        ('00000000-0000-0000-0000-000000000020', 'user@example.com', 'Regular', 'User', 'SS24', 'Software Development', 'Member', 'B.Sc. Computer Science', 'TUM', 'user'),
         ('00000000-0000-0000-0000-000000000021', 'venture-lead@example.com', 'Valerie', 'Venture', 'WS23', 'Venture', 'Team Lead', 'M.Sc. Management & Technology', 'TUM', 'user'),
         ('00000000-0000-0000-0000-000000000022', 'venture-member@example.com', 'Victor', 'Venture', 'SS24', 'Venture', 'Member', 'B.Sc. Management & Technology', 'LMU', 'user');
 
