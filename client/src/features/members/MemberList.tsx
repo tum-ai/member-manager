@@ -19,7 +19,9 @@ import { alpha } from "@mui/material/styles";
 import { useMemo, useState } from "react";
 
 import GlassCard from "../../components/ui/GlassCard";
+import { useInnovationProjects } from "../../hooks/useInnovationProjects";
 import { useMembersListData } from "../../hooks/useMembersListData";
+import { useResearchProjects } from "../../hooks/useResearchProjects";
 import { DEGREE_TYPES, DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
 import { splitDegree } from "../../lib/memberMetadata";
 import type { Member } from "../../types";
@@ -31,8 +33,29 @@ function getInitials(member: Member): string {
 	return (first + last).toUpperCase();
 }
 
+function getBoardBadgeLabel(member: Member): string | undefined {
+	if (member.member_role === "President") return "President";
+	if (member.member_role === "Vice-President") return "Vice-President";
+
+	const explicitRole =
+		typeof member.board_role === "string"
+			? member.board_role.trim()
+			: typeof member.boardRole === "string"
+				? member.boardRole.trim()
+				: "";
+	if (explicitRole) return explicitRole;
+
+	return member.department === "Board" ? "Board Member" : undefined;
+}
+
+function isBoardOnlyMember(member: Member): boolean {
+	return member.department === "Board";
+}
+
 export default function MemberList() {
 	const { members, isLoading, error } = useMembersListData();
+	const { researchProjects } = useResearchProjects();
+	const { innovationProjects } = useInnovationProjects();
 	const [search, setSearch] = useState("");
 	const [department, setDepartment] = useState("");
 	const [role, setRole] = useState("");
@@ -111,6 +134,14 @@ export default function MemberList() {
 
 	return (
 		<Box sx={{ py: 2 }}>
+			{filtered.length > 0 && (
+				<OrgChartView
+					members={filtered}
+					researchProjects={researchProjects ?? []}
+					innovationProjects={innovationProjects ?? []}
+				/>
+			)}
+
 			<GlassCard variant="elevated" sx={{ mb: 4, overflow: "hidden" }}>
 				<CardContent sx={{ p: { xs: 3, md: 4 } }}>
 					<Box
@@ -250,16 +281,13 @@ export default function MemberList() {
 					</Typography>
 				</GlassCard>
 			) : (
-				<>
-					<OrgChartView members={filtered} />
-					<Grid container spacing={2}>
-						{filtered.map((member) => (
-							<Grid key={member.user_id} size={{ xs: 12, sm: 6, md: 4 }}>
-								<MemberCard member={member} />
-							</Grid>
-						))}
-					</Grid>
-				</>
+				<Grid container spacing={2}>
+					{filtered.map((member) => (
+						<Grid key={member.user_id} size={{ xs: 12, sm: 6, md: 4 }}>
+							<MemberCard member={member} />
+						</Grid>
+					))}
+				</Grid>
 			)}
 		</Box>
 	);
@@ -272,6 +300,13 @@ interface MemberCardProps {
 function MemberCard({ member }: MemberCardProps) {
 	const theme = useTheme();
 	const fullName = `${member.given_name} ${member.surname}`.trim();
+	const boardBadgeLabel = getBoardBadgeLabel(member);
+	const showMemberRole = Boolean(
+		member.member_role && !isBoardOnlyMember(member),
+	);
+	const showDepartment = Boolean(
+		member.department && member.department !== "Board",
+	);
 
 	return (
 		<GlassCard variant="interactive">
@@ -310,7 +345,7 @@ function MemberCard({ member }: MemberCardProps) {
 							{fullName || "Unnamed Member"}
 						</Typography>
 
-						{member.member_role && (
+						{showMemberRole && (
 							<Typography
 								variant="body2"
 								color="primary"
@@ -320,7 +355,7 @@ function MemberCard({ member }: MemberCardProps) {
 							</Typography>
 						)}
 
-						{member.department && (
+						{showDepartment && (
 							<Typography
 								variant="body2"
 								color="text.secondary"
@@ -333,6 +368,9 @@ function MemberCard({ member }: MemberCardProps) {
 				</Box>
 
 				<Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+					{boardBadgeLabel && (
+						<Chip label={boardBadgeLabel} size="small" variant="outlined" />
+					)}
 					{member.batch && (
 						<Chip label={member.batch} size="small" variant="outlined" />
 					)}

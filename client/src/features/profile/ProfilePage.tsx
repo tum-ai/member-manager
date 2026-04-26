@@ -42,7 +42,6 @@ import {
 } from "../../lib/constants";
 import {
 	getMemberStatusLabel,
-	isBoardLeadershipRole,
 	joinDegree,
 	resolveDepartmentForMemberRole,
 	splitDegree,
@@ -658,14 +657,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 														},
 													)
 												}
-												disabled={isBoardLeadershipRole(
-													memberForm.watch("member_role"),
-												)}
-												helperText={
-													isBoardLeadershipRole(memberForm.watch("member_role"))
-														? "President and Vice-President are always in Board."
-														: "You can edit this directly because you are an admin."
-												}
+												helperText="You can edit this directly because you are an admin."
 											>
 												<MenuItem value="">None</MenuItem>
 												{DEPARTMENTS.map((department) => (
@@ -695,11 +687,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 													memberForm.setValue("member_role", nextRole, {
 														shouldDirty: true,
 													});
-													if (isBoardLeadershipRole(nextRole)) {
-														memberForm.setValue("department", "Board", {
-															shouldDirty: true,
-														});
-													}
 												}}
 												helperText="You can edit this directly because you are an admin."
 											>
@@ -899,12 +886,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												onChange={(event) =>
 													setRequestedDepartment(event.target.value)
 												}
-												disabled={isBoardLeadershipRole(requestedRole)}
-												helperText={
-													isBoardLeadershipRole(requestedRole)
-														? "President and Vice-President are always in Board."
-														: undefined
-												}
 											>
 												<MenuItem value="">No change</MenuItem>
 												{DEPARTMENTS.map((department) => (
@@ -922,9 +903,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												onChange={(event) => {
 													const nextRole = event.target.value;
 													setRequestedRole(nextRole);
-													if (isBoardLeadershipRole(nextRole)) {
-														setRequestedDepartment("Board");
-													}
 												}}
 											>
 												<MenuItem value="">No change</MenuItem>

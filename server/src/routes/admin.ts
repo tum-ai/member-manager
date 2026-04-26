@@ -559,10 +559,6 @@ export async function adminRoutes(server: FastifyInstance) {
 			} = {
 				member_role: role,
 			};
-			const forcedDepartment = resolveDepartmentForMemberRole(role, undefined);
-			if (forcedDepartment !== null) {
-				updatePayload.department = forcedDepartment;
-			}
 
 			const { data, error } = await getSupabase()
 				.from("members")

@@ -23,10 +23,10 @@ vi.mock("../../hooks/useMembersListData", () => ({
 			},
 			{
 				user_id: "member-2",
-				given_name: "Bob",
-				surname: "Example",
+				given_name: "Ben",
+				surname: "Boardmember",
 				department: "Board",
-				member_role: "Team Lead",
+				member_role: "Member",
 				degree: "M.Sc. Management & Technology",
 				school: "TUM",
 				batch: "SS25",
@@ -39,11 +39,44 @@ vi.mock("../../hooks/useMembersListData", () => ({
 				surname: "Example",
 				department: "Marketing",
 				member_role: "Member",
+				board_role: "Board Member",
 				degree: "B.Sc. Management & Technology",
 				school: "LMU",
 				batch: "WS24",
 				member_status: "active",
 				active: true,
+			},
+		],
+		isLoading: false,
+		error: null,
+	}),
+}));
+
+vi.mock("../../hooks/useResearchProjects", () => ({
+	useResearchProjects: () => ({
+		researchProjects: [
+			{
+				id: "project-a",
+				title: "Alpha Research",
+				description: "Current project",
+				status: "ongoing",
+			},
+		],
+		isLoading: false,
+		error: null,
+	}),
+}));
+
+vi.mock("../../hooks/useInnovationProjects", () => ({
+	useInnovationProjects: () => ({
+		innovationProjects: [
+			{
+				id: "women-at-tum-ai",
+				title: "Women@TUM.ai",
+				description: "Female empowerment and mentorship.",
+				detailedDescription:
+					"Women@TUM.ai builds a space where female students can connect.",
+				image: "/assets/innovation/women_at_tumai.jpg",
 			},
 		],
 		isLoading: false,
@@ -75,7 +108,7 @@ describe("MemberList", () => {
 		);
 
 		expect(screen.getAllByText("Alice Example").length).toBeGreaterThan(0);
-		expect(screen.queryByText("Bob Example")).not.toBeInTheDocument();
+		expect(screen.queryByText("Ben Boardmember")).not.toBeInTheDocument();
 		expect(screen.queryByText("Carla Example")).not.toBeInTheDocument();
 	});
 
@@ -86,9 +119,27 @@ describe("MemberList", () => {
 		expect(
 			screen.getByRole("heading", { name: /org chart/i }),
 		).toBeInTheDocument();
+		expect(
+			screen.getByText(
+				"Overview of current leadership, departments and research.",
+			),
+		).toBeInTheDocument();
+		expect(
+			screen
+				.getByRole("heading", { name: /all members/i })
+				.compareDocumentPosition(
+					screen.getByRole("heading", { name: /org chart/i }),
+				) & Node.DOCUMENT_POSITION_PRECEDING,
+		).toBeTruthy();
 		expect(screen.getAllByText("Marketing").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("Software Development").length).toBeGreaterThan(
 			0,
+		);
+		expect(screen.getByText("Innovation Projects")).toBeInTheDocument();
+		expect(screen.getByText("Women@TUM.ai")).toBeInTheDocument();
+		expect(screen.getAllByText("Ben Boardmember")).toHaveLength(2);
+		expect(screen.getAllByText("Board Member").length).toBeGreaterThanOrEqual(
+			2,
 		);
 
 		await user.click(screen.getByLabelText(/degree/i));
@@ -103,5 +154,16 @@ describe("MemberList", () => {
 			0,
 		);
 		expect(screen.queryByText("Marketing")).not.toBeInTheDocument();
+	});
+
+	it("shows board-only members as board members without member role text", async () => {
+		const user = userEvent.setup();
+		renderMemberList();
+
+		await user.type(screen.getByPlaceholderText(/search members/i), "Ben");
+
+		expect(screen.getAllByText("Ben Boardmember")).toHaveLength(2);
+		expect(screen.getByText("Board Member")).toBeInTheDocument();
+		expect(screen.queryByText("Member")).not.toBeInTheDocument();
 	});
 });
