@@ -133,11 +133,31 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 			</Tooltip>
 
 			<AuthCard sx={{ position: "relative", zIndex: 1 }}>
-				<img
-					src="/img/tum_ai_logo_new.svg"
-					alt="TUM.ai Logo"
-					style={{ width: 168 }}
-				/>
+				<Box
+					data-testid="auth-logo-surface"
+					sx={{
+						display: "flex",
+						alignItems: "center",
+						justifyContent: "center",
+						width: "100%",
+						maxWidth: 240,
+						px: 2.5,
+						py: 1.75,
+						borderRadius: 3,
+						background:
+							"linear-gradient(135deg, rgba(27, 0, 73, 0.98) 0%, rgba(82, 53, 115, 0.98) 100%)",
+						boxShadow:
+							theme.palette.mode === "light"
+								? "0 14px 30px rgba(27, 0, 73, 0.18)"
+								: "0 14px 30px rgba(6, 4, 14, 0.28)",
+					}}
+				>
+					<img
+						src="/img/tum_ai_logo_new.svg"
+						alt="TUM.ai Logo"
+						style={{ width: 168, display: "block" }}
+					/>
+				</Box>
 				<Typography variant="h4" component="h1" align="center">
 					Member Manager
 				</Typography>

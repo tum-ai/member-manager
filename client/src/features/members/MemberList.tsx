@@ -23,6 +23,7 @@ import { useMembersListData } from "../../hooks/useMembersListData";
 import { DEGREE_TYPES, DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
 import { splitDegree } from "../../lib/memberMetadata";
 import type { Member } from "../../types";
+import OrgChartView from "./OrgChartView";
 
 function getInitials(member: Member): string {
 	const first = member.given_name?.charAt(0) || "";
@@ -249,13 +250,16 @@ export default function MemberList() {
 					</Typography>
 				</GlassCard>
 			) : (
-				<Grid container spacing={2}>
-					{filtered.map((member) => (
-						<Grid key={member.user_id} size={{ xs: 12, sm: 6, md: 4 }}>
-							<MemberCard member={member} />
-						</Grid>
-					))}
-				</Grid>
+				<>
+					<OrgChartView members={filtered} />
+					<Grid container spacing={2}>
+						{filtered.map((member) => (
+							<Grid key={member.user_id} size={{ xs: 12, sm: 6, md: 4 }}>
+								<MemberCard member={member} />
+							</Grid>
+						))}
+					</Grid>
+				</>
 			)}
 		</Box>
 	);
