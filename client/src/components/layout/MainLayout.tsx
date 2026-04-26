@@ -17,6 +17,7 @@ import {
 import { alpha } from "@mui/material/styles";
 import type { User } from "@supabase/supabase-js";
 import { useLocation, useNavigate } from "react-router-dom";
+import { getTumAiLogoPath } from "../../lib/branding";
 import type { AppColorMode } from "../../theme";
 
 interface MainLayoutProps {
@@ -97,7 +98,7 @@ export default function MainLayout({
 						onClick={() => navigate("/")}
 					>
 						<img
-							src="/img/tum_ai_logo_new.svg"
+							src={getTumAiLogoPath("dark")}
 							alt="TUM.ai"
 							style={{ height: 34 }}
 						/>

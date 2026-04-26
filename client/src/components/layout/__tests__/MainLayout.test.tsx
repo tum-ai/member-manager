@@ -27,6 +27,15 @@ function renderLayout({ isAdmin }: { isAdmin: boolean }) {
 }
 
 describe("MainLayout admin navigation", () => {
+	it("uses the white logo on the dark app bar", () => {
+		renderLayout({ isAdmin: true });
+
+		expect(screen.getByAltText("TUM.ai")).toHaveAttribute(
+			"src",
+			"/img/tum_ai_logo_new.svg",
+		);
+	});
+
 	it("shows an Admin option in the view selector for admin users", async () => {
 		const user = userEvent.setup();
 		renderLayout({ isAdmin: true });
