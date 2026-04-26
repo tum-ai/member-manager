@@ -7,6 +7,7 @@ import { adminRoutes } from "./routes/admin.js";
 import { changeRequestRoutes } from "./routes/changeRequests.js";
 import { engagementCertificateRoutes } from "./routes/engagementCertificates.js";
 import { memberRoutes } from "./routes/members.js";
+import { researchProjectRoutes } from "./routes/researchProjects.js";
 import { sepaRoutes } from "./routes/sepa.js";
 
 export const buildApp = async (): Promise<FastifyInstance> => {
@@ -48,6 +49,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(adminRoutes);
 			await api.register(changeRequestRoutes);
 			await api.register(engagementCertificateRoutes);
+			await api.register(researchProjectRoutes);
 		},
 		{ prefix: "/api" },
 	);

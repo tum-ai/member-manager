@@ -45,13 +45,9 @@ export function isBoardLeadershipRole(role?: string | null): boolean {
 }
 
 export function resolveDepartmentForMemberRole(
-	role: string | null | undefined,
+	_role: string | null | undefined,
 	department: string | null | undefined,
 ): string | null {
-	if (isBoardLeadershipRole(role)) {
-		return "Board";
-	}
-
 	const normalized = department?.trim();
 	return normalized ? normalized : null;
 }

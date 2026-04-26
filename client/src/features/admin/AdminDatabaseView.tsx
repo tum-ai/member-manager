@@ -48,7 +48,6 @@ import {
 import { DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
 import {
 	getMemberStatusLabel,
-	isBoardLeadershipRole,
 	MEMBER_STATUSES,
 	resolveDepartmentForMemberRole,
 } from "../../lib/memberMetadata";
@@ -1103,12 +1102,6 @@ export default function AdminDatabaseView() {
 							label="Department"
 							value={editDepartment}
 							onChange={(event) => setEditDepartment(event.target.value)}
-							disabled={isBoardLeadershipRole(editRole)}
-							helperText={
-								isBoardLeadershipRole(editRole)
-									? "President and Vice-President are always in Board."
-									: undefined
-							}
 						>
 							<MenuItem value="">None</MenuItem>
 							{DEPARTMENTS.map((department) => (
@@ -1124,9 +1117,6 @@ export default function AdminDatabaseView() {
 							onChange={(event) => {
 								const nextRole = event.target.value;
 								setEditRole(nextRole);
-								if (isBoardLeadershipRole(nextRole)) {
-									setEditDepartment("Board");
-								}
 							}}
 						>
 							{MEMBER_ROLES.map((role) => (

@@ -106,7 +106,7 @@ describe("AdminDatabaseView", () => {
 		await waitFor(() => {
 			expect(updateMemberAsync).toHaveBeenCalledWith({
 				userId: "member-1",
-				department: "Board",
+				department: "Software Development",
 				member_role: "President",
 				member_status: "inactive",
 				access_role: "admin",

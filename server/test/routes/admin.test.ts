@@ -237,7 +237,7 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(payload.member_role, "Team Lead");
 		});
 
-		test("president and vice-president automatically map to the Board department", async () => {
+		test("president and vice-president keep their operational department", async () => {
 			resetDatabase();
 			const response = await app.inject({
 				method: "PATCH",
@@ -252,7 +252,7 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			const payload = JSON.parse(response.payload);
 			assert.strictEqual(payload.member_role, "President");
-			assert.strictEqual(payload.department, "Board");
+			assert.strictEqual(payload.department, "Software Development");
 		});
 
 		test("rejects role=Alumni because alumni is a member status", async () => {
@@ -364,7 +364,7 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(response.statusCode, 403);
 		});
 
-		test("board leadership stays in the Board department", async () => {
+		test("board leadership can update operational departments", async () => {
 			resetDatabase();
 			const member = mockDatabase.members.find(
 				(entry) => entry.user_id === testUserIds.user,
@@ -384,7 +384,7 @@ describe("Admin Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 200);
 			const payload = JSON.parse(response.payload);
-			assert.strictEqual(payload.department, "Board");
+			assert.strictEqual(payload.department, "Legal & Finance");
 		});
 
 		test("rejects department updates when the department field is omitted", async () => {
@@ -486,7 +486,7 @@ describe("Admin Routes", async () => {
 				(entry) => entry.user_id === testUserIds.user,
 			);
 			assert.strictEqual(updatedMember?.member_role, "President");
-			assert.strictEqual(updatedMember?.department, "Board");
+			assert.strictEqual(updatedMember?.department, "Legal & Finance");
 			assert.strictEqual(updatedMember?.member_status, "inactive");
 			assert.strictEqual(updatedMember?.active, false);
 			const updatedRole = mockDatabase.user_roles.find(

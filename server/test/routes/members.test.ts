@@ -505,13 +505,13 @@ describe("Members Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
 			assert.strictEqual(data.member_role, "President");
-			assert.strictEqual(data.department, "Board");
+			assert.strictEqual(data.department, "Legal & Finance");
 
 			const storedMember = mockDatabase.members.find(
 				(member) => member.user_id === testUserIds.admin,
 			);
 			assert.strictEqual(storedMember?.member_role, "President");
-			assert.strictEqual(storedMember?.department, "Board");
+			assert.strictEqual(storedMember?.department, "Legal & Finance");
 		});
 
 		test("user cannot update other's profile", async () => {
