@@ -26,7 +26,7 @@ function buildMember(overrides: Partial<Member>): Member {
 }
 
 describe("OrgChartView", () => {
-	it("shows leadership and omits non-executive board members", () => {
+	it("shows board members without internal member-role labels", () => {
 		render(
 			<ThemeProvider theme={getAppTheme("light")}>
 				<OrgChartView
@@ -35,7 +35,7 @@ describe("OrgChartView", () => {
 							user_id: "president",
 							given_name: "Paula",
 							surname: "President",
-							department: "Board",
+							department: "Legal & Finance",
 							member_role: "President",
 						}),
 						buildMember({
@@ -56,8 +56,9 @@ describe("OrgChartView", () => {
 							user_id: "board-member",
 							given_name: "Boris",
 							surname: "Board",
-							department: "Board",
+							department: "Software Development",
 							member_role: "Member",
+							board_role: "Board Member",
 						}),
 					]}
 				/>
@@ -67,9 +68,10 @@ describe("OrgChartView", () => {
 		expect(
 			screen.getByRole("heading", { name: /org chart/i }),
 		).toBeInTheDocument();
-		expect(screen.getByText("Leadership")).toBeInTheDocument();
+		expect(screen.getAllByText("Board").length).toBeGreaterThan(0);
 		expect(screen.getByText("Paula President")).toBeInTheDocument();
+		expect(screen.getAllByText("Boris Board")).toHaveLength(2);
 		expect(screen.getByText("Software Development")).toBeInTheDocument();
-		expect(screen.queryByText("Boris Board")).not.toBeInTheDocument();
+		expect(screen.getAllByText("Member")).toHaveLength(2);
 	});
 });

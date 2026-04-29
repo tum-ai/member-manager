@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import GlassCard from "../../components/ui/GlassCard";
+import { BOARD_MEMBER_ROLE } from "../../lib/constants";
 import type { Member } from "../../types";
 import { buildOrgChart } from "./orgChartUtils";
 
@@ -30,9 +31,11 @@ function getDisplayName(member: Member): string {
 function OrgChartPerson({
 	member,
 	highlight,
+	hideRole,
 }: {
 	member: Member;
 	highlight?: boolean;
+	hideRole?: boolean;
 }) {
 	const theme = useTheme();
 
@@ -73,10 +76,18 @@ function OrgChartPerson({
 				<Typography sx={{ fontWeight: 700 }}>
 					{getDisplayName(member)}
 				</Typography>
-				{member.member_role && (
+				{member.member_role && !hideRole && (
 					<Typography variant="body2" color="primary">
 						{member.member_role}
 					</Typography>
+				)}
+				{member.board_role === BOARD_MEMBER_ROLE && !hideRole && (
+					<Chip
+						label="Board"
+						size="small"
+						variant="outlined"
+						sx={{ mt: 0.5 }}
+					/>
 				)}
 			</Box>
 		</Box>
@@ -88,7 +99,11 @@ export default function OrgChartView({
 }: OrgChartViewProps): JSX.Element | null {
 	const chart = buildOrgChart(members);
 
-	if (chart.executives.length === 0 && chart.departments.length === 0) {
+	if (
+		chart.executives.length === 0 &&
+		chart.boardMembers.length === 0 &&
+		chart.departments.length === 0
+	) {
 		return null;
 	}
 
@@ -102,15 +117,20 @@ export default function OrgChartView({
 					A simple view of current leadership and department structure.
 				</Typography>
 
-				{chart.executives.length > 0 && (
+				{(chart.executives.length > 0 || chart.boardMembers.length > 0) && (
 					<>
 						<Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>
-							Leadership
+							Board
 						</Typography>
 						<Grid container spacing={1.5} sx={{ mb: 3 }}>
 							{chart.executives.map((member) => (
 								<Grid key={member.user_id} size={{ xs: 12, sm: 6 }}>
 									<OrgChartPerson member={member} highlight />
+								</Grid>
+							))}
+							{chart.boardMembers.map((member) => (
+								<Grid key={member.user_id} size={{ xs: 12, sm: 6 }}>
+									<OrgChartPerson member={member} hideRole />
 								</Grid>
 							))}
 						</Grid>

@@ -23,20 +23,20 @@ function buildMember(overrides: Partial<Member>): Member {
 }
 
 describe("buildOrgChart", () => {
-	it("groups executives, team leads, and department members while omitting board-only entries", () => {
+	it("groups executives, board members, team leads, and department members", () => {
 		const chart = buildOrgChart([
 			buildMember({
 				user_id: "president",
 				given_name: "Paula",
 				surname: "President",
-				department: "Board",
+				department: "Legal & Finance",
 				member_role: "President",
 			}),
 			buildMember({
 				user_id: "vice-president",
 				given_name: "Victor",
 				surname: "Vice",
-				department: "Board",
+				department: "Community",
 				member_role: "Vice-President",
 			}),
 			buildMember({
@@ -71,8 +71,9 @@ describe("buildOrgChart", () => {
 				user_id: "board-member",
 				given_name: "Boris",
 				surname: "Board",
-				department: "Board",
+				department: "Software Development",
 				member_role: "Member",
+				board_role: "Board Member",
 			}),
 			buildMember({
 				user_id: "research-member",
@@ -87,9 +88,11 @@ describe("buildOrgChart", () => {
 			"Paula",
 			"Victor",
 		]);
+		expect(chart.boardMembers.map((member) => member.given_name)).toEqual([
+			"Boris",
+		]);
 		expect(chart.departments.map((group) => group.department)).toEqual([
 			"Marketing",
-			"Research",
 			"Software Development",
 		]);
 		expect(
@@ -98,20 +101,15 @@ describe("buildOrgChart", () => {
 			),
 		).toMatchObject({
 			teamLeads: [expect.objectContaining({ given_name: "Taylor" })],
-			members: [expect.objectContaining({ given_name: "Alice" })],
+			members: [
+				expect.objectContaining({ given_name: "Alice" }),
+				expect.objectContaining({ given_name: "Boris" }),
+			],
 		});
-		expect(
-			chart.departments.find((group) => group.department === "Research"),
-		).toMatchObject({
-			teamLeads: [],
-			members: [expect.objectContaining({ given_name: "Riley" })],
-		});
-		expect(
-			chart.departments.flatMap((group) =>
-				group.teamLeads
-					.concat(group.members)
-					.map((member) => member.given_name),
-			),
-		).not.toContain("Boris");
+		expect(chart.departments.flatMap((group) => group.members)).not.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ given_name: "Riley" }),
+			]),
+		);
 	});
 });

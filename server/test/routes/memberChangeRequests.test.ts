@@ -34,7 +34,7 @@ describe("Member Change Request Routes", async () => {
 			},
 			payload: JSON.stringify({
 				changes: {
-					department: "Board",
+					department: "Community",
 					member_role: "President",
 					degree: "M.Sc. Computer Science",
 				},
@@ -46,8 +46,30 @@ describe("Member Change Request Routes", async () => {
 		const payload = JSON.parse(response.payload);
 		assert.strictEqual(payload.user_id, testUserIds.user);
 		assert.strictEqual(payload.status, "pending");
-		assert.strictEqual(payload.changes.department, "Board");
+		assert.strictEqual(payload.changes.department, "Community");
 		assert.strictEqual(mockDatabase.member_change_requests.length, 1);
+	});
+
+	test("research is not stored as an operational department request", async () => {
+		resetDatabase();
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/member-change-requests",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				changes: {
+					department: "Research",
+					member_role: "Member",
+				},
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 201);
+		const payload = JSON.parse(response.payload);
+		assert.strictEqual(payload.changes.department, null);
 	});
 
 	test("admin can list pending member change requests", async () => {
@@ -56,7 +78,7 @@ describe("Member Change Request Routes", async () => {
 			id: "request-1",
 			user_id: testUserIds.user,
 			status: "pending",
-			changes: { department: "Board" },
+			changes: { department: "Community" },
 			reason: "Changed responsibilities",
 			created_at: "2026-04-24T10:00:00Z",
 		});
@@ -80,7 +102,7 @@ describe("Member Change Request Routes", async () => {
 			user_id: testUserIds.user,
 			status: "pending",
 			changes: {
-				department: "Board",
+				department: "Community",
 				member_role: "Vice-President",
 				degree: "M.Sc. Computer Science",
 			},
@@ -105,7 +127,7 @@ describe("Member Change Request Routes", async () => {
 		const updatedMember = mockDatabase.members.find(
 			(member) => member.user_id === testUserIds.user,
 		);
-		assert.strictEqual(updatedMember?.department, "Board");
+		assert.strictEqual(updatedMember?.department, "Community");
 		assert.strictEqual(updatedMember?.member_role, "Vice-President");
 		assert.strictEqual(updatedMember?.degree, "M.Sc. Computer Science");
 
@@ -116,7 +138,7 @@ describe("Member Change Request Routes", async () => {
 		assert.strictEqual(updatedRequest?.review_note, "Looks good");
 	});
 
-	test("executive change requests always resolve to the Board department", async () => {
+	test("executive change requests keep requested operational department", async () => {
 		resetDatabase();
 		mockDatabase.member_change_requests.push({
 			id: "request-board-role",
@@ -147,7 +169,7 @@ describe("Member Change Request Routes", async () => {
 			(member) => member.user_id === testUserIds.user,
 		);
 		assert.strictEqual(updatedMember?.member_role, "President");
-		assert.strictEqual(updatedMember?.department, "Board");
+		assert.strictEqual(updatedMember?.department, "Legal & Finance");
 	});
 
 	test("admin can reject a member change request without mutating the member", async () => {
@@ -157,7 +179,7 @@ describe("Member Change Request Routes", async () => {
 			user_id: testUserIds.user,
 			status: "pending",
 			changes: {
-				department: "Board",
+				department: "Community",
 				member_role: "President",
 			},
 			reason: "Wanted to test",

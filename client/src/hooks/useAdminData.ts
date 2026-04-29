@@ -152,12 +152,14 @@ export function useAdminData() {
 			userId,
 			department,
 			member_role,
+			board_role,
 			member_status,
 			access_role,
 		}: {
 			userId: string;
 			department: string | null;
 			member_role: string;
+			board_role: string | null;
 			member_status: string;
 			access_role: "user" | "admin";
 		}) => {
@@ -166,6 +168,7 @@ export function useAdminData() {
 				body: JSON.stringify({
 					department,
 					member_role,
+					board_role,
 					member_status,
 					access_role,
 				}),

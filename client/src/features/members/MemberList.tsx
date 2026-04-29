@@ -20,8 +20,16 @@ import { useMemo, useState } from "react";
 
 import GlassCard from "../../components/ui/GlassCard";
 import { useMembersListData } from "../../hooks/useMembersListData";
-import { DEGREE_TYPES, DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
-import { splitDegree } from "../../lib/memberMetadata";
+import {
+	BOARD_MEMBER_ROLE,
+	DEGREE_TYPES,
+	DEPARTMENTS,
+	MEMBER_ROLES,
+} from "../../lib/constants";
+import {
+	getOperationalDepartment,
+	splitDegree,
+} from "../../lib/memberMetadata";
 import type { Member } from "../../types";
 import OrgChartView from "./OrgChartView";
 
@@ -56,8 +64,10 @@ export default function MemberList() {
 		return members.filter((m) => {
 			const { type, program } = splitDegree(m.degree || "");
 			const name = `${m.given_name} ${m.surname}`.toLowerCase();
-			const dept = (m.department || "").toLowerCase();
+			const normalizedDepartment = getOperationalDepartment(m.department);
+			const dept = (normalizedDepartment || "").toLowerCase();
 			const memberRole = (m.member_role || "").toLowerCase();
+			const boardRole = (m.board_role || "").toLowerCase();
 			const batch = (m.batch || "").toLowerCase();
 			const degree = (m.degree || "").toLowerCase();
 			const school = (m.school || "").toLowerCase();
@@ -67,6 +77,7 @@ export default function MemberList() {
 					name.includes(q) ||
 					dept.includes(q) ||
 					memberRole.includes(q) ||
+					boardRole.includes(q) ||
 					batch.includes(q) ||
 					degree.includes(q) ||
 					school.includes(q)
@@ -74,7 +85,7 @@ export default function MemberList() {
 			) {
 				return false;
 			}
-			if (department && m.department !== department) return false;
+			if (department && normalizedDepartment !== department) return false;
 			if (role && m.member_role !== role) return false;
 			if (degreeType && type !== degreeType) return false;
 			if (degreeProgram && program !== degreeProgram) return false;
@@ -272,6 +283,7 @@ interface MemberCardProps {
 function MemberCard({ member }: MemberCardProps) {
 	const theme = useTheme();
 	const fullName = `${member.given_name} ${member.surname}`.trim();
+	const operationalDepartment = getOperationalDepartment(member.department);
 
 	return (
 		<GlassCard variant="interactive">
@@ -320,13 +332,13 @@ function MemberCard({ member }: MemberCardProps) {
 							</Typography>
 						)}
 
-						{member.department && (
+						{operationalDepartment && (
 							<Typography
 								variant="body2"
 								color="text.secondary"
 								sx={{ lineHeight: 1.4 }}
 							>
-								{member.department}
+								{operationalDepartment}
 							</Typography>
 						)}
 					</Box>
@@ -338,6 +350,9 @@ function MemberCard({ member }: MemberCardProps) {
 					)}
 					{member.degree && (
 						<Chip label={member.degree} size="small" variant="outlined" />
+					)}
+					{member.board_role === BOARD_MEMBER_ROLE && (
+						<Chip label="Board member" size="small" variant="outlined" />
 					)}
 					{member.school && (
 						<Chip

@@ -25,6 +25,7 @@ vi.mock("../../hooks/useAdminData", () => ({
 				email: "alice@example.com",
 				department: "Software Development",
 				member_role: "Member",
+				board_role: null,
 				member_status: "active",
 				access_role: "user",
 				active: true,
@@ -95,6 +96,7 @@ describe("AdminDatabaseView", () => {
 		await user.click(screen.getByRole("button", { name: /edit member/i }));
 		await user.click(screen.getByLabelText(/role/i));
 		await user.click(await screen.findByRole("option", { name: "President" }));
+		await user.click(screen.getByLabelText(/board member/i));
 		await user.click(screen.getByLabelText(/status/i));
 		await user.click(await screen.findByRole("option", { name: "Inactive" }));
 		await user.click(screen.getByLabelText(/access/i));
@@ -106,12 +108,28 @@ describe("AdminDatabaseView", () => {
 		await waitFor(() => {
 			expect(updateMemberAsync).toHaveBeenCalledWith({
 				userId: "member-1",
-				department: "Board",
+				department: "Software Development",
 				member_role: "President",
+				board_role: "Board Member",
 				member_status: "inactive",
 				access_role: "admin",
 			});
 		});
+	});
+
+	it("does not offer Board or Research as operational departments", async () => {
+		const user = userEvent.setup();
+		renderAdminView();
+
+		await user.click(screen.getByRole("button", { name: /edit member/i }));
+		await user.click(screen.getByLabelText(/department/i));
+
+		expect(
+			screen.queryByRole("option", { name: "Board" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("option", { name: "Research" }),
+		).not.toBeInTheDocument();
 	});
 
 	it("lets admins approve a pending member change request", async () => {

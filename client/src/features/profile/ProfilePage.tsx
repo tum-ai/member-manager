@@ -42,7 +42,6 @@ import {
 } from "../../lib/constants";
 import {
 	getMemberStatusLabel,
-	isBoardLeadershipRole,
 	joinDegree,
 	resolveDepartmentForMemberRole,
 	splitDegree,
@@ -658,14 +657,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 														},
 													)
 												}
-												disabled={isBoardLeadershipRole(
-													memberForm.watch("member_role"),
-												)}
-												helperText={
-													isBoardLeadershipRole(memberForm.watch("member_role"))
-														? "President and Vice-President are always in Board."
-														: "You can edit this directly because you are an admin."
-												}
+												helperText="You can edit this directly because you are an admin."
 											>
 												<MenuItem value="">None</MenuItem>
 												{DEPARTMENTS.map((department) => (
@@ -691,15 +683,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												label="Role in TUM.ai"
 												value={memberForm.watch("member_role") || "Member"}
 												onChange={(event) => {
-													const nextRole = event.target.value;
-													memberForm.setValue("member_role", nextRole, {
-														shouldDirty: true,
-													});
-													if (isBoardLeadershipRole(nextRole)) {
-														memberForm.setValue("department", "Board", {
+													memberForm.setValue(
+														"member_role",
+														event.target.value,
+														{
 															shouldDirty: true,
-														});
-													}
+														},
+													);
 												}}
 												helperText="You can edit this directly because you are an admin."
 											>
@@ -899,12 +889,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												onChange={(event) =>
 													setRequestedDepartment(event.target.value)
 												}
-												disabled={isBoardLeadershipRole(requestedRole)}
-												helperText={
-													isBoardLeadershipRole(requestedRole)
-														? "President and Vice-President are always in Board."
-														: undefined
-												}
 											>
 												<MenuItem value="">No change</MenuItem>
 												{DEPARTMENTS.map((department) => (
@@ -919,13 +903,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												select
 												label="Requested role"
 												value={requestedRole}
-												onChange={(event) => {
-													const nextRole = event.target.value;
-													setRequestedRole(nextRole);
-													if (isBoardLeadershipRole(nextRole)) {
-														setRequestedDepartment("Board");
-													}
-												}}
+												onChange={(event) =>
+													setRequestedRole(event.target.value)
+												}
 											>
 												<MenuItem value="">No change</MenuItem>
 												{MEMBER_ROLES.map((role) => (

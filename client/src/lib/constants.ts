@@ -1,12 +1,10 @@
 export const DEPARTMENTS = [
-	"Board",
 	"Community",
 	"Innovation Department",
 	"Legal & Finance",
 	"Makeathon",
 	"Marketing",
 	"Partners & Sponsors",
-	"Research",
 	"Software Development",
 	"Venture",
 ] as const;
@@ -24,6 +22,8 @@ export const MEMBER_ROLES = [
 ] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
 export const DEFAULT_MEMBER_ROLE: MemberRole = "Member";
+
+export const BOARD_MEMBER_ROLE = "Board Member" as const;
 
 // School/University presets. "Other" unlocks a free-text field.
 export const SCHOOL_PRESETS = ["TUM", "LMU"] as const;

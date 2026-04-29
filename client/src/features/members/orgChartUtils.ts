@@ -1,3 +1,5 @@
+import { BOARD_MEMBER_ROLE } from "../../lib/constants";
+import { getOperationalDepartment } from "../../lib/memberMetadata";
 import type { Member } from "../../types";
 
 export interface OrgChartDepartmentGroup {
@@ -8,6 +10,7 @@ export interface OrgChartDepartmentGroup {
 
 export interface OrgChartData {
 	executives: Member[];
+	boardMembers: Member[];
 	departments: OrgChartDepartmentGroup[];
 }
 
@@ -42,19 +45,24 @@ export function buildOrgChart(members: Member[]): OrgChartData {
 				getExecutiveRank(left.member_role) -
 					getExecutiveRank(right.member_role) || sortMembers(left, right),
 		);
+	const executiveIds = new Set(executives.map((member) => member.user_id));
+	const boardMembers = members
+		.filter(
+			(member) =>
+				member.board_role === BOARD_MEMBER_ROLE &&
+				!executiveIds.has(member.user_id),
+		)
+		.sort(sortMembers);
 
 	const departments = new Map<string, OrgChartDepartmentGroup>();
 
 	for (const member of members) {
-		if (
-			member.member_role === "President" ||
-			member.member_role === "Vice-President"
-		) {
+		if (executiveIds.has(member.user_id)) {
 			continue;
 		}
 
-		const department = member.department?.trim();
-		if (!department || department === "Board") {
+		const department = getOperationalDepartment(member.department);
+		if (!department) {
 			continue;
 		}
 
@@ -75,6 +83,7 @@ export function buildOrgChart(members: Member[]): OrgChartData {
 
 	return {
 		executives,
+		boardMembers,
 		departments: [...departments.values()]
 			.map((group) => ({
 				...group,

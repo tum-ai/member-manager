@@ -7,7 +7,7 @@ export const MEMBER_ROLES = [
 	"President",
 ] as const;
 export type MemberRole = (typeof MEMBER_ROLES)[number];
-export const BOARD_LEADERSHIP_ROLES = ["Vice-President", "President"] as const;
+export const BOARD_MEMBER_ROLE = "Board Member" as const;
 
 export const MEMBER_STATUSES = ["active", "inactive", "alumni"] as const;
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];
@@ -15,6 +15,7 @@ export type MemberStatus = (typeof MEMBER_STATUSES)[number];
 export const DEFAULT_MEMBER_ROLE: MemberRole = "Member";
 export const DEFAULT_MEMBER_STATUS: MemberStatus = "active";
 const MEMBER_BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
+const NON_OPERATIONAL_DEPARTMENTS = new Set(["Board", "Research"]);
 
 export const memberRoleSchema = z.enum(MEMBER_ROLES);
 export const memberStatusSchema = z.enum(MEMBER_STATUSES);
@@ -39,19 +40,19 @@ export function statusToLegacyActive(status: MemberStatus): boolean {
 	return status === "active";
 }
 
-export function isBoardLeadershipRole(role?: string | null): boolean {
-	return BOARD_LEADERSHIP_ROLES.includes(
-		role as (typeof BOARD_LEADERSHIP_ROLES)[number],
-	);
-}
-
 export function resolveDepartmentForMemberRole(
-	role: string | null | undefined,
+	_role: string | null | undefined,
 	department: string | null | undefined,
 ): string | null {
-	if (isBoardLeadershipRole(role)) {
-		return "Board";
-	}
+	return normalizeOperationalDepartment(department);
+}
 
-	return normalizeNullableText(department);
+export function normalizeOperationalDepartment(
+	department?: string | null,
+): string | null {
+	const normalized = normalizeNullableText(department);
+	if (normalized && NON_OPERATIONAL_DEPARTMENTS.has(normalized)) {
+		return null;
+	}
+	return normalized;
 }

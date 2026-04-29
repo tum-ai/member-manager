@@ -27,6 +27,7 @@ vi.mock("../../hooks/useMembersListData", () => ({
 				surname: "Example",
 				department: "Board",
 				member_role: "Team Lead",
+				board_role: "Board Member",
 				degree: "M.Sc. Management & Technology",
 				school: "TUM",
 				batch: "SS25",
@@ -37,7 +38,7 @@ vi.mock("../../hooks/useMembersListData", () => ({
 				user_id: "member-3",
 				given_name: "Carla",
 				surname: "Example",
-				department: "Marketing",
+				department: "Research",
 				member_role: "Member",
 				degree: "B.Sc. Management & Technology",
 				school: "LMU",
@@ -86,10 +87,10 @@ describe("MemberList", () => {
 		expect(
 			screen.getByRole("heading", { name: /org chart/i }),
 		).toBeInTheDocument();
-		expect(screen.getAllByText("Marketing").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("Software Development").length).toBeGreaterThan(
 			0,
 		);
+		expect(screen.queryByText("Research")).not.toBeInTheDocument();
 
 		await user.click(screen.getByLabelText(/degree/i));
 		await user.click(await screen.findByRole("option", { name: "B.Sc." }));
@@ -102,6 +103,21 @@ describe("MemberList", () => {
 		expect(screen.getAllByText("Software Development").length).toBeGreaterThan(
 			0,
 		);
-		expect(screen.queryByText("Marketing")).not.toBeInTheDocument();
+		expect(screen.queryByText("Carla Example")).not.toBeInTheDocument();
+	});
+
+	it("does not expose Board or Research in the department filter", async () => {
+		const user = userEvent.setup();
+		renderMemberList();
+
+		await user.click(screen.getByLabelText(/department/i));
+
+		expect(
+			screen.queryByRole("option", { name: "Board" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("option", { name: "Research" }),
+		).not.toBeInTheDocument();
+		expect(screen.getByText("Board member")).toBeInTheDocument();
 	});
 });

@@ -11,6 +11,7 @@ import {
 	Box,
 	Button,
 	CardContent,
+	Checkbox,
 	Chip,
 	CircularProgress,
 	Dialog,
@@ -18,6 +19,7 @@ import {
 	DialogContent,
 	DialogTitle,
 	Divider,
+	FormControlLabel,
 	Grid,
 	InputAdornment,
 	MenuItem,
@@ -45,10 +47,14 @@ import {
 	type MemberChangeRequest,
 	useAdminData,
 } from "../../hooks/useAdminData";
-import { DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
+import {
+	BOARD_MEMBER_ROLE,
+	DEPARTMENTS,
+	MEMBER_ROLES,
+} from "../../lib/constants";
 import {
 	getMemberStatusLabel,
-	isBoardLeadershipRole,
+	getOperationalDepartment,
 	MEMBER_STATUSES,
 	resolveDepartmentForMemberRole,
 } from "../../lib/memberMetadata";
@@ -80,6 +86,7 @@ const sortableColumns: Array<{
 	{ key: "surname", label: "Member", width: 260 },
 	{ key: "department", label: "Department", width: 160 },
 	{ key: "member_role", label: "Role", width: 160 },
+	{ key: "board_role", label: "Board", width: 140 },
 	{ key: "phone", label: "Phone", width: 150 },
 	{ key: "iban", label: "IBAN", width: 220 },
 	{ key: "bic", label: "BIC", width: 150 },
@@ -113,6 +120,7 @@ export default function AdminDatabaseView() {
 		useState<AdminMember | null>(null);
 	const [editDepartment, setEditDepartment] = useState("");
 	const [editRole, setEditRole] = useState("Member");
+	const [editIsBoardMember, setEditIsBoardMember] = useState(false);
 	const [editStatus, setEditStatus] = useState("active");
 	const [editAccessRole, setEditAccessRole] = useState<"user" | "admin">(
 		"user",
@@ -193,8 +201,9 @@ export default function AdminDatabaseView() {
 
 	function openMemberEditor(member: AdminMember) {
 		setMemberBeingEdited(member);
-		setEditDepartment(member.department || "");
+		setEditDepartment(getOperationalDepartment(member.department) || "");
 		setEditRole(member.member_role || "Member");
+		setEditIsBoardMember(member.board_role === BOARD_MEMBER_ROLE);
 		setEditStatus(getResolvedStatus(member));
 		setEditAccessRole(member.access_role === "admin" ? "admin" : "user");
 	}
@@ -296,6 +305,7 @@ export default function AdminDatabaseView() {
 				userId: memberBeingEdited.user_id,
 				department: effectiveDepartment,
 				member_role: editRole,
+				board_role: editIsBoardMember ? BOARD_MEMBER_ROLE : null,
 				member_status: editStatus,
 				access_role: editAccessRole,
 			});
@@ -370,8 +380,9 @@ export default function AdminDatabaseView() {
 			"Given Name": member.given_name,
 			Email: member.email,
 			Phone: member.phone,
-			Department: member.department || "",
+			Department: getOperationalDepartment(member.department) || "",
 			Role: member.member_role || "",
+			Board: member.board_role || "",
 			IBAN: member.sepa?.iban || "",
 			BIC: member.sepa?.bic || "",
 			"Bank Name": member.sepa?.bank_name || "",
@@ -638,7 +649,7 @@ export default function AdminDatabaseView() {
 						overflowY: "visible",
 					}}
 				>
-					<Table size="small" sx={{ minWidth: 1480 }}>
+					<Table size="small" sx={{ minWidth: 1620 }}>
 						<TableHead>
 							<TableRow>
 								{sortableColumns.map((column) => (
@@ -763,8 +774,33 @@ export default function AdminDatabaseView() {
 											</Stack>
 										</TableCell>
 
-										<TableCell>{row.department || "Not set"}</TableCell>
+										<TableCell>
+											{getOperationalDepartment(row.department) || "Not set"}
+										</TableCell>
 										<TableCell>{row.member_role || "Member"}</TableCell>
+										<TableCell>
+											{row.board_role === BOARD_MEMBER_ROLE ? (
+												<Chip
+													size="small"
+													label={BOARD_MEMBER_ROLE}
+													variant="outlined"
+													sx={{
+														fontWeight: 600,
+														color: theme.palette.primary.main,
+														borderColor: alpha(
+															theme.palette.primary.main,
+															0.24,
+														),
+														backgroundColor: alpha(
+															theme.palette.primary.main,
+															0.08,
+														),
+													}}
+												/>
+											) : (
+												"Not set"
+											)}
+										</TableCell>
 										<TableCell>{row.phone || "Not provided"}</TableCell>
 										<TableCell sx={{ fontFamily: "monospace" }}>
 											{row.sepa?.iban || "Not provided"}
@@ -1103,12 +1139,7 @@ export default function AdminDatabaseView() {
 							label="Department"
 							value={editDepartment}
 							onChange={(event) => setEditDepartment(event.target.value)}
-							disabled={isBoardLeadershipRole(editRole)}
-							helperText={
-								isBoardLeadershipRole(editRole)
-									? "President and Vice-President are always in Board."
-									: undefined
-							}
+							helperText="Operational home. Board membership is assigned separately."
 						>
 							<MenuItem value="">None</MenuItem>
 							{DEPARTMENTS.map((department) => (
@@ -1121,13 +1152,7 @@ export default function AdminDatabaseView() {
 							select
 							label="Role"
 							value={editRole}
-							onChange={(event) => {
-								const nextRole = event.target.value;
-								setEditRole(nextRole);
-								if (isBoardLeadershipRole(nextRole)) {
-									setEditDepartment("Board");
-								}
-							}}
+							onChange={(event) => setEditRole(event.target.value)}
 						>
 							{MEMBER_ROLES.map((role) => (
 								<MenuItem key={role} value={role}>
@@ -1135,6 +1160,23 @@ export default function AdminDatabaseView() {
 								</MenuItem>
 							))}
 						</TextField>
+						<Box>
+							<FormControlLabel
+								control={
+									<Checkbox
+										checked={editIsBoardMember}
+										onChange={(event) =>
+											setEditIsBoardMember(event.target.checked)
+										}
+									/>
+								}
+								label="Board member"
+							/>
+							<Typography variant="caption" color="text.secondary">
+								Additional responsibility. It does not change the department or
+								the internal team lead/member role.
+							</Typography>
+						</Box>
 						<TextField
 							select
 							label="Status"
