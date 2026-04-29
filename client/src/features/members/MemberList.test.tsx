@@ -25,8 +25,9 @@ vi.mock("../../hooks/useMembersListData", () => ({
 				user_id: "member-2",
 				given_name: "Ben",
 				surname: "Boardmember",
-				department: "Board",
+				department: null,
 				member_role: "Member",
+				board_role: "Board Member",
 				degree: "M.Sc. Management & Technology",
 				school: "TUM",
 				batch: "SS25",
@@ -37,7 +38,7 @@ vi.mock("../../hooks/useMembersListData", () => ({
 				user_id: "member-3",
 				given_name: "Carla",
 				surname: "Example",
-				department: "Marketing",
+				department: "Research",
 				member_role: "Member",
 				board_role: "Board Member",
 				degree: "B.Sc. Management & Technology",
@@ -131,14 +132,14 @@ describe("MemberList", () => {
 					screen.getByRole("heading", { name: /org chart/i }),
 				) & Node.DOCUMENT_POSITION_PRECEDING,
 		).toBeTruthy();
-		expect(screen.getAllByText("Marketing").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("Software Development").length).toBeGreaterThan(
 			0,
 		);
+		expect(screen.queryByText("Research")).not.toBeInTheDocument();
 		expect(screen.getByText("Innovation Projects")).toBeInTheDocument();
 		expect(screen.getByText("Women@TUM.ai")).toBeInTheDocument();
 		expect(screen.getAllByText("Ben Boardmember")).toHaveLength(2);
-		expect(screen.getAllByText("Board Member").length).toBeGreaterThanOrEqual(
+		expect(screen.getAllByText("Board member").length).toBeGreaterThanOrEqual(
 			2,
 		);
 
@@ -153,7 +154,22 @@ describe("MemberList", () => {
 		expect(screen.getAllByText("Software Development").length).toBeGreaterThan(
 			0,
 		);
-		expect(screen.queryByText("Marketing")).not.toBeInTheDocument();
+		expect(screen.queryByText("Carla Example")).not.toBeInTheDocument();
+	});
+
+	it("does not expose Board or Research in the department filter", async () => {
+		const user = userEvent.setup();
+		renderMemberList();
+
+		await user.click(screen.getByLabelText(/department/i));
+
+		expect(
+			screen.queryByRole("option", { name: "Board" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("option", { name: "Research" }),
+		).not.toBeInTheDocument();
+		expect(screen.getAllByText("Board member").length).toBeGreaterThan(0);
 	});
 
 	it("shows board-only members as board members without member role text", async () => {
@@ -163,7 +179,7 @@ describe("MemberList", () => {
 		await user.type(screen.getByPlaceholderText(/search members/i), "Ben");
 
 		expect(screen.getAllByText("Ben Boardmember")).toHaveLength(2);
-		expect(screen.getByText("Board Member")).toBeInTheDocument();
+		expect(screen.getByText("Board member")).toBeInTheDocument();
 		expect(screen.queryByText("Member")).not.toBeInTheDocument();
 	});
 });

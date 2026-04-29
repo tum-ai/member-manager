@@ -72,7 +72,7 @@ describe("Members Routes", async () => {
 			const newUserId = testUserIds.otherUser;
 			const payload = mockMemberPayload({
 				user_id: newUserId,
-				department: "Board",
+				department: "Legal & Finance",
 				member_role: "President",
 				active: false,
 			});
@@ -297,6 +297,14 @@ describe("Members Routes", async () => {
 
 		test("returns correct fields", async () => {
 			resetDatabase();
+			const memberWithLegacyDepartment = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			if (!memberWithLegacyDepartment) {
+				throw new Error("Expected test member to exist");
+			}
+			memberWithLegacyDepartment.department = "Research";
+
 			const response = await app.inject({
 				method: "GET",
 				url: "/api/members",
@@ -313,9 +321,14 @@ describe("Members Routes", async () => {
 			assert.ok("batch" in member);
 			assert.ok("department" in member);
 			assert.ok("member_role" in member);
+			assert.ok("board_role" in member);
 			assert.ok("degree" in member);
 			assert.ok("school" in member);
 			assert.ok("active" in member);
+			const normalizedMember = data.find(
+				(entry: { user_id: string }) => entry.user_id === testUserIds.user,
+			);
+			assert.strictEqual(normalizedMember.department, null);
 		});
 
 		test("members are sorted by surname ascending", async () => {
@@ -596,7 +609,7 @@ describe("Members Routes", async () => {
 				},
 				payload: JSON.stringify({
 					given_name: "Self",
-					department: "Board",
+					department: "Legal & Finance",
 				}),
 			});
 

@@ -58,8 +58,9 @@ describe("OrgChartView", () => {
 							user_id: "board-member",
 							given_name: "Boris",
 							surname: "Board",
-							department: "Board",
+							department: "Software Development",
 							member_role: "Member",
+							board_role: "Board Member",
 						}),
 					]}
 				/>
@@ -76,13 +77,13 @@ describe("OrgChartView", () => {
 		).toBeInTheDocument();
 		expect(screen.getByText("Board Members")).toBeInTheDocument();
 		expect(screen.getByText("Paula President")).toBeInTheDocument();
+		expect(screen.getAllByText("Boris Board")).toHaveLength(2);
 		expect(screen.getByText("Software Development")).toBeInTheDocument();
-		expect(screen.getByText("Boris Board")).toBeInTheDocument();
 		expect(
 			screen.queryByLabelText(/show board responsibilities/i),
 		).not.toBeInTheDocument();
 		expect(screen.getAllByText("Alice Builder")).toHaveLength(2);
-		expect(screen.getAllByText("Board Member")).toHaveLength(1);
+		expect(screen.getAllByText("Board member")).toHaveLength(2);
 	});
 
 	it("shows board members without operational role text or board badges in the board section", () => {
@@ -105,7 +106,7 @@ describe("OrgChartView", () => {
 
 		expect(screen.getAllByText("Linus Finance")).toHaveLength(2);
 		expect(screen.getAllByText("Team Lead")).toHaveLength(1);
-		expect(screen.getAllByText("Board Member")).toHaveLength(1);
+		expect(screen.getAllByText("Board member")).toHaveLength(1);
 	});
 
 	it("shows research projects below departments and expands details on click", async () => {

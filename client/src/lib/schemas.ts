@@ -42,6 +42,7 @@ export const memberSchema = z.object({
 		),
 	department: z.string().nullish(),
 	member_role: z.string().nullish(),
+	board_role: z.string().nullish(),
 	degree: z.string().nullish(),
 	school: z.string().nullish(),
 });

@@ -17,6 +17,7 @@ import {
 	DEFAULT_MEMBER_STATUS,
 	memberRoleSchema,
 	normalizeMemberBatch,
+	normalizeOperationalDepartment,
 	resolveDepartmentForMemberRole,
 } from "../lib/memberMetadata.js";
 import {
@@ -275,7 +276,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select(
-					"user_id, given_name, surname, batch, department, member_role, degree, school, active, member_status",
+					"user_id, given_name, surname, batch, department, member_role, board_role, degree, school, active, member_status",
 				)
 				.eq("member_status", DEFAULT_MEMBER_STATUS)
 				.order("surname", { ascending: true });
@@ -296,6 +297,7 @@ export async function memberRoutes(server: FastifyInstance) {
 					const profile = profileMap.get(String(member.user_id));
 					return {
 						...member,
+						department: normalizeOperationalDepartment(member.department),
 						email: profile?.email ?? "",
 						avatar_url: profile?.avatar_url ?? "",
 					};

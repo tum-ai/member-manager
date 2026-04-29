@@ -341,12 +341,29 @@ describe("Admin Routes", async () => {
 					...authHeaders(testTokens.admin),
 					"content-type": "application/json",
 				},
-				payload: JSON.stringify({ department: "Board" }),
+				payload: JSON.stringify({ department: "Community" }),
 			});
 
 			assert.strictEqual(response.statusCode, 200);
 			const payload = JSON.parse(response.payload);
-			assert.strictEqual(payload.department, "Board");
+			assert.strictEqual(payload.department, "Community");
+		});
+
+		test("research is not accepted as an operational department", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/department`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ department: "Research" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.department, null);
 		});
 
 		test("regular user denied access", async () => {
@@ -358,13 +375,13 @@ describe("Admin Routes", async () => {
 					...authHeaders(testTokens.user),
 					"content-type": "application/json",
 				},
-				payload: JSON.stringify({ department: "Board" }),
+				payload: JSON.stringify({ department: "Research" }),
 			});
 
 			assert.strictEqual(response.statusCode, 403);
 		});
 
-		test("board leadership can update operational departments", async () => {
+		test("board leadership can move between operational departments", async () => {
 			resetDatabase();
 			const member = mockDatabase.members.find(
 				(entry) => entry.user_id === testUserIds.user,
@@ -476,6 +493,7 @@ describe("Admin Routes", async () => {
 				payload: JSON.stringify({
 					department: "Legal & Finance",
 					member_role: "President",
+					board_role: "Board Member",
 					member_status: "inactive",
 					access_role: "admin",
 				}),
@@ -487,6 +505,7 @@ describe("Admin Routes", async () => {
 			);
 			assert.strictEqual(updatedMember?.member_role, "President");
 			assert.strictEqual(updatedMember?.department, "Legal & Finance");
+			assert.strictEqual(updatedMember?.board_role, "Board Member");
 			assert.strictEqual(updatedMember?.member_status, "inactive");
 			assert.strictEqual(updatedMember?.active, false);
 			const updatedRole = mockDatabase.user_roles.find(

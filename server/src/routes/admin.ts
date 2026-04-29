@@ -3,10 +3,12 @@ import { z } from "zod";
 import { getAuthEmails } from "../lib/authEmails.js";
 import { DatabaseError } from "../lib/errors.js";
 import {
+	BOARD_MEMBER_ROLE,
 	MEMBER_ROLES,
 	memberRoleSchema,
 	memberStatusSchema,
 	normalizeNullableText,
+	normalizeOperationalDepartment,
 	resolveDepartmentForMemberRole,
 	statusToLegacyActive,
 } from "../lib/memberMetadata.js";
@@ -42,14 +44,26 @@ const RoleSchema = z.object({
 	member_role: memberRoleSchema,
 });
 const DepartmentSchema = z.object({
-	department: z.string().nullable().transform(normalizeNullableText),
+	department: z.string().nullable().transform(normalizeOperationalDepartment),
 });
+const BoardRoleSchema = z
+	.string()
+	.nullish()
+	.transform((value) =>
+		value === undefined ? undefined : normalizeNullableText(value),
+	)
+	.refine(
+		(value) =>
+			value === undefined || value === null || value === BOARD_MEMBER_ROLE,
+		"Invalid board_role",
+	);
 const AccessRoleSchema = z.object({
 	access_role: z.enum(["user", "admin"]),
 });
 const MemberUpdateSchema = z.object({
 	department: z.string().nullable().transform(normalizeNullableText),
 	member_role: memberRoleSchema,
+	board_role: BoardRoleSchema,
 	member_status: memberStatusSchema,
 	access_role: z.enum(["user", "admin"]),
 });
@@ -59,6 +73,7 @@ const MEMBER_DB_SORT_COLUMNS = new Set([
 	"created_at",
 	"degree",
 	"department",
+	"board_role",
 	"given_name",
 	"member_role",
 	"phone",
@@ -158,6 +173,7 @@ export async function adminRoutes(server: FastifyInstance) {
 								);
 							},
 						),
+						department: normalizeOperationalDepartment(member.department),
 						email: emailMap.get(String(member.user_id)) ?? "",
 						sepa: decryptRecordSafely(
 							Array.isArray(member.sepa)
@@ -438,7 +454,7 @@ export async function adminRoutes(server: FastifyInstance) {
 			const { data: existingMember, error: memberLookupError } =
 				await getSupabase()
 					.from("members")
-					.select("department, member_role, member_status, active")
+					.select("department, member_role, board_role, member_status, active")
 					.eq("user_id", userId)
 					.single();
 
@@ -464,7 +480,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				return reply;
 			}
 
-			const memberUpdate = {
+			const memberUpdate: Record<string, unknown> = {
 				department: resolveDepartmentForMemberRole(
 					parsed.data.member_role,
 					parsed.data.department,
@@ -473,6 +489,9 @@ export async function adminRoutes(server: FastifyInstance) {
 				member_status: parsed.data.member_status,
 				active: statusToLegacyActive(parsed.data.member_status),
 			};
+			if (parsed.data.board_role !== undefined) {
+				memberUpdate.board_role = parsed.data.board_role;
+			}
 
 			const { data: updatedMember, error: memberUpdateError } =
 				await getSupabase()
@@ -515,6 +534,9 @@ export async function adminRoutes(server: FastifyInstance) {
 					member_role:
 						(existingMember as { member_role?: string | null }).member_role ??
 						null,
+					board_role:
+						(existingMember as { board_role?: string | null }).board_role ??
+						null,
 					member_status:
 						(existingMember as { member_status?: string | null })
 							.member_status ?? null,
@@ -553,16 +575,10 @@ export async function adminRoutes(server: FastifyInstance) {
 				});
 			}
 			const role = parsed.data.member_role;
-			const updatePayload: {
-				member_role: string;
-				department?: string | null;
-			} = {
-				member_role: role,
-			};
 
 			const { data, error } = await getSupabase()
 				.from("members")
-				.update(updatePayload)
+				.update({ member_role: role })
 				.eq("user_id", userId)
 				.select()
 				.single();
@@ -592,31 +608,10 @@ export async function adminRoutes(server: FastifyInstance) {
 				});
 			}
 
-			const { data: existingMember, error: memberLookupError } =
-				await getSupabase()
-					.from("members")
-					.select("member_role")
-					.eq("user_id", userId)
-					.single();
-
-			if (memberLookupError) {
-				if (memberLookupError.code === "PGRST116") {
-					return reply.status(404).send({ error: "Member not found" });
-				}
-				request.log.error(
-					{ err: memberLookupError },
-					"Failed to fetch member before department update",
-				);
-				throw new DatabaseError();
-			}
-
 			const { data, error } = await getSupabase()
 				.from("members")
 				.update({
-					department: resolveDepartmentForMemberRole(
-						(existingMember as { member_role?: string | null }).member_role,
-						parsed.data.department,
-					),
+					department: parsed.data.department,
 				})
 				.eq("user_id", userId)
 				.select()

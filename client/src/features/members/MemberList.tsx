@@ -22,8 +22,16 @@ import GlassCard from "../../components/ui/GlassCard";
 import { useInnovationProjects } from "../../hooks/useInnovationProjects";
 import { useMembersListData } from "../../hooks/useMembersListData";
 import { useResearchProjects } from "../../hooks/useResearchProjects";
-import { DEGREE_TYPES, DEPARTMENTS, MEMBER_ROLES } from "../../lib/constants";
-import { splitDegree } from "../../lib/memberMetadata";
+import {
+	BOARD_MEMBER_ROLE,
+	DEGREE_TYPES,
+	DEPARTMENTS,
+	MEMBER_ROLES,
+} from "../../lib/constants";
+import {
+	getOperationalDepartment,
+	splitDegree,
+} from "../../lib/memberMetadata";
 import type { Member } from "../../types";
 import OrgChartView from "./OrgChartView";
 
@@ -43,13 +51,16 @@ function getBoardBadgeLabel(member: Member): string | undefined {
 			: typeof member.boardRole === "string"
 				? member.boardRole.trim()
 				: "";
-	if (explicitRole) return explicitRole;
+	if (explicitRole === BOARD_MEMBER_ROLE) return "Board member";
 
-	return member.department === "Board" ? "Board Member" : undefined;
+	return member.department === "Board" ? "Board member" : undefined;
 }
 
 function isBoardOnlyMember(member: Member): boolean {
-	return member.department === "Board";
+	return (
+		!getOperationalDepartment(member.department) &&
+		(member.board_role === BOARD_MEMBER_ROLE || member.department === "Board")
+	);
 }
 
 export default function MemberList() {
@@ -79,8 +90,10 @@ export default function MemberList() {
 		return members.filter((m) => {
 			const { type, program } = splitDegree(m.degree || "");
 			const name = `${m.given_name} ${m.surname}`.toLowerCase();
-			const dept = (m.department || "").toLowerCase();
+			const normalizedDepartment = getOperationalDepartment(m.department);
+			const dept = (normalizedDepartment || "").toLowerCase();
 			const memberRole = (m.member_role || "").toLowerCase();
+			const boardRole = (m.board_role || "").toLowerCase();
 			const batch = (m.batch || "").toLowerCase();
 			const degree = (m.degree || "").toLowerCase();
 			const school = (m.school || "").toLowerCase();
@@ -90,6 +103,7 @@ export default function MemberList() {
 					name.includes(q) ||
 					dept.includes(q) ||
 					memberRole.includes(q) ||
+					boardRole.includes(q) ||
 					batch.includes(q) ||
 					degree.includes(q) ||
 					school.includes(q)
@@ -97,7 +111,7 @@ export default function MemberList() {
 			) {
 				return false;
 			}
-			if (department && m.department !== department) return false;
+			if (department && normalizedDepartment !== department) return false;
 			if (role && m.member_role !== role) return false;
 			if (degreeType && type !== degreeType) return false;
 			if (degreeProgram && program !== degreeProgram) return false;
@@ -300,12 +314,10 @@ interface MemberCardProps {
 function MemberCard({ member }: MemberCardProps) {
 	const theme = useTheme();
 	const fullName = `${member.given_name} ${member.surname}`.trim();
+	const operationalDepartment = getOperationalDepartment(member.department);
 	const boardBadgeLabel = getBoardBadgeLabel(member);
 	const showMemberRole = Boolean(
 		member.member_role && !isBoardOnlyMember(member),
-	);
-	const showDepartment = Boolean(
-		member.department && member.department !== "Board",
 	);
 
 	return (
@@ -355,13 +367,13 @@ function MemberCard({ member }: MemberCardProps) {
 							</Typography>
 						)}
 
-						{showDepartment && (
+						{operationalDepartment && (
 							<Typography
 								variant="body2"
 								color="text.secondary"
 								sx={{ lineHeight: 1.4 }}
 							>
-								{member.department}
+								{operationalDepartment}
 							</Typography>
 						)}
 					</Box>

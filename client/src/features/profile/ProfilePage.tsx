@@ -683,10 +683,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												label="Role in TUM.ai"
 												value={memberForm.watch("member_role") || "Member"}
 												onChange={(event) => {
-													const nextRole = event.target.value;
-													memberForm.setValue("member_role", nextRole, {
-														shouldDirty: true,
-													});
+													memberForm.setValue(
+														"member_role",
+														event.target.value,
+														{
+															shouldDirty: true,
+														},
+													);
 												}}
 												helperText="You can edit this directly because you are an admin."
 											>
@@ -900,10 +903,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												select
 												label="Requested role"
 												value={requestedRole}
-												onChange={(event) => {
-													const nextRole = event.target.value;
-													setRequestedRole(nextRole);
-												}}
+												onChange={(event) =>
+													setRequestedRole(event.target.value)
+												}
 											>
 												<MenuItem value="">No change</MenuItem>
 												{MEMBER_ROLES.map((role) => (

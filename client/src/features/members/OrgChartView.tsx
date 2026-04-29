@@ -15,6 +15,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import GlassCard from "../../components/ui/GlassCard";
+import { BOARD_MEMBER_ROLE } from "../../lib/constants";
 import type { InnovationProject, Member, ResearchProject } from "../../types";
 import { buildOrgChart } from "./orgChartUtils";
 
@@ -111,18 +112,15 @@ function OrgChartPerson({
 }
 
 function getBoardBadgeLabel(member: Member): string | undefined {
-	if (member.member_role === "President") return "President";
-	if (member.member_role === "Vice-President") return "Vice-President";
-
 	const explicitRole =
 		typeof member.board_role === "string"
 			? member.board_role.trim()
 			: typeof member.boardRole === "string"
 				? member.boardRole.trim()
 				: "";
-	if (explicitRole) return explicitRole;
+	if (explicitRole === BOARD_MEMBER_ROLE) return "Board member";
 
-	return member.department === "Board" ? "Board" : undefined;
+	return member.department === "Board" ? "Board member" : undefined;
 }
 
 function renderMembers(

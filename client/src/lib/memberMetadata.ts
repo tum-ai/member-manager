@@ -2,7 +2,7 @@ import { DEGREE_TYPES } from "./constants";
 
 export const MEMBER_STATUSES = ["active", "inactive", "alumni"] as const;
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];
-export const BOARD_LEADERSHIP_ROLES = ["Vice-President", "President"] as const;
+const NON_OPERATIONAL_DEPARTMENTS = new Set(["Board", "Research"]);
 
 export function splitDegree(stored: string): { type: string; program: string } {
 	const trimmed = (stored ?? "").trim();
@@ -38,16 +38,19 @@ export function getMemberStatusLabel(status?: string | null): string {
 	}
 }
 
-export function isBoardLeadershipRole(role?: string | null): boolean {
-	return BOARD_LEADERSHIP_ROLES.includes(
-		role as (typeof BOARD_LEADERSHIP_ROLES)[number],
-	);
-}
-
 export function resolveDepartmentForMemberRole(
 	_role: string | null | undefined,
 	department: string | null | undefined,
 ): string | null {
+	return getOperationalDepartment(department);
+}
+
+export function getOperationalDepartment(
+	department: string | null | undefined,
+): string | null {
 	const normalized = department?.trim();
+	if (normalized && NON_OPERATIONAL_DEPARTMENTS.has(normalized)) {
+		return null;
+	}
 	return normalized ? normalized : null;
 }

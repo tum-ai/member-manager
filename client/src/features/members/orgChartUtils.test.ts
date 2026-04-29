@@ -172,6 +172,13 @@ describe("buildOrgChart", () => {
 					.map((member) => member.given_name),
 			),
 		).not.toContain("Boris");
+		expect(
+			chart.departments.flatMap((group) =>
+				group.teamLeads
+					.concat(group.members)
+					.map((member) => member.given_name),
+			),
+		).not.toContain("Riley");
 		expect(chart.researchProjects).toHaveLength(1);
 		expect(chart.researchProjects[0]).toMatchObject({
 			id: "project-a",

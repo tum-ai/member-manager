@@ -1,3 +1,5 @@
+import { BOARD_MEMBER_ROLE } from "../../lib/constants";
+import { getOperationalDepartment } from "../../lib/memberMetadata";
 import type { InnovationProject, Member, ResearchProject } from "../../types";
 
 export interface OrgChartDepartmentGroup {
@@ -68,13 +70,12 @@ function getBoardRole(member: Member): keyof OrgChartBoardGroup | null {
 		return "vicePresidents";
 	}
 
-	const explicitBoardRole = normalize(
-		readMemberText(member, ["board_role", "boardRole", "board_position"]),
-	);
-	if (explicitBoardRole.includes("president")) {
-		return explicitBoardRole.includes("vice") ? "vicePresidents" : "presidents";
-	}
-	if (explicitBoardRole) {
+	const explicitBoardRole = readMemberText(member, [
+		"board_role",
+		"boardRole",
+		"board_position",
+	]);
+	if (explicitBoardRole === BOARD_MEMBER_ROLE) {
 		return "members";
 	}
 
@@ -261,10 +262,10 @@ export function buildOrgChart(
 			board[boardRole].push(member);
 		}
 
-		const department = member.department?.trim();
+		const department = getOperationalDepartment(member.department);
 		const researchReference = getResearchProjectReference(member);
 		const isResearchMember =
-			department === "Research" || Boolean(researchReference);
+			member.department?.trim() === "Research" || Boolean(researchReference);
 		if (isResearchMember) {
 			const researchGroup = getResearchGroupForMember(
 				member,
@@ -291,7 +292,7 @@ export function buildOrgChart(
 			}
 		}
 
-		if (!department || department === "Board" || department === "Research") {
+		if (!department) {
 			continue;
 		}
 

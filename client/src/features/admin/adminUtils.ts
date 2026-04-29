@@ -1,3 +1,4 @@
+import { getOperationalDepartment } from "../../lib/memberMetadata";
 import type { Member, Sepa } from "../../types";
 
 export interface AdminMember extends Member {
@@ -15,6 +16,7 @@ export type AdminSortKey =
 	| "surname"
 	| "department"
 	| "member_role"
+	| "board_role"
 	| "phone"
 	| "iban"
 	| "bic"
@@ -62,8 +64,9 @@ export function filterAdminMembers(
 			member.given_name,
 			member.email,
 			member.phone,
-			member.department,
+			getOperationalDepartment(member.department),
 			member.member_role,
+			member.board_role,
 			member.batch,
 			member.degree,
 			member.school,
@@ -125,7 +128,11 @@ export function getAdminSortValue(
 		case "surname":
 			return `${member.surname} ${member.given_name}`.trim();
 		default:
-			return String(member[sortBy] ?? "");
+			return String(
+				sortBy === "department"
+					? getOperationalDepartment(member.department)
+					: (member[sortBy] ?? ""),
+			);
 	}
 }
 
