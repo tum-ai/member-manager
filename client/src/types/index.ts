@@ -27,6 +27,24 @@ export interface Member {
 	[key: string]: any;
 }
 
+export interface ResearchProject {
+	id: string;
+	title: string;
+	description?: string;
+	image?: string;
+	publication?: string;
+	status?: string;
+	keywords?: string;
+}
+
+export interface InnovationProject {
+	id: string;
+	title: string;
+	description: string;
+	detailedDescription: string;
+	image?: string;
+}
+
 export interface Sepa {
 	iban: string;
 	bic: string;
