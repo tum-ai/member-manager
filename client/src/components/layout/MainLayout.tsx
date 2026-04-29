@@ -4,6 +4,7 @@ import LogoutIcon from "@mui/icons-material/Logout";
 import {
 	AppBar,
 	Box,
+	Button,
 	FormControl,
 	IconButton,
 	MenuItem,
@@ -16,7 +17,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import type { User } from "@supabase/supabase-js";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import { getTumAiLogoPath } from "../../lib/branding";
 import type { AppColorMode } from "../../theme";
 
@@ -131,6 +132,33 @@ export default function MainLayout({
 								)}
 							</IconButton>
 						</Tooltip>
+
+						<Button
+							component={RouterLink}
+							to="/tools"
+							variant={
+								location.pathname === "/tools" ||
+								location.pathname.startsWith("/tools/")
+									? "contained"
+									: "text"
+							}
+							sx={{
+								color: "#ffffff",
+								borderRadius: 999,
+								px: { xs: 1.5, sm: 2 },
+								minWidth: 0,
+								backgroundColor:
+									location.pathname === "/tools" ||
+									location.pathname.startsWith("/tools/")
+										? alpha(theme.palette.primary.main, 0.85)
+										: "transparent",
+								"&:hover": {
+									backgroundColor: alpha(theme.palette.primary.main, 0.28),
+								},
+							}}
+						>
+							Tools
+						</Button>
 
 						<FormControl
 							size="small"

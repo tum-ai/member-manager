@@ -17,8 +17,22 @@ export interface EngagementCertificateSlackNotification {
 	adminReviewUrl?: string;
 }
 
+export interface ReimbursementSlackNotification {
+	requestId: string;
+	requesterUserId: string;
+	requesterEmail: string;
+	submissionType: string;
+	department: string;
+	amount: number;
+	reviewUrl?: string;
+}
+
 type SlackNotifier = (
 	payload: EngagementCertificateSlackNotification,
+) => Promise<void>;
+
+type ReimbursementSlackNotifier = (
+	payload: ReimbursementSlackNotification,
 ) => Promise<void>;
 
 async function fetchAdminEmails(): Promise<string[]> {
@@ -137,6 +151,57 @@ function buildMessage(payload: EngagementCertificateSlackNotification): string {
 	].join("\n");
 }
 
+async function fetchReimbursementReviewerEmails(): Promise<string[]> {
+	const { data: adminRows, error: adminError } = await getSupabase()
+		.from("user_roles")
+		.select("user_id")
+		.eq("role", "admin");
+
+	if (adminError) {
+		throw new Error(`Failed to fetch admin roles: ${adminError.message}`);
+	}
+
+	const { data: financeRows, error: financeError } = await getSupabase()
+		.from("members")
+		.select("user_id")
+		.eq("department", "Legal & Finance")
+		.eq("member_status", "active");
+
+	if (financeError) {
+		throw new Error(`Failed to fetch finance members: ${financeError.message}`);
+	}
+
+	const userIds = new Set<string>();
+	for (const row of [...(adminRows ?? []), ...(financeRows ?? [])]) {
+		const userId = String((row as { user_id?: unknown }).user_id ?? "");
+		if (userId) {
+			userIds.add(userId);
+		}
+	}
+
+	const emails = await Promise.all(
+		[...userIds].map((userId) => getAuthEmail(userId)),
+	);
+	return emails.map((email) => email.trim()).filter(Boolean);
+}
+
+function buildReimbursementMessage(
+	payload: ReimbursementSlackNotification,
+): string {
+	const reviewLine = payload.reviewUrl
+		? `Review in Member Manager: ${payload.reviewUrl}`
+		: "Review in the Member Manager finance workspace.";
+
+	return [
+		`New ${payload.submissionType} request`,
+		`Requester: ${payload.requesterEmail}`,
+		`Department: ${payload.department}`,
+		`Amount: ${payload.amount.toFixed(2)} EUR`,
+		`Request ID: ${payload.requestId}`,
+		reviewLine,
+	].join("\n");
+}
+
 async function defaultSlackNotifier(
 	payload: EngagementCertificateSlackNotification,
 ): Promise<void> {
@@ -158,6 +223,28 @@ async function defaultSlackNotifier(
 }
 
 let activeSlackNotifier: SlackNotifier = defaultSlackNotifier;
+let activeReimbursementSlackNotifier: ReimbursementSlackNotifier =
+	defaultReimbursementSlackNotifier;
+
+async function defaultReimbursementSlackNotifier(
+	payload: ReimbursementSlackNotification,
+): Promise<void> {
+	if (!process.env.SLACK_BOT_TOKEN) {
+		return;
+	}
+
+	const reviewerEmails = await fetchReimbursementReviewerEmails();
+	const message = buildReimbursementMessage(payload);
+	await Promise.all(
+		reviewerEmails.map(async (reviewerEmail) => {
+			const slackUserId = await lookupSlackUserIdByEmail(reviewerEmail);
+			if (!slackUserId) {
+				return;
+			}
+			await postDirectMessage(slackUserId, message);
+		}),
+	);
+}
 
 export async function notifyAdminsOfCertificateRequest(
 	payload: EngagementCertificateSlackNotification,
@@ -165,11 +252,24 @@ export async function notifyAdminsOfCertificateRequest(
 	await activeSlackNotifier(payload);
 }
 
+export async function notifyFinanceOfReimbursementRequest(
+	payload: ReimbursementSlackNotification,
+): Promise<void> {
+	await activeReimbursementSlackNotifier(payload);
+}
+
 export function setSlackNotifier(notifier: SlackNotifier): void {
 	activeSlackNotifier = notifier;
 }
 
+export function setReimbursementSlackNotifier(
+	notifier: ReimbursementSlackNotifier,
+): void {
+	activeReimbursementSlackNotifier = notifier;
+}
+
 export function resetSlackNotifier(): void {
 	activeSlackNotifier = defaultSlackNotifier;
+	activeReimbursementSlackNotifier = defaultReimbursementSlackNotifier;
 	cachedAdminEmails = null;
 }

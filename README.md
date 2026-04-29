@@ -102,7 +102,7 @@ This boots local Supabase, refreshes the `.env.local` files, and starts the clie
 Local URLs:
 
 - app: `http://localhost:5173`
-- API: `http://localhost:3000`
+- API: `http://localhost:8787`
 - Supabase Studio: `http://127.0.0.1:54323`
 - Inbucket: `http://127.0.0.1:54324`
 

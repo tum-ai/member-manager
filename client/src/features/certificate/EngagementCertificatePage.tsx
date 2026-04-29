@@ -1,7 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
 	Add as AddIcon,
-	ArrowBack as ArrowBackIcon,
 	Delete as DeleteIcon,
 	Download as DownloadIcon,
 } from "@mui/icons-material";
@@ -20,7 +19,6 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
-import { useNavigate } from "react-router-dom";
 
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
@@ -33,6 +31,7 @@ import {
 	type EngagementSchema,
 	engagementFormSchema,
 } from "../../lib/schemas";
+import ToolPageShell from "../tools/ToolPageShell";
 import { generateEngagementCertificatePdf } from "./generators/engagementCertificatePdf";
 
 interface Props {
@@ -60,7 +59,6 @@ export default function EngagementCertificatePage({
 		useEngagementCertificateRequests(user.id);
 	const { showToast } = useToast();
 	const [isGenerating, setIsGenerating] = useState(false);
-	const navigate = useNavigate();
 
 	const form = useForm<EngagementFormSchema>({
 		resolver: zodResolver(engagementFormSchema),
@@ -199,24 +197,12 @@ export default function EngagementCertificatePage({
 	const birthDate = formatGermanDate(member.date_of_birth);
 
 	return (
-		<Box sx={{ maxWidth: 900, mx: "auto", p: 3 }}>
-			<Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 2 }}>
-				<Button
-					variant="outlined"
-					startIcon={<ArrowBackIcon />}
-					onClick={() => navigate("/")}
-					size="medium"
-				>
-					Back to Profile
-				</Button>
-			</Box>
-
+		<ToolPageShell
+			title="Engagement Certificate"
+			description="Submit engagement details for admin review."
+		>
 			<GlassCard sx={{ mb: 3 }}>
 				<Box sx={{ p: 3 }}>
-					<Typography variant="h4" sx={{ mb: 2, fontWeight: 600 }}>
-						Engagement Certificate
-					</Typography>
-
 					<Typography variant="body1" sx={{ mb: 2 }}>
 						Submit your engagement details for an admin review before the final
 						certificate is released. Please enter{" "}
@@ -525,6 +511,6 @@ export default function EngagementCertificatePage({
 					* All fields are required
 				</Typography>
 			</form>
-		</Box>
+		</ToolPageShell>
 	);
 }

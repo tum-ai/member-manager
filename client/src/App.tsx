@@ -16,6 +16,9 @@ import Auth from "./features/auth/Auth";
 import EngagementCertificatePage from "./features/certificate/EngagementCertificatePage";
 import MemberList from "./features/members/MemberList";
 import ProfilePage from "./features/profile/ProfilePage";
+import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
+import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
+import ToolsPage from "./features/tools/ToolsPage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
@@ -170,8 +173,21 @@ function AuthenticatedApp({
 				<Route path="/" element={<ProfilePage user={user} />} />
 				<Route path="/profile" element={<Navigate to="/" replace />} />
 				<Route path="/members" element={<MemberList />} />
+				<Route path="/tools" element={<ToolsPage user={user} />} />
+				<Route
+					path="/tools/reimbursement"
+					element={<ReimbursementPage user={user} />}
+				/>
+				<Route
+					path="/tools/reimbursement/review"
+					element={<ReimbursementReviewPage />}
+				/>
 				<Route
 					path="/engagement-certificate"
+					element={<EngagementCertificatePage user={user} />}
+				/>
+				<Route
+					path="/tools/engagement-certificate"
 					element={<EngagementCertificatePage user={user} />}
 				/>
 				<Route

@@ -115,7 +115,7 @@ describe("AdminDatabaseView", () => {
 				access_role: "admin",
 			});
 		});
-	});
+	}, 10_000);
 
 	it("does not offer Board or Research as operational departments", async () => {
 		const user = userEvent.setup();

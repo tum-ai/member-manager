@@ -17,9 +17,22 @@ function formatZodError(error: ZodError): {
 	details?: unknown;
 } {
 	// Check for IBAN-specific error
-	const ibanError = error.issues.find((issue) => issue.path.includes("iban"));
+	const ibanError = error.issues.find((issue) =>
+		issue.path.some((segment) =>
+			String(segment).toLowerCase().includes("iban"),
+		),
+	);
 	if (ibanError) {
 		return { message: "Invalid IBAN. Please check your IBAN and try again." };
+	}
+
+	const receiptError = error.issues.find((issue) =>
+		issue.path.some((segment) =>
+			String(segment).toLowerCase().includes("receipt"),
+		),
+	);
+	if (receiptError) {
+		return { message: receiptError.message };
 	}
 
 	// Check for email-specific error

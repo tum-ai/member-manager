@@ -65,6 +65,7 @@ export function buildClientEnv({ apiUrl, anonKey }) {
 		`VITE_SUPABASE_URL=${apiUrl}`,
 		`VITE_SUPABASE_ANON_KEY=${anonKey}`,
 		"VITE_SLACK_CALLBACK_URL=http://localhost:5173/",
+		"VITE_API_PROXY_TARGET=http://127.0.0.1:8787",
 		"",
 	].join("\n");
 }
@@ -80,7 +81,7 @@ export function buildServerEnv({
 	serviceRoleKey,
 	encryptionKey,
 	existingEnv,
-	port = 3000,
+	port = 8787,
 	corsOrigin = "http://localhost:5173,http://127.0.0.1:5173",
 }) {
 	const resolvedEncryptionKey =

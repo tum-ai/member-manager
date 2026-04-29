@@ -43,6 +43,7 @@ interface MockData {
 	member_role_history: Array<Record<string, unknown>>;
 	member_change_requests: Array<Record<string, unknown>>;
 	engagement_certificate_requests: Array<Record<string, unknown>>;
+	reimbursements: Array<Record<string, unknown>>;
 }
 
 export const mockDatabase: MockData = {
@@ -119,6 +120,68 @@ export const mockDatabase: MockData = {
 	member_role_history: [],
 	member_change_requests: [],
 	engagement_certificate_requests: [],
+	reimbursements: [
+		{
+			id: "reimbursement-older",
+			user_id: MOCK_USER_ID,
+			amount: 25.5,
+			date: "2026-03-20",
+			description: "Snacks for member onboarding",
+			department: "Community",
+			submission_type: "reimbursement",
+			payment_iban: "DE89370400440532013000",
+			payment_bic: "COBADEFFXXX",
+			receipt_filename: "older.pdf",
+			receipt_mime_type: "application/pdf",
+			receipt_base64: "JVBERi0xLjQ=",
+			status: "requested",
+			approval_status: "pending",
+			payment_status: "to_be_paid",
+			rejection_reason: null,
+			created_at: "2026-03-20T10:00:00Z",
+			updated_at: "2026-03-20T10:00:00Z",
+		},
+		{
+			id: "reimbursement-newer",
+			user_id: MOCK_USER_ID,
+			amount: 80,
+			date: "2026-04-12",
+			description: "Venue supplies",
+			department: "Makeathon",
+			submission_type: "invoice",
+			payment_iban: null,
+			payment_bic: null,
+			receipt_filename: "newer.pdf",
+			receipt_mime_type: "application/pdf",
+			receipt_base64: "JVBERi0xLjQ=",
+			status: "requested",
+			approval_status: "approved",
+			payment_status: "to_be_paid",
+			rejection_reason: null,
+			created_at: "2026-04-12T10:00:00Z",
+			updated_at: "2026-04-12T10:00:00Z",
+		},
+		{
+			id: "other-user-reimbursement",
+			user_id: MOCK_OTHER_USER_ID,
+			amount: 12,
+			date: "2026-04-13",
+			description: "Other user's request",
+			department: "Marketing",
+			submission_type: "reimbursement",
+			payment_iban: "DE89370400440532013000",
+			payment_bic: "COBADEFFXXX",
+			receipt_filename: "other.pdf",
+			receipt_mime_type: "application/pdf",
+			receipt_base64: "JVBERi0xLjQ=",
+			status: "requested",
+			approval_status: "pending",
+			payment_status: "to_be_paid",
+			rejection_reason: null,
+			created_at: "2026-04-13T10:00:00Z",
+			updated_at: "2026-04-13T10:00:00Z",
+		},
+	],
 };
 
 type QueryResult = Promise<{
@@ -308,7 +371,8 @@ function createQueryBuilder(table: string): QueryBuilder {
 				if (
 					(table === "member_role_history" ||
 						table === "member_change_requests" ||
-						table === "engagement_certificate_requests") &&
+						table === "engagement_certificate_requests" ||
+						table === "reimbursements") &&
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {
@@ -546,4 +610,66 @@ export function resetMockDatabase(): void {
 	mockDatabase.member_role_history = [];
 	mockDatabase.member_change_requests = [];
 	mockDatabase.engagement_certificate_requests = [];
+	mockDatabase.reimbursements = [
+		{
+			id: "reimbursement-older",
+			user_id: MOCK_USER_ID,
+			amount: 25.5,
+			date: "2026-03-20",
+			description: "Snacks for member onboarding",
+			department: "Community",
+			submission_type: "reimbursement",
+			payment_iban: "DE89370400440532013000",
+			payment_bic: "COBADEFFXXX",
+			receipt_filename: "older.pdf",
+			receipt_mime_type: "application/pdf",
+			receipt_base64: "JVBERi0xLjQ=",
+			status: "requested",
+			approval_status: "pending",
+			payment_status: "to_be_paid",
+			rejection_reason: null,
+			created_at: "2026-03-20T10:00:00Z",
+			updated_at: "2026-03-20T10:00:00Z",
+		},
+		{
+			id: "reimbursement-newer",
+			user_id: MOCK_USER_ID,
+			amount: 80,
+			date: "2026-04-12",
+			description: "Venue supplies",
+			department: "Makeathon",
+			submission_type: "invoice",
+			payment_iban: null,
+			payment_bic: null,
+			receipt_filename: "newer.pdf",
+			receipt_mime_type: "application/pdf",
+			receipt_base64: "JVBERi0xLjQ=",
+			status: "requested",
+			approval_status: "approved",
+			payment_status: "to_be_paid",
+			rejection_reason: null,
+			created_at: "2026-04-12T10:00:00Z",
+			updated_at: "2026-04-12T10:00:00Z",
+		},
+		{
+			id: "other-user-reimbursement",
+			user_id: MOCK_OTHER_USER_ID,
+			amount: 12,
+			date: "2026-04-13",
+			description: "Other user's request",
+			department: "Marketing",
+			submission_type: "reimbursement",
+			payment_iban: "DE89370400440532013000",
+			payment_bic: "COBADEFFXXX",
+			receipt_filename: "other.pdf",
+			receipt_mime_type: "application/pdf",
+			receipt_base64: "JVBERi0xLjQ=",
+			status: "requested",
+			approval_status: "pending",
+			payment_status: "to_be_paid",
+			rejection_reason: null,
+			created_at: "2026-04-13T10:00:00Z",
+			updated_at: "2026-04-13T10:00:00Z",
+		},
+	];
 }

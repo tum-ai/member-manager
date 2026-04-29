@@ -47,6 +47,23 @@ describe("MainLayout admin navigation", () => {
 		).toBeInTheDocument();
 	});
 
+	it("shows the Tools section in the top bar", async () => {
+		const user = userEvent.setup();
+		renderLayout({ isAdmin: false });
+
+		expect(screen.getByRole("link", { name: /tools/i })).toHaveAttribute(
+			"href",
+			"/tools",
+		);
+
+		await user.click(screen.getByLabelText(/view selector/i));
+
+		await screen.findByRole("option", { name: /My Profile/i });
+		expect(
+			screen.queryByRole("option", { name: /Tools/i }),
+		).not.toBeInTheDocument();
+	});
+
 	it("does not show an Admin option for non-admin users", async () => {
 		const user = userEvent.setup();
 		renderLayout({ isAdmin: false });
