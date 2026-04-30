@@ -410,6 +410,45 @@ export async function adminRoutes(server: FastifyInstance) {
 			: "user";
 	}
 
+	async function memberHasAuthUser(
+		userId: string,
+		request: FastifyRequest,
+	): Promise<boolean> {
+		// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+		const { data, error } = await (getSupabase().auth as any).admin.getUserById(
+			userId,
+		);
+
+		if (!error) {
+			return Boolean(data?.user);
+		}
+
+		if ((error as { status?: number }).status === 404) {
+			return false;
+		}
+
+		request.log.error(
+			{ err: error, userId },
+			"Failed to check auth user before access-role update",
+		);
+		throw new DatabaseError();
+	}
+
+	async function ensureAccessRoleCanBePersisted(
+		userId: string,
+		request: FastifyRequest,
+		reply: FastifyReply,
+	): Promise<boolean> {
+		if (await memberHasAuthUser(userId, request)) {
+			return true;
+		}
+
+		reply.status(409).send({
+			error: "Member must sign in before their access role can be changed",
+		});
+		return false;
+	}
+
 	async function ensureAdminRevocationIsSafe(
 		currentAccessRole: "user" | "admin",
 		nextAccessRole: "user" | "admin",
@@ -470,14 +509,22 @@ export async function adminRoutes(server: FastifyInstance) {
 			}
 
 			const currentAccessRole = await getCurrentAccessRole(userId, request);
-			if (
-				!(await ensureAdminRevocationIsSafe(
-					currentAccessRole,
-					parsed.data.access_role,
-					reply,
-				))
-			) {
-				return reply;
+			const shouldUpdateAccessRole =
+				currentAccessRole !== parsed.data.access_role;
+			if (shouldUpdateAccessRole) {
+				if (
+					!(await ensureAdminRevocationIsSafe(
+						currentAccessRole,
+						parsed.data.access_role,
+						reply,
+					))
+				) {
+					return reply;
+				}
+
+				if (!(await ensureAccessRoleCanBePersisted(userId, request, reply))) {
+					return reply;
+				}
 			}
 
 			const memberUpdate: Record<string, unknown> = {
@@ -512,47 +559,49 @@ export async function adminRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			const { error: accessRoleUpdateError } = await getSupabase()
-				.from("user_roles")
-				.upsert(
-					{
-						user_id: userId,
-						role: parsed.data.access_role,
-					},
-					{ onConflict: "user_id" },
-				);
-
-			if (accessRoleUpdateError) {
-				request.log.error(
-					{ err: accessRoleUpdateError },
-					"Failed to update access role during combined member save",
-				);
-				const rollbackPayload = {
-					department:
-						(existingMember as { department?: string | null }).department ??
-						null,
-					member_role:
-						(existingMember as { member_role?: string | null }).member_role ??
-						null,
-					board_role:
-						(existingMember as { board_role?: string | null }).board_role ??
-						null,
-					member_status:
-						(existingMember as { member_status?: string | null })
-							.member_status ?? null,
-					active: Boolean((existingMember as { active?: boolean }).active),
-				};
-				const { error: rollbackError } = await getSupabase()
-					.from("members")
-					.update(rollbackPayload)
-					.eq("user_id", userId);
-				if (rollbackError) {
-					request.log.error(
-						{ err: rollbackError },
-						"Failed to roll back member after access role update error",
+			if (shouldUpdateAccessRole) {
+				const { error: accessRoleUpdateError } = await getSupabase()
+					.from("user_roles")
+					.upsert(
+						{
+							user_id: userId,
+							role: parsed.data.access_role,
+						},
+						{ onConflict: "user_id" },
 					);
+
+				if (accessRoleUpdateError) {
+					request.log.error(
+						{ err: accessRoleUpdateError },
+						"Failed to update access role during combined member save",
+					);
+					const rollbackPayload = {
+						department:
+							(existingMember as { department?: string | null }).department ??
+							null,
+						member_role:
+							(existingMember as { member_role?: string | null }).member_role ??
+							null,
+						board_role:
+							(existingMember as { board_role?: string | null }).board_role ??
+							null,
+						member_status:
+							(existingMember as { member_status?: string | null })
+								.member_status ?? null,
+						active: Boolean((existingMember as { active?: boolean }).active),
+					};
+					const { error: rollbackError } = await getSupabase()
+						.from("members")
+						.update(rollbackPayload)
+						.eq("user_id", userId);
+					if (rollbackError) {
+						request.log.error(
+							{ err: rollbackError },
+							"Failed to roll back member after access role update error",
+						);
+					}
+					throw new DatabaseError();
 				}
-				throw new DatabaseError();
 			}
 
 			return {
@@ -661,6 +710,13 @@ export async function adminRoutes(server: FastifyInstance) {
 			}
 
 			const currentAccessRole = await getCurrentAccessRole(userId, request);
+			if (currentAccessRole === parsed.data.access_role) {
+				return {
+					user_id: userId,
+					access_role: parsed.data.access_role,
+				};
+			}
+
 			if (
 				!(await ensureAdminRevocationIsSafe(
 					currentAccessRole,
@@ -668,6 +724,10 @@ export async function adminRoutes(server: FastifyInstance) {
 					reply,
 				))
 			) {
+				return reply;
+			}
+
+			if (!(await ensureAccessRoleCanBePersisted(userId, request, reply))) {
 				return reply;
 			}
 

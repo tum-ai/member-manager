@@ -513,6 +513,95 @@ describe("Admin Routes", async () => {
 			);
 			assert.strictEqual(updatedRole?.role, "admin");
 		});
+
+		test("admin can save member edits for an unclaimed member without writing a default access role", async () => {
+			resetDatabase();
+			const unclaimedUserId = "unclaimed-user-123";
+			mockDatabase.members.push({
+				...mockDatabase.members[0],
+				user_id: unclaimedUserId,
+				given_name: "Unclaimed",
+				surname: "Member",
+				department: null,
+				member_role: "Member",
+				board_role: null,
+				member_status: "active",
+				active: true,
+			});
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${unclaimedUserId}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Community",
+					member_role: "Team Lead",
+					board_role: null,
+					member_status: "inactive",
+					access_role: "user",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updatedMember = mockDatabase.members.find(
+				(entry) => entry.user_id === unclaimedUserId,
+			);
+			assert.strictEqual(updatedMember?.member_role, "Team Lead");
+			assert.strictEqual(updatedMember?.department, "Community");
+			assert.strictEqual(updatedMember?.member_status, "inactive");
+			assert.strictEqual(updatedMember?.active, false);
+			assert.strictEqual(
+				mockDatabase.user_roles.some(
+					(entry) => entry.user_id === unclaimedUserId,
+				),
+				false,
+			);
+		});
+
+		test("admin cannot grant access roles to members before they have signed in", async () => {
+			resetDatabase();
+			const unclaimedUserId = "unclaimed-user-456";
+			mockDatabase.members.push({
+				...mockDatabase.members[0],
+				user_id: unclaimedUserId,
+				given_name: "No Auth",
+				surname: "Member",
+				department: null,
+				member_role: "Member",
+				board_role: null,
+				member_status: "active",
+				active: true,
+			});
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${unclaimedUserId}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Community",
+					member_role: "Team Lead",
+					board_role: null,
+					member_status: "inactive",
+					access_role: "admin",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 409);
+			assert.match(response.payload, /sign in/i);
+			const unchangedMember = mockDatabase.members.find(
+				(entry) => entry.user_id === unclaimedUserId,
+			);
+			assert.strictEqual(unchangedMember?.member_role, "Member");
+			assert.strictEqual(unchangedMember?.department, null);
+			assert.strictEqual(unchangedMember?.member_status, "active");
+			assert.strictEqual(unchangedMember?.active, true);
+		});
 	});
 
 	describe("Admin member_role_history CRUD", () => {

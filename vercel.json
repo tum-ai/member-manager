@@ -5,6 +5,10 @@
     {
       "source": "/api/:path*",
       "destination": "/api/[...path]"
+    },
+    {
+      "source": "/:path((?!api/).*)",
+      "destination": "/"
     }
   ]
 }
