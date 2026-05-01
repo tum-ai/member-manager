@@ -41,7 +41,7 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `SUPABASE_SERVICE_ROLE_KEY` | from Supabase dashboard | never expose to client |
 | `FIELD_ENCRYPTION_KEY` | 32+ char strong random | **see warning below** |
 | `OPENAI_API_KEY` | OpenAI project key | optional; enables reimbursement receipt field extraction |
-| `SLACK_BOT_TOKEN` | Slack bot token | optional; sends certificate/admin and reimbursement finance review DMs |
+| `SLACK_BOT_TOKEN` | Slack bot token | optional; sends certificate/admin, reimbursement finance review, and reimbursement requester status DMs |
 | `CORS_ORIGIN` | `https://<prod-domain>` | comma-separate if multiple |
 
 **Client build-time** (baked into the JS bundle by `vite build`; `VITE_` prefix required):

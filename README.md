@@ -154,6 +154,18 @@ Private SEPA APIs:
 - `GET /api/sepa/:userId`
 - `PUT /api/sepa/:userId`
 
+Private reimbursement APIs:
+
+- `GET /api/reimbursements`
+- `POST /api/reimbursements`
+- `POST /api/reimbursements/parse-receipt`
+- `POST /api/reimbursements/process-receipt`
+- `GET /api/reimbursements/review`
+- `GET /api/reimbursements/summary`
+- `GET /api/reimbursements/review/:requestId/receipt`
+- `POST /api/reimbursements/review/receipts/bulk-download`
+- `PATCH /api/reimbursements/review/:requestId`
+
 Admin APIs:
 
 - `GET /api/admin/members`

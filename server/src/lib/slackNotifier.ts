@@ -27,12 +27,28 @@ export interface ReimbursementSlackNotification {
 	reviewUrl?: string;
 }
 
+export interface ReimbursementStatusSlackNotification {
+	requestId: string;
+	requesterUserId: string;
+	requesterEmail: string;
+	submissionType: string;
+	amount: number;
+	statusType: "approval" | "payment";
+	statusValue: "approved" | "not_approved" | "paid";
+	rejectionReason?: string;
+	requestUrl?: string;
+}
+
 type SlackNotifier = (
 	payload: EngagementCertificateSlackNotification,
 ) => Promise<void>;
 
 type ReimbursementSlackNotifier = (
 	payload: ReimbursementSlackNotification,
+) => Promise<void>;
+
+type ReimbursementStatusSlackNotifier = (
+	payload: ReimbursementStatusSlackNotification,
 ) => Promise<void>;
 
 async function fetchAdminEmails(): Promise<string[]> {
@@ -202,6 +218,42 @@ function buildReimbursementMessage(
 	].join("\n");
 }
 
+function buildReimbursementStatusMessage(
+	payload: ReimbursementStatusSlackNotification,
+): string {
+	const requestLabel = payload.submissionType || "reimbursement";
+	const requestLine = payload.requestUrl
+		? `View in Member Manager: ${payload.requestUrl}`
+		: "View it in Member Manager.";
+
+	if (payload.statusType === "payment") {
+		return [
+			`Your ${requestLabel} request was marked as paid`,
+			`Amount: ${payload.amount.toFixed(2)} EUR`,
+			`Request ID: ${payload.requestId}`,
+			requestLine,
+		].join("\n");
+	}
+
+	if (payload.statusValue === "not_approved") {
+		return [
+			`Your ${requestLabel} request was rejected`,
+			`Amount: ${payload.amount.toFixed(2)} EUR`,
+			`Reason: ${payload.rejectionReason || "No reason provided"}`,
+			`Request ID: ${payload.requestId}`,
+			requestLine,
+		].join("\n");
+	}
+
+	return [
+		`Your ${requestLabel} request was approved`,
+		`Amount: ${payload.amount.toFixed(2)} EUR`,
+		"Legal & Finance will mark it paid after payout.",
+		`Request ID: ${payload.requestId}`,
+		requestLine,
+	].join("\n");
+}
+
 async function defaultSlackNotifier(
 	payload: EngagementCertificateSlackNotification,
 ): Promise<void> {
@@ -225,6 +277,8 @@ async function defaultSlackNotifier(
 let activeSlackNotifier: SlackNotifier = defaultSlackNotifier;
 let activeReimbursementSlackNotifier: ReimbursementSlackNotifier =
 	defaultReimbursementSlackNotifier;
+let activeReimbursementStatusSlackNotifier: ReimbursementStatusSlackNotifier =
+	defaultReimbursementStatusSlackNotifier;
 
 async function defaultReimbursementSlackNotifier(
 	payload: ReimbursementSlackNotification,
@@ -246,6 +300,24 @@ async function defaultReimbursementSlackNotifier(
 	);
 }
 
+async function defaultReimbursementStatusSlackNotifier(
+	payload: ReimbursementStatusSlackNotification,
+): Promise<void> {
+	if (!process.env.SLACK_BOT_TOKEN || !payload.requesterEmail) {
+		return;
+	}
+
+	const slackUserId = await lookupSlackUserIdByEmail(payload.requesterEmail);
+	if (!slackUserId) {
+		return;
+	}
+
+	await postDirectMessage(
+		slackUserId,
+		buildReimbursementStatusMessage(payload),
+	);
+}
+
 export async function notifyAdminsOfCertificateRequest(
 	payload: EngagementCertificateSlackNotification,
 ): Promise<void> {
@@ -258,6 +330,12 @@ export async function notifyFinanceOfReimbursementRequest(
 	await activeReimbursementSlackNotifier(payload);
 }
 
+export async function notifyRequesterOfReimbursementStatus(
+	payload: ReimbursementStatusSlackNotification,
+): Promise<void> {
+	await activeReimbursementStatusSlackNotifier(payload);
+}
+
 export function setSlackNotifier(notifier: SlackNotifier): void {
 	activeSlackNotifier = notifier;
 }
@@ -268,8 +346,16 @@ export function setReimbursementSlackNotifier(
 	activeReimbursementSlackNotifier = notifier;
 }
 
+export function setReimbursementStatusSlackNotifier(
+	notifier: ReimbursementStatusSlackNotifier,
+): void {
+	activeReimbursementStatusSlackNotifier = notifier;
+}
+
 export function resetSlackNotifier(): void {
 	activeSlackNotifier = defaultSlackNotifier;
 	activeReimbursementSlackNotifier = defaultReimbursementSlackNotifier;
+	activeReimbursementStatusSlackNotifier =
+		defaultReimbursementStatusSlackNotifier;
 	cachedAdminEmails = null;
 }

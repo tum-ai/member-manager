@@ -95,6 +95,7 @@ Route responsibilities:
 - `members.ts` handles private member profile creation, reading, updating, and authenticated directory listing
 - `sepa.ts` handles internal banking and consent data
 - `admin.ts` handles admin-only list and status management
+- `reimbursements.ts` handles authenticated reimbursement/invoice submission, finance review, requester Slack status notifications, and finance summary metrics
 
 Sensitive fields are encrypted in the server layer before being persisted to Supabase.
 

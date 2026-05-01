@@ -1,13 +1,24 @@
 import type { FastifyInstance } from "fastify";
 import { electronicFormatIBAN, isValidIBAN } from "ibantools";
+import JSZip from "jszip";
 import { z } from "zod";
+import { getAuthEmail, getAuthEmails } from "../lib/authEmails.js";
 import { DatabaseError } from "../lib/errors.js";
+import {
+	processReceiptFile,
+	sanitizeReceiptFilename,
+	stripDataUrlPrefix,
+} from "../lib/receiptProcessing.js";
 import {
 	decryptRecordSafely,
 	encryptRecord,
 	SENSITIVE_REIMBURSEMENT_FIELDS,
 } from "../lib/sensitiveData.js";
-import { notifyFinanceOfReimbursementRequest } from "../lib/slackNotifier.js";
+import {
+	notifyFinanceOfReimbursementRequest,
+	notifyRequesterOfReimbursementStatus,
+	type ReimbursementStatusSlackNotification,
+} from "../lib/slackNotifier.js";
 import { getSupabase } from "../lib/supabase.js";
 import {
 	authenticate,
@@ -43,6 +54,15 @@ function buildFinanceReviewUrl(): string | undefined {
 	}
 
 	return `${baseUrl.replace(/\/$/, "")}/tools/reimbursement/review`;
+}
+
+function buildMemberReimbursementUrl(): string | undefined {
+	const baseUrl = process.env.APP_BASE_URL?.trim();
+	if (!baseUrl) {
+		return undefined;
+	}
+
+	return `${baseUrl.replace(/\/$/, "")}/tools/reimbursement`;
 }
 
 function isValidDate(dateString: string): boolean {
@@ -84,12 +104,6 @@ function validateOptionalIban(value: string | null | undefined): string | null {
 
 function estimateBase64Bytes(value: string): number {
 	return (value.length * 3) / 4;
-}
-
-function stripDataUrlPrefix(value: string): string {
-	const marker = "base64,";
-	const markerIndex = value.indexOf(marker);
-	return markerIndex >= 0 ? value.slice(markerIndex + marker.length) : value;
 }
 
 function buildDataUrl(base64: string, mimeType: string): string {
@@ -244,7 +258,10 @@ const CreateReimbursementSchema = z
 					path: ["receipt_mime_type"],
 				});
 			}
-			if (estimateBase64Bytes(body.receipt_base64) > MAX_RECEIPT_BYTES) {
+			if (
+				estimateBase64Bytes(stripDataUrlPrefix(body.receipt_base64)) >
+				MAX_RECEIPT_BYTES
+			) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
 					message: "Receipt file is too large",
@@ -258,6 +275,19 @@ const ParseReimbursementReceiptSchema = z.object({
 	receipt_filename: z.string().trim().min(1).max(255),
 	receipt_mime_type: z.string().trim().min(1).max(120),
 	receipt_base64: z.string().trim().min(1),
+});
+
+const ProcessReimbursementReceiptSchema = z.object({
+	fileBase64: z.string().trim().min(1),
+	filename: z.string().trim().min(1).max(255),
+	mimeType: z.string().trim().min(1).max(120),
+	billingDate: z.string().refine(isValidDate, "Invalid date"),
+	personName: z.string().trim().min(1).max(255),
+	description: z.string().trim().min(1).max(1000),
+});
+
+const BulkDownloadReceiptsSchema = z.object({
+	request_ids: z.array(z.string().trim().min(1)).min(1).max(100),
 });
 
 const ReviewReimbursementSchema = z
@@ -280,6 +310,188 @@ type ReimbursementRow = Record<string, unknown>;
 function withoutReceiptPayload(row: ReimbursementRow): ReimbursementRow {
 	const { receipt_base64: _receiptBase64, ...rest } = row;
 	return rest;
+}
+
+function hasReceiptPayload(row: ReimbursementRow): boolean {
+	return (
+		typeof row.receipt_base64 === "string" &&
+		stripDataUrlPrefix(row.receipt_base64).trim().length > 0
+	);
+}
+
+function withReviewerReceiptMetadata(row: ReimbursementRow): ReimbursementRow {
+	const sanitized = withoutReceiptPayload(row);
+	const hasPayload = hasReceiptPayload(row);
+	const requestId = String(row.id ?? "");
+	const receiptPath = `/api/reimbursements/review/${encodeURIComponent(
+		requestId,
+	)}/receipt`;
+
+	return {
+		...sanitized,
+		receipt_has_payload: hasPayload,
+		receipt_view_url: hasPayload ? receiptPath : null,
+		receipt_download_url: hasPayload ? `${receiptPath}?download=1` : null,
+	};
+}
+
+function wantsAttachment(value: unknown): boolean {
+	if (Array.isArray(value)) {
+		return value.some(wantsAttachment);
+	}
+	if (typeof value !== "string") {
+		return false;
+	}
+
+	return ["1", "true", "yes", "attachment"].includes(value.toLowerCase());
+}
+
+function contentDispositionFilename(row: ReimbursementRow): string {
+	const filename =
+		normalizeMaybeString(row.receipt_filename) ??
+		`receipt_${String(row.id ?? "download")}.pdf`;
+	return sanitizeReceiptFilename(filename) || "receipt.pdf";
+}
+
+function decodeReceiptBuffer(row: ReimbursementRow): Buffer {
+	return Buffer.from(
+		stripDataUrlPrefix(String(row.receipt_base64 ?? "")),
+		"base64",
+	);
+}
+
+function getRequesterName(row: ReimbursementRow): string | null {
+	const givenName = normalizeMaybeString(row.given_name);
+	const surname = normalizeMaybeString(row.surname);
+	const fullName = [givenName, surname].filter(Boolean).join(" ").trim();
+	return fullName || null;
+}
+
+async function hydrateReviewerRows(
+	rows: ReimbursementRow[],
+): Promise<ReimbursementRow[]> {
+	const userIds = [
+		...new Set(
+			rows
+				.map((row) => normalizeMaybeString(row.user_id))
+				.filter((value): value is string => Boolean(value)),
+		),
+	];
+
+	const [authEmails, membersResult, sepaResult] = await Promise.all([
+		getAuthEmails(userIds).catch(() => new Map<string, string>()),
+		userIds.length
+			? getSupabase()
+					.from("members")
+					.select("user_id, given_name, surname")
+					.in("user_id", userIds)
+			: Promise.resolve({ data: [], error: null }),
+		userIds.length
+			? getSupabase()
+					.from("sepa")
+					.select("user_id, bank_name")
+					.in("user_id", userIds)
+			: Promise.resolve({ data: [], error: null }),
+	]);
+
+	const membersByUserId = new Map(
+		((membersResult.data ?? []) as ReimbursementRow[]).map((row) => [
+			String(row.user_id),
+			row,
+		]),
+	);
+	const bankByUserId = new Map(
+		((sepaResult.data ?? []) as ReimbursementRow[]).map((row) => [
+			String(row.user_id),
+			normalizeMaybeString(row.bank_name),
+		]),
+	);
+
+	return rows.map((row) => {
+		const userId = String(row.user_id ?? "");
+		const member = membersByUserId.get(userId);
+		return {
+			...row,
+			requester_name: member ? getRequesterName(member) : null,
+			requester_email: authEmails.get(userId) ?? null,
+			bank_name: bankByUserId.get(userId) ?? null,
+		};
+	});
+}
+
+function normalizeAmount(value: unknown): number {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value;
+	}
+	if (typeof value === "string") {
+		const parsed = Number.parseFloat(value);
+		return Number.isFinite(parsed) ? parsed : 0;
+	}
+	return 0;
+}
+
+function roundCurrency(value: number): number {
+	return Math.round(value * 100) / 100;
+}
+
+function isInCurrentMonth(dateValue: unknown, now = new Date()): boolean {
+	if (typeof dateValue !== "string" && !(dateValue instanceof Date)) {
+		return false;
+	}
+
+	const date = new Date(dateValue);
+	if (Number.isNaN(date.getTime())) {
+		return false;
+	}
+
+	return (
+		date.getUTCFullYear() === now.getUTCFullYear() &&
+		date.getUTCMonth() === now.getUTCMonth()
+	);
+}
+
+function createStatusNotificationPayload({
+	action,
+	existingRequest,
+	requesterEmail,
+}: {
+	action: z.infer<typeof ReviewReimbursementSchema>["action"];
+	existingRequest: ReimbursementRow;
+	requesterEmail: string;
+}): ReimbursementStatusSlackNotification {
+	const requestId = String(existingRequest.id ?? "");
+	const requesterUserId = String(existingRequest.user_id ?? "");
+	const submissionType = String(
+		existingRequest.submission_type ?? "reimbursement",
+	);
+
+	if (action === "mark_paid") {
+		return {
+			requestId,
+			requesterUserId,
+			requesterEmail,
+			submissionType,
+			amount: normalizeAmount(existingRequest.amount),
+			statusType: "payment",
+			statusValue: "paid",
+			requestUrl: buildMemberReimbursementUrl(),
+		};
+	}
+
+	return {
+		requestId,
+		requesterUserId,
+		requesterEmail,
+		submissionType,
+		amount: normalizeAmount(existingRequest.amount),
+		statusType: "approval",
+		statusValue: action === "approve" ? "approved" : "not_approved",
+		rejectionReason:
+			action === "reject"
+				? String(existingRequest.rejection_reason ?? "")
+				: undefined,
+		requestUrl: buildMemberReimbursementUrl(),
+	};
 }
 
 export async function reimbursementRoutes(server: FastifyInstance) {
@@ -314,6 +526,55 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					),
 				),
 			);
+		},
+	);
+
+	server.post(
+		"/reimbursements/process-receipt",
+		{ preHandler: authenticate },
+		async (request, reply) => {
+			const body = ProcessReimbursementReceiptSchema.parse(request.body);
+			const mimeType = body.mimeType.toLowerCase();
+
+			if (
+				mimeType === "image/heic" ||
+				mimeType === "image/heif" ||
+				body.filename.toLowerCase().endsWith(".heic")
+			) {
+				return reply.status(400).send({
+					error:
+						"HEIC format is not supported. Please convert to JPG, PNG, or PDF before uploading.",
+				});
+			}
+
+			if (!ALLOWED_RECEIPT_MIME_TYPES.has(mimeType)) {
+				return reply.status(400).send({
+					error: "Unsupported receipt type. Upload a PDF, JPG, or PNG.",
+				});
+			}
+
+			if (
+				estimateBase64Bytes(stripDataUrlPrefix(body.fileBase64)) >
+				MAX_RECEIPT_BYTES
+			) {
+				return reply.status(400).send({ error: "Receipt file is too large" });
+			}
+
+			try {
+				return await processReceiptFile({
+					fileBase64: body.fileBase64,
+					filename: body.filename,
+					mimeType,
+					billingDate: body.billingDate,
+					personName: body.personName,
+					description: body.description,
+				});
+			} catch (error) {
+				request.log.warn({ err: error }, "Failed to process receipt file");
+				return reply.status(500).send({
+					error: "Failed to convert receipt to PDF.",
+				});
+			}
 		},
 	);
 
@@ -437,8 +698,8 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				throw createReimbursementDatabaseError(error);
 			}
 
-			return (data ?? []).map((row) =>
-				withoutReceiptPayload(
+			const rows = await hydrateReviewerRows(
+				(data ?? []).map((row) =>
 					decryptRecordSafely(
 						row as ReimbursementRow,
 						SENSITIVE_REIMBURSEMENT_FIELDS,
@@ -451,6 +712,138 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					),
 				),
 			);
+
+			return rows.map(withReviewerReceiptMetadata);
+		},
+	);
+
+	server.get(
+		"/reimbursements/summary",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, _reply) => {
+			const { data, error } = await getSupabase()
+				.from("reimbursements")
+				.select("amount, date, status, approval_status, payment_status");
+
+			if (error) {
+				request.log.error({ err: error }, "Failed to summarize reimbursements");
+				throw createReimbursementDatabaseError(error);
+			}
+
+			const rows = (data ?? []) as ReimbursementRow[];
+			const totalAmount = rows.reduce(
+				(sum, row) => sum + normalizeAmount(row.amount),
+				0,
+			);
+			const paidThisMonthAmount = rows
+				.filter(
+					(row) =>
+						(row.payment_status === "paid" || row.status === "paid") &&
+						isInCurrentMonth(row.date),
+				)
+				.reduce((sum, row) => sum + normalizeAmount(row.amount), 0);
+
+			return {
+				total_requests: rows.length,
+				total_amount: roundCurrency(totalAmount),
+				pending_approval_count: rows.filter(
+					(row) => row.approval_status === "pending",
+				).length,
+				approved_unpaid_count: rows.filter(
+					(row) =>
+						row.approval_status === "approved" && row.payment_status !== "paid",
+				).length,
+				paid_this_month_amount: roundCurrency(paidThisMonthAmount),
+			};
+		},
+	);
+
+	server.get<{
+		Params: { requestId: string };
+		Querystring: { download?: string | string[] };
+	}>(
+		"/reimbursements/review/:requestId/receipt",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const { requestId } = request.params;
+			const { data, error } = await getSupabase()
+				.from("reimbursements")
+				.select("id, receipt_filename, receipt_mime_type, receipt_base64")
+				.eq("id", requestId)
+				.single();
+
+			if (error) {
+				if ((error as { code?: string }).code === "PGRST116") {
+					return reply.status(404).send({ error: "Receipt not found" });
+				}
+				request.log.error({ err: error }, "Failed to fetch receipt");
+				throw createReimbursementDatabaseError(error);
+			}
+
+			const reimbursement = data as ReimbursementRow;
+			if (!hasReceiptPayload(reimbursement)) {
+				return reply.status(404).send({ error: "Receipt not found" });
+			}
+
+			const mimeType =
+				normalizeMaybeString(reimbursement.receipt_mime_type) ??
+				"application/pdf";
+			if (!ALLOWED_RECEIPT_MIME_TYPES.has(mimeType)) {
+				return reply.status(415).send({ error: "Unsupported receipt type" });
+			}
+
+			const disposition = wantsAttachment(request.query.download)
+				? "attachment"
+				: "inline";
+			const filename = contentDispositionFilename(reimbursement);
+
+			reply
+				.type(mimeType)
+				.header("Cache-Control", "private, max-age=300")
+				.header(
+					"Content-Disposition",
+					`${disposition}; filename="${filename}"`,
+				);
+			return reply.send(decodeReceiptBuffer(reimbursement));
+		},
+	);
+
+	server.post<{ Body: { request_ids: string[] } }>(
+		"/reimbursements/review/receipts/bulk-download",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const body = BulkDownloadReceiptsSchema.parse(request.body);
+			const requestIds = [...new Set(body.request_ids)];
+
+			const { data, error } = await getSupabase()
+				.from("reimbursements")
+				.select("id, receipt_filename, receipt_mime_type, receipt_base64")
+				.in("id", requestIds);
+
+			if (error) {
+				request.log.error({ err: error }, "Failed to fetch receipt bundle");
+				throw createReimbursementDatabaseError(error);
+			}
+
+			const zip = new JSZip();
+			for (const row of (data ?? []) as ReimbursementRow[]) {
+				if (!hasReceiptPayload(row)) {
+					continue;
+				}
+				const filename = sanitizeReceiptFilename(
+					`${String(row.id ?? "receipt")}_${contentDispositionFilename(row)}`,
+				);
+				zip.file(filename, decodeReceiptBuffer(row));
+			}
+
+			const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
+			reply
+				.type("application/zip")
+				.header(
+					"Content-Disposition",
+					'attachment; filename="reimbursement-receipts.zip"',
+				);
+			return reply.send(zipBuffer);
 		},
 	);
 
@@ -520,6 +913,25 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				throw createReimbursementDatabaseError(error);
 			}
 
+			try {
+				const updatedRequest = data as ReimbursementRow;
+				const requesterEmail = await getAuthEmail(
+					String(updatedRequest.user_id ?? existingRequest.user_id ?? ""),
+				);
+				await notifyRequesterOfReimbursementStatus(
+					createStatusNotificationPayload({
+						action: body.action,
+						existingRequest: updatedRequest,
+						requesterEmail,
+					}),
+				);
+			} catch (notificationError) {
+				request.log.warn(
+					{ err: notificationError, requestId },
+					"Failed to notify requester about reimbursement status change",
+				);
+			}
+
 			return withoutReceiptPayload(data as ReimbursementRow);
 		},
 	);
@@ -544,7 +956,9 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					payment_bic: body.payment_bic?.trim() || null,
 					receipt_filename: body.receipt_filename?.trim() || null,
 					receipt_mime_type: body.receipt_mime_type?.trim() || null,
-					receipt_base64: body.receipt_base64 || null,
+					receipt_base64: body.receipt_base64
+						? stripDataUrlPrefix(body.receipt_base64)
+						: null,
 					status: "requested",
 					approval_status: "pending",
 					payment_status: "to_be_paid",

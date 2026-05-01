@@ -6,8 +6,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import getAppTheme from "../../theme";
 import ReimbursementReviewPage from "./ReimbursementReviewPage";
 
-const { hookState, reviewRequestAsync } = vi.hoisted(() => ({
+const {
+	hookState,
+	reviewRequestAsync,
+	openReceiptAsync,
+	downloadReceiptAsync,
+} = vi.hoisted(() => ({
 	reviewRequestAsync: vi.fn(),
+	openReceiptAsync: vi.fn(),
+	downloadReceiptAsync: vi.fn(),
 	hookState: {
 		requests: [
 			{
@@ -20,15 +27,63 @@ const { hookState, reviewRequestAsync } = vi.hoisted(() => ({
 				submission_type: "reimbursement",
 				payment_iban: "DE89370400440532013000",
 				payment_bic: "COBADEFFXXX",
+				bank_name: "Commerzbank",
+				requester_name: "Maya Chen",
+				requester_email: "maya.chen@tum.ai",
 				receipt_filename: "receipt.pdf",
+				receipt_view_url: "/api/reimbursements/review/request-1/receipt",
+				receipt_download_url:
+					"/api/reimbursements/review/request-1/receipt?download=1",
 				status: "requested",
 				approval_status: "pending",
 				payment_status: "to_be_paid",
+			},
+			{
+				id: "request-2",
+				user_id: "user-456",
+				amount: 118.2,
+				date: "2026-04-18",
+				description: "Cloud credits for member analytics prototype",
+				department: "Software Development",
+				submission_type: "invoice",
+				payment_iban: null,
+				payment_bic: null,
+				bank_name: null,
+				requester_name: "Noah Becker",
+				requester_email: "noah.becker@tum.ai",
+				receipt_filename: "cloud-invoice.pdf",
+				receipt_view_url: "/api/reimbursements/review/request-2/receipt",
+				receipt_download_url:
+					"/api/reimbursements/review/request-2/receipt?download=1",
+				status: "requested",
+				approval_status: "approved",
+				payment_status: "to_be_paid",
+			},
+			{
+				id: "request-3",
+				user_id: "user-789",
+				amount: 64,
+				date: "2026-03-30",
+				description: "Board dinner after finance planning session",
+				department: "Legal & Finance",
+				submission_type: "reimbursement",
+				payment_iban: "DE12500105170648489890",
+				payment_bic: "INGDDEFFXXX",
+				bank_name: "ING",
+				requester_name: "Lina Wolf",
+				requester_email: "lina.wolf@tum.ai",
+				receipt_filename: "dinner.pdf",
+				status: "paid",
+				approval_status: "approved",
+				payment_status: "paid",
 			},
 		],
 		isLoading: false,
 		error: null as Error | null,
 		isReviewing: false,
+		canBulkDownloadReceipts: true,
+		isBulkDownloadingReceipts: false,
+		bulkDownloadReceiptsAsync: vi.fn(),
 	},
 }));
 
@@ -45,6 +100,11 @@ vi.mock("../../hooks/useReimbursementRequests", () => ({
 		error: hookState.error,
 		reviewRequestAsync,
 		isReviewing: hookState.isReviewing,
+		canBulkDownloadReceipts: hookState.canBulkDownloadReceipts,
+		isBulkDownloadingReceipts: hookState.isBulkDownloadingReceipts,
+		bulkDownloadReceiptsAsync: hookState.bulkDownloadReceiptsAsync,
+		openReceiptAsync,
+		downloadReceiptAsync,
 	}),
 }));
 
@@ -62,9 +122,17 @@ describe("ReimbursementReviewPage", () => {
 	beforeEach(() => {
 		reviewRequestAsync.mockReset();
 		reviewRequestAsync.mockResolvedValue({});
+		openReceiptAsync.mockReset();
+		openReceiptAsync.mockResolvedValue({});
+		downloadReceiptAsync.mockReset();
+		downloadReceiptAsync.mockResolvedValue({});
+		hookState.bulkDownloadReceiptsAsync.mockReset();
+		hookState.bulkDownloadReceiptsAsync.mockResolvedValue({});
 		hookState.isLoading = false;
 		hookState.error = null;
 		hookState.isReviewing = false;
+		hookState.canBulkDownloadReceipts = true;
+		hookState.isBulkDownloadingReceipts = false;
 	});
 
 	it("shows a finance queue with actions and a back link to tools", async () => {
@@ -75,11 +143,11 @@ describe("ReimbursementReviewPage", () => {
 			screen.getByRole("link", { name: /back to tools/i }),
 		).toHaveAttribute("href", "/tools");
 		expect(
-			screen.getByText("Snacks for onboarding workshop guests"),
+			screen.getAllByText("Snacks for onboarding workshop guests")[0],
 		).toBeInTheDocument();
-		expect(screen.getByText(/community/i)).toBeInTheDocument();
+		expect(screen.getAllByText(/community/i)[0]).toBeInTheDocument();
 
-		await user.click(screen.getByRole("button", { name: /approve/i }));
+		await user.click(screen.getAllByRole("button", { name: /^approve$/i })[0]);
 
 		await waitFor(() =>
 			expect(reviewRequestAsync).toHaveBeenCalledWith({
@@ -97,5 +165,86 @@ describe("ReimbursementReviewPage", () => {
 		expect(
 			screen.getByText(/Legal & Finance members and admins/i),
 		).toBeInTheDocument();
+	});
+
+	it("filters by search, quick status, and department while keeping requester details visible", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		expect(screen.getAllByText("Maya Chen")[0]).toBeInTheDocument();
+		expect(screen.getAllByText("maya.chen@tum.ai")[0]).toBeInTheDocument();
+		expect(screen.getAllByText("Commerzbank")[0]).toBeInTheDocument();
+		expect(
+			screen.getAllByText("DE89370400440532013000")[0],
+		).toBeInTheDocument();
+
+		await user.type(
+			screen.getByRole("textbox", { name: /search reimbursement queue/i }),
+			"cloud",
+		);
+
+		expect(
+			screen.getAllByText("Cloud credits for member analytics prototype")[0],
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText("Snacks for onboarding workshop guests"),
+		).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: /clear filters/i }));
+		await user.click(
+			screen.getByRole("button", { name: /approved, not paid/i }),
+		);
+
+		expect(
+			screen.getAllByText("Cloud credits for member analytics prototype")[0],
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText("Board dinner after finance planning session"),
+		).not.toBeInTheDocument();
+
+		await user.click(screen.getByLabelText(/department/i));
+		await user.click(screen.getByRole("option", { name: "Community" }));
+
+		expect(
+			screen.getByText(/no reimbursement requests match/i),
+		).toBeInTheDocument();
+	}, 10_000);
+
+	it("exposes receipt links and bulk downloads selected receipts when endpoints are available", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		expect(
+			screen.getAllByRole("link", { name: /view receipt/i })[0],
+		).toHaveAttribute("href", "/api/reimbursements/review/request-1/receipt");
+		expect(
+			screen.getAllByRole("link", { name: /download receipt/i })[0],
+		).toHaveAttribute(
+			"href",
+			"/api/reimbursements/review/request-1/receipt?download=1",
+		);
+		await user.click(screen.getAllByRole("link", { name: /view receipt/i })[0]);
+		await waitFor(() =>
+			expect(openReceiptAsync).toHaveBeenCalledWith(hookState.requests[0]),
+		);
+		await user.click(
+			screen.getAllByRole("link", { name: /download receipt/i })[0],
+		);
+		await waitFor(() =>
+			expect(downloadReceiptAsync).toHaveBeenCalledWith(hookState.requests[0]),
+		);
+
+		await user.click(
+			screen.getByRole("checkbox", { name: /select request from maya chen/i }),
+		);
+		await user.click(
+			screen.getByRole("button", { name: /download selected receipts/i }),
+		);
+
+		await waitFor(() =>
+			expect(hookState.bulkDownloadReceiptsAsync).toHaveBeenCalledWith([
+				"request-1",
+			]),
+		);
 	});
 });

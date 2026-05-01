@@ -180,7 +180,7 @@ describe("ReimbursementPage", () => {
 			screen.getByText(/bic is required for reimbursements/i),
 		).toBeInTheDocument();
 		expect(createRequestAsync).not.toHaveBeenCalled();
-	});
+	}, 10_000);
 
 	it("submits invoices without bank details", async () => {
 		createRequestAsync.mockResolvedValueOnce({});

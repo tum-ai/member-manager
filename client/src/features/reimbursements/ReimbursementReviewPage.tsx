@@ -1,61 +1,129 @@
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import PaidIcon from "@mui/icons-material/Paid";
-import {
-	Alert,
-	Box,
-	Button,
-	CardContent,
-	Chip,
-	CircularProgress,
-	Stack,
-	TextField,
-	Typography,
-} from "@mui/material";
+import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
 import type React from "react";
-import { useState } from "react";
-import GlassCard from "../../components/ui/GlassCard";
+import { useMemo, useState } from "react";
 import { useToast } from "../../contexts/ToastContext";
 import {
 	type ReimbursementRequest,
+	type ReimbursementReviewAction,
 	useReimbursementReview,
 } from "../../hooks/useReimbursementRequests";
 import ToolPageShell from "../tools/ToolPageShell";
+import ReimbursementReviewControls from "./ReimbursementReviewControls";
+import ReimbursementReviewQueue from "./ReimbursementReviewQueue";
+import {
+	ALL_REIMBURSEMENT_REVIEW_FILTER,
+	hasReceiptEndpoint,
+	matchesReimbursementReviewSearch,
+	type ReimbursementReviewApprovalFilter,
+	type ReimbursementReviewPaymentFilter,
+} from "./reimbursementReviewUtils";
 
 function getErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : "Unknown error";
 }
 
-function formatAmount(value: number): string {
-	return new Intl.NumberFormat("de-DE", {
-		style: "currency",
-		currency: "EUR",
-	}).format(Number(value));
+function getDepartments(requests: ReimbursementRequest[]): string[] {
+	return Array.from(new Set(requests.map((request) => request.department)))
+		.filter(Boolean)
+		.sort((left, right) => left.localeCompare(right));
 }
 
-function getReviewStage(request: ReimbursementRequest): string {
-	if (request.status === "paid" || request.payment_status === "paid") {
-		return "Paid";
-	}
-	if (request.approval_status === "not_approved") {
-		return "Rejected";
-	}
-	if (request.approval_status === "approved") {
-		return "Ready for payment";
-	}
-	return "Needs approval";
+function getQueueStats(requests: ReimbursementRequest[]) {
+	return {
+		needsApproval: requests.filter(
+			(request) => request.approval_status === "pending",
+		).length,
+		readyForPayment: requests.filter(
+			(request) =>
+				request.approval_status === "approved" &&
+				request.payment_status !== "paid",
+		).length,
+		closed: requests.filter(
+			(request) =>
+				request.payment_status === "paid" ||
+				request.approval_status === "not_approved",
+		).length,
+	};
 }
 
 export default function ReimbursementReviewPage(): React.ReactElement {
 	const { showToast } = useToast();
-	const { requests, isLoading, error, reviewRequestAsync, isReviewing } =
-		useReimbursementReview();
+	const {
+		requests,
+		isLoading,
+		error,
+		reviewRequestAsync,
+		isReviewing,
+		canBulkDownloadReceipts,
+		bulkDownloadReceiptsAsync,
+		isBulkDownloadingReceipts,
+		openReceiptAsync,
+		downloadReceiptAsync,
+	} = useReimbursementReview();
+	const [search, setSearch] = useState("");
+	const [departmentFilter, setDepartmentFilter] = useState(
+		ALL_REIMBURSEMENT_REVIEW_FILTER,
+	);
+	const [approvalFilter, setApprovalFilter] =
+		useState<ReimbursementReviewApprovalFilter>(
+			ALL_REIMBURSEMENT_REVIEW_FILTER,
+		);
+	const [paymentFilter, setPaymentFilter] =
+		useState<ReimbursementReviewPaymentFilter>(ALL_REIMBURSEMENT_REVIEW_FILTER);
+	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 	const [rejectionReasons, setRejectionReasons] = useState<
 		Record<string, string>
 	>({});
 
+	const departments = useMemo(() => getDepartments(requests), [requests]);
+	const filteredRequests = useMemo(
+		() =>
+			requests.filter((request) => {
+				if (!matchesReimbursementReviewSearch(request, search)) return false;
+				if (
+					departmentFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER &&
+					request.department !== departmentFilter
+				) {
+					return false;
+				}
+				if (
+					approvalFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER &&
+					request.approval_status !== approvalFilter
+				) {
+					return false;
+				}
+				if (
+					paymentFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER &&
+					request.payment_status !== paymentFilter
+				) {
+					return false;
+				}
+				return true;
+			}),
+		[requests, search, departmentFilter, approvalFilter, paymentFilter],
+	);
+	const selectedDownloadableIds = useMemo(
+		() =>
+			Array.from(selectedIds).filter((requestId) =>
+				requests.some(
+					(request) =>
+						request.id === requestId &&
+						request.receipt_filename &&
+						hasReceiptEndpoint(request),
+				),
+			),
+		[selectedIds, requests],
+	);
+	const queueStats = useMemo(() => getQueueStats(requests), [requests]);
+	const hasActiveFilters =
+		search.trim() !== "" ||
+		departmentFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER ||
+		approvalFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER ||
+		paymentFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER;
+
 	const handleReview = async (
 		requestId: string,
-		action: "approve" | "reject" | "mark_paid",
+		action: ReimbursementReviewAction,
 	): Promise<void> => {
 		try {
 			await reviewRequestAsync({
@@ -73,19 +141,65 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		}
 	};
 
-	const pendingRequests = requests.filter(
-		(request) => request.approval_status === "pending",
-	);
-	const paymentRequests = requests.filter(
-		(request) =>
-			request.approval_status === "approved" &&
-			request.payment_status !== "paid",
-	);
-	const closedRequests = requests.filter(
-		(request) =>
-			request.payment_status === "paid" ||
-			request.approval_status === "not_approved",
-	);
+	const handleQuickFilter = (
+		filter: "all" | "needs_approval" | "approved_not_paid" | "closed",
+	): void => {
+		if (filter === "all") {
+			setApprovalFilter(ALL_REIMBURSEMENT_REVIEW_FILTER);
+			setPaymentFilter(ALL_REIMBURSEMENT_REVIEW_FILTER);
+			setDepartmentFilter(ALL_REIMBURSEMENT_REVIEW_FILTER);
+		}
+		if (filter === "needs_approval") {
+			setApprovalFilter("pending");
+			setPaymentFilter(ALL_REIMBURSEMENT_REVIEW_FILTER);
+		}
+		if (filter === "approved_not_paid") {
+			setApprovalFilter("approved");
+			setPaymentFilter("to_be_paid");
+		}
+		if (filter === "closed") {
+			setApprovalFilter(ALL_REIMBURSEMENT_REVIEW_FILTER);
+			setPaymentFilter("paid");
+		}
+	};
+
+	const clearFilters = (): void => {
+		setSearch("");
+		setDepartmentFilter(ALL_REIMBURSEMENT_REVIEW_FILTER);
+		setApprovalFilter(ALL_REIMBURSEMENT_REVIEW_FILTER);
+		setPaymentFilter(ALL_REIMBURSEMENT_REVIEW_FILTER);
+	};
+
+	const handleBulkDownload = async (): Promise<void> => {
+		try {
+			await bulkDownloadReceiptsAsync(selectedDownloadableIds);
+			setSelectedIds(new Set());
+			showToast("Selected receipts downloaded.", "success");
+		} catch (downloadError) {
+			showToast(
+				`Could not download receipts: ${getErrorMessage(downloadError)}`,
+				"error",
+			);
+		}
+	};
+
+	const handleReceiptOpen = async (
+		request: ReimbursementRequest,
+		mode: "view" | "download",
+	): Promise<void> => {
+		try {
+			if (mode === "view") {
+				await openReceiptAsync(request);
+			} else {
+				await downloadReceiptAsync(request);
+			}
+		} catch (receiptError) {
+			showToast(
+				`Could not open receipt: ${getErrorMessage(receiptError)}`,
+				"error",
+			);
+		}
+	};
 
 	return (
 		<ToolPageShell
@@ -108,25 +222,45 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 			)}
 
 			{!isLoading && !error && (
-				<Box sx={{ display: "grid", gap: 3 }}>
-					<ReviewSection
-						title="Needs approval"
-						requests={pendingRequests}
-						emptyText="No requests need approval."
-						isReviewing={isReviewing}
-						rejectionReasons={rejectionReasons}
-						onReasonChange={(requestId, reason) =>
-							setRejectionReasons((current) => ({
-								...current,
-								[requestId]: reason,
-							}))
+				<Box sx={{ display: "grid", gap: 2.5 }}>
+					<ReimbursementReviewControls
+						search={search}
+						onSearchChange={setSearch}
+						departments={departments}
+						departmentFilter={departmentFilter}
+						onDepartmentFilterChange={setDepartmentFilter}
+						approvalFilter={approvalFilter}
+						onApprovalFilterChange={setApprovalFilter}
+						paymentFilter={paymentFilter}
+						onPaymentFilterChange={setPaymentFilter}
+						hasActiveFilters={hasActiveFilters}
+						onClearFilters={clearFilters}
+						onQuickFilter={handleQuickFilter}
+						queueStats={queueStats}
+						filteredCount={filteredRequests.length}
+						totalCount={requests.length}
+						selectedCount={selectedDownloadableIds.length}
+						canBulkDownload={
+							canBulkDownloadReceipts && selectedDownloadableIds.length > 0
 						}
-						onReview={handleReview}
+						isBulkDownloading={isBulkDownloadingReceipts}
+						onBulkDownload={handleBulkDownload}
 					/>
-					<ReviewSection
-						title="Ready for payment"
-						requests={paymentRequests}
-						emptyText="No approved requests are waiting for payment."
+
+					<ReimbursementReviewQueue
+						requests={filteredRequests}
+						selectedIds={selectedIds}
+						onSelectionChange={(requestId, checked) =>
+							setSelectedIds((current) => {
+								const next = new Set(current);
+								if (checked) {
+									next.add(requestId);
+								} else {
+									next.delete(requestId);
+								}
+								return next;
+							})
+						}
 						isReviewing={isReviewing}
 						rejectionReasons={rejectionReasons}
 						onReasonChange={(requestId, reason) =>
@@ -136,172 +270,11 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 							}))
 						}
 						onReview={handleReview}
-					/>
-					<ReviewSection
-						title="Closed"
-						requests={closedRequests}
-						emptyText="No closed requests yet."
-						isReviewing={isReviewing}
-						rejectionReasons={rejectionReasons}
-						onReasonChange={(requestId, reason) =>
-							setRejectionReasons((current) => ({
-								...current,
-								[requestId]: reason,
-							}))
-						}
-						onReview={handleReview}
+						hasBulkDownload={canBulkDownloadReceipts}
+						onReceiptOpen={handleReceiptOpen}
 					/>
 				</Box>
 			)}
 		</ToolPageShell>
-	);
-}
-
-interface ReviewSectionProps {
-	title: string;
-	requests: ReimbursementRequest[];
-	emptyText: string;
-	isReviewing: boolean;
-	rejectionReasons: Record<string, string>;
-	onReasonChange: (requestId: string, reason: string) => void;
-	onReview: (
-		requestId: string,
-		action: "approve" | "reject" | "mark_paid",
-	) => Promise<void>;
-}
-
-function ReviewSection({
-	title,
-	requests,
-	emptyText,
-	isReviewing,
-	rejectionReasons,
-	onReasonChange,
-	onReview,
-}: ReviewSectionProps): React.ReactElement {
-	return (
-		<Box component="section" aria-labelledby={`${title}-heading`}>
-			<Typography id={`${title}-heading`} variant="h5" sx={{ mb: 1.5 }}>
-				{title}
-			</Typography>
-			{requests.length === 0 ? (
-				<Alert severity="info">{emptyText}</Alert>
-			) : (
-				<Box sx={{ display: "grid", gap: 1.5 }}>
-					{requests.map((request) => (
-						<ReviewCard
-							key={request.id}
-							request={request}
-							isReviewing={isReviewing}
-							rejectionReason={rejectionReasons[request.id] ?? ""}
-							onReasonChange={(reason) => onReasonChange(request.id, reason)}
-							onReview={(action) => onReview(request.id, action)}
-						/>
-					))}
-				</Box>
-			)}
-		</Box>
-	);
-}
-
-interface ReviewCardProps {
-	request: ReimbursementRequest;
-	isReviewing: boolean;
-	rejectionReason: string;
-	onReasonChange: (reason: string) => void;
-	onReview: (action: "approve" | "reject" | "mark_paid") => Promise<void>;
-}
-
-function ReviewCard({
-	request,
-	isReviewing,
-	rejectionReason,
-	onReasonChange,
-	onReview,
-}: ReviewCardProps): React.ReactElement {
-	const canApprove = request.approval_status === "pending";
-	const canMarkPaid =
-		request.approval_status === "approved" && request.payment_status !== "paid";
-
-	return (
-		<GlassCard>
-			<CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
-				<Stack
-					direction={{ xs: "column", md: "row" }}
-					spacing={2}
-					justifyContent="space-between"
-				>
-					<Box sx={{ minWidth: 0 }}>
-						<Stack
-							direction="row"
-							spacing={1}
-							alignItems="center"
-							sx={{ mb: 1 }}
-						>
-							<Chip label={getReviewStage(request)} size="small" />
-							<Chip
-								label={request.department}
-								size="small"
-								variant="outlined"
-							/>
-						</Stack>
-						<Typography variant="h6" sx={{ mb: 0.5 }}>
-							{request.description}
-						</Typography>
-						<Typography color="text.secondary">
-							{request.submission_type === "invoice"
-								? "Invoice"
-								: "Reimbursement"}{" "}
-							· {request.date} · {request.receipt_filename ?? "No file"}
-						</Typography>
-					</Box>
-					<Typography variant="h5" sx={{ whiteSpace: "nowrap" }}>
-						{formatAmount(request.amount)}
-					</Typography>
-				</Stack>
-
-				{canApprove && (
-					<Stack spacing={1.5} sx={{ mt: 2 }}>
-						<TextField
-							label="Rejection reason"
-							value={rejectionReason}
-							onChange={(event) => onReasonChange(event.target.value)}
-							size="small"
-							placeholder="Required only when rejecting"
-						/>
-						<Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-							<Button
-								variant="contained"
-								startIcon={<CheckCircleIcon />}
-								disabled={isReviewing}
-								onClick={() => onReview("approve")}
-							>
-								Approve
-							</Button>
-							<Button
-								variant="outlined"
-								color="error"
-								disabled={isReviewing || rejectionReason.trim() === ""}
-								onClick={() => onReview("reject")}
-							>
-								Reject
-							</Button>
-						</Stack>
-					</Stack>
-				)}
-
-				{canMarkPaid && (
-					<Button
-						variant="contained"
-						startIcon={<PaidIcon />}
-						disabled={isReviewing}
-						onClick={() => onReview("mark_paid")}
-						sx={{ mt: 2 }}
-					>
-						Mark paid
-					</Button>
-				)}
-			</CardContent>
-		</GlassCard>
 	);
 }
