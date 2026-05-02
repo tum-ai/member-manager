@@ -108,7 +108,7 @@ describe("AdminDatabaseView", () => {
 		await waitFor(() => {
 			expect(updateMemberAsync).toHaveBeenCalledWith({
 				userId: "member-1",
-				department: "Software Development",
+				department: null,
 				member_role: "President",
 				board_role: "Board Member",
 				member_status: "inactive",
@@ -116,6 +116,24 @@ describe("AdminDatabaseView", () => {
 			});
 		});
 	}, 10_000);
+
+	it("requires a department for member and team lead roles", async () => {
+		const user = userEvent.setup();
+		renderAdminView();
+
+		await user.click(screen.getByRole("button", { name: /edit member/i }));
+		await user.click(screen.getByLabelText(/department/i));
+		await user.click(await screen.findByRole("option", { name: "None" }));
+
+		expect(
+			await screen.findByText(
+				/select a department for member and team lead roles/i,
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /save member changes/i }),
+		).toBeDisabled();
+	});
 
 	it("does not offer Board or Research as operational departments", async () => {
 		const user = userEvent.setup();
@@ -200,7 +218,7 @@ describe("AdminDatabaseView", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("keeps the members table above the pending request panels", () => {
+	it("keeps pending request panels above the members table", () => {
 		renderAdminView();
 
 		const membersHeading = screen.getByRole("heading", { name: /^members$/i });
@@ -211,11 +229,11 @@ describe("AdminDatabaseView", () => {
 			name: /engagement certificate requests/i,
 		});
 
-		expect(membersHeading.compareDocumentPosition(changeRequestsHeading)).toBe(
+		expect(changeRequestsHeading.compareDocumentPosition(membersHeading)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING,
 		);
 		expect(
-			membersHeading.compareDocumentPosition(certificateRequestsHeading),
+			certificateRequestsHeading.compareDocumentPosition(membersHeading),
 		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 	});
 });

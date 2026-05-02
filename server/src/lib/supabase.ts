@@ -8,10 +8,9 @@ import { assertSecureRemoteUrl } from "./sensitiveData.js";
 //   2. `.env.local`     - gitignored local-dev overrides, applied on top
 //   3. DOTENV_CONFIG_PATH - if set, replaces the chain entirely
 //
-// This ensures `pnpm dev` against a locally-running Supabase stack still
-// picks up the generated `.env.local` (from `pnpm setup:local`) instead of
-// silently validating JWTs against a stale hosted project and returning
-// "Invalid token" for locally-issued access tokens.
+// The local dev script intentionally uses the default chain so optional
+// developer secrets can live in `.env` while generated Supabase values live in
+// `.env.local`.
 loadEnvChain({ explicitPath: process.env.DOTENV_CONFIG_PATH });
 
 const supabaseUrl = process.env.SUPABASE_URL;

@@ -39,10 +39,26 @@ export function getMemberStatusLabel(status?: string | null): string {
 }
 
 export function resolveDepartmentForMemberRole(
-	_role: string | null | undefined,
+	role: string | null | undefined,
 	department: string | null | undefined,
 ): string | null {
+	if (isExecutiveMemberRole(role)) {
+		return null;
+	}
+
 	return getOperationalDepartment(department);
+}
+
+export function isExecutiveMemberRole(
+	role: string | null | undefined,
+): boolean {
+	return role === "President" || role === "Vice-President";
+}
+
+export function requiresDepartmentForMemberRole(
+	role: string | null | undefined,
+): boolean {
+	return role === "Member" || role === "Team Lead";
 }
 
 export function getOperationalDepartment(

@@ -8,23 +8,27 @@ export const TOOL_CONTENT_MAX_WIDTH = 980;
 interface ToolPageShellProps {
 	title: string;
 	description?: string;
+	maxWidth?: number | string;
 	children: React.ReactNode;
 }
 
 export default function ToolPageShell({
 	title,
 	description,
+	maxWidth = TOOL_CONTENT_MAX_WIDTH,
 	children,
 }: ToolPageShellProps): React.ReactElement {
 	return (
-		<Box
-			sx={{ maxWidth: TOOL_CONTENT_MAX_WIDTH, mx: "auto", p: { xs: 2, md: 3 } }}
-		>
+		<Box sx={{ maxWidth, mx: "auto", p: { xs: 2, md: 3 }, width: "100%" }}>
 			<Button
 				component={RouterLink}
 				to="/tools"
 				startIcon={<ArrowBackIcon />}
-				sx={{ mb: 2 }}
+				sx={{
+					mb: 2,
+					ml: -0.5,
+					pl: 0,
+				}}
 			>
 				Back to tools
 			</Button>

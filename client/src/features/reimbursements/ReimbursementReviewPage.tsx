@@ -46,6 +46,19 @@ function getQueueStats(requests: ReimbursementRequest[]) {
 	};
 }
 
+function sortRequestsByDateDesc(
+	requests: ReimbursementRequest[],
+): ReimbursementRequest[] {
+	return [...requests].sort((left, right) => {
+		const rightTime = new Date(`${right.date ?? ""}T00:00:00`).getTime();
+		const leftTime = new Date(`${left.date ?? ""}T00:00:00`).getTime();
+		const safeRightTime = Number.isNaN(rightTime) ? 0 : rightTime;
+		const safeLeftTime = Number.isNaN(leftTime) ? 0 : leftTime;
+
+		return safeRightTime - safeLeftTime;
+	});
+}
+
 export default function ReimbursementReviewPage(): React.ReactElement {
 	const { showToast } = useToast();
 	const {
@@ -78,28 +91,30 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 	const departments = useMemo(() => getDepartments(requests), [requests]);
 	const filteredRequests = useMemo(
 		() =>
-			requests.filter((request) => {
-				if (!matchesReimbursementReviewSearch(request, search)) return false;
-				if (
-					departmentFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER &&
-					request.department !== departmentFilter
-				) {
-					return false;
-				}
-				if (
-					approvalFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER &&
-					request.approval_status !== approvalFilter
-				) {
-					return false;
-				}
-				if (
-					paymentFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER &&
-					request.payment_status !== paymentFilter
-				) {
-					return false;
-				}
-				return true;
-			}),
+			sortRequestsByDateDesc(
+				requests.filter((request) => {
+					if (!matchesReimbursementReviewSearch(request, search)) return false;
+					if (
+						departmentFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER &&
+						request.department !== departmentFilter
+					) {
+						return false;
+					}
+					if (
+						approvalFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER &&
+						request.approval_status !== approvalFilter
+					) {
+						return false;
+					}
+					if (
+						paymentFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER &&
+						request.payment_status !== paymentFilter
+					) {
+						return false;
+					}
+					return true;
+				}),
+			),
 		[requests, search, departmentFilter, approvalFilter, paymentFilter],
 	);
 	const selectedDownloadableIds = useMemo(
@@ -205,6 +220,7 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		<ToolPageShell
 			title="Finance Review"
 			description="Review reimbursement and invoice requests, then mark approved requests as paid."
+			maxWidth={1440}
 		>
 			{isLoading && (
 				<Stack direction="row" spacing={1.5} alignItems="center">

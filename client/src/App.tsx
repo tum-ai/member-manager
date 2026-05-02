@@ -153,18 +153,18 @@ interface AuthenticatedAppProps {
 	onToggleColorMode: () => void;
 }
 
-function AuthenticatedApp({
+export function AuthenticatedApp({
 	user,
 	colorMode,
 	onLogout,
 	onToggleColorMode,
 }: AuthenticatedAppProps): JSX.Element {
-	const { isAdmin } = useIsAdmin(user.id);
+	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
 
 	return (
 		<MainLayout
 			user={user}
-			isAdmin={isAdmin}
+			isAdmin={isAdmin || isLoadingAdminRole}
 			onLogout={onLogout}
 			colorMode={colorMode}
 			onToggleColorMode={onToggleColorMode}
@@ -193,11 +193,34 @@ function AuthenticatedApp({
 				<Route
 					path="/admin"
 					element={
-						isAdmin ? <AdminDatabaseView /> : <Navigate to="/" replace />
+						isLoadingAdminRole ? (
+							<AdminRouteLoading />
+						) : isAdmin ? (
+							<AdminDatabaseView />
+						) : (
+							<Navigate to="/" replace />
+						)
 					}
 				/>
 				<Route path="*" element={<Navigate to="/" replace />} />
 			</Routes>
 		</MainLayout>
+	);
+}
+
+function AdminRouteLoading(): JSX.Element {
+	return (
+		<Box
+			sx={{
+				display: "flex",
+				alignItems: "center",
+				justifyContent: "center",
+				gap: 1.5,
+				minHeight: 280,
+			}}
+		>
+			<CircularProgress size={24} />
+			<Typography color="text.secondary">Loading admin access...</Typography>
+		</Box>
 	);
 }

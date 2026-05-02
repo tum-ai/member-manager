@@ -88,7 +88,13 @@ export default function MainLayout({
 					borderBottom: `1px solid ${theme.palette.divider}`,
 				}}
 			>
-				<Toolbar sx={{ justifyContent: "space-between", gap: 2 }}>
+				<Toolbar
+					sx={{
+						justifyContent: "space-between",
+						gap: { xs: 1, sm: 2 },
+						px: { xs: 1.25, sm: 2, md: 3 },
+					}}
+				>
 					<Box
 						sx={{
 							display: "flex",
@@ -98,14 +104,22 @@ export default function MainLayout({
 						}}
 						onClick={() => navigate("/")}
 					>
-						<img
+						<Box
+							component="img"
 							src={getTumAiLogoPath("dark")}
 							alt="TUM.ai"
-							style={{ height: 34 }}
+							sx={{ height: { xs: 28, sm: 34 } }}
 						/>
 					</Box>
 
-					<Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+					<Box
+						sx={{
+							display: "flex",
+							alignItems: "center",
+							gap: { xs: 0.75, sm: 2 },
+							minWidth: 0,
+						}}
+					>
 						<Tooltip
 							title={
 								colorMode === "light"
@@ -163,7 +177,8 @@ export default function MainLayout({
 						<FormControl
 							size="small"
 							sx={{
-								minWidth: { xs: 140, sm: 180 },
+								width: { xs: 118, sm: 180 },
+								flex: "0 0 auto",
 								"& .MuiOutlinedInput-root": {
 									backgroundColor: "rgba(255, 255, 255, 0.06)",
 									borderRadius: 999,
@@ -177,7 +192,8 @@ export default function MainLayout({
 								},
 								"& .MuiSelect-select": {
 									py: 1.1,
-									pr: 4,
+									pl: { xs: 1.5, sm: 2 },
+									pr: { xs: 3.5, sm: 4 },
 								},
 							}}
 						>
@@ -188,7 +204,7 @@ export default function MainLayout({
 								inputProps={{ "aria-label": "View selector" }}
 							>
 								<MenuItem disabled value="">
-									Select view
+									View
 								</MenuItem>
 								<MenuItem value="/">My Profile</MenuItem>
 								<MenuItem value="/members">All Members</MenuItem>

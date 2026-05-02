@@ -28,11 +28,8 @@ create table if not exists "public"."reimbursements" (
         check ("approval_status" in ('pending', 'approved', 'not_approved')),
     constraint "reimbursements_payment_status_check"
         check ("payment_status" in ('to_be_paid', 'paid')),
-    constraint "reimbursements_reimbursement_bank_check"
-        check (
-            "submission_type" = 'invoice'
-            or ("payment_iban" is not null and "payment_bic" is not null)
-        )
+    constraint "reimbursements_bank_details_required_check"
+        check ("payment_iban" is not null and "payment_bic" is not null)
 );
 
 create index if not exists "reimbursements_user_id_created_at_idx"

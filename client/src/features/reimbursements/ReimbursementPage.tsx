@@ -5,6 +5,7 @@ import {
 	Box,
 	Button,
 	CardContent,
+	Chip,
 	CircularProgress,
 	MenuItem,
 	TextField,
@@ -26,6 +27,7 @@ import {
 	type ReimbursementSubmissionType,
 	useReimbursementRequests,
 } from "../../hooks/useReimbursementRequests";
+import { useSepaData } from "../../hooks/useSepaData";
 import { DEPARTMENTS } from "../../lib/constants";
 import ToolPageShell from "../tools/ToolPageShell";
 
@@ -92,16 +94,29 @@ function formatAmount(value: number): string {
 	}).format(Number(value));
 }
 
-function countWords(value: string): number {
-	return value.trim().split(/\s+/).filter(Boolean).length;
-}
-
 function getStatusLabel(request: ReimbursementRequest): string {
 	if (request.approval_status === "not_approved") return "Not approved";
 	if (request.status === "paid" || request.payment_status === "paid")
 		return "Paid";
 	if (request.approval_status === "approved") return "Approved";
 	return "Pending";
+}
+
+function getRequestTypeLabel(request: ReimbursementRequest): string {
+	return request.submission_type === "invoice" ? "Invoice" : "Reimbursement";
+}
+
+function sortRequestsByDateDesc(
+	requests: ReimbursementRequest[],
+): ReimbursementRequest[] {
+	return [...requests].sort((left, right) => {
+		const rightTime = new Date(`${right.date ?? ""}T00:00:00`).getTime();
+		const leftTime = new Date(`${left.date ?? ""}T00:00:00`).getTime();
+		const safeRightTime = Number.isNaN(rightTime) ? 0 : rightTime;
+		const safeLeftTime = Number.isNaN(leftTime) ? 0 : leftTime;
+
+		return safeRightTime - safeLeftTime;
+	});
 }
 
 function readFileAsBase64(file: File): Promise<string> {
@@ -125,16 +140,10 @@ function validateForm(values: FormValues): FormErrors {
 	if (!values.date) errors.date = "Select the expense date.";
 	if (!values.description.trim())
 		errors.description = "Describe what this request is for.";
-	else if (countWords(values.description) < 5)
-		errors.description = "Description must be at least five words.";
 	if (!values.department) errors.department = "Select a department.";
 	if (!values.receipt) errors.receiptFile = "Attach a receipt.";
-	if (values.submissionType === "reimbursement") {
-		if (!values.paymentIban.trim())
-			errors.paymentIban = "IBAN is required for reimbursements.";
-		if (!values.paymentBic.trim())
-			errors.paymentBic = "BIC is required for reimbursements.";
-	}
+	if (!values.paymentIban.trim()) errors.paymentIban = "IBAN is required.";
+	if (!values.paymentBic.trim()) errors.paymentBic = "BIC is required.";
 
 	return errors;
 }
@@ -154,6 +163,7 @@ export default function ReimbursementPage({
 		isParsingReceipt,
 	} = useReimbursementRequests(user.id);
 	const { member } = useMemberData(user.id);
+	const { sepa } = useSepaData(user.id);
 	const [values, setValues] = useState<FormValues>(defaultValues);
 	const [errors, setErrors] = useState<FormErrors>({});
 	const [isReadingReceipt, setIsReadingReceipt] = useState(false);
@@ -162,18 +172,21 @@ export default function ReimbursementPage({
 		"string"
 			? ((member as { department: string }).department ?? "")
 			: "";
+	const profileIban = typeof sepa?.iban === "string" ? sepa.iban : "";
+	const profileBic = typeof sepa?.bic === "string" ? sepa.bic : "";
 
 	useEffect(() => {
-		if (!memberDepartment) {
+		if (!memberDepartment && !profileIban && !profileBic) {
 			return;
 		}
 
-		setValues((current) =>
-			current.department
-				? current
-				: { ...current, department: memberDepartment },
-		);
-	}, [memberDepartment]);
+		setValues((current) => ({
+			...current,
+			department: current.department || memberDepartment,
+			paymentIban: current.paymentIban || profileIban,
+			paymentBic: current.paymentBic || profileBic,
+		}));
+	}, [memberDepartment, profileIban, profileBic]);
 
 	const setField = <Key extends keyof FormValues>(
 		field: Key,
@@ -194,8 +207,6 @@ export default function ReimbursementPage({
 		setValues((current) => ({
 			...current,
 			submissionType: nextType,
-			paymentIban: nextType === "invoice" ? "" : current.paymentIban,
-			paymentBic: nextType === "invoice" ? "" : current.paymentBic,
 		}));
 		setErrors((current) => ({
 			...current,
@@ -299,14 +310,8 @@ export default function ReimbursementPage({
 			description: values.description.trim(),
 			department: values.department,
 			submission_type: values.submissionType,
-			payment_iban:
-				values.submissionType === "reimbursement"
-					? values.paymentIban.trim()
-					: null,
-			payment_bic:
-				values.submissionType === "reimbursement"
-					? values.paymentBic.trim()
-					: null,
+			payment_iban: values.paymentIban.trim(),
+			payment_bic: values.paymentBic.trim(),
 			receipt_filename: values.receipt?.fileName ?? "",
 			receipt_mime_type: values.receipt?.mimeType ?? "",
 			receipt_base64: values.receipt?.base64 ?? "",
@@ -315,7 +320,12 @@ export default function ReimbursementPage({
 		try {
 			await createRequestAsync(payload);
 			showToast("Reimbursement request submitted.", "success");
-			setValues({ ...defaultValues, department: memberDepartment });
+			setValues({
+				...defaultValues,
+				department: memberDepartment,
+				paymentIban: profileIban,
+				paymentBic: profileBic,
+			});
 			setErrors({});
 		} catch (submitError) {
 			showToast(
@@ -325,23 +335,27 @@ export default function ReimbursementPage({
 		}
 	};
 
-	const isReimbursement = values.submissionType === "reimbursement";
 	const isReceiptBusy = isReadingReceipt || isParsingReceipt;
 	const isSubmitDisabled = isCreating || isReceiptBusy;
 	const showDepartmentWarning =
 		Boolean(memberDepartment) &&
 		Boolean(values.department) &&
 		values.department !== memberDepartment;
+	const sortedRequests = sortRequestsByDateDesc(requests);
 
 	return (
 		<ToolPageShell
 			title="Reimbursements"
-			description="Submit reimbursements or vendor invoices for finance review."
+			description="Submit reimbursements or vendor invoices to the Legal and Finance department."
+			maxWidth={1280}
 		>
 			<Box
 				sx={{
 					display: "grid",
-					gridTemplateColumns: { xs: "1fr", md: "5fr 7fr" },
+					gridTemplateColumns: {
+						xs: "1fr",
+						lg: "minmax(380px, 0.9fr) minmax(0, 1.35fr)",
+					},
 					gap: 3,
 				}}
 			>
@@ -366,50 +380,78 @@ export default function ReimbursementPage({
 							</Alert>
 						)}
 
-						{!isLoading && !error && requests.length === 0 && (
+						{!isLoading && !error && sortedRequests.length === 0 && (
 							<Alert severity="info">No reimbursement requests yet.</Alert>
 						)}
 
-						{!isLoading && !error && requests.length > 0 && (
+						{!isLoading && !error && sortedRequests.length > 0 && (
 							<Box sx={{ display: "grid", gap: 1.5 }}>
-								{requests.map((request) => (
+								{sortedRequests.map((request) => (
 									<Box
 										key={request.id}
 										sx={{
 											p: 2,
 											borderRadius: 2,
 											bgcolor: alpha(theme.palette.primary.main, 0.06),
+											minWidth: 0,
 										}}
 									>
 										<Box
 											sx={{
 												display: "flex",
 												justifyContent: "space-between",
+												alignItems: "flex-start",
+												flexWrap: "wrap",
 												gap: 1.5,
 												mb: 1,
 											}}
 										>
-											<Box>
-												<Typography variant="subtitle1" fontWeight={700}>
-													{request.description}
+											<Box sx={{ minWidth: 0, flex: "1 1 220px" }}>
+												<Typography
+													variant="subtitle1"
+													fontWeight={700}
+													sx={{ overflowWrap: "anywhere" }}
+												>
+													{getRequestTypeLabel(request)} request
 												</Typography>
 												<Typography variant="body2" color="text.secondary">
-													{request.department} · {formatDate(request.date)}
+													{formatDate(request.date)}
 												</Typography>
 											</Box>
-											<Typography variant="subtitle1" fontWeight={700}>
+											<Typography
+												variant="subtitle1"
+												fontWeight={700}
+												sx={{ whiteSpace: "nowrap" }}
+											>
 												{formatAmount(request.amount)}
 											</Typography>
 										</Box>
-										<Typography variant="body2" color="text.secondary">
-											{request.submission_type === "invoice"
-												? "Invoice"
-												: "Reimbursement"}{" "}
-											· {getStatusLabel(request)}
-											{request.receipt_filename
-												? ` · ${request.receipt_filename}`
-												: ""}
+										<Box
+											sx={{
+												display: "flex",
+												flexWrap: "wrap",
+												gap: 0.75,
+												mb: 1,
+											}}
+										>
+											<Chip
+												label={getRequestTypeLabel(request)}
+												size="small"
+												variant="outlined"
+											/>
+											<Chip label={getStatusLabel(request)} size="small" />
+										</Box>
+										<Typography
+											variant="body2"
+											sx={{ overflowWrap: "anywhere", mb: 0.5 }}
+										>
+											{request.description}
 										</Typography>
+										{request.receipt_filename && (
+											<Typography variant="body2" color="text.secondary">
+												{request.receipt_filename}
+											</Typography>
+										)}
 										{request.rejection_reason && (
 											<Typography variant="body2" color="error" sx={{ mt: 1 }}>
 												{request.rejection_reason}
@@ -429,16 +471,21 @@ export default function ReimbursementPage({
 						</Typography>
 
 						<Box component="form" onSubmit={handleSubmit} noValidate>
-							<Box sx={{ mb: 2.5 }}>
-								<Typography variant="subtitle2" sx={{ mb: 1 }}>
-									Receipt
-								</Typography>
+							<Box
+								sx={{
+									mb: 2.5,
+									display: "grid",
+									justifyItems: "center",
+									textAlign: "center",
+									gap: 1,
+								}}
+							>
 								<Box
 									sx={{
-										display: "flex",
-										alignItems: { xs: "stretch", sm: "center" },
-										flexDirection: { xs: "column", sm: "row" },
-										gap: 1.5,
+										display: "grid",
+										justifyItems: "center",
+										gap: 1,
+										maxWidth: 440,
 									}}
 								>
 									<Button
@@ -446,6 +493,12 @@ export default function ReimbursementPage({
 										variant="outlined"
 										startIcon={<AttachFileIcon />}
 										disabled={isReceiptBusy}
+										sx={{
+											borderRadius: 999,
+											px: 3,
+											minHeight: 46,
+											width: "fit-content",
+										}}
 									>
 										{isReceiptBusy ? "Reading..." : "Attach receipt"}
 										<input
@@ -550,30 +603,26 @@ export default function ReimbursementPage({
 									sx={{ gridColumn: "1 / -1" }}
 								/>
 
-								{isReimbursement && (
-									<>
-										<TextField
-											label="IBAN"
-											value={values.paymentIban}
-											onChange={(event) =>
-												setField("paymentIban", event.target.value)
-											}
-											error={Boolean(errors.paymentIban)}
-											helperText={errors.paymentIban}
-											required
-										/>
-										<TextField
-											label="BIC"
-											value={values.paymentBic}
-											onChange={(event) =>
-												setField("paymentBic", event.target.value)
-											}
-											error={Boolean(errors.paymentBic)}
-											helperText={errors.paymentBic}
-											required
-										/>
-									</>
-								)}
+								<TextField
+									label="IBAN"
+									value={values.paymentIban}
+									onChange={(event) =>
+										setField("paymentIban", event.target.value)
+									}
+									error={Boolean(errors.paymentIban)}
+									helperText={errors.paymentIban}
+									required
+								/>
+								<TextField
+									label="BIC"
+									value={values.paymentBic}
+									onChange={(event) =>
+										setField("paymentBic", event.target.value)
+									}
+									error={Boolean(errors.paymentBic)}
+									helperText={errors.paymentBic}
+									required
+								/>
 							</Box>
 
 							<Box sx={{ display: "flex", justifyContent: "flex-end", mt: 3 }}>

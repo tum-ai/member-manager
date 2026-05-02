@@ -13,6 +13,7 @@ const {
 	showToast,
 	hookState,
 	memberState,
+	sepaState,
 } = vi.hoisted(() => ({
 	createRequestAsync: vi.fn(),
 	parseReceiptAsync: vi.fn(),
@@ -28,6 +29,18 @@ const {
 		member: {
 			user_id: "user-123",
 			department: "Software Development",
+		},
+		isLoading: false,
+		error: null as Error | null,
+	},
+	sepaState: {
+		sepa: {
+			user_id: "user-123",
+			iban: "DE89370400440532013000",
+			bic: "COBADEFFXXX",
+			bank_name: "Commerzbank",
+			mandate_agreed: true,
+			privacy_agreed: true,
 		},
 		isLoading: false,
 		error: null as Error | null,
@@ -54,6 +67,10 @@ vi.mock("../../contexts/ToastContext", () => ({
 
 vi.mock("../../hooks/useMemberData", () => ({
 	useMemberData: () => memberState,
+}));
+
+vi.mock("../../hooks/useSepaData", () => ({
+	useSepaData: () => sepaState,
 }));
 
 const mockUser = {
@@ -112,6 +129,16 @@ describe("ReimbursementPage", () => {
 		};
 		memberState.isLoading = false;
 		memberState.error = null;
+		sepaState.sepa = {
+			user_id: "user-123",
+			iban: "DE89370400440532013000",
+			bic: "COBADEFFXXX",
+			bank_name: "Commerzbank",
+			mandate_agreed: true,
+			privacy_agreed: true,
+		};
+		sepaState.isLoading = false;
+		sepaState.error = null;
 	});
 
 	it("prefills the department from the member profile and warns on overrides", async () => {
@@ -121,6 +148,10 @@ describe("ReimbursementPage", () => {
 		expect(screen.getByLabelText(/department/i)).toHaveTextContent(
 			"Software Development",
 		);
+		expect(screen.getByLabelText(/iban/i)).toHaveValue(
+			"DE89370400440532013000",
+		);
+		expect(screen.getByLabelText(/bic/i)).toHaveValue("COBADEFFXXX");
 
 		await user.click(screen.getByLabelText(/department/i));
 		await user.click(await screen.findByRole("option", { name: "Community" }));
@@ -171,18 +202,16 @@ describe("ReimbursementPage", () => {
 
 		await fillBaseRequest(user);
 		await uploadReceipt(user, container);
+		await user.clear(screen.getByLabelText(/iban/i));
+		await user.clear(screen.getByLabelText(/bic/i));
 		await user.click(screen.getByRole("button", { name: /submit request/i }));
 
-		expect(
-			await screen.findByText(/iban is required for reimbursements/i),
-		).toBeInTheDocument();
-		expect(
-			screen.getByText(/bic is required for reimbursements/i),
-		).toBeInTheDocument();
+		expect(await screen.findByText(/iban is required/i)).toBeInTheDocument();
+		expect(screen.getByText(/bic is required/i)).toBeInTheDocument();
 		expect(createRequestAsync).not.toHaveBeenCalled();
 	}, 10_000);
 
-	it("submits invoices without bank details", async () => {
+	it("submits invoices with bank details from the profile", async () => {
 		createRequestAsync.mockResolvedValueOnce({});
 		const user = userEvent.setup();
 		const { container } = renderPage();
@@ -196,8 +225,8 @@ describe("ReimbursementPage", () => {
 		expect(createRequestAsync).toHaveBeenCalledWith(
 			expect.objectContaining({
 				submission_type: "invoice",
-				payment_iban: null,
-				payment_bic: null,
+				payment_iban: "DE89370400440532013000",
+				payment_bic: "COBADEFFXXX",
 				receipt_filename: "receipt.pdf",
 				receipt_mime_type: "application/pdf",
 			}),
@@ -220,7 +249,8 @@ describe("ReimbursementPage", () => {
 		expect(createRequestAsync).not.toHaveBeenCalled();
 	});
 
-	it("requires at least five description words", async () => {
+	it("allows concise descriptions", async () => {
+		createRequestAsync.mockResolvedValueOnce({});
 		const user = userEvent.setup();
 		const { container } = renderPage();
 
@@ -231,11 +261,15 @@ describe("ReimbursementPage", () => {
 		await uploadReceipt(user, container);
 		await user.click(screen.getByRole("button", { name: /submit request/i }));
 
-		expect(await screen.findByText(/at least five words/i)).toBeInTheDocument();
-		expect(createRequestAsync).not.toHaveBeenCalled();
+		await waitFor(() => expect(createRequestAsync).toHaveBeenCalledTimes(1));
+		expect(createRequestAsync).toHaveBeenCalledWith(
+			expect.objectContaining({
+				description: "Workshop snacks",
+			}),
+		);
 	});
 
-	it("displays existing requests", () => {
+	it("displays existing requests as dated rows with type and status badges", () => {
 		hookState.requests = [
 			{
 				id: "request-1",
@@ -250,14 +284,58 @@ describe("ReimbursementPage", () => {
 				payment_status: "to_be_paid",
 				receipt_filename: "invoice.pdf",
 			},
+			{
+				id: "request-2",
+				user_id: "user-123",
+				amount: 35,
+				date: "2026-04-20",
+				description: "Taxi ride",
+				department: "Community",
+				submission_type: "reimbursement",
+				status: "requested",
+				approval_status: "approved",
+				payment_status: "to_be_paid",
+				receipt_filename: "taxi.pdf",
+			},
 		];
 
 		renderPage();
 
-		expect(screen.getByText("Workshop catering")).toBeInTheDocument();
-		expect(screen.getByText(/legal & finance/i)).toBeInTheDocument();
+		expect(
+			screen.queryByRole("heading", { name: "Workshop catering" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("heading", { name: "Taxi ride" }),
+		).not.toBeInTheDocument();
+		expect(screen.queryByText(/legal & finance/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/community/i)).not.toBeInTheDocument();
+		expect(screen.getByText("Invoice request")).toBeInTheDocument();
+		expect(screen.getByText("Reimbursement request")).toBeInTheDocument();
+		expect(screen.getByText("Pending")).toBeInTheDocument();
+		expect(screen.getByText("Approved")).toBeInTheDocument();
 		expect(screen.getByText(/invoice\.pdf/i)).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "Invoice" })).toBeInTheDocument();
-		expect(screen.getByText(/pending/i)).toBeInTheDocument();
+		expect(screen.getByText("Taxi ride")).toBeInTheDocument();
+		expect(
+			screen
+				.getByText("20 Apr 2026")
+				.compareDocumentPosition(screen.getByText("14 Apr 2026")) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+	});
+
+	it("uses local finance copy and a receipt-first upload without a redundant receipt heading", () => {
+		renderPage();
+
+		expect(
+			screen.getByText(
+				/submit reimbursements or vendor invoices to the legal and finance department/i,
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("heading", { name: /^receipt$/i }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /attach receipt/i }),
+		).toBeVisible();
 	});
 });

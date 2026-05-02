@@ -128,7 +128,7 @@ describe("Reimbursement Routes", async () => {
 			}
 		});
 
-		test("allows invoices without payout bank details", async () => {
+		test("creates invoice requests with payout bank details", async () => {
 			resetDatabase();
 
 			const response = await app.inject({
@@ -144,6 +144,8 @@ describe("Reimbursement Routes", async () => {
 					description: "External vendor invoice for workshop catering",
 					department: "Legal & Finance",
 					submission_type: "invoice",
+					payment_iban: "DE89370400440532013000",
+					payment_bic: "COBADEFFXXX",
 					receipt_filename: "invoice.pdf",
 					receipt_mime_type: "application/pdf",
 					receipt_base64: PDF_BASE64,
@@ -153,9 +155,43 @@ describe("Reimbursement Routes", async () => {
 			assert.strictEqual(response.statusCode, 201);
 			const data = JSON.parse(response.payload);
 			assert.strictEqual(data.submission_type, "invoice");
+			const stored = mockDatabase.reimbursements.find(
+				(row) => row.id === data.id,
+			);
+			assert.match(String(stored?.payment_iban), /^enc-v1:/);
+			assert.match(String(stored?.payment_bic), /^enc-v1:/);
 		});
 
-		test("rejects reimbursement requests without payout bank details", async () => {
+		test("accepts concise request descriptions", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					amount: 32,
+					date: "2026-04-14",
+					description: "Workshop snacks",
+					department: "Community",
+					submission_type: "reimbursement",
+					payment_iban: "DE89370400440532013000",
+					payment_bic: "COBADEFFXXX",
+					receipt_filename: "receipt.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_base64: PDF_BASE64,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 201);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.description, "Workshop snacks");
+		});
+
+		test("rejects requests without payout bank details", async () => {
 			resetDatabase();
 
 			const response = await app.inject({
@@ -170,7 +206,10 @@ describe("Reimbursement Routes", async () => {
 					date: "2026-04-14",
 					description: "Workshop supplies",
 					department: "Community",
-					submission_type: "reimbursement",
+					submission_type: "invoice",
+					receipt_filename: "invoice.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_base64: PDF_BASE64,
 				}),
 			});
 
@@ -195,6 +234,8 @@ describe("Reimbursement Routes", async () => {
 					description: "Workshop supplies",
 					department: "Community",
 					submission_type: "invoice",
+					payment_iban: "DE89370400440532013000",
+					payment_bic: "COBADEFFXXX",
 				}),
 			});
 
@@ -219,6 +260,8 @@ describe("Reimbursement Routes", async () => {
 					description: "Vendor invoice for demo workshop materials",
 					department: "Legal & Finance",
 					submission_type: "invoice",
+					payment_iban: "DE89370400440532013000",
+					payment_bic: "COBADEFFXXX",
 					receipt_filename: "invoice.pdf",
 					receipt_mime_type: "application/pdf",
 					receipt_base64: `data:application/pdf;base64,${PDF_BASE64}`,
@@ -389,6 +432,29 @@ describe("Reimbursement Routes", async () => {
 			assert.match(data.error, /OPENAI_API_KEY/i);
 		});
 
+		test("accepts receipt payloads above Fastify's default body limit", async () => {
+			resetDatabase();
+			delete process.env.OPENAI_API_KEY;
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements/parse-receipt",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					receipt_filename: "receipt.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_base64: "A".repeat(1_200_000),
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 503);
+			const data = JSON.parse(response.payload);
+			assert.match(data.error, /OPENAI_API_KEY/i);
+		});
+
 		test("rejects unauthenticated parse requests", async () => {
 			resetDatabase();
 
@@ -465,6 +531,35 @@ describe("Reimbursement Routes", async () => {
 						"/api/reimbursements/review/other-user-reimbursement/receipt?download=1",
 				},
 			);
+		});
+
+		test("does not show requester bank name when request payout details differ", async () => {
+			resetDatabase();
+			const request = mockDatabase.reimbursements.find(
+				(row) => row.id === "reimbursement-older",
+			);
+			if (request) {
+				request.payment_iban = "DE12500105170648489890";
+				request.payment_bic = "INGDDEFFXXX";
+			}
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/review",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			const reviewedRequest = data.find(
+				(row: { id: string }) => row.id === "reimbursement-older",
+			);
+			assert.strictEqual(reviewedRequest.bank_name, null);
+			assert.strictEqual(
+				reviewedRequest.payment_iban,
+				"DE12500105170648489890",
+			);
+			assert.strictEqual(reviewedRequest.payment_bic, "INGDDEFFXXX");
 		});
 
 		test("lets reviewers view and download receipt files", async () => {

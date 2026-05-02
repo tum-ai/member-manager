@@ -11,9 +11,12 @@ import { reimbursementRoutes } from "./routes/reimbursements.js";
 import { researchProjectRoutes } from "./routes/researchProjects.js";
 import { sepaRoutes } from "./routes/sepa.js";
 
+const API_BODY_LIMIT_BYTES = 20 * 1024 * 1024;
+
 export const buildApp = async (): Promise<FastifyInstance> => {
 	const server = Fastify({
 		logger: true,
+		bodyLimit: API_BODY_LIMIT_BYTES,
 	});
 
 	// Plugins

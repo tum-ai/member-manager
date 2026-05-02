@@ -13,6 +13,7 @@ import {
 	decryptRecordSafely,
 	encryptRecord,
 	SENSITIVE_REIMBURSEMENT_FIELDS,
+	SENSITIVE_SEPA_FIELDS,
 } from "../lib/sensitiveData.js";
 import {
 	notifyFinanceOfReimbursementRequest,
@@ -77,10 +78,6 @@ function isValidDate(dateString: string): boolean {
 	}
 
 	return date.toISOString().slice(0, 10) === dateString;
-}
-
-function countWords(value: string): number {
-	return value.trim().split(/\s+/).filter(Boolean).length;
 }
 
 function validateOptionalIban(value: string | null | undefined): string | null {
@@ -191,15 +188,7 @@ const CreateReimbursementSchema = z
 	.object({
 		amount: z.number().positive("Amount must be positive"),
 		date: z.string().refine(isValidDate, "Invalid date"),
-		description: z
-			.string()
-			.trim()
-			.min(1)
-			.max(1000)
-			.refine(
-				(value) => countWords(value) >= 5,
-				"Description must be at least five words",
-			),
+		description: z.string().trim().min(1).max(1000),
 		department: z.string().trim().min(1).max(120),
 		submission_type: z
 			.enum(["reimbursement", "invoice"])
@@ -223,21 +212,19 @@ const CreateReimbursementSchema = z
 			});
 		}
 
-		if (body.submission_type === "reimbursement") {
-			if (!body.payment_iban) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: "IBAN is required for reimbursement requests",
-					path: ["payment_iban"],
-				});
-			}
-			if (!body.payment_bic) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: "BIC is required for reimbursement requests",
-					path: ["payment_bic"],
-				});
-			}
+		if (!body.payment_iban) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "IBAN is required for reimbursement and invoice requests",
+				path: ["payment_iban"],
+			});
+		}
+		if (!body.payment_bic) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "BIC is required for reimbursement and invoice requests",
+				path: ["payment_bic"],
+			});
 		}
 
 		if (body.receipt_base64) {
@@ -367,6 +354,33 @@ function getRequesterName(row: ReimbursementRow): string | null {
 	return fullName || null;
 }
 
+function normalizeComparableIban(value: unknown): string | null {
+	const normalized = normalizeMaybeString(value);
+	if (!normalized) return null;
+	return electronicFormatIBAN(normalized) ?? normalized.replace(/\s/g, "");
+}
+
+function isSamePaymentAccount(
+	request: ReimbursementRow,
+	sepa: ReimbursementRow | undefined,
+): boolean {
+	if (!sepa) return false;
+
+	const requestIban = normalizeComparableIban(request.payment_iban);
+	const sepaIban = normalizeComparableIban(sepa.iban);
+	const requestBic = normalizeMaybeString(request.payment_bic)?.toUpperCase();
+	const sepaBic = normalizeMaybeString(sepa.bic)?.toUpperCase();
+
+	return Boolean(
+		requestIban &&
+			sepaIban &&
+			requestIban === sepaIban &&
+			requestBic &&
+			sepaBic &&
+			requestBic === sepaBic,
+	);
+}
+
 async function hydrateReviewerRows(
 	rows: ReimbursementRow[],
 ): Promise<ReimbursementRow[]> {
@@ -389,7 +403,7 @@ async function hydrateReviewerRows(
 		userIds.length
 			? getSupabase()
 					.from("sepa")
-					.select("user_id, bank_name")
+					.select("user_id, iban, bic, bank_name")
 					.in("user_id", userIds)
 			: Promise.resolve({ data: [], error: null }),
 	]);
@@ -400,21 +414,24 @@ async function hydrateReviewerRows(
 			row,
 		]),
 	);
-	const bankByUserId = new Map(
-		((sepaResult.data ?? []) as ReimbursementRow[]).map((row) => [
-			String(row.user_id),
-			normalizeMaybeString(row.bank_name),
-		]),
+	const sepaByUserId = new Map(
+		((sepaResult.data ?? []) as ReimbursementRow[]).map((row) => {
+			const decrypted = decryptRecordSafely(row, SENSITIVE_SEPA_FIELDS);
+			return [String(decrypted.user_id), decrypted];
+		}),
 	);
 
 	return rows.map((row) => {
 		const userId = String(row.user_id ?? "");
 		const member = membersByUserId.get(userId);
+		const sepa = sepaByUserId.get(userId);
 		return {
 			...row,
 			requester_name: member ? getRequesterName(member) : null,
 			requester_email: authEmails.get(userId) ?? null,
-			bank_name: bankByUserId.get(userId) ?? null,
+			bank_name: isSamePaymentAccount(row, sepa)
+				? normalizeMaybeString(sepa?.bank_name)
+				: null,
 		};
 	});
 }
@@ -953,7 +970,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					department: body.department.trim(),
 					submission_type: body.submission_type,
 					payment_iban: paymentIban,
-					payment_bic: body.payment_bic?.trim() || null,
+					payment_bic: body.payment_bic?.trim(),
 					receipt_filename: body.receipt_filename?.trim() || null,
 					receipt_mime_type: body.receipt_mime_type?.trim() || null,
 					receipt_base64: body.receipt_base64

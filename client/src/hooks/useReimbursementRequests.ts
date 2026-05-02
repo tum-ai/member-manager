@@ -121,11 +121,12 @@ async function apiBlobClient(
 		data: { session },
 	} = await supabase.auth.getSession();
 	const token = session?.access_token;
+	const hasBody = options.body !== undefined && options.body !== null;
 
 	const response = await fetch(endpoint, {
 		...options,
 		headers: {
-			"Content-Type": "application/json",
+			...(hasBody ? { "Content-Type": "application/json" } : {}),
 			...(token ? { Authorization: `Bearer ${token}` } : {}),
 			...options.headers,
 		},

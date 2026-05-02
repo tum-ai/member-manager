@@ -1,7 +1,16 @@
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import PaidIcon from "@mui/icons-material/Paid";
-import { Button, Stack, TextField } from "@mui/material";
+import {
+	Button,
+	FormControl,
+	InputLabel,
+	MenuItem,
+	Select,
+	Stack,
+	TextField,
+} from "@mui/material";
 import type React from "react";
+import { useEffect, useState } from "react";
 import type {
 	ReimbursementRequest,
 	ReimbursementReviewAction,
@@ -27,52 +36,77 @@ export default function ReimbursementReviewActions({
 	const canApprove = request.approval_status === "pending";
 	const canMarkPaid =
 		request.approval_status === "approved" && request.payment_status !== "paid";
+	const availableActions: ReimbursementReviewAction[] = canApprove
+		? ["approve", "reject"]
+		: canMarkPaid
+			? ["mark_paid"]
+			: [];
+	const [selectedAction, setSelectedAction] = useState<
+		ReimbursementReviewAction | ""
+	>(availableActions[0] ?? "");
+
+	useEffect(() => {
+		setSelectedAction(availableActions[0] ?? "");
+	}, [availableActions[0]]);
 
 	if (!canApprove && !canMarkPaid) return null;
 
-	if (canApprove) {
-		return (
-			<Stack spacing={1.25} sx={{ mt: compact ? 0 : 1 }}>
+	const actionIcon =
+		selectedAction === "mark_paid" ? <PaidIcon /> : <CheckCircleIcon />;
+	const actionDisabled =
+		isReviewing ||
+		!selectedAction ||
+		(selectedAction === "reject" && rejectionReason.trim() === "");
+
+	return (
+		<Stack
+			spacing={1.25}
+			sx={{
+				mt: compact ? 0 : 1,
+				maxWidth: compact ? 260 : 420,
+			}}
+		>
+			<FormControl size="small" fullWidth>
+				<InputLabel id={`review-action-${request.id}`}>Action</InputLabel>
+				<Select
+					labelId={`review-action-${request.id}`}
+					label="Action"
+					value={selectedAction}
+					onChange={(event) =>
+						setSelectedAction(event.target.value as ReimbursementReviewAction)
+					}
+				>
+					{availableActions.includes("approve") && (
+						<MenuItem value="approve">Approve</MenuItem>
+					)}
+					{availableActions.includes("reject") && (
+						<MenuItem value="reject">Reject</MenuItem>
+					)}
+					{availableActions.includes("mark_paid") && (
+						<MenuItem value="mark_paid">Mark paid</MenuItem>
+					)}
+				</Select>
+			</FormControl>
+			{selectedAction === "reject" && (
 				<TextField
 					label="Rejection reason"
 					value={rejectionReason}
 					onChange={(event) => onReasonChange(event.target.value)}
 					size="small"
-					placeholder="Required only when rejecting"
+					placeholder="Required for rejection"
+					multiline
+					minRows={2}
 				/>
-				<Stack direction={{ xs: "column", sm: "row" }} spacing={1}>
-					<Button
-						variant="contained"
-						startIcon={<CheckCircleIcon />}
-						disabled={isReviewing}
-						onClick={() => onReview("approve")}
-						size={compact ? "small" : "medium"}
-					>
-						Approve
-					</Button>
-					<Button
-						variant="outlined"
-						color="error"
-						disabled={isReviewing || rejectionReason.trim() === ""}
-						onClick={() => onReview("reject")}
-						size={compact ? "small" : "medium"}
-					>
-						Reject
-					</Button>
-				</Stack>
-			</Stack>
-		);
-	}
-
-	return (
-		<Button
-			variant="contained"
-			startIcon={<PaidIcon />}
-			disabled={isReviewing}
-			onClick={() => onReview("mark_paid")}
-			size={compact ? "small" : "medium"}
-		>
-			Mark paid
-		</Button>
+			)}
+			<Button
+				variant="contained"
+				startIcon={actionIcon}
+				disabled={actionDisabled}
+				onClick={() => selectedAction && onReview(selectedAction)}
+				size={compact ? "small" : "medium"}
+			>
+				Apply action
+			</Button>
+		</Stack>
 	);
 }

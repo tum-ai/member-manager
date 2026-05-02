@@ -45,10 +45,25 @@ interface AuthProps {
 	onToggleColorMode: () => void;
 }
 
+function isLocalSupabaseProject(): boolean {
+	try {
+		const supabaseUrl = new URL(import.meta.env.VITE_SUPABASE_URL);
+		return (
+			import.meta.env.DEV &&
+			(supabaseUrl.hostname === "127.0.0.1" ||
+				supabaseUrl.hostname === "localhost")
+		);
+	} catch {
+		return false;
+	}
+}
+
 export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 	const [message, setMessage] = useState("");
+	const [isSigningInLocalAdmin, setIsSigningInLocalAdmin] = useState(false);
 
 	const theme = useTheme();
+	const showLocalAdminLogin = isLocalSupabaseProject();
 
 	const signInWithSlack = async () => {
 		const { error } = await supabase.auth.signInWithOAuth({
@@ -66,6 +81,23 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 			console.error("Slack error:", error.message);
 			setMessage(`Slack error: ${error.message}`);
 			return;
+		}
+	};
+
+	const signInWithLocalAdmin = async () => {
+		setMessage("");
+		setIsSigningInLocalAdmin(true);
+
+		const { error } = await supabase.auth.signInWithPassword({
+			email: "admin@example.com",
+			password: "password123",
+		});
+
+		setIsSigningInLocalAdmin(false);
+
+		if (error) {
+			console.error("Local admin login error:", error.message);
+			setMessage(`Local admin login error: ${error.message}`);
 		}
 	};
 
@@ -170,6 +202,20 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 				>
 					Continue with Slack
 				</Button>
+				{showLocalAdminLogin && (
+					<Button
+						variant="outlined"
+						color="primary"
+						onClick={signInWithLocalAdmin}
+						disabled={isSigningInLocalAdmin}
+						fullWidth
+						sx={{ height: 48 }}
+					>
+						{isSigningInLocalAdmin
+							? "Signing in..."
+							: "Continue as local admin"}
+					</Button>
+				)}
 
 				{message && (
 					<Typography

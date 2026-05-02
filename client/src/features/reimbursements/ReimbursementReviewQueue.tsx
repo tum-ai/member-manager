@@ -1,22 +1,18 @@
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import {
+	Accordion,
+	AccordionDetails,
+	AccordionSummary,
 	Alert,
-	alpha,
 	Box,
-	CardContent,
 	Checkbox,
 	Chip,
+	Divider,
 	Link,
 	Stack,
-	Table,
-	TableBody,
-	TableCell,
-	TableContainer,
-	TableHead,
-	TableRow,
 	Typography,
-	useTheme,
 } from "@mui/material";
 import type React from "react";
 import GlassCard from "../../components/ui/GlassCard";
@@ -28,7 +24,6 @@ import ReimbursementReviewActions from "./ReimbursementReviewActions";
 import {
 	formatReviewAmount,
 	formatReviewDate,
-	formatReviewStatus,
 	getBankName,
 	getPaymentBic,
 	getPaymentIban,
@@ -78,24 +73,21 @@ export default function ReimbursementReviewQueue({
 
 	return (
 		<Stack spacing={2}>
-			<ReviewTable
-				requests={requests}
-				selectedIds={selectedIds}
-				onSelectionChange={onSelectionChange}
-				isReviewing={isReviewing}
-				rejectionReasons={rejectionReasons}
-				onReasonChange={onReasonChange}
-				onReview={onReview}
-				hasBulkDownload={hasBulkDownload}
-				onReceiptOpen={onReceiptOpen}
-			/>
-			<Box sx={{ display: { xs: "grid", lg: "none" }, gap: 1.5 }}>
+			<Box
+				sx={{
+					display: "grid",
+					gap: 1.25,
+				}}
+			>
 				{requests.map((request) => (
-					<ReviewCard
+					<ReviewItem
 						key={request.id}
 						request={request}
+						selected={selectedIds.has(request.id)}
+						hasBulkDownload={hasBulkDownload}
 						isReviewing={isReviewing}
 						rejectionReason={rejectionReasons[request.id] ?? ""}
+						onSelectionChange={onSelectionChange}
 						onReasonChange={(reason) => onReasonChange(request.id, reason)}
 						onReview={(action) => onReview(request.id, action)}
 						onReceiptOpen={(mode) => onReceiptOpen(request, mode)}
@@ -106,65 +98,7 @@ export default function ReimbursementReviewQueue({
 	);
 }
 
-function ReviewTable({
-	requests,
-	selectedIds,
-	onSelectionChange,
-	isReviewing,
-	rejectionReasons,
-	onReasonChange,
-	onReview,
-	hasBulkDownload,
-	onReceiptOpen,
-}: ReimbursementReviewQueueProps): React.ReactElement {
-	const theme = useTheme();
-
-	return (
-		<GlassCard variant="elevated" sx={{ display: { xs: "none", lg: "block" } }}>
-			<TableContainer>
-				<Table size="small" sx={{ minWidth: 1420 }}>
-					<TableHead>
-						<TableRow>
-							<TableCell padding="checkbox">Select</TableCell>
-							<TableCell>Type</TableCell>
-							<TableCell>Status</TableCell>
-							<TableCell>Department</TableCell>
-							<TableCell>Requester</TableCell>
-							<TableCell>Email</TableCell>
-							<TableCell>Bank</TableCell>
-							<TableCell>IBAN</TableCell>
-							<TableCell>BIC</TableCell>
-							<TableCell>Date</TableCell>
-							<TableCell>Description</TableCell>
-							<TableCell align="right">Amount</TableCell>
-							<TableCell>Receipt</TableCell>
-							<TableCell>Action</TableCell>
-						</TableRow>
-					</TableHead>
-					<TableBody>
-						{requests.map((request) => (
-							<ReviewTableRow
-								key={request.id}
-								request={request}
-								selected={selectedIds.has(request.id)}
-								hasBulkDownload={hasBulkDownload}
-								isReviewing={isReviewing}
-								rejectionReason={rejectionReasons[request.id] ?? ""}
-								onSelectionChange={onSelectionChange}
-								onReasonChange={(reason) => onReasonChange(request.id, reason)}
-								onReview={(action) => onReview(request.id, action)}
-								onReceiptOpen={(mode) => onReceiptOpen(request, mode)}
-								rowBorder={alpha(theme.palette.divider, 0.86)}
-							/>
-						))}
-					</TableBody>
-				</Table>
-			</TableContainer>
-		</GlassCard>
-	);
-}
-
-interface ReviewTableRowProps {
+interface ReviewItemProps {
 	request: ReimbursementRequest;
 	selected: boolean;
 	hasBulkDownload: boolean;
@@ -174,10 +108,9 @@ interface ReviewTableRowProps {
 	onReasonChange: (reason: string) => void;
 	onReview: (action: ReimbursementReviewAction) => Promise<void>;
 	onReceiptOpen: (mode: "view" | "download") => Promise<void>;
-	rowBorder: string;
 }
 
-function ReviewTableRow({
+function ReviewItem({
 	request,
 	selected,
 	hasBulkDownload,
@@ -187,201 +120,202 @@ function ReviewTableRow({
 	onReasonChange,
 	onReview,
 	onReceiptOpen,
-	rowBorder,
-}: ReviewTableRowProps): React.ReactElement {
+}: ReviewItemProps): React.ReactElement {
 	const requesterName = getRequesterName(request);
 	const selectable =
 		hasBulkDownload &&
 		Boolean(request.receipt_filename) &&
 		hasReceiptEndpoint(request);
+	const typeLabel =
+		request.submission_type === "invoice" ? "Invoice" : "Reimbursement";
 
 	return (
-		<TableRow
-			hover
-			sx={{
-				"& td": {
-					borderBottom: `1px solid ${rowBorder}`,
-				},
-			}}
-		>
-			<TableCell padding="checkbox">
-				<Checkbox
-					checked={selected}
-					disabled={!selectable}
-					onChange={(event) =>
-						onSelectionChange(request.id, event.target.checked)
-					}
-					inputProps={{
-						"aria-label": `Select request from ${requesterName}`,
-					}}
-				/>
-			</TableCell>
-			<TableCell>
-				<Chip
-					size="small"
-					label={
-						request.submission_type === "invoice" ? "Invoice" : "Reimbursement"
-					}
-					variant="outlined"
-				/>
-			</TableCell>
-			<TableCell>
-				<StatusStack request={request} />
-			</TableCell>
-			<TableCell>{request.department}</TableCell>
-			<TableCell sx={{ fontWeight: 700 }}>{requesterName}</TableCell>
-			<TableCell>{getRequesterEmail(request)}</TableCell>
-			<TableCell>{getBankName(request)}</TableCell>
-			<TableCell sx={{ fontFamily: "monospace" }}>
-				{getPaymentIban(request)}
-			</TableCell>
-			<TableCell sx={{ fontFamily: "monospace" }}>
-				{getPaymentBic(request)}
-			</TableCell>
-			<TableCell>{formatReviewDate(request.date)}</TableCell>
-			<TableCell sx={{ maxWidth: 260 }}>
-				<Typography
-					variant="body2"
-					title={request.description}
+		<GlassCard sx={{ overflow: "hidden" }}>
+			<Accordion
+				disableGutters
+				elevation={0}
+				sx={{
+					bgcolor: "transparent",
+					"&:before": { display: "none" },
+				}}
+			>
+				<AccordionSummary
+					expandIcon={<ExpandMoreIcon />}
 					sx={{
-						overflow: "hidden",
-						textOverflow: "ellipsis",
-						whiteSpace: "nowrap",
+						alignItems: "flex-start",
+						px: { xs: 1.5, md: 2.25 },
+						py: 1,
+						"& .MuiAccordionSummary-content": {
+							my: 0,
+							minWidth: 0,
+						},
 					}}
 				>
-					{request.description}
-				</Typography>
-			</TableCell>
-			<TableCell align="right" sx={{ fontWeight: 700 }}>
-				{formatReviewAmount(request.amount)}
-			</TableCell>
-			<TableCell>
-				<ReceiptLinks request={request} onReceiptOpen={onReceiptOpen} />
-			</TableCell>
-			<TableCell sx={{ minWidth: 220 }}>
-				<ReimbursementReviewActions
-					request={request}
-					isReviewing={isReviewing}
-					rejectionReason={rejectionReason}
-					onReasonChange={onReasonChange}
-					onReview={onReview}
-					compact
-				/>
-			</TableCell>
-		</TableRow>
-	);
-}
-
-interface ReviewCardProps {
-	request: ReimbursementRequest;
-	isReviewing: boolean;
-	rejectionReason: string;
-	onReasonChange: (reason: string) => void;
-	onReview: (action: ReimbursementReviewAction) => Promise<void>;
-	onReceiptOpen: (mode: "view" | "download") => Promise<void>;
-}
-
-function ReviewCard({
-	request,
-	isReviewing,
-	rejectionReason,
-	onReasonChange,
-	onReview,
-	onReceiptOpen,
-}: ReviewCardProps): React.ReactElement {
-	const requesterName = getRequesterName(request);
-
-	return (
-		<GlassCard>
-			<CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
-				<Stack spacing={2}>
 					<Stack
-						direction={{ xs: "column", md: "row" }}
-						spacing={2}
-						justifyContent="space-between"
+						direction={{ xs: "column", lg: "row" }}
+						spacing={{ xs: 1.25, lg: 2 }}
+						alignItems={{ xs: "stretch", lg: "center" }}
+						sx={{ width: "100%", minWidth: 0, pr: 1 }}
 					>
-						<Box sx={{ minWidth: 0 }}>
-							<Stack
-								direction="row"
-								spacing={1}
-								alignItems="center"
-								flexWrap="wrap"
-								useFlexGap
-								sx={{ mb: 1 }}
-							>
-								<StatusStack request={request} />
-								<Chip
-									label={request.department}
-									size="small"
-									variant="outlined"
+						<Stack
+							direction="row"
+							spacing={1}
+							alignItems="flex-start"
+							sx={{ minWidth: 0, flex: "1 1 auto" }}
+						>
+							{hasBulkDownload && (
+								<Checkbox
+									checked={selected}
+									disabled={!selectable}
+									onClick={(event) => event.stopPropagation()}
+									onFocus={(event) => event.stopPropagation()}
+									onChange={(event) =>
+										onSelectionChange(request.id, event.target.checked)
+									}
+									inputProps={{
+										"aria-label": `Select receipt from ${requesterName}`,
+									}}
+									sx={{ mt: -0.75, ml: -1 }}
 								/>
-							</Stack>
-							<Typography variant="h6" sx={{ mb: 0.5 }}>
+							)}
+							<Box sx={{ minWidth: 0 }}>
+								<Stack
+									direction="row"
+									spacing={0.75}
+									alignItems="center"
+									flexWrap="wrap"
+									useFlexGap
+									sx={{ mb: 0.75 }}
+								>
+									<Chip label={getReviewStage(request)} size="small" />
+									<Chip label={typeLabel} size="small" variant="outlined" />
+									<Chip
+										label={request.department}
+										size="small"
+										variant="outlined"
+									/>
+								</Stack>
+								<Typography
+									variant="subtitle1"
+									fontWeight={700}
+									sx={{ overflowWrap: "anywhere" }}
+								>
+									{request.description}
+								</Typography>
+								<Typography variant="body2" color="text.secondary">
+									{requesterName} · {formatReviewDate(request.date)}
+								</Typography>
+							</Box>
+						</Stack>
+
+						<Stack
+							direction="row"
+							spacing={2}
+							alignItems="center"
+							justifyContent="flex-end"
+							sx={{
+								flex: { xs: "1 1 auto", lg: "0 0 auto" },
+								minWidth: { lg: 120 },
+							}}
+						>
+							<Typography
+								variant="h6"
+								fontWeight={800}
+								sx={{ whiteSpace: "nowrap" }}
+							>
+								{formatReviewAmount(request.amount)}
+							</Typography>
+						</Stack>
+					</Stack>
+				</AccordionSummary>
+
+				<AccordionDetails sx={{ px: { xs: 2, md: 3 }, pt: 0, pb: 3 }}>
+					<Divider sx={{ mb: 2 }} />
+					<Stack spacing={2.25}>
+						<Box
+							sx={{
+								display: "grid",
+								gridTemplateColumns: {
+									xs: "1fr",
+									md: "1fr 1fr",
+									xl: "1.1fr 1.4fr 1fr",
+								},
+								gap: 2,
+							}}
+						>
+							<DetailGroup title="Requester">
+								<Detail label="Name" value={requesterName} strong />
+								<Detail label="Email" value={getRequesterEmail(request)} />
+								<Detail label="Department" value={request.department} />
+							</DetailGroup>
+
+							<DetailGroup title="Payment">
+								<Detail label="Bank" value={getBankName(request)} />
+								<Detail
+									label="IBAN"
+									value={getPaymentIban(request)}
+									monospace
+								/>
+								<Detail label="BIC" value={getPaymentBic(request)} monospace />
+							</DetailGroup>
+
+							<DetailGroup title="Receipt">
+								<Detail
+									label="File"
+									value={request.receipt_filename ?? "No file"}
+								/>
+								<ReceiptLinks request={request} onReceiptOpen={onReceiptOpen} />
+							</DetailGroup>
+						</Box>
+
+						<Box>
+							<Typography
+								variant="caption"
+								color="text.secondary"
+								sx={{ display: "block", mb: 0.5 }}
+							>
+								Description
+							</Typography>
+							<Typography sx={{ overflowWrap: "anywhere" }}>
 								{request.description}
 							</Typography>
-							<Typography color="text.secondary">
-								{request.submission_type === "invoice"
-									? "Invoice"
-									: "Reimbursement"}{" "}
-								· {formatReviewDate(request.date)}
-							</Typography>
 						</Box>
-						<Typography variant="h5" sx={{ whiteSpace: "nowrap" }}>
-							{formatReviewAmount(request.amount)}
-						</Typography>
-					</Stack>
 
-					<Box
-						sx={{
-							display: "grid",
-							gridTemplateColumns: { xs: "1fr", sm: "repeat(2, 1fr)" },
-							gap: 1.25,
-						}}
-					>
-						<Detail label="Requester" value={requesterName} strong />
-						<Detail label="Email" value={getRequesterEmail(request)} />
-						<Detail label="Bank" value={getBankName(request)} />
-						<Detail label="IBAN" value={getPaymentIban(request)} monospace />
-						<Detail label="BIC" value={getPaymentBic(request)} monospace />
-						<Detail
-							label="Receipt"
-							value={request.receipt_filename ?? "No file"}
+						<ReimbursementReviewActions
+							request={request}
+							isReviewing={isReviewing}
+							rejectionReason={rejectionReason}
+							onReasonChange={onReasonChange}
+							onReview={onReview}
 						/>
-					</Box>
-
-					<ReceiptLinks request={request} onReceiptOpen={onReceiptOpen} />
-					<ReimbursementReviewActions
-						request={request}
-						isReviewing={isReviewing}
-						rejectionReason={rejectionReason}
-						onReasonChange={onReasonChange}
-						onReview={onReview}
-					/>
-				</Stack>
-			</CardContent>
+					</Stack>
+				</AccordionDetails>
+			</Accordion>
 		</GlassCard>
 	);
 }
 
-function StatusStack({
-	request,
+function DetailGroup({
+	title,
+	children,
 }: {
-	request: ReimbursementRequest;
+	title: string;
+	children: React.ReactNode;
 }): React.ReactElement {
 	return (
-		<Stack direction="row" spacing={0.75} flexWrap="wrap" useFlexGap>
-			<Chip label={getReviewStage(request)} size="small" />
-			<Chip
-				label={formatReviewStatus(request.approval_status)}
-				size="small"
-				variant="outlined"
-			/>
-			<Chip
-				label={formatReviewStatus(request.payment_status)}
-				size="small"
-				variant="outlined"
-			/>
-		</Stack>
+		<Box
+			sx={{
+				display: "grid",
+				alignContent: "start",
+				gap: 1,
+				minWidth: 0,
+			}}
+		>
+			<Typography variant="subtitle2" fontWeight={800}>
+				{title}
+			</Typography>
+			{children}
+		</Box>
 	);
 }
 

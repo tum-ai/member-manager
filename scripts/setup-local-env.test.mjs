@@ -90,6 +90,8 @@ test("buildServerEnv wires server vars and uses fallback encryption key", () => 
 		env,
 		/^CORS_ORIGIN=http:\/\/localhost:5173,http:\/\/127\.0\.0\.1:5173$/m,
 	);
+	assert.match(env, /^ENABLE_LOCAL_ADMIN_BOOTSTRAP=true$/m);
+	assert.match(env, /^LOCAL_ADMIN_EMAILS=admin@example\.com,user@example\.com$/m);
 });
 
 test("buildServerEnv reuses an existing FIELD_ENCRYPTION_KEY when provided", () => {
@@ -111,7 +113,10 @@ test("buildServerEnv preserves LOCAL_ADMIN_EMAILS when already configured", () =
 			"FIELD_ENCRYPTION_KEY=reused-secret-from-previous-run\nLOCAL_ADMIN_EMAILS=jakob.friedrich05@gmail.com\n",
 	});
 
-	assert.match(env, /^LOCAL_ADMIN_EMAILS=jakob\.friedrich05@gmail\.com$/m);
+	assert.match(
+		env,
+		/^LOCAL_ADMIN_EMAILS=admin@example\.com,user@example\.com,jakob\.friedrich05@gmail\.com$/m,
+	);
 });
 
 test("buildServerEnv preserves ENABLE_LOCAL_ADMIN_BOOTSTRAP when configured", () => {
@@ -123,6 +128,27 @@ test("buildServerEnv preserves ENABLE_LOCAL_ADMIN_BOOTSTRAP when configured", ()
 	});
 
 	assert.match(env, /^ENABLE_LOCAL_ADMIN_BOOTSTRAP=true$/m);
+});
+
+test("buildServerEnv preserves optional local server secrets", () => {
+	const env = buildServerEnv({
+		apiUrl: "http://127.0.0.1:54321",
+		serviceRoleKey: "service-abc",
+		existingEnv: [
+			"OPENAI_API_KEY=sk-local-test",
+			"SLACK_BOT_TOKEN=xoxb-local-test",
+			"APP_BASE_URL=http://localhost:5173",
+			"WEBSITE_RESEARCH_API_URL=http://localhost:3000/api/research",
+		].join("\n"),
+	});
+
+	assert.match(env, /^OPENAI_API_KEY=sk-local-test$/m);
+	assert.match(env, /^SLACK_BOT_TOKEN=xoxb-local-test$/m);
+	assert.match(env, /^APP_BASE_URL=http:\/\/localhost:5173$/m);
+	assert.match(
+		env,
+		/^WEBSITE_RESEARCH_API_URL=http:\/\/localhost:3000\/api\/research$/m,
+	);
 });
 
 test("writeEnvFiles writes client and server .env.local and is idempotent", () => {

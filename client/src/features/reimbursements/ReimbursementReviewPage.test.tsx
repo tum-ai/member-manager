@@ -1,5 +1,5 @@
 import { ThemeProvider } from "@mui/material";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,9 +46,9 @@ const {
 				description: "Cloud credits for member analytics prototype",
 				department: "Software Development",
 				submission_type: "invoice",
-				payment_iban: null,
-				payment_bic: null,
-				bank_name: null,
+				payment_iban: "DE89370400440532013000",
+				payment_bic: "COBADEFFXXX",
+				bank_name: "Commerzbank",
 				requester_name: "Noah Becker",
 				requester_email: "noah.becker@tum.ai",
 				receipt_filename: "cloud-invoice.pdf",
@@ -146,8 +146,27 @@ describe("ReimbursementReviewPage", () => {
 			screen.getAllByText("Snacks for onboarding workshop guests")[0],
 		).toBeInTheDocument();
 		expect(screen.getAllByText(/community/i)[0]).toBeInTheDocument();
+		expect(
+			screen
+				.getByRole("button", {
+					name: /cloud credits for member analytics prototype/i,
+				})
+				.compareDocumentPosition(
+					screen.getByRole("button", {
+						name: /snacks for onboarding workshop guests/i,
+					}),
+				) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 
-		await user.click(screen.getAllByRole("button", { name: /^approve$/i })[0]);
+		await user.click(
+			screen.getByRole("button", {
+				name: /snacks for onboarding workshop guests/i,
+			}),
+		);
+		expect(screen.getByRole("combobox", { name: /action/i })).toHaveTextContent(
+			"Approve",
+		);
+		await user.click(screen.getByRole("button", { name: /apply action/i }));
 
 		await waitFor(() =>
 			expect(reviewRequestAsync).toHaveBeenCalledWith({
@@ -155,6 +174,24 @@ describe("ReimbursementReviewPage", () => {
 				action: "approve",
 			}),
 		);
+	});
+
+	it("keeps finance review badges non-duplicative in collapsed rows", () => {
+		renderPage();
+
+		const pendingRequest = screen.getByRole("button", {
+			name: /snacks for onboarding workshop guests/i,
+		});
+
+		expect(within(pendingRequest).getAllByText("Needs approval")).toHaveLength(
+			1,
+		);
+		expect(
+			within(pendingRequest).queryByText("Pending"),
+		).not.toBeInTheDocument();
+		expect(
+			within(pendingRequest).queryByText("To Be Paid"),
+		).not.toBeInTheDocument();
 	});
 
 	it("shows restricted access copy when the review API denies access", () => {
@@ -214,6 +251,12 @@ describe("ReimbursementReviewPage", () => {
 		const user = userEvent.setup();
 		renderPage();
 
+		await user.click(
+			screen.getByRole("button", {
+				name: /snacks for onboarding workshop guests/i,
+			}),
+		);
+
 		expect(
 			screen.getAllByRole("link", { name: /view receipt/i })[0],
 		).toHaveAttribute("href", "/api/reimbursements/review/request-1/receipt");
@@ -235,7 +278,25 @@ describe("ReimbursementReviewPage", () => {
 		);
 
 		await user.click(
-			screen.getByRole("checkbox", { name: /select request from maya chen/i }),
+			screen.getByRole("checkbox", { name: /select receipt from maya chen/i }),
+		);
+		await user.click(
+			screen.getByRole("button", { name: /download selected receipts/i }),
+		);
+
+		await waitFor(() =>
+			expect(hookState.bulkDownloadReceiptsAsync).toHaveBeenCalledWith([
+				"request-1",
+			]),
+		);
+	});
+
+	it("keeps bulk receipt selection available in the card review layout", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		await user.click(
+			screen.getByRole("checkbox", { name: /select receipt from maya chen/i }),
 		);
 		await user.click(
 			screen.getByRole("button", { name: /download selected receipts/i }),
