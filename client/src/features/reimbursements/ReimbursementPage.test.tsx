@@ -153,6 +153,15 @@ describe("ReimbursementPage", () => {
 		);
 		expect(screen.getByLabelText(/bic/i)).toHaveValue("COBADEFFXXX");
 
+		await user.click(screen.getByRole("button", { name: /^invoice$/i }));
+		expect(screen.getByLabelText(/iban/i)).toHaveValue("");
+		expect(screen.getByLabelText(/bic/i)).toHaveValue("");
+		await user.click(screen.getByRole("button", { name: /^reimbursement$/i }));
+		expect(screen.getByLabelText(/iban/i)).toHaveValue(
+			"DE89370400440532013000",
+		);
+		expect(screen.getByLabelText(/bic/i)).toHaveValue("COBADEFFXXX");
+
 		await user.click(screen.getByLabelText(/department/i));
 		await user.click(await screen.findByRole("option", { name: "Community" }));
 
@@ -211,7 +220,7 @@ describe("ReimbursementPage", () => {
 		expect(createRequestAsync).not.toHaveBeenCalled();
 	}, 10_000);
 
-	it("submits invoices with bank details from the profile", async () => {
+	it("submits invoices with document bank details instead of profile details", async () => {
 		createRequestAsync.mockResolvedValueOnce({});
 		const user = userEvent.setup();
 		const { container } = renderPage();
@@ -219,14 +228,16 @@ describe("ReimbursementPage", () => {
 		await user.click(screen.getByRole("button", { name: /^invoice$/i }));
 		await fillBaseRequest(user);
 		await uploadReceipt(user, container);
+		await user.type(screen.getByLabelText(/iban/i), "DE12500105170648489890");
+		await user.type(screen.getByLabelText(/bic/i), "INGDDEFFXXX");
 		await user.click(screen.getByRole("button", { name: /submit request/i }));
 
 		await waitFor(() => expect(createRequestAsync).toHaveBeenCalledTimes(1));
 		expect(createRequestAsync).toHaveBeenCalledWith(
 			expect.objectContaining({
 				submission_type: "invoice",
-				payment_iban: "DE89370400440532013000",
-				payment_bic: "COBADEFFXXX",
+				payment_iban: "DE12500105170648489890",
+				payment_bic: "INGDDEFFXXX",
 				receipt_filename: "receipt.pdf",
 				receipt_mime_type: "application/pdf",
 			}),
@@ -254,7 +265,6 @@ describe("ReimbursementPage", () => {
 		const user = userEvent.setup();
 		const { container } = renderPage();
 
-		await user.click(screen.getByRole("button", { name: /^invoice$/i }));
 		await user.type(screen.getByLabelText(/amount/i), "42.50");
 		await user.type(screen.getByLabelText(/date/i), "2026-04-12");
 		await user.type(screen.getByLabelText(/description/i), "Workshop snacks");
@@ -275,7 +285,7 @@ describe("ReimbursementPage", () => {
 				id: "request-1",
 				user_id: "user-123",
 				amount: 120,
-				date: "2026-04-14",
+				date: "2026-04-20",
 				description: "Workshop catering",
 				department: "Legal & Finance",
 				submission_type: "invoice",
@@ -283,12 +293,13 @@ describe("ReimbursementPage", () => {
 				approval_status: "pending",
 				payment_status: "to_be_paid",
 				receipt_filename: "invoice.pdf",
+				created_at: "2026-04-14T10:00:00Z",
 			},
 			{
 				id: "request-2",
 				user_id: "user-123",
 				amount: 35,
-				date: "2026-04-20",
+				date: "2026-04-14",
 				description: "Taxi ride",
 				department: "Community",
 				submission_type: "reimbursement",
@@ -296,6 +307,7 @@ describe("ReimbursementPage", () => {
 				approval_status: "approved",
 				payment_status: "to_be_paid",
 				receipt_filename: "taxi.pdf",
+				created_at: "2026-04-20T10:00:00Z",
 			},
 		];
 
@@ -317,8 +329,8 @@ describe("ReimbursementPage", () => {
 		expect(screen.getByText("Taxi ride")).toBeInTheDocument();
 		expect(
 			screen
-				.getByText("20 Apr 2026")
-				.compareDocumentPosition(screen.getByText("14 Apr 2026")) &
+				.getByText("14 Apr 2026")
+				.compareDocumentPosition(screen.getByText("20 Apr 2026")) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
 	});

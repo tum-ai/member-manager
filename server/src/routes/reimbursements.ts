@@ -279,10 +279,19 @@ const BulkDownloadReceiptsSchema = z.object({
 
 const ReviewReimbursementSchema = z
 	.object({
-		action: z.enum(["approve", "reject", "mark_paid"]),
+		action: z.enum(["approve", "reject", "mark_paid"]).optional(),
 		rejection_reason: z.string().trim().max(500).optional(),
+		department: z.string().trim().min(1).max(120).optional(),
 	})
 	.superRefine((body, context) => {
+		if (!body.action && body.department === undefined) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Action or department is required",
+				path: ["action"],
+			});
+		}
+
 		if (body.action === "reject" && !body.rejection_reason) {
 			context.addIssue({
 				code: z.ZodIssueCode.custom,
@@ -291,6 +300,10 @@ const ReviewReimbursementSchema = z
 			});
 		}
 	});
+
+type ReviewReimbursementAction = NonNullable<
+	z.infer<typeof ReviewReimbursementSchema>["action"]
+>;
 
 type ReimbursementRow = Record<string, unknown>;
 
@@ -472,7 +485,7 @@ function createStatusNotificationPayload({
 	existingRequest,
 	requesterEmail,
 }: {
-	action: z.infer<typeof ReviewReimbursementSchema>["action"];
+	action: ReviewReimbursementAction;
 	existingRequest: ReimbursementRow;
 	requesterEmail: string;
 }): ReimbursementStatusSlackNotification {
@@ -898,25 +911,22 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			}
 
 			const now = new Date().toISOString();
-			const update =
-				body.action === "approve"
-					? {
-							approval_status: "approved",
-							rejection_reason: null,
-							updated_at: now,
-						}
-					: body.action === "reject"
-						? {
-								approval_status: "not_approved",
-								status: "rejected",
-								rejection_reason: body.rejection_reason,
-								updated_at: now,
-							}
-						: {
-								status: "paid",
-								payment_status: "paid",
-								updated_at: now,
-							};
+			const update: ReimbursementRow = { updated_at: now };
+			if (body.department !== undefined) {
+				update.department = body.department.trim();
+			}
+
+			if (body.action === "approve") {
+				update.approval_status = "approved";
+				update.rejection_reason = null;
+			} else if (body.action === "reject") {
+				update.approval_status = "not_approved";
+				update.status = "rejected";
+				update.rejection_reason = body.rejection_reason;
+			} else if (body.action === "mark_paid") {
+				update.status = "paid";
+				update.payment_status = "paid";
+			}
 
 			const { data, error } = await getSupabase()
 				.from("reimbursements")
@@ -931,6 +941,10 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			}
 
 			try {
+				if (!body.action) {
+					return withoutReceiptPayload(data as ReimbursementRow);
+				}
+
 				const updatedRequest = data as ReimbursementRow;
 				const requesterEmail = await getAuthEmail(
 					String(updatedRequest.user_id ?? existingRequest.user_id ?? ""),

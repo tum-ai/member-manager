@@ -50,8 +50,8 @@ function sortRequestsByDateDesc(
 	requests: ReimbursementRequest[],
 ): ReimbursementRequest[] {
 	return [...requests].sort((left, right) => {
-		const rightTime = new Date(`${right.date ?? ""}T00:00:00`).getTime();
-		const leftTime = new Date(`${left.date ?? ""}T00:00:00`).getTime();
+		const rightTime = new Date(right.created_at ?? right.date ?? "").getTime();
+		const leftTime = new Date(left.created_at ?? left.date ?? "").getTime();
 		const safeRightTime = Number.isNaN(rightTime) ? 0 : rightTime;
 		const safeLeftTime = Number.isNaN(leftTime) ? 0 : leftTime;
 
@@ -72,6 +72,8 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		isBulkDownloadingReceipts,
 		openReceiptAsync,
 		downloadReceiptAsync,
+		updateDepartmentAsync,
+		isUpdatingDepartment,
 	} = useReimbursementReview();
 	const [search, setSearch] = useState("");
 	const [departmentFilter, setDepartmentFilter] = useState(
@@ -151,6 +153,21 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		} catch (reviewError) {
 			showToast(
 				`Could not update reimbursement request: ${getErrorMessage(reviewError)}`,
+				"error",
+			);
+		}
+	};
+
+	const handleDepartmentChange = async (
+		requestId: string,
+		department: string,
+	): Promise<void> => {
+		try {
+			await updateDepartmentAsync({ requestId, department });
+			showToast("Reimbursement department updated.", "success");
+		} catch (updateError) {
+			showToast(
+				`Could not update reimbursement department: ${getErrorMessage(updateError)}`,
 				"error",
 			);
 		}
@@ -286,7 +303,9 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 							}))
 						}
 						onReview={handleReview}
+						onDepartmentChange={handleDepartmentChange}
 						hasBulkDownload={canBulkDownloadReceipts}
+						isUpdatingDepartment={isUpdatingDepartment}
 						onReceiptOpen={handleReceiptOpen}
 					/>
 				</Box>

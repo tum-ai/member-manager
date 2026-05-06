@@ -11,7 +11,9 @@ import {
 	Chip,
 	Divider,
 	Link,
+	MenuItem,
 	Stack,
+	TextField,
 	Typography,
 } from "@mui/material";
 import type React from "react";
@@ -20,6 +22,7 @@ import type {
 	ReimbursementRequest,
 	ReimbursementReviewAction,
 } from "../../hooks/useReimbursementRequests";
+import { DEPARTMENTS } from "../../lib/constants";
 import ReimbursementReviewActions from "./ReimbursementReviewActions";
 import {
 	formatReviewAmount,
@@ -45,7 +48,9 @@ interface ReimbursementReviewQueueProps {
 		requestId: string,
 		action: ReimbursementReviewAction,
 	) => Promise<void>;
+	onDepartmentChange: (requestId: string, department: string) => Promise<void>;
 	hasBulkDownload: boolean;
+	isUpdatingDepartment: boolean;
 	onReceiptOpen: (
 		request: ReimbursementRequest,
 		mode: "view" | "download",
@@ -60,7 +65,9 @@ export default function ReimbursementReviewQueue({
 	rejectionReasons,
 	onReasonChange,
 	onReview,
+	onDepartmentChange,
 	hasBulkDownload,
+	isUpdatingDepartment,
 	onReceiptOpen,
 }: ReimbursementReviewQueueProps): React.ReactElement {
 	if (requests.length === 0) {
@@ -90,7 +97,11 @@ export default function ReimbursementReviewQueue({
 						onSelectionChange={onSelectionChange}
 						onReasonChange={(reason) => onReasonChange(request.id, reason)}
 						onReview={(action) => onReview(request.id, action)}
+						onDepartmentChange={(department) =>
+							onDepartmentChange(request.id, department)
+						}
 						onReceiptOpen={(mode) => onReceiptOpen(request, mode)}
+						isUpdatingDepartment={isUpdatingDepartment}
 					/>
 				))}
 			</Box>
@@ -107,7 +118,9 @@ interface ReviewItemProps {
 	onSelectionChange: (requestId: string, checked: boolean) => void;
 	onReasonChange: (reason: string) => void;
 	onReview: (action: ReimbursementReviewAction) => Promise<void>;
+	onDepartmentChange: (department: string) => Promise<void>;
 	onReceiptOpen: (mode: "view" | "download") => Promise<void>;
+	isUpdatingDepartment: boolean;
 }
 
 function ReviewItem({
@@ -119,7 +132,9 @@ function ReviewItem({
 	onSelectionChange,
 	onReasonChange,
 	onReview,
+	onDepartmentChange,
 	onReceiptOpen,
+	isUpdatingDepartment,
 }: ReviewItemProps): React.ReactElement {
 	const requesterName = getRequesterName(request);
 	const selectable =
@@ -246,7 +261,11 @@ function ReviewItem({
 							<DetailGroup title="Requester">
 								<Detail label="Name" value={requesterName} strong />
 								<Detail label="Email" value={getRequesterEmail(request)} />
-								<Detail label="Department" value={request.department} />
+								<DepartmentEditor
+									department={request.department}
+									disabled={isUpdatingDepartment}
+									onDepartmentChange={onDepartmentChange}
+								/>
 							</DetailGroup>
 
 							<DetailGroup title="Payment">
@@ -316,6 +335,35 @@ function DetailGroup({
 			</Typography>
 			{children}
 		</Box>
+	);
+}
+
+function DepartmentEditor({
+	department,
+	disabled,
+	onDepartmentChange,
+}: {
+	department: string;
+	disabled: boolean;
+	onDepartmentChange: (department: string) => Promise<void>;
+}): React.ReactElement {
+	return (
+		<TextField
+			select
+			label="Request department"
+			value={department}
+			onChange={(event) => {
+				void onDepartmentChange(event.target.value);
+			}}
+			size="small"
+			disabled={disabled}
+		>
+			{DEPARTMENTS.map((option) => (
+				<MenuItem key={option} value={option}>
+					{option}
+				</MenuItem>
+			))}
+		</TextField>
 	);
 }
 

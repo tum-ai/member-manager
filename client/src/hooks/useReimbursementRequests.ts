@@ -88,6 +88,11 @@ export interface ReviewReimbursementRequestPayload {
 	rejection_reason?: string;
 }
 
+export interface UpdateReimbursementDepartmentPayload {
+	requestId: string;
+	department: string;
+}
+
 function normalizeReviewResponse(
 	response: ReimbursementRequest[] | ReimbursementReviewResponse | undefined,
 ): {
@@ -241,6 +246,22 @@ export function useReimbursementReview() {
 		},
 	});
 
+	const departmentMutation = useMutation({
+		mutationFn: async (payload: UpdateReimbursementDepartmentPayload) => {
+			const { requestId, department } = payload;
+			return await apiClient<ReimbursementRequest>(
+				`/api/reimbursements/review/${requestId}`,
+				{
+					method: "PATCH",
+					body: JSON.stringify({ department }),
+				},
+			);
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["reimbursement-review"] });
+		},
+	});
+
 	const bulkDownloadReceiptsMutation = useMutation({
 		mutationFn: async (requestIds: string[]) => {
 			if (!bulkDownloadUrl) {
@@ -291,5 +312,7 @@ export function useReimbursementReview() {
 		isBulkDownloadingReceipts: bulkDownloadReceiptsMutation.isPending,
 		openReceiptAsync: openReceiptMutation.mutateAsync,
 		downloadReceiptAsync: downloadReceiptMutation.mutateAsync,
+		updateDepartmentAsync: departmentMutation.mutateAsync,
+		isUpdatingDepartment: departmentMutation.isPending,
 	};
 }

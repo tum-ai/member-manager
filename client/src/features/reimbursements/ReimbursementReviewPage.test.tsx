@@ -9,10 +9,12 @@ import ReimbursementReviewPage from "./ReimbursementReviewPage";
 const {
 	hookState,
 	reviewRequestAsync,
+	updateDepartmentAsync,
 	openReceiptAsync,
 	downloadReceiptAsync,
 } = vi.hoisted(() => ({
 	reviewRequestAsync: vi.fn(),
+	updateDepartmentAsync: vi.fn(),
 	openReceiptAsync: vi.fn(),
 	downloadReceiptAsync: vi.fn(),
 	hookState: {
@@ -37,6 +39,7 @@ const {
 				status: "requested",
 				approval_status: "pending",
 				payment_status: "to_be_paid",
+				created_at: "2026-04-12T10:00:00Z",
 			},
 			{
 				id: "request-2",
@@ -58,6 +61,7 @@ const {
 				status: "requested",
 				approval_status: "approved",
 				payment_status: "to_be_paid",
+				created_at: "2026-04-18T10:00:00Z",
 			},
 			{
 				id: "request-3",
@@ -76,11 +80,13 @@ const {
 				status: "paid",
 				approval_status: "approved",
 				payment_status: "paid",
+				created_at: "2026-03-30T10:00:00Z",
 			},
 		],
 		isLoading: false,
 		error: null as Error | null,
 		isReviewing: false,
+		isUpdatingDepartment: false,
 		canBulkDownloadReceipts: true,
 		isBulkDownloadingReceipts: false,
 		bulkDownloadReceiptsAsync: vi.fn(),
@@ -99,7 +105,9 @@ vi.mock("../../hooks/useReimbursementRequests", () => ({
 		isLoading: hookState.isLoading,
 		error: hookState.error,
 		reviewRequestAsync,
+		updateDepartmentAsync,
 		isReviewing: hookState.isReviewing,
+		isUpdatingDepartment: hookState.isUpdatingDepartment,
 		canBulkDownloadReceipts: hookState.canBulkDownloadReceipts,
 		isBulkDownloadingReceipts: hookState.isBulkDownloadingReceipts,
 		bulkDownloadReceiptsAsync: hookState.bulkDownloadReceiptsAsync,
@@ -122,6 +130,8 @@ describe("ReimbursementReviewPage", () => {
 	beforeEach(() => {
 		reviewRequestAsync.mockReset();
 		reviewRequestAsync.mockResolvedValue({});
+		updateDepartmentAsync.mockReset();
+		updateDepartmentAsync.mockResolvedValue({});
 		openReceiptAsync.mockReset();
 		openReceiptAsync.mockResolvedValue({});
 		downloadReceiptAsync.mockReset();
@@ -131,6 +141,7 @@ describe("ReimbursementReviewPage", () => {
 		hookState.isLoading = false;
 		hookState.error = null;
 		hookState.isReviewing = false;
+		hookState.isUpdatingDepartment = false;
 		hookState.canBulkDownloadReceipts = true;
 		hookState.isBulkDownloadingReceipts = false;
 	});
@@ -194,6 +205,28 @@ describe("ReimbursementReviewPage", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("lets finance reviewers change a request department", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		await user.click(
+			screen.getByRole("button", {
+				name: /snacks for onboarding workshop guests/i,
+			}),
+		);
+		await user.click(
+			screen.getByRole("combobox", { name: /request department/i }),
+		);
+		await user.click(screen.getByRole("option", { name: "Makeathon" }));
+
+		await waitFor(() =>
+			expect(updateDepartmentAsync).toHaveBeenCalledWith({
+				requestId: "request-1",
+				department: "Makeathon",
+			}),
+		);
+	});
+
 	it("shows restricted access copy when the review API denies access", () => {
 		hookState.error = new Error("Finance review access required");
 
@@ -239,7 +272,7 @@ describe("ReimbursementReviewPage", () => {
 			screen.queryByText("Board dinner after finance planning session"),
 		).not.toBeInTheDocument();
 
-		await user.click(screen.getByLabelText(/department/i));
+		await user.click(screen.getByRole("combobox", { name: /^department$/i }));
 		await user.click(screen.getByRole("option", { name: "Community" }));
 
 		expect(

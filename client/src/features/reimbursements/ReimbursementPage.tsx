@@ -110,8 +110,8 @@ function sortRequestsByDateDesc(
 	requests: ReimbursementRequest[],
 ): ReimbursementRequest[] {
 	return [...requests].sort((left, right) => {
-		const rightTime = new Date(`${right.date ?? ""}T00:00:00`).getTime();
-		const leftTime = new Date(`${left.date ?? ""}T00:00:00`).getTime();
+		const rightTime = new Date(right.created_at ?? right.date ?? "").getTime();
+		const leftTime = new Date(left.created_at ?? left.date ?? "").getTime();
 		const safeRightTime = Number.isNaN(rightTime) ? 0 : rightTime;
 		const safeLeftTime = Number.isNaN(leftTime) ? 0 : leftTime;
 
@@ -183,8 +183,14 @@ export default function ReimbursementPage({
 		setValues((current) => ({
 			...current,
 			department: current.department || memberDepartment,
-			paymentIban: current.paymentIban || profileIban,
-			paymentBic: current.paymentBic || profileBic,
+			paymentIban:
+				current.submissionType === "reimbursement"
+					? current.paymentIban || profileIban
+					: current.paymentIban,
+			paymentBic:
+				current.submissionType === "reimbursement"
+					? current.paymentBic || profileBic
+					: current.paymentBic,
 		}));
 	}, [memberDepartment, profileIban, profileBic]);
 
@@ -207,6 +213,18 @@ export default function ReimbursementPage({
 		setValues((current) => ({
 			...current,
 			submissionType: nextType,
+			paymentIban:
+				nextType === "invoice" && current.paymentIban === profileIban
+					? ""
+					: nextType === "reimbursement"
+						? current.paymentIban || profileIban
+						: current.paymentIban,
+			paymentBic:
+				nextType === "invoice" && current.paymentBic === profileBic
+					? ""
+					: nextType === "reimbursement"
+						? current.paymentBic || profileBic
+						: current.paymentBic,
 		}));
 		setErrors((current) => ({
 			...current,

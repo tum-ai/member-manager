@@ -752,6 +752,28 @@ describe("Reimbursement Routes", async () => {
 			}
 		});
 
+		test("lets reviewers change reimbursement departments", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: "/api/reimbursements/review/reimbursement-older",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ department: "Makeathon" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			assert.strictEqual(
+				mockDatabase.reimbursements.find(
+					(row) => row.id === "reimbursement-older",
+				)?.department,
+				"Makeathon",
+			);
+		});
+
 		test("summarizes finance review essentials for reviewers", async () => {
 			resetDatabase();
 			const currentMonth = new Date().toISOString().slice(0, 10);
