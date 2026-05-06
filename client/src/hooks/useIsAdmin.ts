@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../lib/apiClient";
 import { supabase } from "../lib/supabaseClient";
 
@@ -21,6 +21,7 @@ export function useIsAdmin(userId: string | undefined): {
 	isAdmin: boolean;
 	isLoading: boolean;
 } {
+	const queryClient = useQueryClient();
 	const { data, isLoading } = useQuery({
 		queryKey: ["user-role", userId],
 		enabled: Boolean(userId),
@@ -32,6 +33,10 @@ export function useIsAdmin(userId: string | undefined): {
 					await apiClient("/api/members/bootstrap-local-admin", {
 						method: "POST",
 					});
+					await Promise.all([
+						queryClient.invalidateQueries({ queryKey: ["member", userId] }),
+						queryClient.invalidateQueries({ queryKey: ["sepa", userId] }),
+					]);
 				} catch (error) {
 					if (
 						error instanceof Error &&

@@ -9,6 +9,7 @@ import {
 	memberStatusSchema,
 	normalizeNullableText,
 	normalizeOperationalDepartment,
+	requiresDepartmentForMemberRole,
 	resolveDepartmentForMemberRole,
 	statusToLegacyActive,
 } from "../lib/memberMetadata.js";
@@ -527,11 +528,21 @@ export async function adminRoutes(server: FastifyInstance) {
 				}
 			}
 
+			const effectiveDepartment = resolveDepartmentForMemberRole(
+				parsed.data.member_role,
+				parsed.data.department,
+			);
+			if (
+				requiresDepartmentForMemberRole(parsed.data.member_role) &&
+				!effectiveDepartment
+			) {
+				return reply.status(400).send({
+					error: "Department is required for Member and Team Lead roles",
+				});
+			}
+
 			const memberUpdate: Record<string, unknown> = {
-				department: resolveDepartmentForMemberRole(
-					parsed.data.member_role,
-					parsed.data.department,
-				),
+				department: effectiveDepartment,
 				member_role: parsed.data.member_role,
 				member_status: parsed.data.member_status,
 				active: statusToLegacyActive(parsed.data.member_status),
@@ -625,9 +636,37 @@ export async function adminRoutes(server: FastifyInstance) {
 			}
 			const role = parsed.data.member_role;
 
+			const { data: existingMember, error: existingMemberError } =
+				await getSupabase()
+					.from("members")
+					.select("department")
+					.eq("user_id", userId)
+					.single();
+
+			if (existingMemberError) {
+				if (existingMemberError.code === "PGRST116") {
+					return reply.status(404).send({ error: "Member not found" });
+				}
+				request.log.error(
+					{ err: existingMemberError },
+					"Failed to fetch member before role update",
+				);
+				throw new DatabaseError();
+			}
+
+			const effectiveDepartment = resolveDepartmentForMemberRole(
+				role,
+				(existingMember as { department?: string | null }).department,
+			);
+			if (requiresDepartmentForMemberRole(role) && !effectiveDepartment) {
+				return reply.status(400).send({
+					error: "Department is required for Member and Team Lead roles",
+				});
+			}
+
 			const { data, error } = await getSupabase()
 				.from("members")
-				.update({ member_role: role })
+				.update({ member_role: role, department: effectiveDepartment })
 				.eq("user_id", userId)
 				.select()
 				.single();
@@ -657,10 +696,42 @@ export async function adminRoutes(server: FastifyInstance) {
 				});
 			}
 
+			const { data: existingMember, error: existingMemberError } =
+				await getSupabase()
+					.from("members")
+					.select("member_role")
+					.eq("user_id", userId)
+					.single();
+
+			if (existingMemberError) {
+				if (existingMemberError.code === "PGRST116") {
+					return reply.status(404).send({ error: "Member not found" });
+				}
+				request.log.error(
+					{ err: existingMemberError },
+					"Failed to fetch member before department update",
+				);
+				throw new DatabaseError();
+			}
+
+			const memberRole = String(
+				(existingMember as { member_role?: string | null }).member_role ??
+					"Member",
+			);
+			const effectiveDepartment = resolveDepartmentForMemberRole(
+				memberRole,
+				parsed.data.department,
+			);
+			if (requiresDepartmentForMemberRole(memberRole) && !effectiveDepartment) {
+				return reply.status(400).send({
+					error: "Department is required for Member and Team Lead roles",
+				});
+			}
+
 			const { data, error } = await getSupabase()
 				.from("members")
 				.update({
-					department: parsed.data.department,
+					department: effectiveDepartment,
 				})
 				.eq("user_id", userId)
 				.select()

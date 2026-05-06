@@ -20,10 +20,15 @@ export const SENSITIVE_MEMBER_FIELDS = [
 ] as const;
 
 export const SENSITIVE_SEPA_FIELDS = ["iban", "bic", "bank_name"] as const;
+export const SENSITIVE_REIMBURSEMENT_FIELDS = [
+	"payment_iban",
+	"payment_bic",
+] as const;
 
 type SensitiveField =
 	| (typeof SENSITIVE_MEMBER_FIELDS)[number]
-	| (typeof SENSITIVE_SEPA_FIELDS)[number];
+	| (typeof SENSITIVE_SEPA_FIELDS)[number]
+	| (typeof SENSITIVE_REIMBURSEMENT_FIELDS)[number];
 
 function allowInsecureTransport(hostname: string): boolean {
 	return hostname === "127.0.0.1" || hostname === "localhost";

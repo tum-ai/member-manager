@@ -201,7 +201,7 @@ begin
         role = excluded.role;
 end $$;
 
--- Seed SEPA data for a representative regular member
+-- Seed SEPA data for local test accounts
 insert into public.sepa (
     user_id,
     iban,
@@ -209,11 +209,21 @@ insert into public.sepa (
     bank_name,
     mandate_agreed,
     privacy_agreed
-) values (
-    '00000000-0000-0000-0000-000000000020',
-    'DE89370400440532013000',
-    'COBADEFFXXX',
-    'Commerzbank',
-    true,
-    true
-) on conflict (user_id) do nothing;
+) values
+    (
+        '00000000-0000-0000-0000-000000000001',
+        'DE89370400440532013000',
+        'COBADEFFXXX',
+        'Commerzbank',
+        true,
+        true
+    ),
+    (
+        '00000000-0000-0000-0000-000000000020',
+        'DE89370400440532013000',
+        'COBADEFFXXX',
+        'Commerzbank',
+        true,
+        true
+    )
+on conflict (user_id) do nothing;

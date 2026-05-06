@@ -4,6 +4,7 @@ import { DatabaseError } from "../lib/errors.js";
 import {
 	memberRoleSchema,
 	normalizeNullableText,
+	requiresDepartmentForMemberRole,
 	resolveDepartmentForMemberRole,
 } from "../lib/memberMetadata.js";
 import { getSupabase } from "../lib/supabase.js";
@@ -67,6 +68,21 @@ function compactRequestedChanges(
 	return compacted;
 }
 
+function hasValidDepartmentForRequestedRole(
+	role: string | undefined,
+	department: unknown,
+): boolean {
+	return !(
+		requiresDepartmentForMemberRole(role) &&
+		!resolveDepartmentForMemberRole(
+			role,
+			typeof department === "string" || department === null
+				? department
+				: undefined,
+		)
+	);
+}
+
 export async function changeRequestRoutes(server: FastifyInstance) {
 	server.post(
 		"/member-change-requests",
@@ -74,6 +90,19 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const parsed = CreateChangeRequestSchema.parse(request.body);
+			const requestedRole = parsed.changes.member_role;
+			if (
+				requestedRole &&
+				Object.hasOwn(parsed.changes, "department") &&
+				!hasValidDepartmentForRequestedRole(
+					requestedRole,
+					parsed.changes.department,
+				)
+			) {
+				return reply.status(400).send({
+					error: "Department is required for Member and Team Lead roles",
+				});
+			}
 
 			const { data, error } = await getSupabase()
 				.from("member_change_requests")
@@ -179,7 +208,7 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 				const { data: existingMember, error: memberLookupError } =
 					await getSupabase()
 						.from("members")
-						.select("member_role")
+						.select("member_role, department")
 						.eq("user_id", changeRequest.user_id)
 						.single();
 
@@ -210,8 +239,16 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 						nextRole,
 						hasRequestedDepartment
 							? (rawChanges.department as string | null | undefined)
-							: undefined,
+							: (existingMember as { department?: string | null }).department,
 					);
+					if (
+						requiresDepartmentForMemberRole(nextRole) &&
+						!approvedChanges.department
+					) {
+						return reply.status(400).send({
+							error: "Department is required for Member and Team Lead roles",
+						});
+					}
 				}
 
 				const { error: memberError } = await getSupabase()

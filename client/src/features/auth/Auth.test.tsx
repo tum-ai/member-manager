@@ -1,13 +1,17 @@
 import { CssBaseline, ThemeProvider } from "@mui/material";
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import getAppTheme from "../../theme";
 import Auth from "./Auth";
+
+const signInWithOAuthMock = vi.hoisted(() => vi.fn());
+const signInWithPasswordMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../lib/supabaseClient", () => ({
 	supabase: {
 		auth: {
-			signInWithOAuth: vi.fn(),
+			signInWithOAuth: signInWithOAuthMock,
+			signInWithPassword: signInWithPasswordMock,
 		},
 	},
 }));
@@ -22,6 +26,12 @@ function renderAuth(colorMode: "light" | "dark") {
 }
 
 describe("Auth", () => {
+	afterEach(() => {
+		vi.unstubAllEnvs();
+		signInWithOAuthMock.mockReset();
+		signInWithPasswordMock.mockReset();
+	});
+
 	it("renders the white logo on a dark branded surface in light mode", () => {
 		renderAuth("light");
 
@@ -42,5 +52,21 @@ describe("Auth", () => {
 			"src",
 			"/img/tum_ai_logo_new.svg",
 		);
+	});
+
+	it("offers a local admin login for the local Supabase stack", async () => {
+		vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:54321");
+		signInWithPasswordMock.mockResolvedValue({ error: null });
+
+		renderAuth("light");
+
+		fireEvent.click(screen.getByRole("button", { name: /local admin/i }));
+
+		await waitFor(() => {
+			expect(signInWithPasswordMock).toHaveBeenCalledWith({
+				email: "admin@example.com",
+				password: "password123",
+			});
+		});
 	});
 });

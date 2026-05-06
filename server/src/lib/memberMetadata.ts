@@ -41,10 +41,26 @@ export function statusToLegacyActive(status: MemberStatus): boolean {
 }
 
 export function resolveDepartmentForMemberRole(
-	_role: string | null | undefined,
+	role: string | null | undefined,
 	department: string | null | undefined,
 ): string | null {
+	if (isExecutiveMemberRole(role)) {
+		return null;
+	}
+
 	return normalizeOperationalDepartment(department);
+}
+
+export function isExecutiveMemberRole(
+	role: string | null | undefined,
+): boolean {
+	return role === "President" || role === "Vice-President";
+}
+
+export function requiresDepartmentForMemberRole(
+	role: string | null | undefined,
+): boolean {
+	return role === "Member" || role === "Team Lead";
 }
 
 export function normalizeOperationalDepartment(

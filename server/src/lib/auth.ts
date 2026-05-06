@@ -15,6 +15,37 @@ export async function checkAdminRole(userId: string): Promise<boolean> {
 	return roleData?.role === "admin";
 }
 
+export async function checkReimbursementReviewer(
+	userId: string,
+): Promise<boolean> {
+	if (await checkAdminRole(userId)) {
+		return true;
+	}
+
+	const { data, error } = await getSupabase()
+		.from("members")
+		.select("department, member_status, active")
+		.eq("user_id", userId)
+		.single();
+
+	if (error) {
+		if (isNotFoundError(error)) {
+			return false;
+		}
+		throw error;
+	}
+
+	const member = data as {
+		department?: string | null;
+		member_status?: string | null;
+		active?: boolean | null;
+	};
+	const memberStatus =
+		member.member_status ?? (member.active ? "active" : "inactive");
+
+	return member.department === "Legal & Finance" && memberStatus === "active";
+}
+
 export async function ensureOwnerOrAdmin(
 	userId: string,
 	targetId: string,

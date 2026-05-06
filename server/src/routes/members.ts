@@ -18,12 +18,14 @@ import {
 	memberRoleSchema,
 	normalizeMemberBatch,
 	normalizeOperationalDepartment,
+	requiresDepartmentForMemberRole,
 	resolveDepartmentForMemberRole,
 } from "../lib/memberMetadata.js";
 import {
 	decryptRecordSafely,
 	encryptRecord,
 	SENSITIVE_MEMBER_FIELDS,
+	SENSITIVE_SEPA_FIELDS,
 } from "../lib/sensitiveData.js";
 import { getSupabase } from "../lib/supabase.js";
 import { authenticate } from "../middleware/auth.js";
@@ -127,6 +129,14 @@ const UpdateMemberSchema = z.object({
 		.transform((v) => (v === undefined ? undefined : v || null)),
 });
 
+const LOCAL_ADMIN_BANK_DETAILS = {
+	iban: "DE89370400440532013000",
+	bic: "COBADEFFXXX",
+	bank_name: "Commerzbank",
+	mandate_agreed: true,
+	privacy_agreed: true,
+} as const;
+
 export async function memberRoutes(server: FastifyInstance) {
 	server.post(
 		"/members/bootstrap-local-admin",
@@ -143,7 +153,8 @@ export async function memberRoutes(server: FastifyInstance) {
 				});
 			}
 
-			const { error } = await getSupabase().from("user_roles").upsert(
+			const supabase = getSupabase();
+			const { error } = await supabase.from("user_roles").upsert(
 				{
 					user_id: user.id,
 					role: "admin",
@@ -154,6 +165,95 @@ export async function memberRoutes(server: FastifyInstance) {
 			if (error) {
 				request.log.error({ err: error }, "Failed to bootstrap local admin");
 				throw new DatabaseError();
+			}
+
+			const defaultMember = encryptRecord(
+				{
+					user_id: user.id,
+					given_name: "Local",
+					surname: "Admin",
+					date_of_birth: "",
+					street: "",
+					number: "",
+					postal_code: "",
+					city: "",
+					country: "",
+					salutation: "",
+					title: "",
+					batch: "WS22",
+					department: "Legal & Finance",
+					member_role: "President",
+					member_status: "active",
+					active: true,
+					degree: null,
+					school: "TUM",
+				},
+				SENSITIVE_MEMBER_FIELDS,
+			);
+			const { error: memberError } = await supabase
+				.from("members")
+				.upsert(defaultMember, {
+					onConflict: "user_id",
+					ignoreDuplicates: true,
+				});
+
+			if (memberError) {
+				request.log.error(
+					{ err: memberError },
+					"Failed to bootstrap local admin member profile",
+				);
+				throw new DatabaseError();
+			}
+
+			const { data: existingSepa, error: sepaFetchError } = await supabase
+				.from("sepa")
+				.select("user_id, iban, bic, bank_name, mandate_agreed, privacy_agreed")
+				.eq("user_id", user.id)
+				.single();
+
+			if (sepaFetchError && !isNotFoundError(sepaFetchError)) {
+				request.log.error(
+					{ err: sepaFetchError },
+					"Failed to check local admin SEPA profile",
+				);
+				throw new DatabaseError();
+			}
+
+			const sepaRecord = existingSepa as {
+				iban?: string | null;
+				bic?: string | null;
+				bank_name?: string | null;
+				mandate_agreed?: boolean | null;
+				privacy_agreed?: boolean | null;
+			} | null;
+			if (!sepaRecord?.iban || !sepaRecord?.bic) {
+				const localAdminSepa = encryptRecord(
+					{
+						user_id: user.id,
+						iban: sepaRecord?.iban || LOCAL_ADMIN_BANK_DETAILS.iban,
+						bic: sepaRecord?.bic || LOCAL_ADMIN_BANK_DETAILS.bic,
+						bank_name:
+							sepaRecord?.bank_name || LOCAL_ADMIN_BANK_DETAILS.bank_name,
+						mandate_agreed:
+							sepaRecord?.mandate_agreed ??
+							LOCAL_ADMIN_BANK_DETAILS.mandate_agreed,
+						privacy_agreed:
+							sepaRecord?.privacy_agreed ??
+							LOCAL_ADMIN_BANK_DETAILS.privacy_agreed,
+					},
+					SENSITIVE_SEPA_FIELDS,
+				);
+				const { error: sepaError } = await supabase
+					.from("sepa")
+					.upsert(localAdminSepa, { onConflict: "user_id" });
+
+				if (sepaError) {
+					request.log.error(
+						{ err: sepaError },
+						"Failed to bootstrap local admin SEPA profile",
+					);
+					throw new DatabaseError();
+				}
 			}
 
 			return { granted: true, role: "admin" };
@@ -362,7 +462,7 @@ export async function memberRoutes(server: FastifyInstance) {
 	server.put<{ Params: { userId: string } }>(
 		"/members/:userId",
 		{ preHandler: authenticate },
-		async (request, _reply) => {
+		async (request, reply) => {
 			const { userId } = request.params;
 			const user = (request as AuthenticatedRequest).user;
 
@@ -398,7 +498,7 @@ export async function memberRoutes(server: FastifyInstance) {
 				const { data: existingMember, error: existingMemberError } =
 					await getSupabase()
 						.from("members")
-						.select("member_role")
+						.select("member_role, department")
 						.eq("user_id", userId)
 						.single();
 
@@ -416,11 +516,22 @@ export async function memberRoutes(server: FastifyInstance) {
 						(existingMember as { member_role?: string | null } | null)
 							?.member_role ?? DEFAULT_MEMBER_ROLE,
 					);
-				updatePayload.member_role = nextRole;
-				updatePayload.department = resolveDepartmentForMemberRole(
+				const requestedDepartment = Object.hasOwn(body, "department")
+					? body.department
+					: (existingMember as { department?: string | null } | null)
+							?.department;
+				const effectiveDepartment = resolveDepartmentForMemberRole(
 					nextRole,
-					body.department,
+					requestedDepartment,
 				);
+				if (requiresDepartmentForMemberRole(nextRole) && !effectiveDepartment) {
+					return reply.status(400).send({
+						error: "Department is required for Member and Team Lead roles",
+					});
+				}
+
+				updatePayload.member_role = nextRole;
+				updatePayload.department = effectiveDepartment;
 			}
 
 			const memberData = encryptRecord(updatePayload, SENSITIVE_MEMBER_FIELDS);

@@ -21,6 +21,20 @@ Implications:
 
 Server-side loader lives at `server/src/lib/loadEnv.ts`. The client side uses Vite's built-in behavior (same precedence).
 
+## Optional receipt extraction
+
+The reimbursement tool can pre-fill amount, date, description, IBAN, and BIC from an uploaded receipt. Set `OPENAI_API_KEY` in `server/.env.local` or `server/.env` to enable it locally.
+
+If `OPENAI_API_KEY` is absent, uploads still work: the receipt stays attached and the user fills the editable fields manually.
+
+`POST /api/reimbursements/process-receipt` normalizes uploaded receipt payloads before submission. PDFs are returned as raw base64; JPG/PNG images are wrapped into a single-page PDF; filenames follow `DDMMYY_Name_Identifier.pdf` with `Expense` as the no-OpenAI fallback identifier.
+
+Submitted reimbursement and invoice requests appear in the Finance Review queue for active Legal & Finance members and admins. If `SLACK_BOT_TOKEN` is set, those reviewers also receive a Slack DM. Approval, rejection, and paid status changes DM the requester by their Supabase auth email. Without Slack configuration, the queues and in-app statuses remain the source of truth.
+
+Finance review responses include receipt view/download URLs but never the raw `receipt_base64` payload. Reviewers can open `GET /api/reimbursements/review/:requestId/receipt` inline or add `?download=1` for an attachment response.
+
+Finance reviewers can also call `GET /api/reimbursements/summary` for dashboard essentials: total requests, total amount, pending approvals, approved-but-unpaid count, and paid amount for the current month.
+
 ## `pnpm dev` vs `pnpm dev:local`
 
 Same dev server, different Supabase backend:
@@ -31,6 +45,8 @@ Same dev server, different Supabase backend:
 | `pnpm dev:local` | **local** Dockerized Supabase at `http://127.0.0.1:54321` | runs `supabase start` + `setup:local` first, then starts dev servers reading freshly written `.env.local` files |
 
 Rule of thumb: use `pnpm dev:local` unless you have a specific reason to hit the shared hosted project (e.g. reproducing a prod-data bug). If you hit "Invalid token" on `/api/*`, you probably have the wrong `SUPABASE_URL` on the server side — the JWT has to be validated against the same Supabase instance that issued it.
+
+The local API defaults to `http://127.0.0.1:8787` and Vite proxies `/api` there through `VITE_API_PROXY_TARGET`. Ports `3000` and `3001` are intentionally avoided because they are commonly occupied by other local apps; if `/api/*` returns a Next.js 404, restart with `pnpm dev:local` so the generated `.env.local` files point Vite at the member-manager API.
 
 ## Slack OIDC locally
 

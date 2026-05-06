@@ -38,7 +38,7 @@ import {
 	useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { type ReactNode, useMemo, useState } from "react";
+import { type ReactElement, type ReactNode, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
@@ -55,7 +55,9 @@ import {
 import {
 	getMemberStatusLabel,
 	getOperationalDepartment,
+	isExecutiveMemberRole,
 	MEMBER_STATUSES,
+	requiresDepartmentForMemberRole,
 	resolveDepartmentForMemberRole,
 } from "../../lib/memberMetadata";
 import {
@@ -201,8 +203,12 @@ export default function AdminDatabaseView() {
 
 	function openMemberEditor(member: AdminMember) {
 		setMemberBeingEdited(member);
-		setEditDepartment(getOperationalDepartment(member.department) || "");
 		setEditRole(member.member_role || "Member");
+		setEditDepartment(
+			isExecutiveMemberRole(member.member_role)
+				? ""
+				: getOperationalDepartment(member.department) || "",
+		);
 		setEditIsBoardMember(member.board_role === BOARD_MEMBER_ROLE);
 		setEditStatus(getResolvedStatus(member));
 		setEditAccessRole(member.access_role === "admin" ? "admin" : "user");
@@ -295,6 +301,9 @@ export default function AdminDatabaseView() {
 
 	async function saveMemberChanges() {
 		if (!memberBeingEdited) return;
+		const roleNeedsDepartment = requiresDepartmentForMemberRole(editRole);
+		if (roleNeedsDepartment && !editDepartment) return;
+
 		const effectiveDepartment = resolveDepartmentForMemberRole(
 			editRole,
 			editDepartment || null,
@@ -416,6 +425,11 @@ export default function AdminDatabaseView() {
 		setExportAnchorEl(null);
 	}
 
+	const editRoleNeedsDepartment = requiresDepartmentForMemberRole(editRole);
+	const editRoleIsExecutive = isExecutiveMemberRole(editRole);
+	const isMemberSaveDisabled =
+		isSavingMember || (editRoleNeedsDepartment && !editDepartment);
+
 	return (
 		<Box sx={{ py: 2 }}>
 			<GlassCard variant="elevated" sx={{ mb: 4, overflow: "hidden" }}>
@@ -471,6 +485,18 @@ export default function AdminDatabaseView() {
 					</Grid>
 				</CardContent>
 			</GlassCard>
+
+			<PendingRequestPanels
+				changeRequests={changeRequests}
+				certificateRequests={certificateRequests}
+				getMemberDisplayName={getMemberDisplayName}
+				formatRequestedChanges={formatRequestedChanges}
+				onReviewChangeRequest={reviewChangeRequest}
+				onReviewCertificateRequest={reviewCertificateRequest}
+				onViewCertificateRequest={setCertificateRequestBeingViewed}
+				isReviewingChangeRequest={isReviewingChangeRequest}
+				isReviewingCertificateRequest={isReviewingCertificateRequest}
+			/>
 
 			<GlassCard sx={{ mb: 3 }}>
 				<CardContent sx={{ p: 3 }}>
@@ -868,176 +894,6 @@ export default function AdminDatabaseView() {
 				</TableContainer>
 			</GlassCard>
 
-			<Grid container spacing={3}>
-				<Grid size={{ xs: 12, xl: 6 }}>
-					<GlassCard sx={{ height: "100%" }}>
-						<CardContent sx={{ p: 3 }}>
-							<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-								Member Change Requests
-							</Typography>
-							<Stack spacing={1.5}>
-								{changeRequests.filter(
-									(request) => request.status === "pending",
-								).length === 0 ? (
-									<Typography color="text.secondary">
-										No pending member change requests.
-									</Typography>
-								) : (
-									changeRequests
-										.filter((request) => request.status === "pending")
-										.map((request) => {
-											const memberName = getMemberDisplayName(request.user_id);
-											return (
-												<Box
-													key={request.id}
-													sx={{
-														p: 2,
-														borderRadius: 3,
-														backgroundColor:
-															theme.palette.mode === "light"
-																? "rgba(154, 100, 217, 0.06)"
-																: "rgba(27, 0, 73, 0.36)",
-													}}
-												>
-													<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-														Change request for {memberName}
-													</Typography>
-													<Typography variant="body2" color="text.secondary">
-														Member: {memberName}
-													</Typography>
-													{request.reason && (
-														<Typography
-															variant="body2"
-															color="text.secondary"
-															sx={{ mt: 0.5 }}
-														>
-															Reason: {request.reason}
-														</Typography>
-													)}
-													<Typography variant="body2" sx={{ mt: 1 }}>
-														Requested changes: {formatRequestedChanges(request)}
-													</Typography>
-													<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
-														<Button
-															type="button"
-															variant="contained"
-															size="small"
-															onClick={() =>
-																reviewChangeRequest(request.id, "approved")
-															}
-															disabled={isReviewingChangeRequest}
-															aria-label={`Approve change request for ${memberName}`}
-														>
-															Approve
-														</Button>
-														<Button
-															type="button"
-															variant="outlined"
-															size="small"
-															onClick={() =>
-																reviewChangeRequest(request.id, "rejected")
-															}
-															disabled={isReviewingChangeRequest}
-															aria-label={`Reject change request for ${memberName}`}
-														>
-															Reject
-														</Button>
-													</Stack>
-												</Box>
-											);
-										})
-								)}
-							</Stack>
-						</CardContent>
-					</GlassCard>
-				</Grid>
-
-				<Grid size={{ xs: 12, xl: 6 }}>
-					<GlassCard sx={{ height: "100%" }}>
-						<CardContent sx={{ p: 3 }}>
-							<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-								Engagement Certificate Requests
-							</Typography>
-							<Stack spacing={1.5}>
-								{certificateRequests.filter(
-									(request) => request.status === "pending",
-								).length === 0 ? (
-									<Typography color="text.secondary">
-										No pending engagement certificate requests.
-									</Typography>
-								) : (
-									certificateRequests
-										.filter((request) => request.status === "pending")
-										.map((request) => {
-											const memberName = getMemberDisplayName(request.user_id);
-											return (
-												<Box
-													key={request.id}
-													sx={{
-														p: 2,
-														borderRadius: 3,
-														backgroundColor:
-															theme.palette.mode === "light"
-																? "rgba(154, 100, 217, 0.06)"
-																: "rgba(27, 0, 73, 0.36)",
-													}}
-												>
-													<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-														Engagement certificate request for {memberName}
-													</Typography>
-													<Typography variant="body2" color="text.secondary">
-														Member: {memberName}
-													</Typography>
-													<Typography variant="body2" sx={{ mt: 1 }}>
-														Submitted engagements: {request.engagements.length}
-													</Typography>
-													<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
-														<Button
-															type="button"
-															variant="text"
-															size="small"
-															onClick={() =>
-																setCertificateRequestBeingViewed(request)
-															}
-															aria-label={`View engagement certificate details for ${memberName}`}
-														>
-															View details
-														</Button>
-														<Button
-															type="button"
-															variant="contained"
-															size="small"
-															onClick={() =>
-																reviewCertificateRequest(request.id, "approved")
-															}
-															disabled={isReviewingCertificateRequest}
-															aria-label={`Approve engagement certificate request for ${memberName}`}
-														>
-															Approve
-														</Button>
-														<Button
-															type="button"
-															variant="outlined"
-															size="small"
-															onClick={() =>
-																reviewCertificateRequest(request.id, "rejected")
-															}
-															disabled={isReviewingCertificateRequest}
-															aria-label={`Reject engagement certificate request for ${memberName}`}
-														>
-															Reject
-														</Button>
-													</Stack>
-												</Box>
-											);
-										})
-								)}
-							</Stack>
-						</CardContent>
-					</GlassCard>
-				</Grid>
-			</Grid>
-
 			<Dialog
 				open={Boolean(certificateRequestBeingViewed)}
 				onClose={() => setCertificateRequestBeingViewed(null)}
@@ -1139,7 +995,15 @@ export default function AdminDatabaseView() {
 							label="Department"
 							value={editDepartment}
 							onChange={(event) => setEditDepartment(event.target.value)}
-							helperText="Operational home. Board membership is assigned separately."
+							disabled={editRoleIsExecutive}
+							error={editRoleNeedsDepartment && !editDepartment}
+							helperText={
+								editRoleIsExecutive
+									? "President and Vice-President are not assigned to a department."
+									: editRoleNeedsDepartment && !editDepartment
+										? "Select a department for Member and Team Lead roles."
+										: "Operational home. Board membership is assigned separately."
+							}
 						>
 							<MenuItem value="">None</MenuItem>
 							{DEPARTMENTS.map((department) => (
@@ -1152,7 +1016,13 @@ export default function AdminDatabaseView() {
 							select
 							label="Role"
 							value={editRole}
-							onChange={(event) => setEditRole(event.target.value)}
+							onChange={(event) => {
+								const nextRole = event.target.value;
+								setEditRole(nextRole);
+								if (isExecutiveMemberRole(nextRole)) {
+									setEditDepartment("");
+								}
+							}}
 						>
 							{MEMBER_ROLES.map((role) => (
 								<MenuItem key={role} value={role}>
@@ -1215,13 +1085,211 @@ export default function AdminDatabaseView() {
 						type="button"
 						variant="contained"
 						onClick={saveMemberChanges}
-						disabled={isSavingMember}
+						disabled={isMemberSaveDisabled}
 					>
 						{isSavingMember ? "Saving..." : "Save member changes"}
 					</Button>
 				</DialogActions>
 			</Dialog>
 		</Box>
+	);
+}
+
+interface PendingRequestPanelsProps {
+	changeRequests: MemberChangeRequest[];
+	certificateRequests: EngagementCertificateRequest[];
+	getMemberDisplayName: (userId: string) => string;
+	formatRequestedChanges: (request: MemberChangeRequest) => string;
+	onReviewChangeRequest: (
+		requestId: string,
+		decision: "approved" | "rejected",
+	) => void;
+	onReviewCertificateRequest: (
+		requestId: string,
+		decision: "approved" | "rejected",
+	) => void;
+	onViewCertificateRequest: (request: EngagementCertificateRequest) => void;
+	isReviewingChangeRequest: boolean;
+	isReviewingCertificateRequest: boolean;
+}
+
+function PendingRequestPanels({
+	changeRequests,
+	certificateRequests,
+	getMemberDisplayName,
+	formatRequestedChanges,
+	onReviewChangeRequest,
+	onReviewCertificateRequest,
+	onViewCertificateRequest,
+	isReviewingChangeRequest,
+	isReviewingCertificateRequest,
+}: PendingRequestPanelsProps): ReactElement {
+	const theme = useTheme();
+	const pendingChangeRequests = changeRequests.filter(
+		(request) => request.status === "pending",
+	);
+	const pendingCertificateRequests = certificateRequests.filter(
+		(request) => request.status === "pending",
+	);
+	const requestBackground =
+		theme.palette.mode === "light"
+			? "rgba(154, 100, 217, 0.06)"
+			: "rgba(27, 0, 73, 0.36)";
+
+	return (
+		<Grid container spacing={3} sx={{ mb: 3 }}>
+			<Grid size={{ xs: 12, xl: 6 }}>
+				<GlassCard sx={{ height: "100%" }}>
+					<CardContent sx={{ p: 3 }}>
+						<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+							Member Change Requests
+						</Typography>
+						<Stack spacing={1.5}>
+							{pendingChangeRequests.length === 0 ? (
+								<Typography color="text.secondary">
+									No pending member change requests.
+								</Typography>
+							) : (
+								pendingChangeRequests.map((request) => {
+									const memberName = getMemberDisplayName(request.user_id);
+									return (
+										<Box
+											key={request.id}
+											sx={{
+												p: 2,
+												borderRadius: 3,
+												backgroundColor: requestBackground,
+											}}
+										>
+											<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+												Change request for {memberName}
+											</Typography>
+											<Typography variant="body2" color="text.secondary">
+												Member: {memberName}
+											</Typography>
+											{request.reason && (
+												<Typography
+													variant="body2"
+													color="text.secondary"
+													sx={{ mt: 0.5 }}
+												>
+													Reason: {request.reason}
+												</Typography>
+											)}
+											<Typography variant="body2" sx={{ mt: 1 }}>
+												Requested changes: {formatRequestedChanges(request)}
+											</Typography>
+											<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+												<Button
+													type="button"
+													variant="contained"
+													size="small"
+													onClick={() =>
+														onReviewChangeRequest(request.id, "approved")
+													}
+													disabled={isReviewingChangeRequest}
+													aria-label={`Approve change request for ${memberName}`}
+												>
+													Approve
+												</Button>
+												<Button
+													type="button"
+													variant="outlined"
+													size="small"
+													onClick={() =>
+														onReviewChangeRequest(request.id, "rejected")
+													}
+													disabled={isReviewingChangeRequest}
+													aria-label={`Reject change request for ${memberName}`}
+												>
+													Reject
+												</Button>
+											</Stack>
+										</Box>
+									);
+								})
+							)}
+						</Stack>
+					</CardContent>
+				</GlassCard>
+			</Grid>
+
+			<Grid size={{ xs: 12, xl: 6 }}>
+				<GlassCard sx={{ height: "100%" }}>
+					<CardContent sx={{ p: 3 }}>
+						<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+							Engagement Certificate Requests
+						</Typography>
+						<Stack spacing={1.5}>
+							{pendingCertificateRequests.length === 0 ? (
+								<Typography color="text.secondary">
+									No pending engagement certificate requests.
+								</Typography>
+							) : (
+								pendingCertificateRequests.map((request) => {
+									const memberName = getMemberDisplayName(request.user_id);
+									return (
+										<Box
+											key={request.id}
+											sx={{
+												p: 2,
+												borderRadius: 3,
+												backgroundColor: requestBackground,
+											}}
+										>
+											<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
+												Engagement certificate request for {memberName}
+											</Typography>
+											<Typography variant="body2" color="text.secondary">
+												Member: {memberName}
+											</Typography>
+											<Typography variant="body2" sx={{ mt: 1 }}>
+												Submitted engagements: {request.engagements.length}
+											</Typography>
+											<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
+												<Button
+													type="button"
+													variant="text"
+													size="small"
+													onClick={() => onViewCertificateRequest(request)}
+													aria-label={`View engagement certificate details for ${memberName}`}
+												>
+													View details
+												</Button>
+												<Button
+													type="button"
+													variant="contained"
+													size="small"
+													onClick={() =>
+														onReviewCertificateRequest(request.id, "approved")
+													}
+													disabled={isReviewingCertificateRequest}
+													aria-label={`Approve engagement certificate request for ${memberName}`}
+												>
+													Approve
+												</Button>
+												<Button
+													type="button"
+													variant="outlined"
+													size="small"
+													onClick={() =>
+														onReviewCertificateRequest(request.id, "rejected")
+													}
+													disabled={isReviewingCertificateRequest}
+													aria-label={`Reject engagement certificate request for ${memberName}`}
+												>
+													Reject
+												</Button>
+											</Stack>
+										</Box>
+									);
+								})
+							)}
+						</Stack>
+					</CardContent>
+				</GlassCard>
+			</Grid>
+		</Grid>
 	);
 }
 

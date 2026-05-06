@@ -1,5 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { checkAdminRole } from "../lib/auth.js";
+import { checkAdminRole, checkReimbursementReviewer } from "../lib/auth.js";
 import { getSupabase } from "../lib/supabase.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -41,6 +41,25 @@ export async function requireAdmin(
 			return reply
 				.status(403)
 				.send({ error: "Unauthorized: Admin access required" });
+		}
+	} catch (_error) {
+		return reply.status(500).send({ error: "Internal Server Error" });
+	}
+}
+
+export async function requireReimbursementReviewer(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const user = (request as AuthenticatedRequest).user;
+
+	try {
+		const canReview = await checkReimbursementReviewer(user.id);
+
+		if (!canReview) {
+			return reply
+				.status(403)
+				.send({ error: "Finance review access required" });
 		}
 	} catch (_error) {
 		return reply.status(500).send({ error: "Internal Server Error" });

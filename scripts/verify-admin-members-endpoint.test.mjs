@@ -16,7 +16,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const API_BASE = "http://127.0.0.1:3000";
+const API_BASE = "http://127.0.0.1:8787";
 const SUPABASE_BASE = "http://127.0.0.1:54321";
 
 function readAnonKey() {
@@ -66,7 +66,7 @@ test("GET /api/admin/members returns 200 with an embedded sepa relation", async 
 		return;
 	}
 	if (!(await healthy(`${API_BASE}/health`))) {
-		t.skip("local API server not reachable at 127.0.0.1:3000");
+		t.skip("local API server not reachable at 127.0.0.1:8787");
 		return;
 	}
 

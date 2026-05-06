@@ -46,11 +46,11 @@ describe("Member Change Request Routes", async () => {
 		const payload = JSON.parse(response.payload);
 		assert.strictEqual(payload.user_id, testUserIds.user);
 		assert.strictEqual(payload.status, "pending");
-		assert.strictEqual(payload.changes.department, "Community");
+		assert.strictEqual(payload.changes.department, null);
 		assert.strictEqual(mockDatabase.member_change_requests.length, 1);
 	});
 
-	test("research is not stored as an operational department request", async () => {
+	test("rejects non-operational departments for roles that require a department", async () => {
 		resetDatabase();
 		const response = await app.inject({
 			method: "POST",
@@ -67,9 +67,8 @@ describe("Member Change Request Routes", async () => {
 			}),
 		});
 
-		assert.strictEqual(response.statusCode, 201);
-		const payload = JSON.parse(response.payload);
-		assert.strictEqual(payload.changes.department, null);
+		assert.strictEqual(response.statusCode, 400);
+		assert.match(response.payload, /department is required/i);
 	});
 
 	test("admin can list pending member change requests", async () => {
@@ -127,7 +126,7 @@ describe("Member Change Request Routes", async () => {
 		const updatedMember = mockDatabase.members.find(
 			(member) => member.user_id === testUserIds.user,
 		);
-		assert.strictEqual(updatedMember?.department, "Community");
+		assert.strictEqual(updatedMember?.department, null);
 		assert.strictEqual(updatedMember?.member_role, "Vice-President");
 		assert.strictEqual(updatedMember?.degree, "M.Sc. Computer Science");
 
@@ -138,7 +137,7 @@ describe("Member Change Request Routes", async () => {
 		assert.strictEqual(updatedRequest?.review_note, "Looks good");
 	});
 
-	test("executive change requests keep requested operational department", async () => {
+	test("executive change requests clear requested operational department", async () => {
 		resetDatabase();
 		mockDatabase.member_change_requests.push({
 			id: "request-board-role",
@@ -169,7 +168,7 @@ describe("Member Change Request Routes", async () => {
 			(member) => member.user_id === testUserIds.user,
 		);
 		assert.strictEqual(updatedMember?.member_role, "President");
-		assert.strictEqual(updatedMember?.department, "Legal & Finance");
+		assert.strictEqual(updatedMember?.department, null);
 	});
 
 	test("admin can reject a member change request without mutating the member", async () => {

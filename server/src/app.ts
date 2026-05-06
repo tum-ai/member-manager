@@ -7,12 +7,16 @@ import { adminRoutes } from "./routes/admin.js";
 import { changeRequestRoutes } from "./routes/changeRequests.js";
 import { engagementCertificateRoutes } from "./routes/engagementCertificates.js";
 import { memberRoutes } from "./routes/members.js";
+import { reimbursementRoutes } from "./routes/reimbursements.js";
 import { researchProjectRoutes } from "./routes/researchProjects.js";
 import { sepaRoutes } from "./routes/sepa.js";
+
+const API_BODY_LIMIT_BYTES = 20 * 1024 * 1024;
 
 export const buildApp = async (): Promise<FastifyInstance> => {
 	const server = Fastify({
 		logger: true,
+		bodyLimit: API_BODY_LIMIT_BYTES,
 	});
 
 	// Plugins
@@ -49,6 +53,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(adminRoutes);
 			await api.register(changeRequestRoutes);
 			await api.register(engagementCertificateRoutes);
+			await api.register(reimbursementRoutes);
 			await api.register(researchProjectRoutes);
 		},
 		{ prefix: "/api" },

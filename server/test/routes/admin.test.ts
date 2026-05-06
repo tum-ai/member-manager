@@ -237,7 +237,7 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(payload.member_role, "Team Lead");
 		});
 
-		test("president and vice-president keep their operational department", async () => {
+		test("president and vice-president clear their operational department", async () => {
 			resetDatabase();
 			const response = await app.inject({
 				method: "PATCH",
@@ -252,7 +252,7 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			const payload = JSON.parse(response.payload);
 			assert.strictEqual(payload.member_role, "President");
-			assert.strictEqual(payload.department, "Software Development");
+			assert.strictEqual(payload.department, null);
 		});
 
 		test("rejects role=Alumni because alumni is a member status", async () => {
@@ -349,7 +349,7 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(payload.department, "Community");
 		});
 
-		test("research is not accepted as an operational department", async () => {
+		test("rejects non-operational departments for roles that require a department", async () => {
 			resetDatabase();
 			const response = await app.inject({
 				method: "PATCH",
@@ -361,9 +361,8 @@ describe("Admin Routes", async () => {
 				payload: JSON.stringify({ department: "Research" }),
 			});
 
-			assert.strictEqual(response.statusCode, 200);
-			const payload = JSON.parse(response.payload);
-			assert.strictEqual(payload.department, null);
+			assert.strictEqual(response.statusCode, 400);
+			assert.match(response.payload, /department is required/i);
 		});
 
 		test("regular user denied access", async () => {
@@ -381,7 +380,7 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(response.statusCode, 403);
 		});
 
-		test("board leadership can move between operational departments", async () => {
+		test("board leadership cannot be assigned to operational departments", async () => {
 			resetDatabase();
 			const member = mockDatabase.members.find(
 				(entry) => entry.user_id === testUserIds.user,
@@ -401,7 +400,7 @@ describe("Admin Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 200);
 			const payload = JSON.parse(response.payload);
-			assert.strictEqual(payload.department, "Legal & Finance");
+			assert.strictEqual(payload.department, null);
 		});
 
 		test("rejects department updates when the department field is omitted", async () => {
@@ -504,7 +503,7 @@ describe("Admin Routes", async () => {
 				(entry) => entry.user_id === testUserIds.user,
 			);
 			assert.strictEqual(updatedMember?.member_role, "President");
-			assert.strictEqual(updatedMember?.department, "Legal & Finance");
+			assert.strictEqual(updatedMember?.department, null);
 			assert.strictEqual(updatedMember?.board_role, "Board Member");
 			assert.strictEqual(updatedMember?.member_status, "inactive");
 			assert.strictEqual(updatedMember?.active, false);

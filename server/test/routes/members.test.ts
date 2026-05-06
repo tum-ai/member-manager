@@ -3,6 +3,10 @@ import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
 import type { FastifyInstance } from "fastify";
 import {
+	decryptRecord,
+	SENSITIVE_SEPA_FIELDS,
+} from "../../src/lib/sensitiveData.js";
+import {
 	authHeaders,
 	closeTestApp,
 	getTestApp,
@@ -410,6 +414,55 @@ describe("Members Routes", async () => {
 			}
 		});
 
+		test("backfills local admin profile bank details for browser testing", async () => {
+			resetDatabase();
+			const previousSupabaseUrl = process.env.SUPABASE_URL;
+			const previousLocalAdminEmails = process.env.LOCAL_ADMIN_EMAILS;
+			const previousEnableLocalAdminBootstrap =
+				process.env.ENABLE_LOCAL_ADMIN_BOOTSTRAP;
+			process.env.SUPABASE_URL = "http://127.0.0.1:54321";
+			process.env.ENABLE_LOCAL_ADMIN_BOOTSTRAP = "true";
+			process.env.LOCAL_ADMIN_EMAILS = "admin@test.com";
+
+			try {
+				assert.strictEqual(
+					mockDatabase.sepa.some((row) => row.user_id === testUserIds.admin),
+					false,
+				);
+
+				const response = await app.inject({
+					method: "POST",
+					url: "/api/members/bootstrap-local-admin",
+					headers: authHeaders(testTokens.admin),
+				});
+
+				assert.strictEqual(response.statusCode, 200);
+				const storedSepa = mockDatabase.sepa.find(
+					(row) => row.user_id === testUserIds.admin,
+				);
+				assert.ok(storedSepa);
+				assert.match(String(storedSepa.iban), /^enc-v1:/);
+				assert.deepStrictEqual(
+					decryptRecord(storedSepa, SENSITIVE_SEPA_FIELDS),
+					{
+						user_id: testUserIds.admin,
+						iban: "DE89370400440532013000",
+						bic: "COBADEFFXXX",
+						bank_name: "Commerzbank",
+						mandate_agreed: true,
+						privacy_agreed: true,
+					},
+				);
+			} finally {
+				restoreEnvVar("SUPABASE_URL", previousSupabaseUrl);
+				restoreEnvVar("LOCAL_ADMIN_EMAILS", previousLocalAdminEmails);
+				restoreEnvVar(
+					"ENABLE_LOCAL_ADMIN_BOOTSTRAP",
+					previousEnableLocalAdminBootstrap,
+				);
+			}
+		});
+
 		test("does not promote users outside the local admin allowlist", async () => {
 			resetDatabase();
 			const previousSupabaseUrl = process.env.SUPABASE_URL;
@@ -518,13 +571,13 @@ describe("Members Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
 			assert.strictEqual(data.member_role, "President");
-			assert.strictEqual(data.department, "Legal & Finance");
+			assert.strictEqual(data.department, null);
 
 			const storedMember = mockDatabase.members.find(
 				(member) => member.user_id === testUserIds.admin,
 			);
 			assert.strictEqual(storedMember?.member_role, "President");
-			assert.strictEqual(storedMember?.department, "Legal & Finance");
+			assert.strictEqual(storedMember?.department, null);
 		});
 
 		test("user cannot update other's profile", async () => {
