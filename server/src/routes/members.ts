@@ -127,6 +127,25 @@ const UpdateMemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
+	// LinkedIn-enriched fields — member-editable
+	linkedin_id: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
+	linkedin_url: z
+		.string()
+		.url("Must be a valid URL")
+		.nullish()
+		.or(z.literal(""))
+		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
+	location: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
+	current_company: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
 });
 
 const LOCAL_ADMIN_BANK_DETAILS = {

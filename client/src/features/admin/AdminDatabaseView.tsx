@@ -2,6 +2,7 @@ import AccountBalanceOutlinedIcon from "@mui/icons-material/AccountBalanceOutlin
 import DownloadIcon from "@mui/icons-material/Download";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import LinkedInIcon from "@mui/icons-material/LinkedIn";
 import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
@@ -90,6 +91,9 @@ const sortableColumns: Array<{
 	{ key: "member_role", label: "Role", width: 160 },
 	{ key: "board_role", label: "Board", width: 140 },
 	{ key: "phone", label: "Phone", width: 150 },
+	{ key: "linkedin_url", label: "LinkedIn", width: 120 },
+	{ key: "location", label: "Location", width: 160 },
+	{ key: "current_company", label: "Company", width: 180 },
 	{ key: "iban", label: "IBAN", width: 220 },
 	{ key: "bic", label: "BIC", width: 150 },
 	{ key: "bank_name", label: "Bank", width: 180 },
@@ -130,6 +134,10 @@ export default function AdminDatabaseView() {
 	const [editAccessRole, setEditAccessRole] = useState<"user" | "admin">(
 		"user",
 	);
+	const [editLinkedinUrl, setEditLinkedinUrl] = useState("");
+	const [editLinkedinId, setEditLinkedinId] = useState("");
+	const [editLocation, setEditLocation] = useState("");
+	const [editCurrentCompany, setEditCurrentCompany] = useState("");
 	const [certificateRequestBeingViewed, setCertificateRequestBeingViewed] =
 		useState<EngagementCertificateRequest | null>(null);
 	const [exportAnchorEl, setExportAnchorEl] = useState<HTMLElement | null>(
@@ -217,6 +225,10 @@ export default function AdminDatabaseView() {
 		setEditIsBoardMember(member.board_role === BOARD_MEMBER_ROLE);
 		setEditStatus(getResolvedStatus(member));
 		setEditAccessRole(member.access_role === "admin" ? "admin" : "user");
+		setEditLinkedinUrl(member.linkedin_url || "");
+		setEditLinkedinId(member.linkedin_id || "");
+		setEditLocation(member.location || "");
+		setEditCurrentCompany(member.current_company || "");
 	}
 
 	function getMemberDisplayName(userId: string): string {
@@ -333,6 +345,10 @@ export default function AdminDatabaseView() {
 				board_role: editIsBoardMember ? BOARD_MEMBER_ROLE : null,
 				member_status: editStatus,
 				access_role: editAccessRole,
+				linkedin_url: editLinkedinUrl.trim() || null,
+				linkedin_id: editLinkedinId.trim() || null,
+				location: editLocation.trim() || null,
+				current_company: editCurrentCompany.trim() || null,
 			});
 			showToast("Member updated successfully", "success");
 			setMemberBeingEdited(null);
@@ -408,6 +424,10 @@ export default function AdminDatabaseView() {
 			Department: getOperationalDepartment(member.department) || "",
 			Role: member.member_role || "",
 			Board: member.board_role || "",
+			"LinkedIn URL": member.linkedin_url || "",
+			"LinkedIn ID": member.linkedin_id || "",
+			Location: member.location || "",
+			Company: member.current_company || "",
 			IBAN: member.sepa?.iban || "",
 			BIC: member.sepa?.bic || "",
 			"Bank Name": member.sepa?.bank_name || "",
@@ -848,6 +868,25 @@ export default function AdminDatabaseView() {
 											)}
 										</TableCell>
 										<TableCell>{row.phone || "Not provided"}</TableCell>
+										<TableCell>
+											{row.linkedin_url ? (
+												<Button
+													size="small"
+													component="a"
+													href={row.linkedin_url}
+													target="_blank"
+													rel="noopener noreferrer"
+													sx={{ minWidth: 0, px: 1, color: "#0A66C2" }}
+													startIcon={<LinkedInIcon fontSize="small" />}
+												>
+													View
+												</Button>
+											) : (
+												"—"
+											)}
+										</TableCell>
+										<TableCell>{row.location || "—"}</TableCell>
+										<TableCell>{row.current_company || "—"}</TableCell>
 										<TableCell sx={{ fontFamily: "monospace" }}>
 											{row.sepa?.iban || "Not provided"}
 										</TableCell>
@@ -1010,6 +1049,41 @@ export default function AdminDatabaseView() {
 								? `Update ${memberBeingEdited.given_name} ${memberBeingEdited.surname}.`
 								: ""}
 						</Typography>
+						{/* ── LinkedIn & Professional ── */}
+						<Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+							<LinkedInIcon fontSize="small" sx={{ color: "#0A66C2" }} />
+							LinkedIn & Professional
+						</Typography>
+						<TextField
+							label="LinkedIn Profile URL"
+							placeholder="https://linkedin.com/in/your-profile"
+							value={editLinkedinUrl}
+							onChange={(e) => setEditLinkedinUrl(e.target.value)}
+							size="small"
+						/>
+						<TextField
+							label="LinkedIn ID / Slug"
+							placeholder="your-profile"
+							value={editLinkedinId}
+							onChange={(e) => setEditLinkedinId(e.target.value)}
+							size="small"
+						/>
+						<TextField
+							label="Current Location"
+							placeholder="Munich, Germany"
+							value={editLocation}
+							onChange={(e) => setEditLocation(e.target.value)}
+							size="small"
+						/>
+						<TextField
+							label="Current Company / Organisation"
+							placeholder="Acme GmbH"
+							value={editCurrentCompany}
+							onChange={(e) => setEditCurrentCompany(e.target.value)}
+							size="small"
+						/>
+						<Divider />
+						{/* ── Org fields ── */}
 						<TextField
 							select
 							label="Department"
