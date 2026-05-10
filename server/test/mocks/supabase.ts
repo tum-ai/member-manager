@@ -46,6 +46,17 @@ interface MockData {
 	reimbursements: Array<Record<string, unknown>>;
 }
 
+export const mockTableErrors: Partial<
+	Record<keyof MockData, Record<string, unknown>>
+> = {};
+
+export function setMockTableError(
+	table: keyof MockData,
+	error: Record<string, unknown>,
+): void {
+	mockTableErrors[table] = error;
+}
+
 export const mockDatabase: MockData = {
 	members: [
 		{
@@ -226,6 +237,11 @@ function createQueryBuilder(table: string): QueryBuilder {
 	};
 
 	const execute = (isSingle = false) => {
+		const tableError = mockTableErrors[table as keyof MockData];
+		if (tableError) {
+			return Promise.resolve({ data: null, error: tableError });
+		}
+
 		let tableData: Array<Record<string, unknown>>;
 
 		// If we just inserted data, return that instead of querying
@@ -534,6 +550,10 @@ export function createMockSupabaseClient(): SupabaseClient {
 }
 
 export function resetMockDatabase(): void {
+	for (const table of Object.keys(mockTableErrors) as Array<keyof MockData>) {
+		delete mockTableErrors[table];
+	}
+
 	mockDatabase.members = [
 		{
 			user_id: MOCK_USER_ID,

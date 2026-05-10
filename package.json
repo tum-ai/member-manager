@@ -16,7 +16,8 @@
 		"supabase:start": "node scripts/supabase-start.mjs",
 		"supabase:stop": "supabase stop",
 		"supabase:status": "supabase status",
-		"supabase:reset": "supabase db reset"
+		"supabase:reset": "supabase db reset",
+		"supabase:migrations:check": "node scripts/check-supabase-migrations.mjs"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.3.7",

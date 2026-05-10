@@ -40,7 +40,7 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` | must use `https://` (enforced by `assertSecureRemoteUrl`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | from Supabase dashboard | never expose to client |
 | `FIELD_ENCRYPTION_KEY` | 32+ char strong random | **see warning below** |
-| `OPENAI_API_KEY` | OpenAI project key | optional; enables reimbursement receipt field extraction |
+| `OPENAI_API_KEY` | OpenAI project key | optional; enables reimbursement receipt field extraction; add as a Vercel server runtime env var, not a `VITE_` client var |
 | `SLACK_BOT_TOKEN` | Slack bot token | optional; sends certificate/admin, reimbursement finance review, and reimbursement requester status DMs |
 | `CORS_ORIGIN` | `https://<prod-domain>` | comma-separate if multiple |
 
@@ -93,9 +93,18 @@ Migrations in `supabase/migrations/` only apply locally via `pnpm supabase:reset
 ```bash
 supabase link --project-ref <project-ref>   # one-time
 supabase db push                            # applies any un-applied migrations
+pnpm supabase:migrations:check              # verify local and hosted migration history match
 ```
 
-If local and hosted schemas drift, `/api/members` and friends will 500 in prod with DB errors. Keep them in sync.
+If local and hosted schemas drift, `/api/members`, `/api/reimbursements`, and friends will 500 in prod with DB errors. Keep them in sync.
+
+CI has a **Production Supabase Migration Drift** job for same-repo PRs and `main` pushes. Configure these GitHub repository secrets so it can fail before app code depending on missing tables is merged/deployed:
+
+- `SUPABASE_ACCESS_TOKEN`
+- `SUPABASE_DB_PASSWORD`
+- `SUPABASE_PROJECT_REF`
+
+When adding a migration, apply it to hosted Supabase with `supabase db push`, then rerun `pnpm supabase:migrations:check` before merging. If a migration cannot safely run before the app change, split it into a backwards-compatible migration PR and a follow-up app PR.
 
 ## The `FIELD_ENCRYPTION_KEY` warning
 
@@ -123,6 +132,30 @@ pnpm build
 vercel dev        # exercises api/[...path].ts end-to-end
 ```
 
+## Adding `OPENAI_API_KEY` for OCR
+
+Dashboard path: Vercel project → Settings → Environment Variables → add `OPENAI_API_KEY` for **Production** (and **Preview** if preview OCR should work). Then redeploy; existing deployments do not reliably pick up changed env vars.
+
+CLI equivalent:
+
+```bash
+vercel env add OPENAI_API_KEY production --sensitive
+# paste the key when prompted
+vercel --prod
+```
+
+Optional preview support:
+
+```bash
+vercel env add OPENAI_API_KEY preview --sensitive
+```
+
+For non-interactive use, avoid shell history leaks by reading from stdin:
+
+```bash
+printf '%s' "$OPENAI_API_KEY" | vercel env add OPENAI_API_KEY production --sensitive --force --yes
+```
+
 ## Post-deploy verification
 
 Smoke tests after each prod deploy:
@@ -137,7 +170,11 @@ curl -sS -o /dev/null -w "%{http_code}\n" https://<prod-domain>/
 curl -sS https://<prod-domain>/api/members
 # {"error":"Missing Authorization header"}
 
-# 3. Slack OIDC authorize redirects to slack.com (NOT back to the site)
+# 3. Production Supabase migration history is in sync
+pnpm supabase:migrations:check
+# Linked Supabase migrations match this checkout.
+
+# 4. Slack OIDC authorize redirects to slack.com (NOT back to the site)
 curl -sSI "https://<project-ref>.supabase.co/auth/v1/authorize?provider=slack_oidc&redirect_to=https%3A%2F%2F<prod-domain>%2F" | grep -i ^location
 # location: https://slack.com/openid/connect/authorize?...
 ```

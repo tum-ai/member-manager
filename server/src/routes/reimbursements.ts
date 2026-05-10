@@ -174,10 +174,16 @@ function isMissingReimbursementsTable(error: unknown): boolean {
 	);
 }
 
+function isHostedDeployment(): boolean {
+	return Boolean(process.env.VERCEL || process.env.VERCEL_ENV);
+}
+
 function createReimbursementDatabaseError(error: unknown): DatabaseError {
 	if (isMissingReimbursementsTable(error)) {
 		return new DatabaseError(
-			"Reimbursements table is missing locally. Run `pnpm supabase:reset` to apply migrations.",
+			isHostedDeployment()
+				? "Reimbursement storage is not available in this deployment. Database migrations are missing on the hosted Supabase project; please contact the admin team."
+				: "Reimbursements table is missing. Run `pnpm supabase:reset` locally or `supabase db push` for hosted Supabase.",
 		);
 	}
 

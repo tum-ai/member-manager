@@ -16,7 +16,7 @@ import {
 	testTokens,
 	testUserIds,
 } from "../helpers.js";
-import { mockDatabase } from "../mocks/supabase.js";
+import { mockDatabase, setMockTableError } from "../mocks/supabase.js";
 
 const PDF_BASE64 = "JVBERi0xLjQ=";
 const ONE_BY_ONE_JPEG_BASE64 =
@@ -26,6 +26,7 @@ describe("Reimbursement Routes", async () => {
 	let app: FastifyInstance;
 	const originalFetch = globalThis.fetch;
 	const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
+	const originalVercelEnv = process.env.VERCEL_ENV;
 
 	before(async () => {
 		app = await getTestApp();
@@ -42,6 +43,11 @@ describe("Reimbursement Routes", async () => {
 			delete process.env.OPENAI_API_KEY;
 		} else {
 			process.env.OPENAI_API_KEY = originalOpenAiApiKey;
+		}
+		if (originalVercelEnv === undefined) {
+			delete process.env.VERCEL_ENV;
+		} else {
+			process.env.VERCEL_ENV = originalVercelEnv;
 		}
 	});
 
@@ -72,6 +78,27 @@ describe("Reimbursement Routes", async () => {
 			});
 
 			assert.strictEqual(response.statusCode, 401);
+		});
+
+		test("returns hosted migration guidance when reimbursement storage is missing in deployment", async () => {
+			resetDatabase();
+			process.env.VERCEL_ENV = "production";
+			setMockTableError("reimbursements", {
+				code: "PGRST205",
+				message:
+					"Could not find the table 'public.reimbursements' in the schema cache",
+			});
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 500);
+			const data = JSON.parse(response.payload);
+			assert.match(data.error, /hosted Supabase project/);
+			assert.doesNotMatch(data.error, /locally|pnpm supabase:reset/);
 		});
 	});
 

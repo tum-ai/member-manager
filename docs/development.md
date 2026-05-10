@@ -118,7 +118,8 @@ This writes `.git/hooks/pre-push`, which runs `pnpm gate` and blocks the push on
 ## Schema migrations
 
 - Local: add SQL files to `supabase/migrations/` (timestamp-prefixed), then `pnpm supabase:reset` to re-apply the full chain against a fresh DB.
-- Hosted: apply migrations to the production project with `supabase db push` against the linked project. Do **not** hand-edit tables in Studio — migrations are append-only history and must round-trip.
+- Hosted: apply migrations to the production project with `supabase db push` against the linked project, then run `pnpm supabase:migrations:check` to confirm there is no drift. Do **not** hand-edit tables in Studio — migrations are append-only history and must round-trip.
+- Same-repo PRs run the production migration drift check in CI. If it fails, apply the migration before merging or split the rollout into a backwards-compatible migration PR followed by the app change.
 
 ## Sensitive-data fields
 
