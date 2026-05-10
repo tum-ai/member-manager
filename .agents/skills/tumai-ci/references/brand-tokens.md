@@ -4,7 +4,6 @@ This summary is based on the vendored brand material in `docs/brand/source/`.
 
 ## Source bundle
 
-- `docs/brand/source/brand-guidelines.pdf`
 - `docs/brand/source/colors.jpeg`
 - `docs/brand/source/website-styles.css`
 - `docs/brand/source/website-button.tsx`
