@@ -23,6 +23,10 @@ export interface Member {
 	degree?: string | null;
 	school?: string | null;
 	avatar_url?: string | null;
+	linkedin_id?: string | null;
+	linkedin_url?: string | null;
+	location?: string | null;
+	current_company?: string | null;
 	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
 	[key: string]: any;
 }

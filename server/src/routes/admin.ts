@@ -67,6 +67,27 @@ const MemberUpdateSchema = z.object({
 	board_role: BoardRoleSchema,
 	member_status: memberStatusSchema,
 	access_role: z.enum(["user", "admin"]),
+	// LinkedIn-enriched fields — admin-editable
+	linkedin_id: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
+		.optional(),
+	linkedin_url: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
+		.optional(),
+	location: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
+		.optional(),
+	current_company: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
+		.optional(),
 });
 const MEMBER_DB_SORT_COLUMNS = new Set([
 	"active",
@@ -549,6 +570,19 @@ export async function adminRoutes(server: FastifyInstance) {
 			};
 			if (parsed.data.board_role !== undefined) {
 				memberUpdate.board_role = parsed.data.board_role;
+			}
+			// Persist LinkedIn fields when provided
+			if (parsed.data.linkedin_id !== undefined) {
+				memberUpdate.linkedin_id = parsed.data.linkedin_id;
+			}
+			if (parsed.data.linkedin_url !== undefined) {
+				memberUpdate.linkedin_url = parsed.data.linkedin_url;
+			}
+			if (parsed.data.location !== undefined) {
+				memberUpdate.location = parsed.data.location;
+			}
+			if (parsed.data.current_company !== undefined) {
+				memberUpdate.current_company = parsed.data.current_company;
 			}
 
 			const { data: updatedMember, error: memberUpdateError } =

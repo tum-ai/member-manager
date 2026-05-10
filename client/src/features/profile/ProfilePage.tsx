@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import DownloadIcon from "@mui/icons-material/Download";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import LinkedInIcon from "@mui/icons-material/LinkedIn";
 import SaveIcon from "@mui/icons-material/Save";
 import {
 	Box,
@@ -46,6 +47,8 @@ import {
 } from "../../lib/memberMetadata";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
 import {
+	type LinkedinSchema,
+	linkedinSchema,
 	type MemberSchema,
 	memberSchema,
 	type SepaSchema,
@@ -120,6 +123,16 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		isUpdating: isUpdatingSepa,
 	} = useSepaData(user.id);
 
+	const linkedinForm = useForm<LinkedinSchema>({
+		resolver: zodResolver(linkedinSchema),
+		defaultValues: {
+			linkedin_url: "",
+			linkedin_id: "",
+			location: "",
+			current_company: "",
+		},
+	});
+
 	const memberForm = useForm<MemberSchema>({
 		resolver: zodResolver(memberSchema),
 		defaultValues: {
@@ -188,7 +201,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			degree: existing.degree || "",
 			school: existing.school || "",
 		});
-	}, [memberData, isLoadingMember, memberForm, user]);
+
+		// Populate LinkedIn form from DB data
+		linkedinForm.reset({
+			linkedin_url: (existing as Record<string, unknown>).linkedin_url as string || "",
+			linkedin_id: (existing as Record<string, unknown>).linkedin_id as string || "",
+			location: (existing as Record<string, unknown>).location as string || "",
+			current_company: (existing as Record<string, unknown>).current_company as string || "",
+		});
+	}, [memberData, isLoadingMember, memberForm, linkedinForm, user]);
 
 	useEffect(() => {
 		if (sepaData) {
@@ -211,6 +232,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			const promises: Promise<unknown>[] = [];
 			if (memberValid) {
 				const memberValues = memberForm.getValues();
+				const linkedinValues = linkedinForm.getValues();
 				const memberPayload = {
 					...buildSelfServiceMemberUpdatePayload(memberValues, {
 						includeAdminManagedFields: isAdmin,
@@ -218,6 +240,11 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 					batch: normalizeTextValue(memberValues.batch),
 					degree: normalizeTextValue(memberValues.degree),
 					school: normalizeTextValue(memberValues.school),
+					// LinkedIn fields submitted with the member payload
+					linkedin_url: normalizeTextValue(linkedinValues.linkedin_url),
+					linkedin_id: normalizeTextValue(linkedinValues.linkedin_id),
+					location: normalizeTextValue(linkedinValues.location),
+					current_company: normalizeTextValue(linkedinValues.current_company),
 				};
 				if (isAdmin) {
 					const normalizedRole = normalizeTextValue(memberValues.member_role);
@@ -849,6 +876,77 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												</>
 											);
 										})()}
+									</Grid>
+								</Grid>
+							</CardContent>
+						</GlassCard>
+
+						{/* ── LinkedIn & Professional Presence ── */}
+						<GlassCard variant="elevated" sx={{ mt: 3 }}>
+							<CardContent sx={{ p: 3 }}>
+								<Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+									<LinkedInIcon sx={{ color: "#0A66C2" }} />
+									<Typography variant="h6" sx={{ fontWeight: 500 }}>
+										LinkedIn & Professional Presence
+									</Typography>
+								</Box>
+								<Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+									Keep your professional info up to date. This data is visible
+									to other TUM.ai members.
+								</Typography>
+
+								<Grid container spacing={2}>
+									<Grid size={12}>
+										<TextField
+											label="LinkedIn Profile URL"
+											placeholder="https://linkedin.com/in/your-profile"
+											{...linkedinForm.register("linkedin_url")}
+											error={!!linkedinForm.formState.errors.linkedin_url}
+											helperText={
+												linkedinForm.formState.errors.linkedin_url?.message
+											}
+											slotProps={{
+												input: {
+													endAdornment: linkedinForm.watch("linkedin_url") ? (
+														<Button
+															size="small"
+															component="a"
+															href={linkedinForm.watch("linkedin_url")}
+															target="_blank"
+															rel="noopener noreferrer"
+															sx={{ minWidth: 0, px: 1 }}
+														>
+															<LinkedInIcon fontSize="small" sx={{ color: "#0A66C2" }} />
+														</Button>
+													) : undefined,
+												},
+											}}
+										/>
+									</Grid>
+
+									<Grid size={{ xs: 12, sm: 6 }}>
+										<TextField
+											label="LinkedIn ID / Slug"
+											placeholder="your-profile"
+											{...linkedinForm.register("linkedin_id")}
+											helperText="The last part of your LinkedIn URL"
+										/>
+									</Grid>
+
+									<Grid size={{ xs: 12, sm: 6 }}>
+										<TextField
+											label="Current Location"
+											placeholder="Munich, Germany"
+											{...linkedinForm.register("location")}
+										/>
+									</Grid>
+
+									<Grid size={12}>
+										<TextField
+											label="Current Company / Organisation"
+											placeholder="Acme GmbH"
+											{...linkedinForm.register("current_company")}
+										/>
 									</Grid>
 								</Grid>
 							</CardContent>

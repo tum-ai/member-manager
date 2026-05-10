@@ -155,6 +155,10 @@ export function useAdminData() {
 			board_role,
 			member_status,
 			access_role,
+			linkedin_id,
+			linkedin_url,
+			location,
+			current_company,
 		}: {
 			userId: string;
 			department: string | null;
@@ -162,6 +166,10 @@ export function useAdminData() {
 			board_role: string | null;
 			member_status: string;
 			access_role: "user" | "admin";
+			linkedin_id?: string | null;
+			linkedin_url?: string | null;
+			location?: string | null;
+			current_company?: string | null;
 		}) => {
 			await apiClient(`/api/admin/members/${userId}`, {
 				method: "PATCH",
@@ -171,6 +179,10 @@ export function useAdminData() {
 					board_role,
 					member_status,
 					access_role,
+					linkedin_id,
+					linkedin_url,
+					location,
+					current_company,
 				}),
 			});
 		},

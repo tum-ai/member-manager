@@ -105,7 +105,24 @@ export const engagementFormSchema = z.object({
 		.max(5, "Maximum 5 engagements allowed"),
 });
 
+export const linkedinSchema = z.object({
+	linkedin_url: z
+		.string()
+		.optional()
+		.refine(
+			(v) =>
+				!v ||
+				v.trim() === "" ||
+				/^https?:\/\/(www\.)?linkedin\.com\//.test(v.trim()),
+			"Must be a valid LinkedIn URL (https://linkedin.com/in/…)",
+		),
+	linkedin_id: z.string().optional(),
+	location: z.string().optional(),
+	current_company: z.string().optional(),
+});
+
 export type MemberSchema = z.infer<typeof memberSchema>;
 export type SepaSchema = z.infer<typeof sepaSchema>;
+export type LinkedinSchema = z.infer<typeof linkedinSchema>;
 export type EngagementSchema = z.infer<typeof engagementSchema>;
 export type EngagementFormSchema = z.infer<typeof engagementFormSchema>;
