@@ -59,7 +59,9 @@ export default function SepaMandate({
 					<Typography variant="subtitle2" color="text.secondary" gutterBottom>
 						Creditor Identifier
 					</Typography>
-					<Typography sx={{ fontFamily: "monospace" }}>DEXXXXXXXXXX</Typography>
+					<Typography sx={{ fontFamily: "monospace" }}>
+						DE49ZZZ00002729637
+					</Typography>
 				</Box>
 
 				<Box sx={{ mb: 3 }}>
@@ -67,16 +69,9 @@ export default function SepaMandate({
 						Due Dates for Membership Fees
 					</Typography>
 					<Typography>
-						According to Section X No. X of our Contribution Rules, membership
-						fees for active members are due on{" "}
-						<Typography component="span" sx={{ fontStyle: "italic" }}>
-							XX.XX.XXXX
-						</Typography>{" "}
-						for the summer semester and on{" "}
-						<Typography component="span" sx={{ fontStyle: "italic" }}>
-							XX.XX.XXXX
-						</Typography>{" "}
-						for the winter semester each year.
+						According to Section 7.2. of our Contribution Rules, membership fees
+						for active members are due on 01.04. for the summer semester and on
+						01.10. for the winter semester each year.
 					</Typography>
 				</Box>
 
