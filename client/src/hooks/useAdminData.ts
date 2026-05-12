@@ -9,6 +9,35 @@ interface AdminResponse {
 	limit: number;
 }
 
+const ADMIN_PAGE_SIZE = 200;
+
+async function fetchAllAdminMembers(): Promise<AdminMember[]> {
+	const members: AdminMember[] = [];
+	let page = 1;
+	let total = Number.POSITIVE_INFINITY;
+
+	while (members.length < total) {
+		const response = await apiClient<AdminResponse>(
+			`/api/admin/members?page=${page}&limit=${ADMIN_PAGE_SIZE}`,
+		);
+		members.push(...response.data);
+		total = response.total;
+
+		if (response.data.length === 0) {
+			break;
+		}
+		page += 1;
+	}
+
+	if (members.length < total) {
+		throw new Error(
+			`Loaded ${members.length} of ${total} admin members before the API stopped returning data.`,
+		);
+	}
+
+	return members;
+}
+
 export interface MemberChangeRequest {
 	id: string;
 	user_id: string;
@@ -41,12 +70,7 @@ export function useAdminData() {
 		error,
 	} = useQuery({
 		queryKey: ["admin-members"],
-		queryFn: async () => {
-			const response = await apiClient<AdminResponse>(
-				"/api/admin/members?limit=1000",
-			);
-			return response.data;
-		},
+		queryFn: fetchAllAdminMembers,
 	});
 
 	const {

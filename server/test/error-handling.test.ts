@@ -101,6 +101,17 @@ describe("Error Handling", async () => {
 
 			assert.strictEqual(response.statusCode, 400);
 		});
+
+		test("Admin member page size is bounded", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/admin/members?limit=100000",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
 	});
 
 	describe("Not Found Errors (404)", () => {

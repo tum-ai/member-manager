@@ -42,7 +42,11 @@ export async function requireAdmin(
 				.status(403)
 				.send({ error: "Unauthorized: Admin access required" });
 		}
-	} catch (_error) {
+	} catch (error) {
+		request.log.error(
+			{ err: error, userId: user?.id },
+			"Failed to check admin role",
+		);
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}
 }
@@ -61,7 +65,11 @@ export async function requireReimbursementReviewer(
 				.status(403)
 				.send({ error: "Finance review access required" });
 		}
-	} catch (_error) {
+	} catch (error) {
+		request.log.error(
+			{ err: error, userId: user?.id },
+			"Failed to check reimbursement reviewer role",
+		);
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}
 }
