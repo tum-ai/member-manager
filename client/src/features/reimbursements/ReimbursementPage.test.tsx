@@ -1,6 +1,6 @@
 import { ThemeProvider } from "@mui/material";
 import type { User } from "@supabase/supabase-js";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -220,17 +220,29 @@ describe("ReimbursementPage", () => {
 		expect(createRequestAsync).not.toHaveBeenCalled();
 	}, 10_000);
 
-	it("submits invoices with document bank details instead of profile details", async () => {
+	it("submits invoice payout details instead of profile bank details", async () => {
 		createRequestAsync.mockResolvedValueOnce({});
 		const user = userEvent.setup();
 		const { container } = renderPage();
 
-		await user.click(screen.getByRole("button", { name: /^invoice$/i }));
-		await fillBaseRequest(user);
+		fireEvent.click(screen.getByRole("button", { name: /^invoice$/i }));
+		fireEvent.change(screen.getByLabelText(/amount/i), {
+			target: { value: "42.50" },
+		});
+		fireEvent.change(screen.getByLabelText(/date/i), {
+			target: { value: "2026-04-12" },
+		});
+		fireEvent.change(screen.getByLabelText(/description/i), {
+			target: { value: "Snacks for onboarding workshop guests" },
+		});
 		await uploadReceipt(user, container);
-		await user.type(screen.getByLabelText(/iban/i), "DE12500105170648489890");
-		await user.type(screen.getByLabelText(/bic/i), "INGDDEFFXXX");
-		await user.click(screen.getByRole("button", { name: /submit request/i }));
+		fireEvent.change(screen.getByLabelText(/iban/i), {
+			target: { value: "DE12500105170648489890" },
+		});
+		fireEvent.change(screen.getByLabelText(/bic/i), {
+			target: { value: "INGDDEFFXXX" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: /submit request/i }));
 
 		await waitFor(() => expect(createRequestAsync).toHaveBeenCalledTimes(1));
 		expect(createRequestAsync).toHaveBeenCalledWith(
