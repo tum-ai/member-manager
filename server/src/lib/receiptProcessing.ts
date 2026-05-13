@@ -1,4 +1,5 @@
 import { deflateSync, inflateSync } from "node:zlib";
+import { fetchWithTimeout } from "./fetchWithTimeout.js";
 
 const OPENAI_CHAT_COMPLETIONS_URL =
 	"https://api.openai.com/v1/chat/completions";
@@ -63,7 +64,7 @@ async function generateIdentifier(description: string): Promise<string> {
 	}
 
 	try {
-		const response = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
+		const response = await fetchWithTimeout(OPENAI_CHAT_COMPLETIONS_URL, {
 			method: "POST",
 			headers: {
 				"Content-Type": "application/json",

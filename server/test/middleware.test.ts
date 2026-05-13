@@ -85,4 +85,26 @@ describe("Server Middleware", async () => {
 		const originHeader = response.headers["access-control-allow-origin"];
 		assert.notStrictEqual(originHeader, disallowedOrigin);
 	});
+
+	test("CORS origin is required in production", async () => {
+		const originalCorsOrigin = process.env.CORS_ORIGIN;
+		const originalNodeEnv = process.env.NODE_ENV;
+		delete process.env.CORS_ORIGIN;
+		process.env.NODE_ENV = "production";
+
+		try {
+			await assert.rejects(() => buildApp(), /CORS_ORIGIN must be set/);
+		} finally {
+			if (originalCorsOrigin === undefined) {
+				delete process.env.CORS_ORIGIN;
+			} else {
+				process.env.CORS_ORIGIN = originalCorsOrigin;
+			}
+			if (originalNodeEnv === undefined) {
+				delete process.env.NODE_ENV;
+			} else {
+				process.env.NODE_ENV = originalNodeEnv;
+			}
+		}
+	});
 });

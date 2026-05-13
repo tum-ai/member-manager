@@ -10,6 +10,7 @@ import {
 	uploadBuchhaltungsButlerReceipt,
 } from "../lib/buchhaltungsbutler.js";
 import { DatabaseError } from "../lib/errors.js";
+import { fetchWithTimeout } from "../lib/fetchWithTimeout.js";
 import {
 	processReceiptFile,
 	sanitizeReceiptFilename,
@@ -934,28 +935,31 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 						image_url: { url: dataUrl },
 					};
 
-			const openaiResponse = await fetch(OPENAI_CHAT_COMPLETIONS_URL, {
-				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					Authorization: `Bearer ${apiKey}`,
+			const openaiResponse = await fetchWithTimeout(
+				OPENAI_CHAT_COMPLETIONS_URL,
+				{
+					method: "POST",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${apiKey}`,
+					},
+					body: JSON.stringify({
+						model: "gpt-4o-mini",
+						messages: [
+							{
+								role: "user",
+								content: [
+									{ type: "text", text: RECEIPT_PARSE_PROMPT },
+									documentContent,
+								],
+							},
+						],
+						response_format: { type: "json_object" },
+						temperature: 0.1,
+						max_tokens: 500,
+					}),
 				},
-				body: JSON.stringify({
-					model: "gpt-4o-mini",
-					messages: [
-						{
-							role: "user",
-							content: [
-								{ type: "text", text: RECEIPT_PARSE_PROMPT },
-								documentContent,
-							],
-						},
-					],
-					response_format: { type: "json_object" },
-					temperature: 0.1,
-					max_tokens: 500,
-				}),
-			});
+			);
 
 			if (!openaiResponse.ok) {
 				const errorText = await openaiResponse.text();

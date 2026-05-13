@@ -1,6 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { DatabaseError } from "../lib/errors.js";
+import { fetchWithTimeout } from "../lib/fetchWithTimeout.js";
 import { authenticate } from "../middleware/auth.js";
 
 const DEFAULT_RESEARCH_PROJECTS_URL = "https://www.tum-ai.com/api/getResearch";
@@ -84,7 +85,7 @@ export async function researchProjectRoutes(server: FastifyInstance) {
 		{ preHandler: authenticate },
 		async (request, _reply) => {
 			try {
-				const response = await fetch(getResearchProjectsUrl(), {
+				const response = await fetchWithTimeout(getResearchProjectsUrl(), {
 					headers: {
 						accept: "application/json",
 					},

@@ -27,10 +27,19 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 		timeWindow: "1 minute",
 	});
 
-	// Fallback to true (allow all) in development if CORS_ORIGIN is not set
-	const allowedOrigins = process.env.CORS_ORIGIN
-		? process.env.CORS_ORIGIN.split(",").map((o) => o.trim())
-		: true;
+	const configuredCorsOrigins = process.env.CORS_ORIGIN?.split(",")
+		.map((origin) => origin.trim())
+		.filter(Boolean);
+	const allowedOrigins =
+		configuredCorsOrigins && configuredCorsOrigins.length > 0
+			? configuredCorsOrigins
+			: process.env.NODE_ENV === "production"
+				? null
+				: true;
+
+	if (allowedOrigins === null) {
+		throw new Error("CORS_ORIGIN must be set in production");
+	}
 
 	if (allowedOrigins === true) {
 		server.log.warn("CORS_ORIGIN not set: defaulting to allow all origins.");
