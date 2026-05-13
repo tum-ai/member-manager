@@ -1,4 +1,5 @@
 import { getAuthEmail } from "./authEmails.js";
+import { fetchWithTimeout } from "./fetchWithTimeout.js";
 import { getSupabase } from "./supabase.js";
 
 const SLACK_API_BASE_URL = "https://slack.com/api";
@@ -92,7 +93,7 @@ async function slackApi<T>(
 		return {} as T;
 	}
 
-	const response = await fetch(`${SLACK_API_BASE_URL}${path}`, {
+	const response = await fetchWithTimeout(`${SLACK_API_BASE_URL}${path}`, {
 		method: "POST",
 		headers: {
 			Authorization: `Bearer ${token}`,
@@ -131,17 +132,20 @@ async function postDirectMessage(channel: string, text: string): Promise<void> {
 		return;
 	}
 
-	const response = await fetch(`${SLACK_API_BASE_URL}/chat.postMessage`, {
-		method: "POST",
-		headers: {
-			Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
-			"content-type": "application/json; charset=utf-8",
+	const response = await fetchWithTimeout(
+		`${SLACK_API_BASE_URL}/chat.postMessage`,
+		{
+			method: "POST",
+			headers: {
+				Authorization: `Bearer ${process.env.SLACK_BOT_TOKEN}`,
+				"content-type": "application/json; charset=utf-8",
+			},
+			body: JSON.stringify({
+				channel,
+				text,
+			}),
 		},
-		body: JSON.stringify({
-			channel,
-			text,
-		}),
-	});
+	);
 
 	if (!response.ok) {
 		throw new Error(`Slack message failed with ${response.status}`);

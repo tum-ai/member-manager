@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../lib/apiClient";
+import { readJsonErrorMessage } from "../lib/httpErrors";
 import { supabase } from "../lib/supabaseClient";
 
 export type ReimbursementSubmissionType = "reimbursement" | "invoice";
@@ -138,8 +139,7 @@ async function apiBlobClient(
 	});
 
 	if (!response.ok) {
-		const errorData = await response.json().catch(() => ({}));
-		throw new Error(errorData.error || response.statusText);
+		throw new Error(await readJsonErrorMessage(response));
 	}
 
 	return response.blob();

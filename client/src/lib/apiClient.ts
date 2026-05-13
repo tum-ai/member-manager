@@ -1,3 +1,4 @@
+import { readJsonErrorMessage } from "./httpErrors";
 import { supabase } from "./supabaseClient";
 
 function isSecurePageContext(): boolean {
@@ -39,8 +40,7 @@ export async function apiClient<T = any>(
 	});
 
 	if (!response.ok) {
-		const errorData = await response.json().catch(() => ({}));
-		throw new Error(errorData.error || response.statusText);
+		throw new Error(await readJsonErrorMessage(response));
 	}
 
 	// 204 No Content has no body; callers may still `await` the result.

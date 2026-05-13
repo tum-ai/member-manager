@@ -22,9 +22,19 @@ import {
 import { getSupabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
 
+const ADMIN_PAGE_LIMIT_MAX = 200;
+const ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT = 5_000;
+
+const PositiveIntFromString = z
+	.string()
+	.transform((value) => Number(value))
+	.pipe(z.number().int().positive());
+
 const QuerySchema = z.object({
-	page: z.string().transform(Number).default("1"),
-	limit: z.string().transform(Number).default("10"),
+	page: PositiveIntFromString.default("1"),
+	limit: PositiveIntFromString.pipe(
+		z.number().max(ADMIN_PAGE_LIMIT_MAX),
+	).default("10"),
 	search: z.string().optional(),
 	active: z.string().optional(),
 	member_status: z.string().optional(),
@@ -130,7 +140,7 @@ export async function adminRoutes(server: FastifyInstance) {
 	server.get(
 		"/admin/members",
 		{ preHandler: [authenticate, requireAdmin] },
-		async (request, _reply) => {
+		async (request, reply) => {
 			const query = QuerySchema.parse(request.query);
 			const {
 				page,
@@ -282,27 +292,73 @@ export async function adminRoutes(server: FastifyInstance) {
 					};
 				}
 
-				let membersQuery = getSupabase().from("members").select("*, sepa(*)");
-				if (member_status !== undefined && member_status !== "") {
-					membersQuery = membersQuery.eq("member_status", member_status);
-				} else if (active !== undefined && active !== "") {
-					membersQuery = membersQuery.eq("active", active === "true");
-				}
+				const members: Array<Record<string, unknown>> = [];
+				let totalMemberCount: number | null = null;
+				let scanOffset = 0;
+				while (scanOffset < ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT) {
+					let membersQuery = getSupabase()
+						.from("members")
+						.select(
+							"*, sepa(*)",
+							scanOffset === 0 ? { count: "exact" } : undefined,
+						);
+					if (member_status !== undefined && member_status !== "") {
+						membersQuery = membersQuery.eq("member_status", member_status);
+					} else if (active !== undefined && active !== "") {
+						membersQuery = membersQuery.eq("active", active === "true");
+					}
 
-				const { data: members, error: membersError } = await membersQuery;
-				if (membersError) {
-					request.log.error({ err: membersError }, "Failed to fetch members");
-					throw new DatabaseError();
+					const {
+						data: memberChunkData,
+						error: membersError,
+						count,
+					} = await membersQuery
+						.order("user_id", { ascending: true })
+						.range(
+							scanOffset,
+							Math.min(
+								scanOffset + ADMIN_PAGE_LIMIT_MAX - 1,
+								ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT - 1,
+							),
+						);
+					if (membersError) {
+						request.log.error({ err: membersError }, "Failed to fetch members");
+						throw new DatabaseError();
+					}
+					if (scanOffset === 0 && typeof count === "number") {
+						totalMemberCount = count;
+						if (count > ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT) {
+							return reply.status(413).send({
+								error:
+									"Admin filters are too broad. Narrow the member filters before searching or sorting by derived fields.",
+							});
+						}
+					}
+
+					const memberChunk = (memberChunkData ?? []) as Array<
+						Record<string, unknown>
+					>;
+					members.push(...memberChunk);
+					if (
+						(totalMemberCount !== null && members.length >= totalMemberCount) ||
+						memberChunk.length < ADMIN_PAGE_LIMIT_MAX
+					) {
+						break;
+					}
+					scanOffset += ADMIN_PAGE_LIMIT_MAX;
+				}
+				if (scanOffset >= ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT) {
+					return reply.status(413).send({
+						error:
+							"Admin filters are too broad. Narrow the member filters before searching or sorting by derived fields.",
+					});
 				}
 
 				const fullEmailMap = needsFullEmailMap
-					? await getAuthEmails(
-							// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
-							(members || []).map((member: any) => String(member.user_id)),
-						)
+					? await getAuthEmails(members.map((member) => String(member.user_id)))
 					: new Map<string, string>();
 
-				const joined = hydrateMembers(members || [], fullEmailMap);
+				const joined = hydrateMembers(members, fullEmailMap);
 				const filtered = joined.filter(
 					// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
 					(member: any) => {
