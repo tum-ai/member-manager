@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../lib/apiClient";
+import { readJsonErrorMessage } from "../lib/httpErrors";
 import { supabase } from "../lib/supabaseClient";
 
 export type ReimbursementSubmissionType = "reimbursement" | "invoice";
@@ -118,21 +119,6 @@ function normalizeReviewResponse(
 	};
 }
 
-async function readBlobErrorMessage(response: Response): Promise<string> {
-	const contentType = response.headers.get("content-type") ?? "";
-	if (!contentType.includes("application/json")) {
-		return response.statusText;
-	}
-
-	const errorData = (await response.json()) as {
-		error?: unknown;
-		message?: unknown;
-	};
-	if (typeof errorData.error === "string") return errorData.error;
-	if (typeof errorData.message === "string") return errorData.message;
-	return response.statusText;
-}
-
 async function apiBlobClient(
 	endpoint: string,
 	options: RequestInit = {},
@@ -153,7 +139,7 @@ async function apiBlobClient(
 	});
 
 	if (!response.ok) {
-		throw new Error(await readBlobErrorMessage(response));
+		throw new Error(await readJsonErrorMessage(response));
 	}
 
 	return response.blob();

@@ -1,3 +1,4 @@
+import { readJsonErrorMessage } from "./httpErrors";
 import { supabase } from "./supabaseClient";
 
 function isSecurePageContext(): boolean {
@@ -10,21 +11,6 @@ function isSecurePageContext(): boolean {
 		window.location.hostname === "localhost" ||
 		window.location.hostname === "127.0.0.1"
 	);
-}
-
-async function readErrorMessage(response: Response): Promise<string> {
-	const contentType = response.headers.get("content-type") ?? "";
-	if (!contentType.includes("application/json")) {
-		return response.statusText;
-	}
-
-	const errorData = (await response.json()) as {
-		error?: unknown;
-		message?: unknown;
-	};
-	if (typeof errorData.error === "string") return errorData.error;
-	if (typeof errorData.message === "string") return errorData.message;
-	return response.statusText;
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: Generic API response
@@ -54,7 +40,7 @@ export async function apiClient<T = any>(
 	});
 
 	if (!response.ok) {
-		throw new Error(await readErrorMessage(response));
+		throw new Error(await readJsonErrorMessage(response));
 	}
 
 	// 204 No Content has no body; callers may still `await` the result.

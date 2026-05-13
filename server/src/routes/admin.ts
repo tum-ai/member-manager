@@ -293,11 +293,15 @@ export async function adminRoutes(server: FastifyInstance) {
 				}
 
 				const members: Array<Record<string, unknown>> = [];
+				let totalMemberCount: number | null = null;
 				let scanOffset = 0;
 				while (scanOffset < ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT) {
 					let membersQuery = getSupabase()
 						.from("members")
-						.select("*, sepa(*)", { count: "exact" });
+						.select(
+							"*, sepa(*)",
+							scanOffset === 0 ? { count: "exact" } : undefined,
+						);
 					if (member_status !== undefined && member_status !== "") {
 						membersQuery = membersQuery.eq("member_status", member_status);
 					} else if (active !== undefined && active !== "") {
@@ -308,25 +312,27 @@ export async function adminRoutes(server: FastifyInstance) {
 						data: memberChunkData,
 						error: membersError,
 						count,
-					} = await membersQuery.range(
-						scanOffset,
-						Math.min(
-							scanOffset + ADMIN_PAGE_LIMIT_MAX - 1,
-							ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT - 1,
-						),
-					);
+					} = await membersQuery
+						.order("user_id", { ascending: true })
+						.range(
+							scanOffset,
+							Math.min(
+								scanOffset + ADMIN_PAGE_LIMIT_MAX - 1,
+								ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT - 1,
+							),
+						);
 					if (membersError) {
 						request.log.error({ err: membersError }, "Failed to fetch members");
 						throw new DatabaseError();
 					}
-					if (
-						typeof count === "number" &&
-						count > ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT
-					) {
-						return reply.status(413).send({
-							error:
-								"Admin filters are too broad. Narrow the member filters before searching or sorting by derived fields.",
-						});
+					if (scanOffset === 0 && typeof count === "number") {
+						totalMemberCount = count;
+						if (count > ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT) {
+							return reply.status(413).send({
+								error:
+									"Admin filters are too broad. Narrow the member filters before searching or sorting by derived fields.",
+							});
+						}
 					}
 
 					const memberChunk = (memberChunkData ?? []) as Array<
@@ -334,7 +340,7 @@ export async function adminRoutes(server: FastifyInstance) {
 					>;
 					members.push(...memberChunk);
 					if (
-						(typeof count === "number" && members.length >= count) ||
+						(totalMemberCount !== null && members.length >= totalMemberCount) ||
 						memberChunk.length < ADMIN_PAGE_LIMIT_MAX
 					) {
 						break;
