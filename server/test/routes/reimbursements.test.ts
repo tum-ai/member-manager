@@ -26,6 +26,13 @@ describe("Reimbursement Routes", async () => {
 	let app: FastifyInstance;
 	const originalFetch = globalThis.fetch;
 	const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
+	const originalBuchhaltungsButlerEnv = {
+		apiClient: process.env.BUCHHALTUNGSBUTLER_API_CLIENT,
+		apiSecret: process.env.BUCHHALTUNGSBUTLER_API_SECRET,
+		apiKey: process.env.BUCHHALTUNGSBUTLER_API_KEY,
+		apiBaseUrl: process.env.BUCHHALTUNGSBUTLER_API_BASE_URL,
+		syncEnabled: process.env.BUCHHALTUNGSBUTLER_SYNC_ENABLED,
+	};
 
 	before(async () => {
 		app = await getTestApp();
@@ -42,6 +49,20 @@ describe("Reimbursement Routes", async () => {
 			delete process.env.OPENAI_API_KEY;
 		} else {
 			process.env.OPENAI_API_KEY = originalOpenAiApiKey;
+		}
+		for (const [key, value] of Object.entries({
+			BUCHHALTUNGSBUTLER_API_CLIENT: originalBuchhaltungsButlerEnv.apiClient,
+			BUCHHALTUNGSBUTLER_API_SECRET: originalBuchhaltungsButlerEnv.apiSecret,
+			BUCHHALTUNGSBUTLER_API_KEY: originalBuchhaltungsButlerEnv.apiKey,
+			BUCHHALTUNGSBUTLER_API_BASE_URL: originalBuchhaltungsButlerEnv.apiBaseUrl,
+			BUCHHALTUNGSBUTLER_SYNC_ENABLED:
+				originalBuchhaltungsButlerEnv.syncEnabled,
+		})) {
+			if (value === undefined) {
+				delete process.env[key];
+			} else {
+				process.env[key] = value;
+			}
 		}
 	});
 
@@ -614,6 +635,157 @@ describe("Reimbursement Routes", async () => {
 				"reimbursement-newer_newer.pdf",
 				"reimbursement-older_older.pdf",
 			]);
+		});
+
+		test("syncs approved requests to BuchhaltungsButler", async () => {
+			resetDatabase();
+			process.env.BUCHHALTUNGSBUTLER_API_CLIENT = "client-id";
+			process.env.BUCHHALTUNGSBUTLER_API_SECRET = "client-secret";
+			process.env.BUCHHALTUNGSBUTLER_API_KEY = "customer-key";
+			process.env.BUCHHALTUNGSBUTLER_API_BASE_URL = "https://bb.test/api/v1";
+			process.env.BUCHHALTUNGSBUTLER_SYNC_ENABLED = "true";
+
+			const requests: Array<{ url: string; body: URLSearchParams }> = [];
+			globalThis.fetch = (async (input, init) => {
+				const url = String(input);
+				const body = new URLSearchParams(String(init?.body ?? ""));
+				requests.push({ url, body });
+				assert.strictEqual(
+					(init?.headers as Record<string, string>).Authorization,
+					`Basic ${Buffer.from("client-id:client-secret").toString("base64")}`,
+				);
+				assert.strictEqual(body.get("api_key"), "customer-key");
+
+				if (url.endsWith("/receipts/upload")) {
+					assert.strictEqual(body.get("file"), PDF_BASE64);
+					assert.strictEqual(body.get("file_name"), "newer.pdf");
+					assert.strictEqual(body.get("type"), "invoice inbound");
+					assert.strictEqual(body.get("date"), "2026-04-12");
+					assert.strictEqual(body.get("amount"), "80.00");
+					assert.strictEqual(body.get("currency"), "EUR");
+					return new Response(
+						JSON.stringify({
+							success: true,
+							message: "",
+							id_by_customer: "321",
+							filename: "receipt321",
+						}),
+						{ status: 200, headers: { "content-type": "application/json" } },
+					);
+				}
+
+				assert.ok(url.endsWith("/comments/add"));
+				assert.strictEqual(body.get("receipt_id_by_customer"), "321");
+				assert.match(body.get("comment_text") ?? "", /Member Manager request/);
+				return new Response(JSON.stringify({ success: true, message: "" }), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}) as typeof fetch;
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.receipt_base64, undefined);
+			assert.strictEqual(data.bb_sync_status, "synced");
+			assert.strictEqual(data.bb_receipt_id_by_customer, "321");
+			assert.strictEqual(data.bb_receipt_filename, "receipt321");
+			assert.strictEqual(data.bb_sync_attempts, 1);
+			assert.strictEqual(requests.length, 2);
+
+			const second = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({}),
+			});
+
+			assert.strictEqual(second.statusCode, 200);
+			assert.strictEqual(requests.length, 2);
+		});
+
+		test("short-circuits in-flight BuchhaltungsButler sync attempts", async () => {
+			resetDatabase();
+			const request = mockDatabase.reimbursements.find(
+				(row) => row.id === "reimbursement-newer",
+			);
+			assert.ok(request);
+			request.bb_sync_status = "pending";
+			request.bb_sync_attempts = 1;
+			request.bb_last_sync_attempt_at = new Date().toISOString();
+
+			globalThis.fetch = (async () => {
+				throw new Error("BuchhaltungsButler should not be called");
+			}) as typeof fetch;
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.bb_sync_status, "pending");
+			assert.strictEqual(data.bb_sync_attempts, 1);
+		});
+
+		test("rejects BuchhaltungsButler sync when disabled", async () => {
+			resetDatabase();
+			process.env.BUCHHALTUNGSBUTLER_API_CLIENT = "client-id";
+			process.env.BUCHHALTUNGSBUTLER_API_SECRET = "client-secret";
+			process.env.BUCHHALTUNGSBUTLER_API_KEY = "customer-key";
+			process.env.BUCHHALTUNGSBUTLER_API_BASE_URL = "https://bb.test/api/v1";
+			delete process.env.BUCHHALTUNGSBUTLER_SYNC_ENABLED;
+
+			globalThis.fetch = (async () => {
+				throw new Error("BuchhaltungsButler should not be called");
+			}) as typeof fetch;
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({}),
+			});
+
+			assert.strictEqual(response.statusCode, 503);
+			assert.match(JSON.parse(response.payload).error, /disabled/i);
+		});
+
+		test("rejects BuchhaltungsButler sync for unapproved requests", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements/review/reimbursement-older/buchhaltungsbutler-sync",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({}),
+			});
+
+			assert.strictEqual(response.statusCode, 409);
 		});
 
 		test("protects reviewer receipt files", async () => {

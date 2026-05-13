@@ -1,6 +1,12 @@
 import { getSupabase } from "./supabase.js";
 
 const AUTH_PAGE_SIZE = 1000;
+const AUTH_EMAIL_LOOKUP_CACHE_TTL_MS = 5 * 60 * 1000;
+
+const authUserIdByEmailCache = new Map<
+	string,
+	{ userId: string | null; expiresAt: number }
+>();
 
 // Vercel's built-in TS cannot resolve inherited GoTrueClient methods through
 // pnpm's strict node_modules layout, so we access .admin via a cast.
@@ -17,6 +23,56 @@ export async function getAuthEmail(userId: string): Promise<string> {
 	}
 
 	return data.user?.email ?? "";
+}
+
+export async function getAuthUserIdByEmail(
+	email: string,
+): Promise<string | null> {
+	const normalizedEmail = email.trim().toLowerCase();
+	if (!normalizedEmail) {
+		return null;
+	}
+
+	const cached = authUserIdByEmailCache.get(normalizedEmail);
+	if (cached && cached.expiresAt > Date.now()) {
+		return cached.userId;
+	}
+
+	let page = 1;
+
+	while (true) {
+		const { data, error } = await getAuthAdmin().listUsers({
+			page,
+			perPage: AUTH_PAGE_SIZE,
+		});
+
+		if (error) {
+			throw new Error(`Failed to list auth users: ${error.message}`);
+		}
+
+		const users = data.users ?? [];
+		const match = users.find(
+			(user: { email?: string; id?: string }) =>
+				user.email?.trim().toLowerCase() === normalizedEmail,
+		);
+		if (match?.id) {
+			authUserIdByEmailCache.set(normalizedEmail, {
+				userId: match.id,
+				expiresAt: Date.now() + AUTH_EMAIL_LOOKUP_CACHE_TTL_MS,
+			});
+			return match.id;
+		}
+
+		if (users.length < AUTH_PAGE_SIZE) {
+			authUserIdByEmailCache.set(normalizedEmail, {
+				userId: null,
+				expiresAt: Date.now() + AUTH_EMAIL_LOOKUP_CACHE_TTL_MS,
+			});
+			return null;
+		}
+
+		page += 1;
+	}
 }
 
 export async function getAuthEmails(

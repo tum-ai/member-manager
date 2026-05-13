@@ -10,6 +10,7 @@ import { memberRoutes } from "./routes/members.js";
 import { reimbursementRoutes } from "./routes/reimbursements.js";
 import { researchProjectRoutes } from "./routes/researchProjects.js";
 import { sepaRoutes } from "./routes/sepa.js";
+import { slackInteractionRoutes } from "./routes/slackInteractions.js";
 
 const API_BODY_LIMIT_BYTES = 20 * 1024 * 1024;
 
@@ -57,6 +58,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 
 	await server.register(
 		async (api) => {
+			await api.register(slackInteractionRoutes);
 			await api.register(memberRoutes);
 			await api.register(sepaRoutes);
 			await api.register(adminRoutes);

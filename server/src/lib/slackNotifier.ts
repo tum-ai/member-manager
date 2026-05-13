@@ -40,6 +40,8 @@ export interface ReimbursementStatusSlackNotification {
 	requestUrl?: string;
 }
 
+type SlackBlock = Record<string, unknown>;
+
 type SlackNotifier = (
 	payload: EngagementCertificateSlackNotification,
 ) => Promise<void>;
@@ -109,6 +111,26 @@ async function slackApi<T>(
 	return (await response.json()) as T;
 }
 
+export async function getSlackUserEmailById(
+	userId: string,
+): Promise<string | null> {
+	if (!process.env.SLACK_BOT_TOKEN) {
+		return null;
+	}
+
+	const response = await slackApi<{
+		ok?: boolean;
+		error?: string;
+		user?: { profile?: { email?: string } };
+	}>("/users.info", { user: userId });
+
+	if (!response.ok) {
+		throw new Error(response.error || `Slack user lookup failed for ${userId}`);
+	}
+
+	return response.user?.profile?.email ?? null;
+}
+
 async function lookupSlackUserIdByEmail(email: string): Promise<string | null> {
 	if (!process.env.SLACK_BOT_TOKEN) {
 		return null;
@@ -127,11 +149,30 @@ async function lookupSlackUserIdByEmail(email: string): Promise<string | null> {
 	return response.user?.id ?? null;
 }
 
-async function postDirectMessage(channel: string, text: string): Promise<void> {
+async function openDirectMessageChannel(userId: string): Promise<string> {
+	const response = await slackApi<{
+		ok?: boolean;
+		error?: string;
+		channel?: { id?: string };
+	}>("/conversations.open", { users: userId });
+
+	if (!response.ok || !response.channel?.id) {
+		throw new Error(response.error || `Slack DM open failed for ${userId}`);
+	}
+
+	return response.channel.id;
+}
+
+async function postDirectMessage(
+	userId: string,
+	text: string,
+	blocks?: SlackBlock[],
+): Promise<void> {
 	if (!process.env.SLACK_BOT_TOKEN) {
 		return;
 	}
 
+	const channel = await openDirectMessageChannel(userId);
 	const response = await fetchWithTimeout(
 		`${SLACK_API_BASE_URL}/chat.postMessage`,
 		{
@@ -143,6 +184,7 @@ async function postDirectMessage(channel: string, text: string): Promise<void> {
 			body: JSON.stringify({
 				channel,
 				text,
+				...(blocks ? { blocks } : {}),
 			}),
 		},
 	);
@@ -222,6 +264,99 @@ function buildReimbursementMessage(
 	].join("\n");
 }
 
+function buildReimbursementBlocks(
+	payload: ReimbursementSlackNotification,
+): SlackBlock[] | undefined {
+	if (!payload.reviewUrl) {
+		return undefined;
+	}
+
+	return [
+		{
+			type: "section",
+			text: {
+				type: "mrkdwn",
+				text: `*New ${payload.submissionType} request*\n${payload.amount.toFixed(
+					2,
+				)} EUR · ${payload.department}`,
+			},
+		},
+		{
+			type: "section",
+			fields: [
+				{ type: "mrkdwn", text: `*Requester*\n${payload.requesterEmail}` },
+				{ type: "mrkdwn", text: `*Request ID*\n${payload.requestId}` },
+			],
+		},
+		{
+			type: "actions",
+			block_id: `reimbursement_${payload.requestId}_actions`,
+			elements: [
+				{
+					type: "button",
+					text: { type: "plain_text", text: "Open finance review" },
+					url: payload.reviewUrl,
+					action_id: "open_reimbursement_review",
+				},
+				{
+					type: "button",
+					text: { type: "plain_text", text: "Approve" },
+					value: payload.requestId,
+					action_id: "reimbursement_approve",
+					style: "primary",
+					confirm: {
+						title: { type: "plain_text", text: "Approve request?" },
+						text: {
+							type: "mrkdwn",
+							text: "This approves the reimbursement in Member Manager.",
+						},
+						confirm: { type: "plain_text", text: "Approve" },
+						deny: { type: "plain_text", text: "Cancel" },
+					},
+				},
+				{
+					type: "button",
+					text: { type: "plain_text", text: "Approve & sync BB" },
+					value: payload.requestId,
+					action_id: "reimbursement_approve_sync_bb",
+					confirm: {
+						title: { type: "plain_text", text: "Approve and sync?" },
+						text: {
+							type: "mrkdwn",
+							text: "This approves the request and uploads the receipt to BuchhaltungsButler.",
+						},
+						confirm: { type: "plain_text", text: "Approve & sync" },
+						deny: { type: "plain_text", text: "Cancel" },
+					},
+				},
+			],
+		},
+	];
+}
+
+function buildReimbursementStatusBlocks(
+	payload: ReimbursementStatusSlackNotification,
+): SlackBlock[] | undefined {
+	if (!payload.requestUrl) {
+		return undefined;
+	}
+
+	return [
+		{
+			type: "actions",
+			block_id: `reimbursement_${payload.requestId}_status_actions`,
+			elements: [
+				{
+					type: "button",
+					text: { type: "plain_text", text: "Open reimbursement tool" },
+					url: payload.requestUrl,
+					action_id: "open_reimbursement_tool",
+				},
+			],
+		},
+	];
+}
+
 function buildReimbursementStatusMessage(
 	payload: ReimbursementStatusSlackNotification,
 ): string {
@@ -293,13 +428,14 @@ async function defaultReimbursementSlackNotifier(
 
 	const reviewerEmails = await fetchReimbursementReviewerEmails();
 	const message = buildReimbursementMessage(payload);
+	const blocks = buildReimbursementBlocks(payload);
 	await Promise.all(
 		reviewerEmails.map(async (reviewerEmail) => {
 			const slackUserId = await lookupSlackUserIdByEmail(reviewerEmail);
 			if (!slackUserId) {
 				return;
 			}
-			await postDirectMessage(slackUserId, message);
+			await postDirectMessage(slackUserId, message, blocks);
 		}),
 	);
 }
@@ -319,6 +455,7 @@ async function defaultReimbursementStatusSlackNotifier(
 	await postDirectMessage(
 		slackUserId,
 		buildReimbursementStatusMessage(payload),
+		buildReimbursementStatusBlocks(payload),
 	);
 }
 

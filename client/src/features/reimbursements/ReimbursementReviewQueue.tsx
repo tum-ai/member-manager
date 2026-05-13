@@ -1,3 +1,4 @@
+import CloudSyncIcon from "@mui/icons-material/CloudSync";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
@@ -7,6 +8,7 @@ import {
 	AccordionSummary,
 	Alert,
 	Box,
+	Button,
 	Checkbox,
 	Chip,
 	Divider,
@@ -55,6 +57,8 @@ interface ReimbursementReviewQueueProps {
 		request: ReimbursementRequest,
 		mode: "view" | "download",
 	) => Promise<void>;
+	onBuchhaltungsButlerSync: (requestId: string) => Promise<void>;
+	isSyncingBuchhaltungsButler: boolean;
 }
 
 export default function ReimbursementReviewQueue({
@@ -69,6 +73,8 @@ export default function ReimbursementReviewQueue({
 	hasBulkDownload,
 	isUpdatingDepartment,
 	onReceiptOpen,
+	onBuchhaltungsButlerSync,
+	isSyncingBuchhaltungsButler,
 }: ReimbursementReviewQueueProps): React.ReactElement {
 	if (requests.length === 0) {
 		return (
@@ -102,6 +108,10 @@ export default function ReimbursementReviewQueue({
 						}
 						onReceiptOpen={(mode) => onReceiptOpen(request, mode)}
 						isUpdatingDepartment={isUpdatingDepartment}
+						onBuchhaltungsButlerSync={() =>
+							onBuchhaltungsButlerSync(request.id)
+						}
+						isSyncingBuchhaltungsButler={isSyncingBuchhaltungsButler}
 					/>
 				))}
 			</Box>
@@ -121,6 +131,8 @@ interface ReviewItemProps {
 	onDepartmentChange: (department: string) => Promise<void>;
 	onReceiptOpen: (mode: "view" | "download") => Promise<void>;
 	isUpdatingDepartment: boolean;
+	onBuchhaltungsButlerSync: () => Promise<void>;
+	isSyncingBuchhaltungsButler: boolean;
 }
 
 function ReviewItem({
@@ -135,6 +147,8 @@ function ReviewItem({
 	onDepartmentChange,
 	onReceiptOpen,
 	isUpdatingDepartment,
+	onBuchhaltungsButlerSync,
+	isSyncingBuchhaltungsButler,
 }: ReviewItemProps): React.ReactElement {
 	const requesterName = getRequesterName(request);
 	const selectable =
@@ -143,6 +157,7 @@ function ReviewItem({
 		hasReceiptEndpoint(request);
 	const typeLabel =
 		request.submission_type === "invoice" ? "Invoice" : "Reimbursement";
+	const bbSyncStatus = request.bb_sync_status ?? "not_synced";
 
 	return (
 		<GlassCard sx={{ overflow: "hidden" }}>
@@ -207,6 +222,14 @@ function ReviewItem({
 									<Chip
 										label={request.department}
 										size="small"
+										variant="outlined"
+									/>
+									<Chip
+										label={`BB: ${formatBuchhaltungsButlerSyncStatus(
+											bbSyncStatus,
+										)}`}
+										size="small"
+										color={getBuchhaltungsButlerSyncColor(bbSyncStatus)}
 										variant="outlined"
 									/>
 								</Stack>
@@ -284,6 +307,29 @@ function ReviewItem({
 									value={request.receipt_filename ?? "No file"}
 								/>
 								<ReceiptLinks request={request} onReceiptOpen={onReceiptOpen} />
+							</DetailGroup>
+
+							<DetailGroup title="BuchhaltungsButler">
+								<Detail
+									label="Sync status"
+									value={formatBuchhaltungsButlerSyncStatus(bbSyncStatus)}
+									strong
+								/>
+								{request.bb_receipt_id_by_customer && (
+									<Detail
+										label="Receipt ID"
+										value={request.bb_receipt_id_by_customer}
+										monospace
+									/>
+								)}
+								{request.bb_sync_error && (
+									<Detail label="Last error" value={request.bb_sync_error} />
+								)}
+								<BuchhaltungsButlerSyncButton
+									request={request}
+									onSync={onBuchhaltungsButlerSync}
+									isSyncing={isSyncingBuchhaltungsButler}
+								/>
 							</DetailGroup>
 						</Box>
 
@@ -394,6 +440,54 @@ function Detail({
 				{value}
 			</Typography>
 		</Box>
+	);
+}
+
+function formatBuchhaltungsButlerSyncStatus(status: string): string {
+	if (status === "pending") return "Syncing";
+	if (status === "synced") return "Synced";
+	if (status === "failed") return "Failed";
+	return "Not synced";
+}
+
+function getBuchhaltungsButlerSyncColor(
+	status: string,
+): "default" | "success" | "warning" | "error" {
+	if (status === "pending") return "warning";
+	if (status === "synced") return "success";
+	if (status === "failed") return "error";
+	return "default";
+}
+
+function BuchhaltungsButlerSyncButton({
+	request,
+	onSync,
+	isSyncing,
+}: {
+	request: ReimbursementRequest;
+	onSync: () => Promise<void>;
+	isSyncing: boolean;
+}): React.ReactElement | null {
+	const isApproved = request.approval_status === "approved";
+	const isSynced = request.bb_sync_status === "synced";
+	if (!isApproved || isSynced) {
+		return null;
+	}
+
+	return (
+		<Button
+			variant="outlined"
+			size="small"
+			startIcon={<CloudSyncIcon />}
+			disabled={isSyncing || request.bb_sync_status === "pending"}
+			onClick={() => {
+				void onSync();
+			}}
+		>
+			{isSyncing || request.bb_sync_status === "pending"
+				? "Syncing..."
+				: "Sync to BuchhaltungsButler"}
+		</Button>
 	);
 }
 

@@ -35,6 +35,25 @@ Finance review responses include receipt view/download URLs but never the raw `r
 
 Finance reviewers can also call `GET /api/reimbursements/summary` for dashboard essentials: total requests, total amount, pending approvals, approved-but-unpaid count, and paid amount for the current month.
 
+## BuchhaltungsButler sync
+
+Approved reimbursement and invoice requests can be synced to BuchhaltungsButler from Finance Review. The sync uploads the stored receipt to `POST /receipts/upload` as `invoice inbound`, sends amount/date/currency metadata, stores BuchhaltungsButler's `id_by_customer`, and adds a traceability comment with the Member Manager request ID. It does not create BuchhaltungsButler transactions by default to avoid duplicate bank-import entries.
+
+Set these server env vars to enable live sync:
+
+```bash
+BUCHHALTUNGSBUTLER_SYNC_ENABLED=true
+BUCHHALTUNGSBUTLER_API_CLIENT=
+BUCHHALTUNGSBUTLER_API_SECRET=
+BUCHHALTUNGSBUTLER_API_KEY=
+# optional; defaults to https://webapp.buchhaltungsbutler.de/api/v1
+BUCHHALTUNGSBUTLER_API_BASE_URL=
+```
+
+Slack reimbursement notifications use Block Kit buttons when `APP_BASE_URL` is set, `SLACK_BOT_TOKEN` is available, and the Slack app has `chat:write`, `users:read`, `users:read.email`, and `im:write` scopes. Configure Slack interactivity to post to `/api/slack/interactions` and set `SLACK_SIGNING_SECRET` so the server can verify `X-Slack-Signature` before accepting approve / approve-and-sync button clicks.
+
+See `docs/buchhaltungsbutler-sync.md` for the API research and design notes.
+
 ## `pnpm dev` vs `pnpm dev:local`
 
 Same dev server, different Supabase backend:
