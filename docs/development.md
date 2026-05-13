@@ -42,6 +42,7 @@ Approved reimbursement and invoice requests can be synced to BuchhaltungsButler 
 Set these server env vars to enable live sync:
 
 ```bash
+BUCHHALTUNGSBUTLER_SYNC_ENABLED=true
 BUCHHALTUNGSBUTLER_API_CLIENT=
 BUCHHALTUNGSBUTLER_API_SECRET=
 BUCHHALTUNGSBUTLER_API_KEY=

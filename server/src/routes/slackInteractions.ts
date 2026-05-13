@@ -6,6 +6,7 @@ import {
 	BuchhaltungsButlerApiError,
 	BuchhaltungsButlerConfigError,
 } from "../lib/buchhaltungsbutler.js";
+import { fetchWithTimeout } from "../lib/fetchWithTimeout.js";
 import { getSlackUserEmailById } from "../lib/slackNotifier.js";
 import {
 	approveReimbursementRequest,
@@ -19,6 +20,7 @@ const SLACK_MAX_REQUEST_AGE_SECONDS = 60 * 5;
 interface SlackInteractionPayload {
 	type?: string;
 	user?: { id?: string };
+	response_url?: string;
 	actions?: Array<{ action_id?: string; value?: string }>;
 }
 
@@ -137,26 +139,88 @@ async function handleReimbursementAction({
 	return `Request ${requestId} ${actionLabel(actionId)}.`;
 }
 
-function handleSlackActionError(error: unknown, reply: FastifyReply) {
+function slackActionErrorMessage(error: unknown): string {
 	if (error instanceof ReimbursementWorkflowError) {
-		return sendSlackMessage(reply, error.message);
+		return error.message;
 	}
 	if (error instanceof BuchhaltungsButlerConfigError) {
-		return sendSlackMessage(
-			reply,
-			`Approved, but sync failed: ${error.message}`,
-		);
+		return `Approved, but sync failed: ${error.message}`;
 	}
 	if (error instanceof BuchhaltungsButlerApiError) {
-		return sendSlackMessage(
-			reply,
-			`Approved, but sync failed: ${error.message}`,
-		);
+		return `Approved, but sync failed: ${error.message}`;
 	}
 	if (error instanceof Error) {
-		return sendSlackMessage(reply, error.message);
+		return error.message;
 	}
-	return sendSlackMessage(reply, "Slack action failed");
+	return "Slack action failed";
+}
+
+async function postSlackDelayedResponse(
+	responseUrl: string | undefined,
+	text: string,
+): Promise<void> {
+	if (!responseUrl) {
+		return;
+	}
+
+	const response = await fetchWithTimeout(responseUrl, {
+		method: "POST",
+		headers: { "content-type": "application/json; charset=utf-8" },
+		body: JSON.stringify({
+			response_type: "ephemeral",
+			replace_original: false,
+			text,
+		}),
+	});
+
+	if (!response.ok) {
+		throw new Error(`Slack delayed response failed with ${response.status}`);
+	}
+}
+
+function queueSlackReimbursementAction({
+	actionId,
+	requestId,
+	slackUserId,
+	responseUrl,
+	request,
+}: {
+	actionId: string;
+	requestId: string;
+	slackUserId: string;
+	responseUrl?: string;
+	request: FastifyRequest;
+}): void {
+	setImmediate(() => {
+		void (async () => {
+			try {
+				const reviewerUserId = await resolveReviewerUserId(slackUserId);
+				const message = await handleReimbursementAction({
+					actionId,
+					requestId,
+					reviewerUserId,
+					request,
+				});
+				await postSlackDelayedResponse(responseUrl, message);
+			} catch (error) {
+				request.log.warn(
+					{ err: error, actionId, requestId },
+					"Slack action failed",
+				);
+				try {
+					await postSlackDelayedResponse(
+						responseUrl,
+						slackActionErrorMessage(error),
+					);
+				} catch (postError) {
+					request.log.warn(
+						{ err: postError, actionId, requestId },
+						"Slack delayed response failed",
+					);
+				}
+			}
+		})();
+	});
 }
 
 export async function slackInteractionRoutes(server: FastifyInstance) {
@@ -194,21 +258,17 @@ export async function slackInteractionRoutes(server: FastifyInstance) {
 			return sendSlackMessage(reply, "Slack action payload is missing data.");
 		}
 
-		try {
-			const reviewerUserId = await resolveReviewerUserId(slackUserId);
-			const message = await handleReimbursementAction({
-				actionId,
-				requestId,
-				reviewerUserId,
-				request,
-			});
-			return sendSlackMessage(reply, message);
-		} catch (error) {
-			request.log.warn(
-				{ err: error, actionId, requestId },
-				"Slack action failed",
-			);
-			return handleSlackActionError(error, reply);
-		}
+		queueSlackReimbursementAction({
+			actionId,
+			requestId,
+			slackUserId,
+			responseUrl: payload.response_url,
+			request,
+		});
+
+		return sendSlackMessage(
+			reply,
+			"Processing reimbursement action. Slack will post the result shortly.",
+		);
 	});
 }

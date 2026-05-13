@@ -42,6 +42,7 @@ const ALLOWED_RECEIPT_MIME_TYPES = new Set([
 ]);
 
 const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
+const BB_PENDING_SYNC_FRESHNESS_MS = 10 * 60 * 1000;
 const OPENAI_CHAT_COMPLETIONS_URL =
 	"https://api.openai.com/v1/chat/completions";
 
@@ -504,6 +505,25 @@ function bbSyncErrorMessage(error: unknown): string {
 	return "BuchhaltungsButler sync failed";
 }
 
+function isFreshBuchhaltungsButlerPendingSync(
+	request: ReimbursementRow,
+): boolean {
+	if (request.bb_sync_status !== "pending") {
+		return false;
+	}
+
+	const attemptedAt = normalizeMaybeString(request.bb_last_sync_attempt_at);
+	if (!attemptedAt) {
+		return true;
+	}
+
+	const attemptedAtMs = Date.parse(attemptedAt);
+	return (
+		Number.isNaN(attemptedAtMs) ||
+		Date.now() - attemptedAtMs < BB_PENDING_SYNC_FRESHNESS_MS
+	);
+}
+
 function buildBuchhaltungsButlerComment({
 	request,
 	requesterEmail,
@@ -745,6 +765,10 @@ export async function syncApprovedReimbursementToBuchhaltungsButler({
 
 	if (!hasReceiptPayload(existingRequest)) {
 		throw new ReimbursementWorkflowError("Receipt not found", 404);
+	}
+
+	if (!force && isFreshBuchhaltungsButlerPendingSync(existingRequest)) {
+		return existingRequest;
 	}
 
 	if (

@@ -12,6 +12,20 @@ import { mockDatabase } from "../mocks/supabase.js";
 
 const PDF_BASE64 = "JVBERi0xLjQ=";
 
+async function waitForAssertion(assertion: () => void): Promise<void> {
+	let lastError: unknown;
+	for (let attempt = 0; attempt < 50; attempt += 1) {
+		try {
+			assertion();
+			return;
+		} catch (error) {
+			lastError = error;
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		}
+	}
+	throw lastError;
+}
+
 function signedSlackPayload(payload: Record<string, unknown>, secret: string) {
 	const body = new URLSearchParams({
 		payload: JSON.stringify(payload),
@@ -41,6 +55,7 @@ describe("Slack interaction routes", async () => {
 		bbSecret: process.env.BUCHHALTUNGSBUTLER_API_SECRET,
 		bbKey: process.env.BUCHHALTUNGSBUTLER_API_KEY,
 		bbBaseUrl: process.env.BUCHHALTUNGSBUTLER_API_BASE_URL,
+		bbSyncEnabled: process.env.BUCHHALTUNGSBUTLER_SYNC_ENABLED,
 	};
 
 	before(async () => {
@@ -62,6 +77,7 @@ describe("Slack interaction routes", async () => {
 			BUCHHALTUNGSBUTLER_API_SECRET: originalEnv.bbSecret,
 			BUCHHALTUNGSBUTLER_API_KEY: originalEnv.bbKey,
 			BUCHHALTUNGSBUTLER_API_BASE_URL: originalEnv.bbBaseUrl,
+			BUCHHALTUNGSBUTLER_SYNC_ENABLED: originalEnv.bbSyncEnabled,
 		})) {
 			if (value === undefined) {
 				delete process.env[key];
@@ -95,8 +111,17 @@ describe("Slack interaction routes", async () => {
 		process.env.SLACK_BOT_TOKEN = "xoxb-test";
 		setReimbursementStatusSlackNotifier(async () => {});
 
-		globalThis.fetch = (async (input) => {
-			assert.strictEqual(String(input), "https://slack.com/api/users.info");
+		const delayedMessages: string[] = [];
+		globalThis.fetch = (async (input, init) => {
+			const url = String(input);
+			if (url === "https://hooks.slack.test/response") {
+				delayedMessages.push(
+					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
+				);
+				return new Response("ok", { status: 200 });
+			}
+
+			assert.strictEqual(url, "https://slack.com/api/users.info");
 			return new Response(
 				JSON.stringify({
 					ok: true,
@@ -110,6 +135,7 @@ describe("Slack interaction routes", async () => {
 			{
 				type: "block_actions",
 				user: { id: "UADMIN" },
+				response_url: "https://hooks.slack.test/response",
 				actions: [
 					{
 						action_id: "reimbursement_approve",
@@ -128,13 +154,16 @@ describe("Slack interaction routes", async () => {
 		});
 
 		assert.strictEqual(response.statusCode, 200);
-		assert.match(JSON.parse(response.payload).text, /approved/);
-		assert.strictEqual(
-			mockDatabase.reimbursements.find(
-				(row) => row.id === "reimbursement-older",
-			)?.approval_status,
-			"approved",
-		);
+		assert.match(JSON.parse(response.payload).text, /Processing/);
+		await waitForAssertion(() => {
+			assert.strictEqual(
+				mockDatabase.reimbursements.find(
+					(row) => row.id === "reimbursement-older",
+				)?.approval_status,
+				"approved",
+			);
+			assert.match(delayedMessages.at(-1) ?? "", /approved/);
+		});
 	});
 
 	test("lets finance reviewers approve and sync to BuchhaltungsButler from Slack", async () => {
@@ -145,11 +174,20 @@ describe("Slack interaction routes", async () => {
 		process.env.BUCHHALTUNGSBUTLER_API_SECRET = "client-secret";
 		process.env.BUCHHALTUNGSBUTLER_API_KEY = "customer-key";
 		process.env.BUCHHALTUNGSBUTLER_API_BASE_URL = "https://bb.test/api/v1";
+		process.env.BUCHHALTUNGSBUTLER_SYNC_ENABLED = "true";
 		setReimbursementStatusSlackNotifier(async () => {});
 
 		const bbRequests: string[] = [];
+		const delayedMessages: string[] = [];
 		globalThis.fetch = (async (input, init) => {
 			const url = String(input);
+			if (url === "https://hooks.slack.test/response") {
+				delayedMessages.push(
+					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
+				);
+				return new Response("ok", { status: 200 });
+			}
+
 			if (url === "https://slack.com/api/users.info") {
 				return new Response(
 					JSON.stringify({
@@ -187,6 +225,7 @@ describe("Slack interaction routes", async () => {
 			{
 				type: "block_actions",
 				user: { id: "UADMIN" },
+				response_url: "https://hooks.slack.test/response",
 				actions: [
 					{
 						action_id: "reimbursement_approve_sync_bb",
@@ -205,15 +244,18 @@ describe("Slack interaction routes", async () => {
 		});
 
 		assert.strictEqual(response.statusCode, 200);
-		assert.match(JSON.parse(response.payload).text, /synced/);
-		assert.deepStrictEqual(bbRequests, [
-			"https://bb.test/api/v1/receipts/upload",
-			"https://bb.test/api/v1/comments/add",
-		]);
-		const request = mockDatabase.reimbursements.find(
-			(row) => row.id === "reimbursement-newer",
-		);
-		assert.strictEqual(request?.bb_sync_status, "synced");
-		assert.strictEqual(request?.bb_receipt_id_by_customer, "654");
+		assert.match(JSON.parse(response.payload).text, /Processing/);
+		await waitForAssertion(() => {
+			assert.deepStrictEqual(bbRequests, [
+				"https://bb.test/api/v1/receipts/upload",
+				"https://bb.test/api/v1/comments/add",
+			]);
+			const request = mockDatabase.reimbursements.find(
+				(row) => row.id === "reimbursement-newer",
+			);
+			assert.strictEqual(request?.bb_sync_status, "synced");
+			assert.strictEqual(request?.bb_receipt_id_by_customer, "654");
+			assert.match(delayedMessages.at(-1) ?? "", /synced/);
+		});
 	});
 });

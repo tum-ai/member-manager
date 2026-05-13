@@ -195,7 +195,7 @@ No BuchhaltungsButler sync on member submission. Requests may still be rejected 
 
 Approving keeps current state behavior and unlocks sync.
 
-Optional later: `BB_AUTO_SYNC_ON_APPROVE=true`, but default should be manual.
+Automatic sync-on-approve is out of scope for Phase 1; approval and BuchhaltungsButler sync stay separate manual actions.
 
 ### Sync to BuchhaltungsButler
 
@@ -263,12 +263,13 @@ BUCHHALTUNGSBUTLER_API_KEY=
 BUCHHALTUNGSBUTLER_API_BASE_URL=https://webapp.buchhaltungsbutler.de/api/v1
 ```
 
-Optional behavior flags:
+Required feature flag:
 
 ```bash
 BUCHHALTUNGSBUTLER_SYNC_ENABLED=true
-BUCHHALTUNGSBUTLER_AUTO_SYNC_ON_APPROVE=false
 ```
+
+When this flag is absent or any value other than `true`, the server rejects live BuchhaltungsButler sync attempts before calling the API. Approval remains manual; there is no automatic sync-on-approve behavior in Phase 1.
 
 Required for interactive Slack actions:
 

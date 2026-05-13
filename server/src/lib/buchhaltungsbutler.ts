@@ -74,6 +74,12 @@ export function isBuchhaltungsButlerSyncEnabled(): boolean {
 }
 
 function getCredentials(): BuchhaltungsButlerCredentials {
+	if (!isBuchhaltungsButlerSyncEnabled()) {
+		throw new BuchhaltungsButlerConfigError(
+			"BuchhaltungsButler sync is disabled",
+		);
+	}
+
 	const apiClient = process.env.BUCHHALTUNGSBUTLER_API_CLIENT?.trim();
 	const apiSecret = process.env.BUCHHALTUNGSBUTLER_API_SECRET?.trim();
 	const apiKey = process.env.BUCHHALTUNGSBUTLER_API_KEY?.trim();
