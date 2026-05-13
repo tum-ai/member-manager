@@ -1,4 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	useInfiniteQuery,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
+import { useEffect, useMemo } from "react";
 import type { AdminMember } from "../features/admin/adminUtils";
 import { apiClient } from "../lib/apiClient";
 
@@ -11,31 +17,10 @@ interface AdminResponse {
 
 const ADMIN_PAGE_SIZE = 200;
 
-async function fetchAllAdminMembers(): Promise<AdminMember[]> {
-	const members: AdminMember[] = [];
-	let page = 1;
-	let total = Number.POSITIVE_INFINITY;
-
-	while (members.length < total) {
-		const response = await apiClient<AdminResponse>(
-			`/api/admin/members?page=${page}&limit=${ADMIN_PAGE_SIZE}`,
-		);
-		members.push(...response.data);
-		total = response.total;
-
-		if (response.data.length === 0) {
-			break;
-		}
-		page += 1;
-	}
-
-	if (members.length < total) {
-		throw new Error(
-			`Loaded ${members.length} of ${total} admin members before the API stopped returning data.`,
-		);
-	}
-
-	return members;
+async function fetchAdminMembersPage(page: number): Promise<AdminResponse> {
+	return await apiClient<AdminResponse>(
+		`/api/admin/members?page=${page}&limit=${ADMIN_PAGE_SIZE}`,
+	);
 }
 
 export interface MemberChangeRequest {
@@ -64,20 +49,42 @@ export interface EngagementCertificateRequest {
 export function useAdminData() {
 	const queryClient = useQueryClient();
 
-	const {
-		data: members,
-		isLoading,
-		error,
-	} = useQuery({
+	const membersQuery = useInfiniteQuery({
 		queryKey: ["admin-members"],
-		queryFn: fetchAllAdminMembers,
+		queryFn: async ({ pageParam }) => fetchAdminMembersPage(pageParam),
+		initialPageParam: 1,
+		getNextPageParam: (lastPage) => {
+			const loadedThroughCurrentPage = lastPage.page * lastPage.limit;
+			if (
+				lastPage.data.length === 0 ||
+				loadedThroughCurrentPage >= lastPage.total
+			) {
+				return undefined;
+			}
+			return lastPage.page + 1;
+		},
 	});
 
-	const {
-		data: changeRequests,
-		isLoading: isLoadingChangeRequests,
-		error: changeRequestsError,
-	} = useQuery({
+	// Render after the first admin page, then hydrate the rest in the background.
+	// Previously the admin route waited for every member page before showing UI.
+	useEffect(() => {
+		if (membersQuery.hasNextPage && !membersQuery.isFetching) {
+			void membersQuery.fetchNextPage();
+		}
+	}, [
+		membersQuery.fetchNextPage,
+		membersQuery.hasNextPage,
+		membersQuery.isFetching,
+	]);
+
+	const members = useMemo(
+		() => membersQuery.data?.pages.flatMap((page) => page.data),
+		[membersQuery.data],
+	);
+	const totalMembers =
+		membersQuery.data?.pages[0]?.total ?? members?.length ?? 0;
+
+	const { data: changeRequests, error: changeRequestsError } = useQuery({
 		queryKey: ["admin-member-change-requests"],
 		queryFn: async () => {
 			return await apiClient<MemberChangeRequest[]>(
@@ -86,18 +93,21 @@ export function useAdminData() {
 		},
 	});
 
-	const {
-		data: certificateRequests,
-		isLoading: isLoadingCertificateRequests,
-		error: certificateRequestsError,
-	} = useQuery({
-		queryKey: ["admin-engagement-certificate-requests"],
-		queryFn: async () => {
-			return await apiClient<EngagementCertificateRequest[]>(
-				"/api/admin/engagement-certificate-requests",
-			);
-		},
-	});
+	const { data: certificateRequests, error: certificateRequestsError } =
+		useQuery({
+			queryKey: ["admin-engagement-certificate-requests"],
+			queryFn: async () => {
+				return await apiClient<EngagementCertificateRequest[]>(
+					"/api/admin/engagement-certificate-requests",
+				);
+			},
+		});
+
+	function invalidateMemberViews() {
+		queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+		queryClient.invalidateQueries({ queryKey: ["members-list"] });
+		queryClient.invalidateQueries({ queryKey: ["member"] });
+	}
 
 	const updateDepartmentMutation = useMutation({
 		mutationFn: async ({
@@ -112,9 +122,7 @@ export function useAdminData() {
 				body: JSON.stringify({ department }),
 			});
 		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
-		},
+		onSuccess: invalidateMemberViews,
 	});
 
 	const updateRoleMutation = useMutation({
@@ -130,9 +138,7 @@ export function useAdminData() {
 				body: JSON.stringify({ member_role }),
 			});
 		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
-		},
+		onSuccess: invalidateMemberViews,
 	});
 
 	const updateStatusMutation = useMutation({
@@ -148,9 +154,7 @@ export function useAdminData() {
 				body: JSON.stringify({ member_status }),
 			});
 		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
-		},
+		onSuccess: invalidateMemberViews,
 	});
 
 	const updateAccessRoleMutation = useMutation({
@@ -167,7 +171,8 @@ export function useAdminData() {
 			});
 		},
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+			invalidateMemberViews();
+			queryClient.invalidateQueries({ queryKey: ["user-role"] });
 		},
 	});
 
@@ -199,7 +204,8 @@ export function useAdminData() {
 			});
 		},
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
+			invalidateMemberViews();
+			queryClient.invalidateQueries({ queryKey: ["user-role"] });
 		},
 	});
 
@@ -222,8 +228,7 @@ export function useAdminData() {
 			queryClient.invalidateQueries({
 				queryKey: ["admin-member-change-requests"],
 			});
-			queryClient.invalidateQueries({ queryKey: ["admin-members"] });
-			queryClient.invalidateQueries({ queryKey: ["member"] });
+			invalidateMemberViews();
 		},
 	});
 
@@ -257,11 +262,15 @@ export function useAdminData() {
 
 	return {
 		members,
+		totalMembers,
 		changeRequests: changeRequests ?? [],
 		certificateRequests: certificateRequests ?? [],
-		isLoading:
-			isLoading || isLoadingChangeRequests || isLoadingCertificateRequests,
-		error: error || changeRequestsError || certificateRequestsError,
+		isLoading: membersQuery.isLoading,
+		isLoadingMoreMembers: membersQuery.isFetchingNextPage,
+		isRefreshingMembers:
+			membersQuery.isFetching && !membersQuery.isFetchingNextPage,
+		error:
+			membersQuery.error || changeRequestsError || certificateRequestsError,
 		updateDepartmentAsync: updateDepartmentMutation.mutateAsync,
 		updateRoleAsync: updateRoleMutation.mutateAsync,
 		updateStatusAsync: updateStatusMutation.mutateAsync,

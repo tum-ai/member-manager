@@ -3,9 +3,24 @@ import { getSupabase } from "./supabase.js";
 const AUTH_PAGE_SIZE = 1000;
 const AUTH_EMAIL_LOOKUP_CACHE_TTL_MS = 5 * 60 * 1000;
 
+export interface AuthProfile {
+	email: string;
+	avatar_url: string;
+}
+
+interface ListedAuthUser {
+	id: string;
+	email?: string;
+	user_metadata?: Record<string, unknown> | null;
+}
+
 const authUserIdByEmailCache = new Map<
 	string,
 	{ userId: string | null; expiresAt: number }
+>();
+const authProfileByUserIdCache = new Map<
+	string,
+	{ profile: AuthProfile; expiresAt: number }
 >();
 
 // Vercel's built-in TS cannot resolve inherited GoTrueClient methods through
@@ -15,14 +30,69 @@ function getAuthAdmin() {
 	return (getSupabase().auth as any).admin;
 }
 
+// Slack OIDC / Supabase store the profile picture under `avatar_url` (Supabase
+// normalized) or `picture` (OIDC standard). Prefer `avatar_url` when both are
+// present.
+function extractAvatarUrl(metadata: Record<string, unknown> | null): string {
+	if (!metadata) return "";
+	const candidates = [metadata.avatar_url, metadata.picture];
+	for (const value of candidates) {
+		if (typeof value === "string" && value.trim() !== "") {
+			return value;
+		}
+	}
+	return "";
+}
+
+function readCachedAuthProfile(userId: string): AuthProfile | null {
+	const cached = authProfileByUserIdCache.get(userId);
+	if (!cached) {
+		return null;
+	}
+	if (cached.expiresAt <= Date.now()) {
+		authProfileByUserIdCache.delete(userId);
+		return null;
+	}
+	return cached.profile;
+}
+
+function cacheAuthProfile(userId: string, profile: AuthProfile): void {
+	authProfileByUserIdCache.set(userId, {
+		profile,
+		expiresAt: Date.now() + AUTH_EMAIL_LOOKUP_CACHE_TTL_MS,
+	});
+	const normalizedEmail = profile.email.trim().toLowerCase();
+	if (normalizedEmail) {
+		authUserIdByEmailCache.set(normalizedEmail, {
+			userId,
+			expiresAt: Date.now() + AUTH_EMAIL_LOOKUP_CACHE_TTL_MS,
+		});
+	}
+}
+
+function cacheListedAuthUser(user: ListedAuthUser): AuthProfile {
+	const profile = {
+		email: user.email ?? "",
+		avatar_url: extractAvatarUrl(user.user_metadata ?? null),
+	};
+	cacheAuthProfile(user.id, profile);
+	return profile;
+}
+
 export async function getAuthEmail(userId: string): Promise<string> {
+	const cached = readCachedAuthProfile(userId);
+	if (cached) {
+		return cached.email;
+	}
+
 	const { data, error } = await getAuthAdmin().getUserById(userId);
 
 	if (error) {
 		throw new Error(`Failed to fetch auth user ${userId}: ${error.message}`);
 	}
 
-	return data.user?.email ?? "";
+	const user = data.user as ListedAuthUser | null | undefined;
+	return user ? cacheListedAuthUser(user).email : "";
 }
 
 export async function getAuthUserIdByEmail(
@@ -50,10 +120,13 @@ export async function getAuthUserIdByEmail(
 			throw new Error(`Failed to list auth users: ${error.message}`);
 		}
 
-		const users = data.users ?? [];
+		const users = (data.users ?? []) as ListedAuthUser[];
+		for (const user of users) {
+			cacheListedAuthUser(user);
+		}
+
 		const match = users.find(
-			(user: { email?: string; id?: string }) =>
-				user.email?.trim().toLowerCase() === normalizedEmail,
+			(user) => user.email?.trim().toLowerCase() === normalizedEmail,
 		);
 		if (match?.id) {
 			authUserIdByEmailCache.set(normalizedEmail, {
@@ -81,6 +154,14 @@ export async function getAuthEmails(
 	const pendingUserIds = new Set(userIds);
 	const emails = new Map<string, string>();
 
+	for (const userId of pendingUserIds) {
+		const cached = readCachedAuthProfile(userId);
+		if (cached) {
+			emails.set(userId, cached.email);
+			pendingUserIds.delete(userId);
+		}
+	}
+
 	if (pendingUserIds.size === 0) {
 		return emails;
 	}
@@ -97,11 +178,12 @@ export async function getAuthEmails(
 			throw new Error(`Failed to list auth users: ${error.message}`);
 		}
 
-		const users = data.users ?? [];
+		const users = (data.users ?? []) as ListedAuthUser[];
 
 		for (const user of users) {
+			const profile = cacheListedAuthUser(user);
 			if (pendingUserIds.delete(user.id)) {
-				emails.set(user.id, user.email ?? "");
+				emails.set(user.id, profile.email);
 			}
 		}
 
@@ -114,28 +196,10 @@ export async function getAuthEmails(
 
 	for (const userId of pendingUserIds) {
 		emails.set(userId, "");
+		cacheAuthProfile(userId, { email: "", avatar_url: "" });
 	}
 
 	return emails;
-}
-
-export interface AuthProfile {
-	email: string;
-	avatar_url: string;
-}
-
-// Slack OIDC / Supabase store the profile picture under `avatar_url` (Supabase
-// normalized) or `picture` (OIDC standard). Prefer `avatar_url` when both are
-// present.
-function extractAvatarUrl(metadata: Record<string, unknown> | null): string {
-	if (!metadata) return "";
-	const candidates = [metadata.avatar_url, metadata.picture];
-	for (const value of candidates) {
-		if (typeof value === "string" && value.trim() !== "") {
-			return value;
-		}
-	}
-	return "";
 }
 
 export async function getAuthProfiles(
@@ -143,6 +207,14 @@ export async function getAuthProfiles(
 ): Promise<Map<string, AuthProfile>> {
 	const pendingUserIds = new Set(userIds);
 	const profiles = new Map<string, AuthProfile>();
+
+	for (const userId of pendingUserIds) {
+		const cached = readCachedAuthProfile(userId);
+		if (cached) {
+			profiles.set(userId, cached);
+			pendingUserIds.delete(userId);
+		}
+	}
 
 	if (pendingUserIds.size === 0) {
 		return profiles;
@@ -160,14 +232,12 @@ export async function getAuthProfiles(
 			throw new Error(`Failed to list auth users: ${error.message}`);
 		}
 
-		const users = data.users ?? [];
+		const users = (data.users ?? []) as ListedAuthUser[];
 
 		for (const user of users) {
+			const profile = cacheListedAuthUser(user);
 			if (pendingUserIds.delete(user.id)) {
-				profiles.set(user.id, {
-					email: user.email ?? "",
-					avatar_url: extractAvatarUrl(user.user_metadata ?? null),
-				});
+				profiles.set(user.id, profile);
 			}
 		}
 
@@ -179,7 +249,9 @@ export async function getAuthProfiles(
 	}
 
 	for (const userId of pendingUserIds) {
-		profiles.set(userId, { email: "", avatar_url: "" });
+		const emptyProfile = { email: "", avatar_url: "" };
+		profiles.set(userId, emptyProfile);
+		cacheAuthProfile(userId, emptyProfile);
 	}
 
 	return profiles;

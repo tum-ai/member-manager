@@ -103,9 +103,12 @@ export default function AdminDatabaseView() {
 	const { showToast } = useToast();
 	const {
 		members,
+		totalMembers,
 		changeRequests,
 		certificateRequests,
 		isLoading,
+		isLoadingMoreMembers,
+		isRefreshingMembers,
 		error,
 		updateMemberAsync,
 		reviewChangeRequestAsync,
@@ -134,6 +137,8 @@ export default function AdminDatabaseView() {
 	);
 
 	const allMembers = members ?? [];
+	const loadedMemberCount = allMembers.length;
+	const totalMemberCount = totalMembers ?? loadedMemberCount;
 	const filtered = useMemo(
 		() =>
 			sortAdminMembers(
@@ -146,7 +151,7 @@ export default function AdminDatabaseView() {
 
 	const stats = useMemo(
 		() => ({
-			total: allMembers.length,
+			total: totalMemberCount,
 			active: allMembers.filter((member) => member.active).length,
 			sepaAccepted: allMembers.filter((member) => hasMandateAgreement(member))
 				.length,
@@ -154,7 +159,7 @@ export default function AdminDatabaseView() {
 				hasPrivacyAgreement(member),
 			).length,
 		}),
-		[allMembers],
+		[allMembers, totalMemberCount],
 	);
 
 	if (isLoading)
@@ -429,6 +434,11 @@ export default function AdminDatabaseView() {
 	const editRoleIsExecutive = isExecutiveMemberRole(editRole);
 	const isMemberSaveDisabled =
 		isSavingMember || (editRoleNeedsDepartment && !editDepartment);
+	const memberLoadingMessage = isLoadingMoreMembers
+		? `Loaded ${loadedMemberCount} of ${totalMemberCount} members. Loading the rest in the background...`
+		: isRefreshingMembers
+			? `Refreshing ${filtered.length} matching member${filtered.length === 1 ? "" : "s"}...`
+			: `${filtered.length} member${filtered.length === 1 ? "" : "s"} match the current filters.`;
 
 	return (
 		<Box sx={{ py: 2 }}>
@@ -665,8 +675,7 @@ export default function AdminDatabaseView() {
 						Members
 					</Typography>
 					<Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-						{filtered.length} member{filtered.length === 1 ? "" : "s"} match the
-						current filters.
+						{memberLoadingMessage}
 					</Typography>
 				</CardContent>
 				<TableContainer

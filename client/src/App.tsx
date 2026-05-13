@@ -72,6 +72,9 @@ export default function App(): JSX.Element {
 
 		const { data: listener } = supabase.auth.onAuthStateChange(
 			(_event, session) => {
+				if (!session) {
+					queryClient.clear();
+				}
 				setUser(session?.user ?? null);
 			},
 		);
@@ -89,6 +92,7 @@ export default function App(): JSX.Element {
 
 	async function handleLogout(): Promise<void> {
 		await supabase.auth.signOut();
+		queryClient.clear();
 		setUser(null);
 	}
 
