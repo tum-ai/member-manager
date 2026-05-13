@@ -72,6 +72,8 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		isBulkDownloadingReceipts,
 		openReceiptAsync,
 		downloadReceiptAsync,
+		syncBuchhaltungsButlerAsync,
+		isSyncingBuchhaltungsButler,
 		updateDepartmentAsync,
 		isUpdatingDepartment,
 	} = useReimbursementReview();
@@ -168,6 +170,20 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		} catch (updateError) {
 			showToast(
 				`Could not update reimbursement department: ${getErrorMessage(updateError)}`,
+				"error",
+			);
+		}
+	};
+
+	const handleBuchhaltungsButlerSync = async (
+		requestId: string,
+	): Promise<void> => {
+		try {
+			await syncBuchhaltungsButlerAsync({ requestId });
+			showToast("Request synced to BuchhaltungsButler.", "success");
+		} catch (syncError) {
+			showToast(
+				`Could not sync to BuchhaltungsButler: ${getErrorMessage(syncError)}`,
 				"error",
 			);
 		}
@@ -307,6 +323,8 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 						hasBulkDownload={canBulkDownloadReceipts}
 						isUpdatingDepartment={isUpdatingDepartment}
 						onReceiptOpen={handleReceiptOpen}
+						onBuchhaltungsButlerSync={handleBuchhaltungsButlerSync}
+						isSyncingBuchhaltungsButler={isSyncingBuchhaltungsButler}
 					/>
 				</Box>
 			)}

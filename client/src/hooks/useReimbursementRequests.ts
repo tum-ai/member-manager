@@ -9,6 +9,11 @@ export type ReimbursementApprovalStatus =
 	| "approved"
 	| "not_approved";
 export type ReimbursementPaymentStatus = "to_be_paid" | "paid";
+export type ReimbursementBuchhaltungsButlerSyncStatus =
+	| "not_synced"
+	| "pending"
+	| "synced"
+	| "failed";
 
 export interface ReimbursementRequest {
 	id: string;
@@ -39,6 +44,14 @@ export interface ReimbursementRequest {
 	approval_status: ReimbursementApprovalStatus;
 	payment_status: ReimbursementPaymentStatus;
 	rejection_reason?: string | null;
+	bb_sync_status?: ReimbursementBuchhaltungsButlerSyncStatus | null;
+	bb_receipt_id_by_customer?: string | null;
+	bb_receipt_filename?: string | null;
+	bb_synced_at?: string | null;
+	bb_sync_error?: string | null;
+	bb_sync_attempts?: number | null;
+	bb_last_sync_attempt_at?: string | null;
+	bb_synced_by?: string | null;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -91,6 +104,11 @@ export interface ReviewReimbursementRequestPayload {
 export interface UpdateReimbursementDepartmentPayload {
 	requestId: string;
 	department: string;
+}
+
+export interface SyncBuchhaltungsButlerPayload {
+	requestId: string;
+	force?: boolean;
 }
 
 function normalizeReviewResponse(
@@ -262,6 +280,22 @@ export function useReimbursementReview() {
 		},
 	});
 
+	const buchhaltungsButlerSyncMutation = useMutation({
+		mutationFn: async (payload: SyncBuchhaltungsButlerPayload) => {
+			const { requestId, force } = payload;
+			return await apiClient<ReimbursementRequest>(
+				`/api/reimbursements/review/${requestId}/buchhaltungsbutler-sync`,
+				{
+					method: "POST",
+					body: JSON.stringify({ force: Boolean(force) }),
+				},
+			);
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["reimbursement-review"] });
+		},
+	});
+
 	const bulkDownloadReceiptsMutation = useMutation({
 		mutationFn: async (requestIds: string[]) => {
 			if (!bulkDownloadUrl) {
@@ -312,6 +346,8 @@ export function useReimbursementReview() {
 		isBulkDownloadingReceipts: bulkDownloadReceiptsMutation.isPending,
 		openReceiptAsync: openReceiptMutation.mutateAsync,
 		downloadReceiptAsync: downloadReceiptMutation.mutateAsync,
+		syncBuchhaltungsButlerAsync: buchhaltungsButlerSyncMutation.mutateAsync,
+		isSyncingBuchhaltungsButler: buchhaltungsButlerSyncMutation.isPending,
 		updateDepartmentAsync: departmentMutation.mutateAsync,
 		isUpdatingDepartment: departmentMutation.isPending,
 	};

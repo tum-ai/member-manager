@@ -276,10 +276,10 @@ function createQueryBuilder(table: string): QueryBuilder {
 				}
 			}
 			tableData = tableData.map((row) => {
-				const key = row.user_id ?? row.id ?? row.id_uuid;
+				const key = row.id ?? row.user_id ?? row.id_uuid;
 				const updated = realTable.find(
 					(candidate) =>
-						(candidate.user_id ?? candidate.id ?? candidate.id_uuid) === key,
+						(candidate.id ?? candidate.user_id ?? candidate.id_uuid) === key,
 				);
 				return updated ? { ...updated } : row;
 			});

@@ -19,6 +19,43 @@ export async function getAuthEmail(userId: string): Promise<string> {
 	return data.user?.email ?? "";
 }
 
+export async function getAuthUserIdByEmail(
+	email: string,
+): Promise<string | null> {
+	const normalizedEmail = email.trim().toLowerCase();
+	if (!normalizedEmail) {
+		return null;
+	}
+
+	let page = 1;
+
+	while (true) {
+		const { data, error } = await getAuthAdmin().listUsers({
+			page,
+			perPage: AUTH_PAGE_SIZE,
+		});
+
+		if (error) {
+			throw new Error(`Failed to list auth users: ${error.message}`);
+		}
+
+		const users = data.users ?? [];
+		const match = users.find(
+			(user: { email?: string; id?: string }) =>
+				user.email?.trim().toLowerCase() === normalizedEmail,
+		);
+		if (match?.id) {
+			return match.id;
+		}
+
+		if (users.length < AUTH_PAGE_SIZE) {
+			return null;
+		}
+
+		page += 1;
+	}
+}
+
 export async function getAuthEmails(
 	userIds: readonly string[],
 ): Promise<Map<string, string>> {

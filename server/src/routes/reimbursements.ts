@@ -3,6 +3,12 @@ import { electronicFormatIBAN, isValidIBAN } from "ibantools";
 import JSZip from "jszip";
 import { z } from "zod";
 import { getAuthEmail, getAuthEmails } from "../lib/authEmails.js";
+import {
+	addBuchhaltungsButlerReceiptComment,
+	BuchhaltungsButlerApiError,
+	BuchhaltungsButlerConfigError,
+	uploadBuchhaltungsButlerReceipt,
+} from "../lib/buchhaltungsbutler.js";
 import { DatabaseError } from "../lib/errors.js";
 import {
 	processReceiptFile,
@@ -305,7 +311,26 @@ type ReviewReimbursementAction = NonNullable<
 	z.infer<typeof ReviewReimbursementSchema>["action"]
 >;
 
+const SyncBuchhaltungsButlerSchema = z.object({
+	force: z.boolean().optional().default(false),
+});
+
 type ReimbursementRow = Record<string, unknown>;
+
+type RouteLogger = {
+	warn: (obj: Record<string, unknown>, message: string) => void;
+	error: (obj: Record<string, unknown>, message: string) => void;
+};
+
+export class ReimbursementWorkflowError extends Error {
+	readonly statusCode: number;
+
+	constructor(message: string, statusCode: number) {
+		super(message);
+		this.name = "ReimbursementWorkflowError";
+		this.statusCode = statusCode;
+	}
+}
 
 function withoutReceiptPayload(row: ReimbursementRow): ReimbursementRow {
 	const { receipt_base64: _receiptBase64, ...rest } = row;
@@ -460,6 +485,95 @@ function normalizeAmount(value: unknown): number {
 	return 0;
 }
 
+function normalizeInteger(value: unknown): number {
+	if (typeof value === "number" && Number.isInteger(value)) {
+		return value;
+	}
+	if (typeof value === "string") {
+		const parsed = Number.parseInt(value, 10);
+		return Number.isInteger(parsed) ? parsed : 0;
+	}
+	return 0;
+}
+
+function bbSyncErrorMessage(error: unknown): string {
+	if (error instanceof Error) {
+		return error.message;
+	}
+	return "BuchhaltungsButler sync failed";
+}
+
+function buildBuchhaltungsButlerComment({
+	request,
+	requesterEmail,
+}: {
+	request: ReimbursementRow;
+	requesterEmail: string;
+}): string {
+	const parts = [
+		`Member Manager request ${String(request.id ?? "")}`,
+		`type=${String(request.submission_type ?? "reimbursement")}`,
+		`requester=${requesterEmail || String(request.user_id ?? "")}`,
+		`department=${String(request.department ?? "")}`,
+	].filter((part) => !part.endsWith("="));
+
+	return parts.join("; ");
+}
+
+async function markBuchhaltungsButlerSyncAttempt({
+	requestId,
+	attempts,
+	status,
+	error,
+	reviewerUserId,
+	receiptIdByCustomer,
+	receiptFilename,
+	syncedAt,
+}: {
+	requestId: string;
+	attempts: number;
+	status: "pending" | "synced" | "failed";
+	error?: string | null;
+	reviewerUserId?: string | null;
+	receiptIdByCustomer?: string | null;
+	receiptFilename?: string | null;
+	syncedAt?: string | null;
+}): Promise<ReimbursementRow> {
+	const update: ReimbursementRow = {
+		bb_sync_status: status,
+		bb_sync_attempts: attempts,
+		bb_last_sync_attempt_at: new Date().toISOString(),
+		bb_sync_error: error ?? null,
+		updated_at: new Date().toISOString(),
+	};
+
+	if (reviewerUserId !== undefined) {
+		update.bb_synced_by = reviewerUserId;
+	}
+	if (receiptIdByCustomer !== undefined) {
+		update.bb_receipt_id_by_customer = receiptIdByCustomer;
+	}
+	if (receiptFilename !== undefined) {
+		update.bb_receipt_filename = receiptFilename;
+	}
+	if (syncedAt !== undefined) {
+		update.bb_synced_at = syncedAt;
+	}
+
+	const { data, error: updateError } = await getSupabase()
+		.from("reimbursements")
+		.update(update)
+		.eq("id", requestId)
+		.select()
+		.single();
+
+	if (updateError) {
+		throw createReimbursementDatabaseError(updateError);
+	}
+
+	return data as ReimbursementRow;
+}
+
 function roundCurrency(value: number): number {
 	return Math.round(value * 100) / 100;
 }
@@ -522,6 +636,177 @@ function createStatusNotificationPayload({
 				: undefined,
 		requestUrl: buildMemberReimbursementUrl(),
 	};
+}
+
+export async function approveReimbursementRequest({
+	requestId,
+	log,
+}: {
+	requestId: string;
+	log?: RouteLogger;
+}): Promise<ReimbursementRow> {
+	const { data: existing, error: fetchError } = await getSupabase()
+		.from("reimbursements")
+		.select("*")
+		.eq("id", requestId)
+		.single();
+
+	if (fetchError) {
+		if ((fetchError as { code?: string }).code === "PGRST116") {
+			throw new ReimbursementWorkflowError(
+				"Reimbursement request not found",
+				404,
+			);
+		}
+		throw createReimbursementDatabaseError(fetchError);
+	}
+
+	const existingRequest = existing as ReimbursementRow;
+	if (existingRequest.approval_status === "approved") {
+		return existingRequest;
+	}
+
+	const { data, error } = await getSupabase()
+		.from("reimbursements")
+		.update({
+			approval_status: "approved",
+			rejection_reason: null,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", requestId)
+		.select()
+		.single();
+
+	if (error) {
+		throw createReimbursementDatabaseError(error);
+	}
+
+	try {
+		const updatedRequest = data as ReimbursementRow;
+		const requesterEmail = await getAuthEmail(
+			String(updatedRequest.user_id ?? existingRequest.user_id ?? ""),
+		);
+		await notifyRequesterOfReimbursementStatus(
+			createStatusNotificationPayload({
+				action: "approve",
+				existingRequest: updatedRequest,
+				requesterEmail,
+			}),
+		);
+	} catch (notificationError) {
+		log?.warn(
+			{ err: notificationError, requestId },
+			"Failed to notify requester about reimbursement status change",
+		);
+	}
+
+	return data as ReimbursementRow;
+}
+
+export async function syncApprovedReimbursementToBuchhaltungsButler({
+	requestId,
+	reviewerUserId,
+	force = false,
+	log,
+}: {
+	requestId: string;
+	reviewerUserId: string;
+	force?: boolean;
+	log?: RouteLogger;
+}): Promise<ReimbursementRow> {
+	const { data: existing, error: fetchError } = await getSupabase()
+		.from("reimbursements")
+		.select("*")
+		.eq("id", requestId)
+		.single();
+
+	if (fetchError) {
+		if ((fetchError as { code?: string }).code === "PGRST116") {
+			throw new ReimbursementWorkflowError(
+				"Reimbursement request not found",
+				404,
+			);
+		}
+		throw createReimbursementDatabaseError(fetchError);
+	}
+
+	const existingRequest = decryptRecordSafely(
+		existing as ReimbursementRow,
+		SENSITIVE_REIMBURSEMENT_FIELDS,
+	);
+
+	if (existingRequest.approval_status !== "approved") {
+		throw new ReimbursementWorkflowError(
+			"Only approved requests can be synced to BuchhaltungsButler",
+			409,
+		);
+	}
+
+	if (!hasReceiptPayload(existingRequest)) {
+		throw new ReimbursementWorkflowError("Receipt not found", 404);
+	}
+
+	if (
+		!force &&
+		existingRequest.bb_sync_status === "synced" &&
+		normalizeMaybeString(existingRequest.bb_receipt_id_by_customer)
+	) {
+		return existingRequest;
+	}
+
+	const attempts = normalizeInteger(existingRequest.bb_sync_attempts) + 1;
+	await markBuchhaltungsButlerSyncAttempt({
+		requestId,
+		attempts,
+		status: "pending",
+		reviewerUserId,
+	});
+
+	try {
+		const upload = await uploadBuchhaltungsButlerReceipt({
+			fileBase64: String(existingRequest.receipt_base64 ?? ""),
+			fileName: contentDispositionFilename(existingRequest),
+			date: String(existingRequest.date ?? ""),
+			amount: normalizeAmount(existingRequest.amount),
+		});
+
+		try {
+			const requesterEmail = await getAuthEmail(
+				String(existingRequest.user_id ?? ""),
+			);
+			await addBuchhaltungsButlerReceiptComment({
+				receiptIdByCustomer: upload.idByCustomer,
+				commentText: buildBuchhaltungsButlerComment({
+					request: existingRequest,
+					requesterEmail,
+				}),
+			});
+		} catch (commentError) {
+			log?.warn(
+				{ err: commentError, requestId },
+				"BuchhaltungsButler receipt uploaded but comment failed",
+			);
+		}
+
+		return await markBuchhaltungsButlerSyncAttempt({
+			requestId,
+			attempts,
+			status: "synced",
+			reviewerUserId,
+			receiptIdByCustomer: upload.idByCustomer,
+			receiptFilename: upload.filename,
+			syncedAt: new Date().toISOString(),
+		});
+	} catch (syncError) {
+		await markBuchhaltungsButlerSyncAttempt({
+			requestId,
+			attempts,
+			status: "failed",
+			error: bbSyncErrorMessage(syncError),
+			reviewerUserId,
+		});
+		throw syncError;
+	}
 }
 
 export async function reimbursementRoutes(server: FastifyInstance) {
@@ -874,6 +1159,50 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					'attachment; filename="reimbursement-receipts.zip"',
 				);
 			return reply.send(zipBuffer);
+		},
+	);
+
+	server.post<{ Params: { requestId: string } }>(
+		"/reimbursements/review/:requestId/buchhaltungsbutler-sync",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const reviewer = (request as AuthenticatedRequest).user;
+			const { requestId } = request.params;
+			const body = SyncBuchhaltungsButlerSchema.parse(request.body ?? {});
+
+			try {
+				const updated = await syncApprovedReimbursementToBuchhaltungsButler({
+					requestId,
+					reviewerUserId: reviewer.id,
+					force: body.force,
+					log: request.log,
+				});
+				return withoutReceiptPayload(updated);
+			} catch (syncError) {
+				if (syncError instanceof ReimbursementWorkflowError) {
+					return reply.status(syncError.statusCode).send({
+						error: syncError.message,
+					});
+				}
+				if (syncError instanceof BuchhaltungsButlerConfigError) {
+					return reply.status(503).send({ error: syncError.message });
+				}
+				if (syncError instanceof BuchhaltungsButlerApiError) {
+					request.log.warn(
+						{ err: syncError, requestId },
+						"BuchhaltungsButler sync failed",
+					);
+					return reply.status(502).send({ error: syncError.message });
+				}
+
+				request.log.error(
+					{ err: syncError, requestId },
+					"BuchhaltungsButler sync failed",
+				);
+				return reply
+					.status(502)
+					.send({ error: "BuchhaltungsButler sync failed" });
+			}
 		},
 	);
 
