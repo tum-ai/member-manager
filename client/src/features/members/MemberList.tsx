@@ -2,6 +2,7 @@ import SearchIcon from "@mui/icons-material/Search";
 import {
 	Avatar,
 	Box,
+	Button,
 	CardContent,
 	Chip,
 	CircularProgress,
@@ -16,12 +17,10 @@ import {
 	useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import GlassCard from "../../components/ui/GlassCard";
-import { useInnovationProjects } from "../../hooks/useInnovationProjects";
 import { useMembersListData } from "../../hooks/useMembersListData";
-import { useResearchProjects } from "../../hooks/useResearchProjects";
 import {
 	BOARD_MEMBER_ROLE,
 	DEGREE_TYPES,
@@ -33,7 +32,7 @@ import {
 	splitDegree,
 } from "../../lib/memberMetadata";
 import type { Member } from "../../types";
-import OrgChartView from "./OrgChartView";
+import CommunityConstellation from "./CommunityConstellation";
 
 function getInitials(member: Member): string {
 	const first = member.given_name?.charAt(0) || "";
@@ -65,13 +64,12 @@ function isBoardOnlyMember(member: Member): boolean {
 
 export default function MemberList() {
 	const { members, isLoading, error } = useMembersListData();
-	const { researchProjects } = useResearchProjects();
-	const { innovationProjects } = useInnovationProjects();
 	const [search, setSearch] = useState("");
 	const [department, setDepartment] = useState("");
 	const [role, setRole] = useState("");
 	const [degreeType, setDegreeType] = useState("");
 	const [degreeProgram, setDegreeProgram] = useState("");
+	const [selectedMemberId, setSelectedMemberId] = useState("");
 
 	const degreePrograms = useMemo(() => {
 		if (!members) return [];
@@ -119,6 +117,28 @@ export default function MemberList() {
 		});
 	}, [members, search, department, role, degreeProgram, degreeType]);
 
+	useEffect(() => {
+		if (filtered.length === 0) {
+			setSelectedMemberId("");
+			return;
+		}
+		if (!filtered.some((member) => member.user_id === selectedMemberId)) {
+			setSelectedMemberId(filtered[0].user_id);
+		}
+	}, [filtered, selectedMemberId]);
+
+	const hasActiveFilters = Boolean(
+		search || department || role || degreeType || degreeProgram,
+	);
+
+	function clearFilters() {
+		setSearch("");
+		setDepartment("");
+		setRole("");
+		setDegreeType("");
+		setDegreeProgram("");
+	}
+
 	if (isLoading) {
 		return (
 			<Box
@@ -148,14 +168,6 @@ export default function MemberList() {
 
 	return (
 		<Box sx={{ py: 2 }}>
-			{filtered.length > 0 && (
-				<OrgChartView
-					members={filtered}
-					researchProjects={researchProjects ?? []}
-					innovationProjects={innovationProjects ?? []}
-				/>
-			)}
-
 			<GlassCard variant="elevated" sx={{ mb: 4, overflow: "hidden" }}>
 				<CardContent sx={{ p: { xs: 3, md: 4 } }}>
 					<Box
@@ -167,13 +179,13 @@ export default function MemberList() {
 							gap: 3,
 						}}
 					>
-						<Box sx={{ maxWidth: 620 }}>
+						<Box sx={{ maxWidth: 660 }}>
 							<Typography variant="h3" sx={{ mb: 1.5 }}>
 								All Members
 							</Typography>
 							<Typography variant="body1" color="text.secondary">
-								Browse the active network and search across current member
-								profiles.
+								Find the right person, then wander through nearby teams,
+								programs and shared community paths.
 							</Typography>
 						</Box>
 
@@ -284,9 +296,26 @@ export default function MemberList() {
 							{filtered.length} active member
 							{filtered.length !== 1 ? "s" : ""}
 						</Typography>
+
+						{hasActiveFilters && (
+							<Button size="small" variant="text" onClick={clearFilters}>
+								Clear filters
+							</Button>
+						)}
 					</Box>
 				</CardContent>
 			</GlassCard>
+
+			{filtered.length > 0 && (
+				<CommunityConstellation
+					members={filtered}
+					selectedMemberId={selectedMemberId}
+					search={search}
+					onSearchChange={setSearch}
+					onSelectedMemberChange={setSelectedMemberId}
+					onDepartmentSelect={setDepartment}
+				/>
+			)}
 
 			{filtered.length === 0 ? (
 				<GlassCard sx={{ textAlign: "center", py: 8 }}>
@@ -298,7 +327,11 @@ export default function MemberList() {
 				<Grid container spacing={2}>
 					{filtered.map((member) => (
 						<Grid key={member.user_id} size={{ xs: 12, sm: 6, md: 4 }}>
-							<MemberCard member={member} />
+							<MemberCard
+								member={member}
+								selected={member.user_id === selectedMemberId}
+								onSelect={() => setSelectedMemberId(member.user_id)}
+							/>
 						</Grid>
 					))}
 				</Grid>
@@ -309,9 +342,11 @@ export default function MemberList() {
 
 interface MemberCardProps {
 	member: Member;
+	selected: boolean;
+	onSelect: () => void;
 }
 
-function MemberCard({ member }: MemberCardProps) {
+function MemberCard({ member, selected, onSelect }: MemberCardProps) {
 	const theme = useTheme();
 	const fullName = `${member.given_name} ${member.surname}`.trim();
 	const operationalDepartment = getOperationalDepartment(member.department);
@@ -321,7 +356,27 @@ function MemberCard({ member }: MemberCardProps) {
 	);
 
 	return (
-		<GlassCard variant="interactive">
+		<GlassCard
+			variant="interactive"
+			role="button"
+			tabIndex={0}
+			onClick={onSelect}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onSelect();
+				}
+			}}
+			sx={{
+				height: "100%",
+				outline: selected
+					? `3px solid ${alpha(theme.palette.primary.main, 0.35)}`
+					: "none",
+				boxShadow: selected
+					? `0 24px 64px ${alpha(theme.palette.primary.main, 0.18)}`
+					: undefined,
+			}}
+		>
 			<CardContent sx={{ p: 2.5 }}>
 				<Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
 					<Avatar

@@ -100,10 +100,12 @@ describe("MemberList", () => {
 		const user = userEvent.setup();
 		renderMemberList();
 
-		await user.click(screen.getByLabelText(/degree/i));
+		await user.click(screen.getByRole("combobox", { name: /degree/i }));
 		await user.click(await screen.findByRole("option", { name: "B.Sc." }));
 
-		await user.click(screen.getByLabelText(/major \/ program/i));
+		await user.click(
+			screen.getByRole("combobox", { name: /major \/ program/i }),
+		);
 		await user.click(
 			await screen.findByRole("option", { name: "Computer Science" }),
 		);
@@ -113,40 +115,66 @@ describe("MemberList", () => {
 		expect(screen.queryByText("Carla Example")).not.toBeInTheDocument();
 	});
 
-	it("renders an org chart from the filtered member data", async () => {
+	it("renders an interactive member graph from the filtered member data", async () => {
 		const user = userEvent.setup();
 		renderMemberList();
 
 		expect(
-			screen.getByRole("heading", { name: /org chart/i }),
+			screen.getByRole("heading", {
+				name: /search, then follow the connections/i,
+			}),
 		).toBeInTheDocument();
-		expect(
-			screen.getByText(
-				"Overview of current leadership, departments and research.",
-			),
-		).toBeInTheDocument();
+		expect(screen.getByText(/focused map of members/i)).toBeInTheDocument();
 		expect(
 			screen
 				.getByRole("heading", { name: /all members/i })
 				.compareDocumentPosition(
-					screen.getByRole("heading", { name: /org chart/i }),
-				) & Node.DOCUMENT_POSITION_PRECEDING,
+					screen.getByRole("heading", {
+						name: /search, then follow the connections/i,
+					}),
+				) & Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
-		expect(screen.getAllByText("Software Development").length).toBeGreaterThan(
-			0,
-		);
+		expect(
+			screen.getByRole("button", { name: /discover next/i }),
+		).toBeEnabled();
+		expect(
+			screen.getByPlaceholderText(/search the member graph/i),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /focus alice example/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /focus ben boardmember/i }),
+		).toBeInTheDocument();
 		expect(screen.queryByText("Research")).not.toBeInTheDocument();
-		expect(screen.getByText("Innovation Projects")).toBeInTheDocument();
-		expect(screen.getByText("Women@TUM.ai")).toBeInTheDocument();
-		expect(screen.getAllByText("Ben Boardmember")).toHaveLength(2);
+
+		await user.click(
+			screen.getByRole("button", { name: /focus ben boardmember/i }),
+		);
+
+		expect(screen.getAllByText("Ben Boardmember").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("Board member").length).toBeGreaterThanOrEqual(
 			2,
 		);
 
-		await user.click(screen.getByLabelText(/degree/i));
+		await user.type(
+			screen.getByPlaceholderText(/search the member graph/i),
+			"Carla",
+		);
+
+		expect(screen.getByText(/1 match in current filters/i)).toBeInTheDocument();
+		expect(
+			screen.getByText(/people matching your search/i),
+		).toBeInTheDocument();
+
+		await user.clear(screen.getByPlaceholderText(/search the member graph/i));
+
+		await user.click(screen.getByRole("combobox", { name: /degree/i }));
 		await user.click(await screen.findByRole("option", { name: "B.Sc." }));
 
-		await user.click(screen.getByLabelText(/major \/ program/i));
+		await user.click(
+			screen.getByRole("combobox", { name: /major \/ program/i }),
+		);
 		await user.click(
 			await screen.findByRole("option", { name: "Computer Science" }),
 		);
@@ -161,7 +189,7 @@ describe("MemberList", () => {
 		const user = userEvent.setup();
 		renderMemberList();
 
-		await user.click(screen.getByLabelText(/department/i));
+		await user.click(screen.getByRole("combobox", { name: /department/i }));
 
 		expect(
 			screen.queryByRole("option", { name: "Board" }),
@@ -178,8 +206,8 @@ describe("MemberList", () => {
 
 		await user.type(screen.getByPlaceholderText(/search members/i), "Ben");
 
-		expect(screen.getAllByText("Ben Boardmember")).toHaveLength(2);
-		expect(screen.getByText("Board member")).toBeInTheDocument();
+		expect(screen.getAllByText("Ben Boardmember").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Board member").length).toBeGreaterThan(0);
 		expect(screen.queryByText("Member")).not.toBeInTheDocument();
 	});
 });
