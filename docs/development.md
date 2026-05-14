@@ -31,6 +31,8 @@ If `OPENAI_API_KEY` is absent, uploads still work: the receipt stays attached an
 
 Submitted reimbursement and invoice requests appear in the Finance Review queue for active Legal & Finance members and admins. If `SLACK_BOT_TOKEN` is set, those reviewers also receive a Slack DM. Approval, rejection, and paid status changes DM the requester by their Supabase auth email. Without Slack configuration, the queues and in-app statuses remain the source of truth.
 
+The subtle footer "Report a bug" action posts authenticated bug reports to Slack via `POST /api/bug-reports`. Set `SLACK_BOT_TOKEN` and, optionally, `BUG_REPORT_SLACK_CHANNEL_ID` to override the default Member Manager bug-report channel (`C0B3YGL3XS5`). The Slack bot must be invited to that channel. The report includes the signed-in user, current page, browser user agent, and the user's note.
+
 Finance review responses include receipt view/download URLs but never the raw `receipt_base64` payload. Reviewers can open `GET /api/reimbursements/review/:requestId/receipt` inline or add `?download=1` for an attachment response.
 
 Finance reviewers can also call `GET /api/reimbursements/summary` for dashboard essentials: total requests, total amount, pending approvals, approved-but-unpaid count, and paid amount for the current month.

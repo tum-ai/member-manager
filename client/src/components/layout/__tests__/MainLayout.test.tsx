@@ -3,6 +3,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { ToastProvider } from "../../../contexts/ToastContext";
 import MainLayout from "../MainLayout";
 
 const mockUser = {
@@ -12,17 +13,19 @@ const mockUser = {
 
 function renderLayout({ isAdmin }: { isAdmin: boolean }) {
 	return render(
-		<MemoryRouter initialEntries={["/"]}>
-			<MainLayout
-				user={mockUser}
-				isAdmin={isAdmin}
-				colorMode="light"
-				onLogout={vi.fn()}
-				onToggleColorMode={vi.fn()}
-			>
-				<div>child</div>
-			</MainLayout>
-		</MemoryRouter>,
+		<ToastProvider>
+			<MemoryRouter initialEntries={["/"]}>
+				<MainLayout
+					user={mockUser}
+					isAdmin={isAdmin}
+					colorMode="light"
+					onLogout={vi.fn()}
+					onToggleColorMode={vi.fn()}
+				>
+					<div>child</div>
+				</MainLayout>
+			</MemoryRouter>
+		</ToastProvider>,
 	);
 }
 
@@ -74,5 +77,13 @@ describe("MainLayout admin navigation", () => {
 		expect(
 			screen.queryByRole("option", { name: /Admin/i }),
 		).not.toBeInTheDocument();
+	});
+
+	it("keeps a report bug action at the bottom of the layout", () => {
+		renderLayout({ isAdmin: false });
+
+		expect(
+			screen.getByRole("button", { name: /report a bug/i }),
+		).toBeInTheDocument();
 	});
 });

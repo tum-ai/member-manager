@@ -41,8 +41,9 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `SUPABASE_SERVICE_ROLE_KEY` | from Supabase dashboard | never expose to client |
 | `FIELD_ENCRYPTION_KEY` | 32+ char strong random | **see warning below** |
 | `OPENAI_API_KEY` | OpenAI project key | optional; enables reimbursement receipt field extraction |
-| `SLACK_BOT_TOKEN` | Slack bot token | optional; sends certificate/admin, reimbursement finance review, and reimbursement requester status DMs |
-| `CORS_ORIGIN` | `https://<prod-domain>` | comma-separate if multiple |
+| `SLACK_BOT_TOKEN` | Slack bot token | optional for workflow DMs; required for in-app bug reports |
+| `BUG_REPORT_SLACK_CHANNEL_ID` | `C0B3YGL3XS5` | Slack channel receiving footer bug reports; code defaults to this channel, but set explicitly in Vercel and invite the bot to the channel |
+| `CORS_ORIGIN` | `https://<prod-domain>` | comma-separate if multiple; required for production, previews derive their Vercel URL automatically if unset |
 
 **Client build-time** (baked into the JS bundle by `vite build`; `VITE_` prefix required):
 

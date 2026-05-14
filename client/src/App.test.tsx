@@ -4,6 +4,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthenticatedApp } from "./App";
+import { ToastProvider } from "./contexts/ToastContext";
 import getAppTheme from "./theme";
 
 const adminState = vi.hoisted(() => ({
@@ -52,14 +53,16 @@ function renderAuthenticatedApp(initialRoute = "/admin") {
 	return render(
 		<ThemeProvider theme={getAppTheme("light")}>
 			<CssBaseline />
-			<MemoryRouter initialEntries={[initialRoute]}>
-				<AuthenticatedApp
-					user={mockUser}
-					colorMode="light"
-					onLogout={vi.fn()}
-					onToggleColorMode={vi.fn()}
-				/>
-			</MemoryRouter>
+			<ToastProvider>
+				<MemoryRouter initialEntries={[initialRoute]}>
+					<AuthenticatedApp
+						user={mockUser}
+						colorMode="light"
+						onLogout={vi.fn()}
+						onToggleColorMode={vi.fn()}
+					/>
+				</MemoryRouter>
+			</ToastProvider>
 		</ThemeProvider>,
 	);
 }
