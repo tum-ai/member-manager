@@ -378,7 +378,7 @@ export async function memberRoutes(server: FastifyInstance) {
 				.select(
 					"user_id, given_name, surname, batch, department, member_role, board_role, degree, school, active, member_status",
 				)
-				.eq("member_status", DEFAULT_MEMBER_STATUS)
+				.in("member_status", ["active", "alumni"])
 				.order("surname", { ascending: true });
 
 			if (error) {
@@ -397,6 +397,8 @@ export async function memberRoutes(server: FastifyInstance) {
 					const profile = profileMap.get(String(member.user_id));
 					return {
 						...member,
+						given_name: member.given_name || profile?.given_name || "",
+						surname: member.surname || profile?.surname || "",
 						department: normalizeOperationalDepartment(member.department),
 						email: profile?.email ?? "",
 						avatar_url: profile?.avatar_url ?? "",
@@ -489,6 +491,7 @@ export async function memberRoutes(server: FastifyInstance) {
 				user_id: userId,
 			};
 			if (!isAdmin) {
+				delete updatePayload.batch;
 				delete updatePayload.department;
 				delete updatePayload.member_role;
 			} else if (

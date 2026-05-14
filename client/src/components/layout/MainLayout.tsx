@@ -201,10 +201,10 @@ export default function MainLayout({
 								displayEmpty
 								value={navigationValue}
 								onChange={handleNavigationChange}
-								inputProps={{ "aria-label": "View selector" }}
+								inputProps={{ "aria-label": "Page selector" }}
 							>
 								<MenuItem disabled value="">
-									View
+									Go to...
 								</MenuItem>
 								<MenuItem value="/">My Profile</MenuItem>
 								<MenuItem value="/members">All Members</MenuItem>

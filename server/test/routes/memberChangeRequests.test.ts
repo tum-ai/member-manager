@@ -137,6 +137,40 @@ describe("Member Change Request Routes", async () => {
 		assert.strictEqual(updatedRequest?.review_note, "Looks good");
 	});
 
+	test("admin can approve an alumni status request", async () => {
+		resetDatabase();
+		mockDatabase.member_change_requests.push({
+			id: "request-alumni",
+			user_id: testUserIds.user,
+			status: "pending",
+			changes: {
+				member_status: "alumni",
+			},
+			reason: "Completed two active semesters",
+			created_at: "2026-04-24T10:00:00Z",
+		});
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: "/api/admin/member-change-requests/request-alumni",
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				decision: "approved",
+				review_note: "Eligible",
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const updatedMember = mockDatabase.members.find(
+			(member) => member.user_id === testUserIds.user,
+		);
+		assert.strictEqual(updatedMember?.member_status, "alumni");
+		assert.strictEqual(updatedMember?.active, false);
+	});
+
 	test("executive change requests clear requested operational department", async () => {
 		resetDatabase();
 		mockDatabase.member_change_requests.push({

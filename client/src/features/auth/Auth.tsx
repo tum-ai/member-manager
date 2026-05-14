@@ -60,7 +60,9 @@ function isLocalSupabaseProject(): boolean {
 
 export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 	const [message, setMessage] = useState("");
-	const [isSigningInLocalAdmin, setIsSigningInLocalAdmin] = useState(false);
+	const [localLoginInProgress, setLocalLoginInProgress] = useState<
+		"admin" | "regular" | null
+	>(null);
 
 	const theme = useTheme();
 	const showLocalAdminLogin = isLocalSupabaseProject();
@@ -84,20 +86,23 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 		}
 	};
 
-	const signInWithLocalAdmin = async () => {
+	const signInWithLocalUser = async (
+		kind: "admin" | "regular",
+		email: string,
+	) => {
 		setMessage("");
-		setIsSigningInLocalAdmin(true);
+		setLocalLoginInProgress(kind);
 
 		const { error } = await supabase.auth.signInWithPassword({
-			email: "admin@example.com",
+			email,
 			password: "password123",
 		});
 
-		setIsSigningInLocalAdmin(false);
+		setLocalLoginInProgress(null);
 
 		if (error) {
-			console.error("Local admin login error:", error.message);
-			setMessage(`Local admin login error: ${error.message}`);
+			console.error(`Local ${kind} login error:`, error.message);
+			setMessage(`Local ${kind} login error: ${error.message}`);
 		}
 	};
 
@@ -203,18 +208,34 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 					Continue with Slack
 				</Button>
 				{showLocalAdminLogin && (
-					<Button
-						variant="outlined"
-						color="primary"
-						onClick={signInWithLocalAdmin}
-						disabled={isSigningInLocalAdmin}
-						fullWidth
-						sx={{ height: 48 }}
-					>
-						{isSigningInLocalAdmin
-							? "Signing in..."
-							: "Continue as local admin"}
-					</Button>
+					<Box sx={{ width: "100%", display: "grid", gap: 1.5 }}>
+						<Button
+							variant="outlined"
+							color="primary"
+							onClick={() => signInWithLocalUser("admin", "admin@example.com")}
+							disabled={localLoginInProgress !== null}
+							fullWidth
+							sx={{ height: 48 }}
+						>
+							{localLoginInProgress === "admin"
+								? "Signing in..."
+								: "Continue as local admin"}
+						</Button>
+						<Button
+							variant="outlined"
+							color="primary"
+							onClick={() =>
+								signInWithLocalUser("regular", "community-member@example.com")
+							}
+							disabled={localLoginInProgress !== null}
+							fullWidth
+							sx={{ height: 48 }}
+						>
+							{localLoginInProgress === "regular"
+								? "Signing in..."
+								: "Continue as regular user"}
+						</Button>
+					</Box>
 				)}
 
 				{message && (

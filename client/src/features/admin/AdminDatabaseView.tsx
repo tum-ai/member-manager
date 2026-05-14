@@ -277,6 +277,17 @@ export default function AdminDatabaseView() {
 			entries.push(`Role: ${currentRole} -> ${request.changes.member_role}`);
 		}
 		if (
+			typeof request.changes.member_status === "string" &&
+			request.changes.member_status !==
+				(member?.member_status || (member?.active ? "active" : "inactive"))
+		) {
+			entries.push(
+				`Status: ${getMemberStatusLabel(
+					member?.member_status || (member?.active ? "active" : "inactive"),
+				)} -> ${getMemberStatusLabel(request.changes.member_status)}`,
+			);
+		}
+		if (
 			typeof request.changes.degree === "string" &&
 			request.changes.degree !== (member?.degree ?? null)
 		) {

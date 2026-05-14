@@ -3,9 +3,11 @@ import { z } from "zod";
 import { DatabaseError } from "../lib/errors.js";
 import {
 	memberRoleSchema,
+	memberStatusSchema,
 	normalizeNullableText,
 	requiresDepartmentForMemberRole,
 	resolveDepartmentForMemberRole,
+	statusToLegacyActive,
 } from "../lib/memberMetadata.js";
 import { getSupabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
@@ -19,6 +21,7 @@ const ChangeFieldsSchema = z
 			.transform(normalizeNullableText)
 			.optional(),
 		member_role: memberRoleSchema.optional(),
+		member_status: memberStatusSchema.optional(),
 		degree: z.string().nullish().transform(normalizeNullableText).optional(),
 		school: z.string().nullish().transform(normalizeNullableText).optional(),
 		batch: z.string().nullish().transform(normalizeNullableText).optional(),
@@ -221,6 +224,10 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 				}
 
 				const rawChanges = changeRequest.changes;
+				const requestedStatus =
+					typeof rawChanges.member_status === "string"
+						? memberStatusSchema.parse(rawChanges.member_status)
+						: undefined;
 				const requestedRole =
 					typeof rawChanges.member_role === "string"
 						? rawChanges.member_role
@@ -233,6 +240,9 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 							"Member",
 					);
 				const approvedChanges: Record<string, unknown> = { ...rawChanges };
+				if (requestedStatus) {
+					approvedChanges.active = statusToLegacyActive(requestedStatus);
+				}
 
 				if (requestedRole || hasRequestedDepartment) {
 					approvedChanges.department = resolveDepartmentForMemberRole(

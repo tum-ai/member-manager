@@ -69,4 +69,20 @@ describe("Auth", () => {
 			});
 		});
 	});
+
+	it("offers a local regular-user login for non-admin workflow testing", async () => {
+		vi.stubEnv("VITE_SUPABASE_URL", "http://127.0.0.1:54321");
+		signInWithPasswordMock.mockResolvedValue({ error: null });
+
+		renderAuth("light");
+
+		fireEvent.click(screen.getByRole("button", { name: /regular user/i }));
+
+		await waitFor(() => {
+			expect(signInWithPasswordMock).toHaveBeenCalledWith({
+				email: "community-member@example.com",
+				password: "password123",
+			});
+		});
+	});
 });

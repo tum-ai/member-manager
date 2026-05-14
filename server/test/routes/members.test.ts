@@ -286,8 +286,29 @@ describe("Members Routes", async () => {
 			assert.strictEqual(response.statusCode, 401);
 		});
 
-		test("returns only active members", async () => {
+		test("returns active and alumni members, but not inactive members", async () => {
 			resetDatabase();
+			mockDatabase.members.push(
+				{
+					user_id: "alumni-member",
+					given_name: "Al",
+					surname: "Alumni",
+					active: false,
+					member_status: "alumni",
+					department: "Community",
+					member_role: "Member",
+				},
+				{
+					user_id: "inactive-member",
+					given_name: "Ina",
+					surname: "Inactive",
+					active: false,
+					member_status: "inactive",
+					department: "Community",
+					member_role: "Member",
+				},
+			);
+
 			const response = await app.inject({
 				method: "GET",
 				url: "/api/members",
@@ -296,7 +317,21 @@ describe("Members Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
-			assert.ok(data.every((member: { active: boolean }) => member.active));
+			assert.ok(
+				data.every((member: { member_status: string }) =>
+					["active", "alumni"].includes(member.member_status),
+				),
+			);
+			assert.ok(
+				data.some(
+					(member: { user_id: string }) => member.user_id === "alumni-member",
+				),
+			);
+			assert.ok(
+				data.every(
+					(member: { user_id: string }) => member.user_id !== "inactive-member",
+				),
+			);
 		});
 
 		test("returns correct fields", async () => {
@@ -673,6 +708,35 @@ describe("Members Routes", async () => {
 			assert.strictEqual(storedAfter?.department, originalDepartment);
 			const body = JSON.parse(response.payload);
 			assert.strictEqual(body.department, originalDepartment);
+		});
+
+		test("user-facing PUT silently ignores batch (admin-only field)", async () => {
+			resetDatabase();
+			const storedBefore = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			const originalBatch = storedBefore?.batch;
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					given_name: "Self",
+					batch: "SS25",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const storedAfter = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.strictEqual(storedAfter?.batch, originalBatch);
+			const body = JSON.parse(response.payload);
+			assert.strictEqual(body.batch, originalBatch);
 		});
 
 		test("rejects invalid batch formats", async () => {

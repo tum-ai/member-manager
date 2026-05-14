@@ -15,7 +15,7 @@ vi.mock("../../hooks/useMembersListData", () => ({
 				surname: "Example",
 				department: "Software Development",
 				member_role: "Member",
-				degree: "B.Sc. Computer Science",
+				degree: "Bachelor Computer Science",
 				school: "TUM",
 				batch: "WS25",
 				member_status: "active",
@@ -28,7 +28,7 @@ vi.mock("../../hooks/useMembersListData", () => ({
 				department: null,
 				member_role: "Member",
 				board_role: "Board Member",
-				degree: "M.Sc. Management & Technology",
+				degree: "Master Management & Technology",
 				school: "TUM",
 				batch: "SS25",
 				member_status: "active",
@@ -41,7 +41,7 @@ vi.mock("../../hooks/useMembersListData", () => ({
 				department: "Research",
 				member_role: "Member",
 				board_role: "Board Member",
-				degree: "B.Sc. Management & Technology",
+				degree: "Bachelor Management & Technology",
 				school: "LMU",
 				batch: "WS24",
 				member_status: "active",
@@ -101,7 +101,7 @@ describe("MemberList", () => {
 		renderMemberList();
 
 		await user.click(screen.getByLabelText(/degree/i));
-		await user.click(await screen.findByRole("option", { name: "B.Sc." }));
+		await user.click(await screen.findByRole("option", { name: "Bachelor" }));
 
 		await user.click(screen.getByLabelText(/major \/ program/i));
 		await user.click(
@@ -144,7 +144,7 @@ describe("MemberList", () => {
 		);
 
 		await user.click(screen.getByLabelText(/degree/i));
-		await user.click(await screen.findByRole("option", { name: "B.Sc." }));
+		await user.click(await screen.findByRole("option", { name: "Bachelor" }));
 
 		await user.click(screen.getByLabelText(/major \/ program/i));
 		await user.click(
@@ -170,6 +170,19 @@ describe("MemberList", () => {
 			screen.queryByRole("option", { name: "Research" }),
 		).not.toBeInTheDocument();
 		expect(screen.getAllByText("Board member").length).toBeGreaterThan(0);
+	});
+
+	it("matches member names in first-last and last-first order", async () => {
+		const user = userEvent.setup();
+		renderMemberList();
+
+		await user.type(
+			screen.getByPlaceholderText(/search members/i),
+			"Example Alice",
+		);
+
+		expect(screen.getAllByText("Alice Example").length).toBeGreaterThan(0);
+		expect(screen.queryByText("Ben Boardmember")).not.toBeInTheDocument();
 	});
 
 	it("shows board-only members as board members without member role text", async () => {

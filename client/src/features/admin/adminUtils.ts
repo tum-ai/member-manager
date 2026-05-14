@@ -1,4 +1,7 @@
-import { getOperationalDepartment } from "../../lib/memberMetadata";
+import {
+	buildMemberNameSearchText,
+	getOperationalDepartment,
+} from "../../lib/memberMetadata";
 import type { Member, Sepa } from "../../types";
 
 export interface AdminMember extends Member {
@@ -60,8 +63,7 @@ export function filterAdminMembers(
 
 	return members.filter((member) => {
 		const searchableText = [
-			member.surname,
-			member.given_name,
+			buildMemberNameSearchText(member.given_name, member.surname),
 			member.email,
 			member.phone,
 			getOperationalDepartment(member.department),

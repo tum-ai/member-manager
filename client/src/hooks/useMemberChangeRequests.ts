@@ -5,6 +5,7 @@ export interface MemberChangeRequestPayload {
 	changes: {
 		department?: string | null;
 		member_role?: string | null;
+		member_status?: string | null;
 		degree?: string | null;
 		school?: string | null;
 		batch?: string | null;

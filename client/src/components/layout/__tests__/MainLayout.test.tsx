@@ -36,11 +36,11 @@ describe("MainLayout admin navigation", () => {
 		);
 	});
 
-	it("shows an Admin option in the view selector for admin users", async () => {
+	it("shows an Admin option in the page selector for admin users", async () => {
 		const user = userEvent.setup();
 		renderLayout({ isAdmin: true });
 
-		await user.click(screen.getByLabelText(/view selector/i));
+		await user.click(screen.getByLabelText(/page selector/i));
 
 		expect(
 			await screen.findByRole("option", { name: /Admin/i }),
@@ -56,7 +56,7 @@ describe("MainLayout admin navigation", () => {
 			"/tools",
 		);
 
-		await user.click(screen.getByLabelText(/view selector/i));
+		await user.click(screen.getByLabelText(/page selector/i));
 
 		await screen.findByRole("option", { name: /My Profile/i });
 		expect(
@@ -68,7 +68,7 @@ describe("MainLayout admin navigation", () => {
 		const user = userEvent.setup();
 		renderLayout({ isAdmin: false });
 
-		await user.click(screen.getByLabelText(/view selector/i));
+		await user.click(screen.getByLabelText(/page selector/i));
 
 		await screen.findByRole("option", { name: /My Profile/i });
 		expect(

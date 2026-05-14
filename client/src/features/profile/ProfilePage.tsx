@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import DownloadIcon from "@mui/icons-material/Download";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import SaveIcon from "@mui/icons-material/Save";
 import {
 	Box,
@@ -12,8 +13,10 @@ import {
 	CircularProgress,
 	FormControlLabel,
 	Grid,
+	IconButton,
 	MenuItem,
 	TextField,
+	Tooltip,
 	Typography,
 	useTheme,
 } from "@mui/material";
@@ -39,6 +42,7 @@ import {
 	SCHOOL_PRESETS,
 } from "../../lib/constants";
 import {
+	formatDegree,
 	getMemberStatusLabel,
 	joinDegree,
 	resolveDepartmentForMemberRole,
@@ -93,7 +97,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 	const [requestedDepartment, setRequestedDepartment] = useState("");
 	const [requestedRole, setRequestedRole] = useState("");
+	const [requestedBatch, setRequestedBatch] = useState("");
+	const [isRequestingAlumniStatus, setIsRequestingAlumniStatus] =
+		useState(false);
 	const [changeRequestReason, setChangeRequestReason] = useState("");
+	const [isCustomProgramSelected, setIsCustomProgramSelected] = useState(false);
+	const [isCustomSchoolSelected, setIsCustomSchoolSelected] = useState(false);
 
 	const normalizeTextValue = (value?: string | null): string | null => {
 		const trimmed = value?.trim();
@@ -167,6 +176,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		const slackBatch = getCurrentBatch();
 		const existing = memberData ?? {};
 
+		setIsCustomProgramSelected(false);
+		setIsCustomSchoolSelected(false);
+
 		memberForm.reset({
 			active: existing.active ?? true,
 			member_status:
@@ -215,11 +227,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 					...buildSelfServiceMemberUpdatePayload(memberValues, {
 						includeAdminManagedFields: isAdmin,
 					}),
-					batch: normalizeTextValue(memberValues.batch),
-					degree: normalizeTextValue(memberValues.degree),
+					degree: normalizeTextValue(formatDegree(memberValues.degree)),
 					school: normalizeTextValue(memberValues.school),
 				};
 				if (isAdmin) {
+					Object.assign(memberPayload, {
+						batch: normalizeTextValue(memberValues.batch),
+					});
 					const normalizedRole = normalizeTextValue(memberValues.member_role);
 					Object.assign(memberPayload, {
 						member_role: normalizedRole || "Member",
@@ -277,9 +291,10 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			normalizeTextValue(requestedDepartment),
 		);
 		const memberRole = normalizeTextValue(requestedRole);
+		const batch = normalizeTextValue(requestedBatch);
 		const reason = changeRequestReason.trim();
 
-		if (!department && !memberRole) {
+		if (!department && !memberRole && !batch && !isRequestingAlumniStatus) {
 			showToast(
 				"Select at least one admin-managed field to request.",
 				"warning",
@@ -288,17 +303,27 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		}
 
 		try {
+			const changes: {
+				department?: string | null;
+				member_role?: string;
+				batch?: string;
+				member_status?: string;
+			} = {};
+			if (department) changes.department = department;
+			if (memberRole) changes.member_role = memberRole;
+			if (batch) changes.batch = batch;
+			if (isRequestingAlumniStatus) changes.member_status = "alumni";
+
 			await submitChangeRequestAsync({
-				changes: {
-					department,
-					member_role: memberRole,
-				},
+				changes,
 				reason: reason || undefined,
 			});
 			setRequestedDepartment("");
 			setRequestedRole("");
+			setRequestedBatch("");
+			setIsRequestingAlumniStatus(false);
 			setChangeRequestReason("");
-			showToast("Change request sent to the admin team.", "success");
+			showToast("Change request sent to the admin and LnF team.", "success");
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
@@ -612,24 +637,33 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 								<Grid container spacing={2}>
 									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											select
-											label="Batch"
-											{...memberForm.register("batch")}
-											value={memberForm.watch("batch") || ""}
-											error={!!memberForm.formState.errors.batch}
-											helperText={
-												memberForm.formState.errors.batch?.message ||
-												"Choose your starting semester."
-											}
-										>
-											<MenuItem value="">None</MenuItem>
-											{BATCH_OPTIONS.map((batch) => (
-												<MenuItem key={batch} value={batch}>
-													{batch}
-												</MenuItem>
-											))}
-										</TextField>
+										{isAdmin ? (
+											<TextField
+												select
+												label="Batch"
+												{...memberForm.register("batch")}
+												value={memberForm.watch("batch") || ""}
+												error={!!memberForm.formState.errors.batch}
+												helperText={
+													memberForm.formState.errors.batch?.message ||
+													"You can edit this directly because you are an admin."
+												}
+											>
+												<MenuItem value="">None</MenuItem>
+												{BATCH_OPTIONS.map((batch) => (
+													<MenuItem key={batch} value={batch}>
+														{batch}
+													</MenuItem>
+												))}
+											</TextField>
+										) : (
+											<TextField
+												label="Batch"
+												value={memberForm.watch("batch") || "Not set"}
+												helperText="Batch changes are handled by admins. Request a change below."
+												disabled
+											/>
+										)}
 									</Grid>
 									<Grid size={{ xs: 12, sm: 6 }}>
 										{isAdmin ? (
@@ -733,9 +767,10 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												(DEGREE_PROGRAM_PRESETS as readonly string[]).includes(
 													program,
 												);
-											const selectedProgramOption = isPresetProgram
-												? program
-												: DEGREE_PROGRAM_CUSTOM_OPTION;
+											const selectedProgramOption =
+												isPresetProgram && !isCustomProgramSelected
+													? program
+													: DEGREE_PROGRAM_CUSTOM_OPTION;
 											return (
 												<>
 													<TextField
@@ -745,12 +780,14 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 														onChange={(e) => {
 															const chosen = e.target.value;
 															if (chosen === DEGREE_PROGRAM_CUSTOM_OPTION) {
+																setIsCustomProgramSelected(true);
 																memberForm.setValue(
 																	"degree",
 																	joinDegree(type, ""),
 																	{ shouldDirty: true },
 																);
 															} else {
+																setIsCustomProgramSelected(false);
 																memberForm.setValue(
 																	"degree",
 																	joinDegree(type, chosen),
@@ -758,7 +795,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 																);
 															}
 														}}
-														sx={{ mb: isPresetProgram ? 0 : 2 }}
+														sx={{
+															mb:
+																selectedProgramOption ===
+																DEGREE_PROGRAM_CUSTOM_OPTION
+																	? 2
+																	: 0,
+														}}
 													>
 														<MenuItem value="">None</MenuItem>
 														{DEGREE_PROGRAM_PRESETS.map((p) => (
@@ -770,7 +813,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 															Other (custom)
 														</MenuItem>
 													</TextField>
-													{!isPresetProgram && (
+													{selectedProgramOption ===
+														DEGREE_PROGRAM_CUSTOM_OPTION && (
 														<TextField
 															label="Custom program name"
 															value={program}
@@ -794,8 +838,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											const isPresetSchool = (
 												SCHOOL_PRESETS as readonly string[]
 											).includes(storedSchool);
-											const selectedSchoolOption =
-												storedSchool === ""
+											const selectedSchoolOption = isCustomSchoolSelected
+												? SCHOOL_CUSTOM_OPTION
+												: storedSchool === ""
 													? ""
 													: isPresetSchool
 														? storedSchool
@@ -809,10 +854,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 														onChange={(e) => {
 															const chosen = e.target.value;
 															if (chosen === SCHOOL_CUSTOM_OPTION) {
+																setIsCustomSchoolSelected(true);
 																memberForm.setValue("school", "", {
 																	shouldDirty: true,
 																});
 															} else {
+																setIsCustomSchoolSelected(false);
 																memberForm.setValue("school", chosen, {
 																	shouldDirty: true,
 																});
@@ -857,20 +904,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 						{!isAdmin && (
 							<GlassCard variant="elevated" sx={{ mt: 3 }}>
 								<CardContent sx={{ p: 3 }}>
-									<Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
-										Request Admin Changes
-									</Typography>
-									<Typography
-										variant="body2"
-										color="text.secondary"
-										sx={{ mb: 3 }}
-									>
-										Role and department changes are handled by admins. Submit a
-										request here if your internal assignment needs an update.
+									<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
+										Request Changes
 									</Typography>
 
 									<Grid container spacing={2}>
-										<Grid size={{ xs: 12, sm: 6 }}>
+										<Grid size={12}>
 											<TextField
 												select
 												label="Requested department"
@@ -887,7 +926,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												))}
 											</TextField>
 										</Grid>
-										<Grid size={{ xs: 12, sm: 6 }}>
+										<Grid size={12}>
 											<TextField
 												select
 												label="Requested role"
@@ -906,6 +945,51 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 										</Grid>
 										<Grid size={12}>
 											<TextField
+												select
+												label="Requested batch"
+												value={requestedBatch}
+												onChange={(event) =>
+													setRequestedBatch(event.target.value)
+												}
+											>
+												<MenuItem value="">No change</MenuItem>
+												{BATCH_OPTIONS.map((batch) => (
+													<MenuItem key={batch} value={batch}>
+														{batch}
+													</MenuItem>
+												))}
+											</TextField>
+										</Grid>
+										<Grid size={12}>
+											<Box
+												sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+											>
+												<FormControlLabel
+													control={
+														<Checkbox
+															checked={isRequestingAlumniStatus}
+															onChange={(event) =>
+																setIsRequestingAlumniStatus(
+																	event.target.checked,
+																)
+															}
+														/>
+													}
+													label="Request alumni status"
+												/>
+												<Tooltip title="Alumni requests are eligible after two active semesters and are reviewed by Legal & Finance.">
+													<IconButton
+														type="button"
+														size="small"
+														aria-label="Alumni status request information"
+													>
+														<InfoOutlinedIcon fontSize="small" />
+													</IconButton>
+												</Tooltip>
+											</Box>
+										</Grid>
+										<Grid size={12}>
+											<TextField
 												label="Reason"
 												value={changeRequestReason}
 												onChange={(event) =>
@@ -913,7 +997,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												}
 												multiline
 												rows={3}
-												placeholder="Briefly explain why the admin-managed fields should change."
+												placeholder="Briefly explain why the admin-managed fields or status should change."
 											/>
 										</Grid>
 									</Grid>
@@ -954,7 +1038,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									>
 										{isSubmittingChangeRequest
 											? "Submitting request..."
-											: "Request admin change"}
+											: "Request changes"}
 									</Button>
 								</CardContent>
 							</GlassCard>
