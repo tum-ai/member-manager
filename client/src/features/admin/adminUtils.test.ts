@@ -30,7 +30,7 @@ const members: AdminMember[] = [
 		country: "",
 		department: "Tech",
 		member_role: "Member",
-		degree: "M.Sc.",
+		degree: "Master",
 		school: "TUM",
 		sepa: {
 			iban: "DE001234",
@@ -57,7 +57,7 @@ const members: AdminMember[] = [
 		country: "",
 		department: "Operations",
 		member_role: "Member",
-		degree: "B.Sc.",
+		degree: "Bachelor",
 		school: "LMU",
 		sepa: {},
 	},
@@ -84,5 +84,20 @@ describe("filterAdminMembers", () => {
 		expect(filtered.map((member) => member.user_id)).toEqual([
 			"member-missing-sepa",
 		]);
+	});
+
+	it("matches names in first-last and last-first order", () => {
+		expect(
+			filterAdminMembers(members, {
+				...baseFilters,
+				search: "Ada Lovelace",
+			}).map((member) => member.user_id),
+		).toEqual(["member-accepted"]);
+		expect(
+			filterAdminMembers(members, {
+				...baseFilters,
+				search: "Lovelace Ada",
+			}).map((member) => member.user_id),
+		).toEqual(["member-accepted"]);
 	});
 });

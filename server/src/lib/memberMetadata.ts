@@ -40,6 +40,17 @@ export function statusToLegacyActive(status: MemberStatus): boolean {
 	return status === "active";
 }
 
+export function buildMemberNameSearchText(
+	givenName?: string | null,
+	surname?: string | null,
+): string {
+	const given = givenName?.trim() ?? "";
+	const family = surname?.trim() ?? "";
+	return [`${given} ${family}`.trim(), `${family} ${given}`.trim()]
+		.filter((value, index, values) => value && values.indexOf(value) === index)
+		.join(" ");
+}
+
 export function resolveDepartmentForMemberRole(
 	role: string | null | undefined,
 	department: string | null | undefined,

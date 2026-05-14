@@ -11,7 +11,7 @@ describe("ProfilePage", () => {
 				surname: "User",
 				department: "Software Development",
 				member_role: "Member",
-				degree: "B.Sc. Computer Science",
+				degree: "Bachelor Computer Science",
 				school: "TUM",
 				batch: "WS25",
 			}),
@@ -19,9 +19,8 @@ describe("ProfilePage", () => {
 			user_id: "user-123",
 			given_name: "Test",
 			surname: "User",
-			degree: "B.Sc. Computer Science",
+			degree: "Bachelor Computer Science",
 			school: "TUM",
-			batch: "WS25",
 		});
 	});
 

@@ -1,9 +1,10 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
-import { getAuthEmails } from "../lib/authEmails.js";
+import { getAuthProfiles } from "../lib/authEmails.js";
 import { DatabaseError } from "../lib/errors.js";
 import {
 	BOARD_MEMBER_ROLE,
+	buildMemberNameSearchText,
 	MEMBER_ROLES,
 	memberRoleSchema,
 	memberStatusSchema,
@@ -159,22 +160,23 @@ export async function adminRoutes(server: FastifyInstance) {
 			const hasAgreementFilter =
 				(mandate_agreed !== undefined && mandate_agreed !== "") ||
 				(privacy_agreed !== undefined && privacy_agreed !== "");
-			const needsFullEmailMap =
+			const needsFullProfileMap =
 				Boolean(normalizedSearch) || sort_by === "email";
 			const canUsePagedDbQuery =
 				!normalizedSearch &&
 				!hasAgreementFilter &&
-				!needsFullEmailMap &&
+				!needsFullProfileMap &&
 				MEMBER_DB_SORT_COLUMNS.has(sort_by);
 
 			try {
 				const hydrateMembers = (
 					// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
 					rawMembers: any[],
-					emailMap: Map<string, string> = new Map(),
+					profileMap: Awaited<ReturnType<typeof getAuthProfiles>> = new Map(),
 				) =>
-					rawMembers.map((member) => ({
-						...decryptRecordSafely(
+					rawMembers.map((member) => {
+						const profile = profileMap.get(String(member.user_id));
+						const decryptedMember = decryptRecordSafely(
 							member,
 							SENSITIVE_MEMBER_FIELDS,
 							({ field, error }) => {
@@ -183,22 +185,29 @@ export async function adminRoutes(server: FastifyInstance) {
 									"Failed to decrypt member field; returning blank value",
 								);
 							},
-						),
-						department: normalizeOperationalDepartment(member.department),
-						email: emailMap.get(String(member.user_id)) ?? "",
-						sepa: decryptRecordSafely(
-							Array.isArray(member.sepa)
-								? member.sepa[0] || {}
-								: member.sepa || {},
-							SENSITIVE_SEPA_FIELDS,
-							({ field, error }) => {
-								request.log.warn(
-									{ err: error, userId: member.user_id, field },
-									"Failed to decrypt SEPA field; returning blank value",
-								);
-							},
-						),
-					}));
+						);
+						return {
+							...decryptedMember,
+							given_name:
+								decryptedMember.given_name || profile?.given_name || "",
+							surname: decryptedMember.surname || profile?.surname || "",
+							department: normalizeOperationalDepartment(member.department),
+							email: profile?.email ?? "",
+							avatar_url: profile?.avatar_url ?? "",
+							sepa: decryptRecordSafely(
+								Array.isArray(member.sepa)
+									? member.sepa[0] || {}
+									: member.sepa || {},
+								SENSITIVE_SEPA_FIELDS,
+								({ field, error }) => {
+									request.log.warn(
+										{ err: error, userId: member.user_id, field },
+										"Failed to decrypt SEPA field; returning blank value",
+									);
+								},
+							),
+						};
+					});
 
 				const attachAccessRoles = async (
 					// biome-ignore lint/suspicious/noExplicitAny: complex supabase return type
@@ -274,18 +283,13 @@ export async function adminRoutes(server: FastifyInstance) {
 						throw new DatabaseError();
 					}
 
-					const pageRows = hydrateMembers(pagedMembers || []);
-					const emailMap = await getAuthEmails(
-						pageRows.map((member) => String(member.user_id)),
+					const profileMap = await getAuthProfiles(
+						(pagedMembers || []).map((member) => String(member.user_id)),
 					);
+					const pageRows = hydrateMembers(pagedMembers || [], profileMap);
 
 					return {
-						data: await attachAccessRoles(
-							pageRows.map((member) => ({
-								...member,
-								email: emailMap.get(String(member.user_id)) ?? "",
-							})),
-						),
+						data: await attachAccessRoles(pageRows),
 						total: count ?? 0,
 						page,
 						limit,
@@ -354,19 +358,26 @@ export async function adminRoutes(server: FastifyInstance) {
 					});
 				}
 
-				const fullEmailMap = needsFullEmailMap
-					? await getAuthEmails(members.map((member) => String(member.user_id)))
-					: new Map<string, string>();
+				const fullProfileMap = needsFullProfileMap
+					? await getAuthProfiles(
+							members.map((member) => String(member.user_id)),
+						)
+					: new Map();
 
-				const joined = hydrateMembers(members, fullEmailMap);
+				const joined = hydrateMembers(members, fullProfileMap);
 				const filtered = joined.filter(
 					// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
 					(member: any) => {
+						const searchableText = [
+							buildMemberNameSearchText(member.given_name, member.surname),
+							member.email,
+						]
+							.join(" ")
+							.toLowerCase();
+
 						if (
 							normalizedSearch &&
-							!`${member.given_name} ${member.surname} ${member.email}`
-								.toLowerCase()
-								.includes(normalizedSearch)
+							!searchableText.includes(normalizedSearch)
 						) {
 							return false;
 						}
@@ -413,18 +424,14 @@ export async function adminRoutes(server: FastifyInstance) {
 				});
 				const paged = sorted.slice(from, to + 1);
 
-				if (!needsFullEmailMap) {
-					const pageEmailMap = await getAuthEmails(
+				if (!needsFullProfileMap) {
+					const pageProfileMap = await getAuthProfiles(
 						paged.map((member) => String(member.user_id)),
 					);
+					const pagedWithProfiles = hydrateMembers(paged, pageProfileMap);
 
 					return {
-						data: await attachAccessRoles(
-							paged.map((member) => ({
-								...member,
-								email: pageEmailMap.get(String(member.user_id)) ?? "",
-							})),
-						),
+						data: await attachAccessRoles(pagedWithProfiles),
 						total: filtered.length,
 						page,
 						limit,
@@ -438,7 +445,7 @@ export async function adminRoutes(server: FastifyInstance) {
 					limit,
 				};
 			} catch (authError) {
-				request.log.error({ err: authError }, "Failed to fetch auth emails");
+				request.log.error({ err: authError }, "Failed to fetch auth profiles");
 				throw new DatabaseError();
 			}
 		},

@@ -29,6 +29,9 @@ import {
 	MEMBER_ROLES,
 } from "../../lib/constants";
 import {
+	buildMemberNameSearchText,
+	formatDegree,
+	getMemberStatusLabel,
 	getOperationalDepartment,
 	splitDegree,
 } from "../../lib/memberMetadata";
@@ -38,7 +41,8 @@ import OrgChartView from "./OrgChartView";
 function getInitials(member: Member): string {
 	const first = member.given_name?.charAt(0) || "";
 	const last = member.surname?.charAt(0) || "";
-	return (first + last).toUpperCase();
+	const email = member.email?.charAt(0) || "";
+	return (first + last || email).toUpperCase();
 }
 
 function getBoardBadgeLabel(member: Member): string | undefined {
@@ -70,6 +74,7 @@ export default function MemberList() {
 	const [search, setSearch] = useState("");
 	const [department, setDepartment] = useState("");
 	const [role, setRole] = useState("");
+	const [memberStatus, setMemberStatus] = useState("");
 	const [degreeType, setDegreeType] = useState("");
 	const [degreeProgram, setDegreeProgram] = useState("");
 
@@ -89,8 +94,13 @@ export default function MemberList() {
 		const q = search.trim().toLowerCase();
 		return members.filter((m) => {
 			const { type, program } = splitDegree(m.degree || "");
-			const name = `${m.given_name} ${m.surname}`.toLowerCase();
+			const name = buildMemberNameSearchText(
+				m.given_name,
+				m.surname,
+			).toLowerCase();
 			const normalizedDepartment = getOperationalDepartment(m.department);
+			const status = m.member_status || (m.active ? "active" : "inactive");
+			const statusLabel = getMemberStatusLabel(status).toLowerCase();
 			const dept = (normalizedDepartment || "").toLowerCase();
 			const memberRole = (m.member_role || "").toLowerCase();
 			const boardRole = (m.board_role || "").toLowerCase();
@@ -106,18 +116,28 @@ export default function MemberList() {
 					boardRole.includes(q) ||
 					batch.includes(q) ||
 					degree.includes(q) ||
-					school.includes(q)
+					school.includes(q) ||
+					statusLabel.includes(q)
 				)
 			) {
 				return false;
 			}
 			if (department && normalizedDepartment !== department) return false;
 			if (role && m.member_role !== role) return false;
+			if (memberStatus && status !== memberStatus) return false;
 			if (degreeType && type !== degreeType) return false;
 			if (degreeProgram && program !== degreeProgram) return false;
 			return true;
 		});
-	}, [members, search, department, role, degreeProgram, degreeType]);
+	}, [
+		members,
+		search,
+		department,
+		role,
+		memberStatus,
+		degreeProgram,
+		degreeType,
+	]);
 
 	if (isLoading) {
 		return (
@@ -172,7 +192,7 @@ export default function MemberList() {
 								All Members
 							</Typography>
 							<Typography variant="body1" color="text.secondary">
-								Browse the active network and search across current member
+								Browse the TUM.ai member and alumni network and search across
 								profiles.
 							</Typography>
 						</Box>
@@ -244,6 +264,20 @@ export default function MemberList() {
 							</Select>
 						</FormControl>
 
+						<FormControl size="small" sx={{ minWidth: 180 }}>
+							<InputLabel id="member-list-status-label">Status</InputLabel>
+							<Select
+								labelId="member-list-status-label"
+								value={memberStatus}
+								label="Status"
+								onChange={(e) => setMemberStatus(e.target.value)}
+							>
+								<MenuItem value="">All</MenuItem>
+								<MenuItem value="active">Active</MenuItem>
+								<MenuItem value="alumni">Alumni</MenuItem>
+							</Select>
+						</FormControl>
+
 						<FormControl size="small" sx={{ minWidth: 220 }}>
 							<InputLabel id="member-list-degree-label">Degree</InputLabel>
 							<Select
@@ -281,7 +315,7 @@ export default function MemberList() {
 						</FormControl>
 
 						<Typography variant="body2" color="text.secondary">
-							{filtered.length} active member
+							{filtered.length} member profile
 							{filtered.length !== 1 ? "s" : ""}
 						</Typography>
 					</Box>
@@ -314,8 +348,11 @@ interface MemberCardProps {
 function MemberCard({ member }: MemberCardProps) {
 	const theme = useTheme();
 	const fullName = `${member.given_name} ${member.surname}`.trim();
+	const displayName = fullName || member.email || "Unnamed Member";
 	const operationalDepartment = getOperationalDepartment(member.department);
 	const boardBadgeLabel = getBoardBadgeLabel(member);
+	const status =
+		member.member_status || (member.active ? "active" : "inactive");
 	const showMemberRole = Boolean(
 		member.member_role && !isBoardOnlyMember(member),
 	);
@@ -326,7 +363,7 @@ function MemberCard({ member }: MemberCardProps) {
 				<Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
 					<Avatar
 						src={member.avatar_url || undefined}
-						alt={`${member.given_name} ${member.surname}`.trim() || undefined}
+						alt={displayName}
 						sx={{
 							width: 56,
 							height: 56,
@@ -354,7 +391,7 @@ function MemberCard({ member }: MemberCardProps) {
 								whiteSpace: "nowrap",
 							}}
 						>
-							{fullName || "Unnamed Member"}
+							{displayName}
 						</Typography>
 
 						{showMemberRole && (
@@ -380,6 +417,13 @@ function MemberCard({ member }: MemberCardProps) {
 				</Box>
 
 				<Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+					{status !== "active" && (
+						<Chip
+							label={getMemberStatusLabel(status)}
+							size="small"
+							variant="outlined"
+						/>
+					)}
 					{boardBadgeLabel && (
 						<Chip label={boardBadgeLabel} size="small" variant="outlined" />
 					)}
@@ -387,7 +431,11 @@ function MemberCard({ member }: MemberCardProps) {
 						<Chip label={member.batch} size="small" variant="outlined" />
 					)}
 					{member.degree && (
-						<Chip label={member.degree} size="small" variant="outlined" />
+						<Chip
+							label={formatDegree(member.degree)}
+							size="small"
+							variant="outlined"
+						/>
 					)}
 					{member.school && (
 						<Chip

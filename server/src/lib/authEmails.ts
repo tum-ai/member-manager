@@ -6,12 +6,28 @@ const AUTH_EMAIL_LOOKUP_CACHE_TTL_MS = 5 * 60 * 1000;
 export interface AuthProfile {
 	email: string;
 	avatar_url: string;
+	given_name: string;
+	surname: string;
 }
 
 interface ListedAuthUser {
 	id: string;
 	email?: string;
 	user_metadata?: Record<string, unknown> | null;
+}
+
+function readStringMetadata(
+	metadata: Record<string, unknown> | null,
+	keys: string[],
+): string {
+	if (!metadata) return "";
+	for (const key of keys) {
+		const value = metadata[key];
+		if (typeof value === "string" && value.trim() !== "") {
+			return value.trim();
+		}
+	}
+	return "";
 }
 
 const authUserIdByEmailCache = new Map<
@@ -70,10 +86,35 @@ function cacheAuthProfile(userId: string, profile: AuthProfile): void {
 	}
 }
 
+function extractProfileName(metadata: Record<string, unknown> | null): {
+	given_name: string;
+	surname: string;
+} {
+	let givenName = readStringMetadata(metadata, ["given_name", "first_name"]);
+	let surname = readStringMetadata(metadata, ["family_name", "last_name"]);
+
+	if (!givenName || !surname) {
+		const fullName = readStringMetadata(metadata, ["name", "full_name"]);
+		if (fullName) {
+			const parts = fullName.split(/\s+/);
+			if (!givenName) givenName = parts[0] ?? "";
+			if (!surname && parts.length > 1) surname = parts.slice(1).join(" ");
+		}
+	}
+
+	return { given_name: givenName, surname };
+}
+
+function emptyAuthProfile(): AuthProfile {
+	return { email: "", avatar_url: "", given_name: "", surname: "" };
+}
+
 function cacheListedAuthUser(user: ListedAuthUser): AuthProfile {
+	const metadata = user.user_metadata ?? null;
 	const profile = {
 		email: user.email ?? "",
-		avatar_url: extractAvatarUrl(user.user_metadata ?? null),
+		avatar_url: extractAvatarUrl(metadata),
+		...extractProfileName(metadata),
 	};
 	cacheAuthProfile(user.id, profile);
 	return profile;
@@ -196,7 +237,7 @@ export async function getAuthEmails(
 
 	for (const userId of pendingUserIds) {
 		emails.set(userId, "");
-		cacheAuthProfile(userId, { email: "", avatar_url: "" });
+		cacheAuthProfile(userId, emptyAuthProfile());
 	}
 
 	return emails;
@@ -249,7 +290,7 @@ export async function getAuthProfiles(
 	}
 
 	for (const userId of pendingUserIds) {
-		const emptyProfile = { email: "", avatar_url: "" };
+		const emptyProfile = emptyAuthProfile();
 		profiles.set(userId, emptyProfile);
 		cacheAuthProfile(userId, emptyProfile);
 	}

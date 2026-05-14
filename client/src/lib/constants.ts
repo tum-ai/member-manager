@@ -26,16 +26,51 @@ export const DEFAULT_MEMBER_ROLE: MemberRole = "Member";
 export const BOARD_MEMBER_ROLE = "Board Member" as const;
 
 // School/University presets. "Other" unlocks a free-text field.
-export const SCHOOL_PRESETS = ["TUM", "LMU"] as const;
+export const SCHOOL_PRESETS = [
+	"TUM",
+	"LMU",
+	"Hochschule München",
+	"Munich Business School",
+] as const;
 export const SCHOOL_CUSTOM_OPTION = "Other";
 
-// Degree type is fixed; only the program name is freely chosen.
-export const DEGREE_TYPES = ["B.Sc.", "M.Sc.", "PhD"] as const;
+// Degree level is fixed; only the program/major name is freely chosen.
+export const DEGREE_TYPES = [
+	"Bachelor",
+	"Master",
+	"PhD",
+	"Staatsexamen",
+] as const;
 export type DegreeType = (typeof DEGREE_TYPES)[number];
 
 export const DEGREE_PROGRAM_PRESETS = [
+	"Aerospace",
+	"Architecture",
+	"Biology",
+	"Business Administration",
+	"Chemistry",
+	"Civil Engineering",
+	"Communication Science",
 	"Computer Science",
+	"Data Engineering and Analytics",
+	"Data Science",
+	"Economics",
+	"Electrical Engineering and Information Technology",
+	"Finance and Information Management",
+	"Information Systems",
+	"Law",
+	"Life Sciences",
+	"Management",
 	"Management & Technology",
+	"Mathematics",
+	"Mechanical Engineering",
+	"Medicine",
+	"Molecular Biotechnology",
+	"Physics",
+	"Psychology",
+	"Robotics, Cognition, Intelligence",
+	"Software Engineering",
+	"Statistics",
 ] as const;
 export const DEGREE_PROGRAM_CUSTOM_OPTION = "Other";
 

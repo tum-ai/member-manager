@@ -4,14 +4,41 @@ export const MEMBER_STATUSES = ["active", "inactive", "alumni"] as const;
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];
 const NON_OPERATIONAL_DEPARTMENTS = new Set(["Board", "Research"]);
 
+const DEGREE_TYPE_ALIASES: Record<string, string> = {
+	"B.A.": "Bachelor",
+	"B.Eng.": "Bachelor",
+	"B.Sc.": "Bachelor",
+	BA: "Bachelor",
+	Bachelor: "Bachelor",
+	"LL.B.": "Bachelor",
+	"M.A.": "Master",
+	"M.B.A.": "Master",
+	"M.Eng.": "Master",
+	"M.Sc.": "Master",
+	MA: "Master",
+	Master: "Master",
+	MBA: "Master",
+	"LL.M.": "Master",
+	Doctorate: "PhD",
+	PhD: "PhD",
+	Promotion: "PhD",
+	Staatsexamen: "Staatsexamen",
+};
+
+const DEGREE_TYPE_LABELS = [
+	...DEGREE_TYPES,
+	...Object.keys(DEGREE_TYPE_ALIASES),
+].sort((left, right) => right.length - left.length);
+
 export function splitDegree(stored: string): { type: string; program: string } {
 	const trimmed = (stored ?? "").trim();
-	for (const candidate of DEGREE_TYPES) {
-		if (trimmed === candidate) return { type: candidate, program: "" };
-		if (trimmed.startsWith(`${candidate} `)) {
+	for (const label of DEGREE_TYPE_LABELS) {
+		const canonicalType = DEGREE_TYPE_ALIASES[label] ?? label;
+		if (trimmed === label) return { type: canonicalType, program: "" };
+		if (trimmed.startsWith(`${label} `)) {
 			return {
-				type: candidate,
-				program: trimmed.slice(candidate.length + 1).trim(),
+				type: canonicalType,
+				program: trimmed.slice(label.length + 1).trim(),
 			};
 		}
 	}
@@ -27,6 +54,13 @@ export function joinDegree(type: string, program: string): string {
 	return normalizedType || normalizedProgram;
 }
 
+export function formatDegree(stored?: string | null): string {
+	const normalized = stored?.trim() ?? "";
+	if (!normalized) return "";
+	const { type, program } = splitDegree(normalized);
+	return joinDegree(type, program);
+}
+
 export function getMemberStatusLabel(status?: string | null): string {
 	switch (status) {
 		case "inactive":
@@ -36,6 +70,17 @@ export function getMemberStatusLabel(status?: string | null): string {
 		default:
 			return "Active";
 	}
+}
+
+export function buildMemberNameSearchText(
+	givenName?: string | null,
+	surname?: string | null,
+): string {
+	const given = givenName?.trim() ?? "";
+	const family = surname?.trim() ?? "";
+	return [`${given} ${family}`.trim(), `${family} ${given}`.trim()]
+		.filter((value, index, values) => value && values.indexOf(value) === index)
+		.join(" ");
 }
 
 export function resolveDepartmentForMemberRole(

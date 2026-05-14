@@ -19,6 +19,7 @@ export function buildSelfServiceMemberUpdatePayload(
 	}
 
 	const {
+		batch: _batch,
 		department: _department,
 		member_role: _memberRole,
 		...selfServiceValues
