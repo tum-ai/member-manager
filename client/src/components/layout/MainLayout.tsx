@@ -20,6 +20,7 @@ import type { User } from "@supabase/supabase-js";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import { getTumAiLogoPath } from "../../lib/branding";
 import type { AppColorMode } from "../../theme";
+import BugReportButton from "./BugReportButton";
 
 interface MainLayoutProps {
 	children: React.ReactNode;
@@ -257,6 +258,19 @@ export default function MainLayout({
 				}}
 			>
 				{children}
+			</Box>
+
+			<Box
+				component="footer"
+				sx={{
+					px: { xs: 2, sm: 3, md: 4 },
+					pb: { xs: 2, md: 3 },
+					maxWidth: 1280,
+					mx: "auto",
+					width: "100%",
+				}}
+			>
+				<BugReportButton user={user} />
 			</Box>
 		</Box>
 	);

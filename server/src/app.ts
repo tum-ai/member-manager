@@ -4,6 +4,7 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import errorHandler from "./plugins/errorHandler.js";
 import { adminRoutes } from "./routes/admin.js";
+import { bugReportRoutes } from "./routes/bugReports.js";
 import { changeRequestRoutes } from "./routes/changeRequests.js";
 import { engagementCertificateRoutes } from "./routes/engagementCertificates.js";
 import { memberRoutes } from "./routes/members.js";
@@ -13,6 +14,19 @@ import { sepaRoutes } from "./routes/sepa.js";
 import { slackInteractionRoutes } from "./routes/slackInteractions.js";
 
 const API_BODY_LIMIT_BYTES = 20 * 1024 * 1024;
+
+function getVercelPreviewOrigin(): string | null {
+	if (process.env.VERCEL_ENV !== "preview") {
+		return null;
+	}
+
+	const vercelUrl = process.env.VERCEL_URL?.trim();
+	if (!vercelUrl) {
+		return null;
+	}
+
+	return `https://${vercelUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}`;
+}
 
 export const buildApp = async (): Promise<FastifyInstance> => {
 	const server = Fastify({
@@ -30,12 +44,15 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 	const configuredCorsOrigins = process.env.CORS_ORIGIN?.split(",")
 		.map((origin) => origin.trim())
 		.filter(Boolean);
+	const vercelPreviewOrigin = getVercelPreviewOrigin();
 	const allowedOrigins =
 		configuredCorsOrigins && configuredCorsOrigins.length > 0
 			? configuredCorsOrigins
-			: process.env.NODE_ENV === "production"
-				? null
-				: true;
+			: vercelPreviewOrigin
+				? [vercelPreviewOrigin]
+				: process.env.NODE_ENV === "production"
+					? null
+					: true;
 
 	if (allowedOrigins === null) {
 		throw new Error("CORS_ORIGIN must be set in production");
@@ -59,6 +76,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 	await server.register(
 		async (api) => {
 			await api.register(slackInteractionRoutes);
+			await api.register(bugReportRoutes);
 			await api.register(memberRoutes);
 			await api.register(sepaRoutes);
 			await api.register(adminRoutes);
