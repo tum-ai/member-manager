@@ -45,6 +45,7 @@ export const memberSchema = z.object({
 	board_role: z.string().nullish(),
 	degree: z.string().nullish(),
 	school: z.string().nullish(),
+	education: z.string().nullish(),
 });
 
 export const sepaSchema = z.object({
@@ -123,6 +124,7 @@ export const linkedinSchema = z.object({
 	linkedin_id: z.string().optional(),
 	location: z.string().optional(),
 	current_company: z.string().optional(),
+	education: z.string().optional(),
 });
 
 export type MemberSchema = z.infer<typeof memberSchema>;
