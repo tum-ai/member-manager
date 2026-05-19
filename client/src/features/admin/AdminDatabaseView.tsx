@@ -39,7 +39,13 @@ import {
 	useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { type ReactElement, type ReactNode, useMemo, useState } from "react";
+import {
+	type ReactElement,
+	type ReactNode,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import * as XLSX from "xlsx";
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
@@ -54,6 +60,7 @@ import {
 	MEMBER_ROLES,
 } from "../../lib/constants";
 import {
+	extractLinkedinId,
 	getMemberStatusLabel,
 	getOperationalDepartment,
 	isExecutiveMemberRole,
@@ -94,6 +101,7 @@ const sortableColumns: Array<{
 	{ key: "linkedin_url", label: "LinkedIn", width: 120 },
 	{ key: "location", label: "Location", width: 160 },
 	{ key: "current_company", label: "Company", width: 180 },
+	{ key: "education", label: "Education (LinkedIn)", width: 220 },
 	{ key: "iban", label: "IBAN", width: 220 },
 	{ key: "bic", label: "BIC", width: 150 },
 	{ key: "bank_name", label: "Bank", width: 180 },
@@ -135,6 +143,17 @@ export default function AdminDatabaseView() {
 	const [editLinkedinId, setEditLinkedinId] = useState("");
 	const [editLocation, setEditLocation] = useState("");
 	const [editCurrentCompany, setEditCurrentCompany] = useState("");
+	const [editEducation, setEditEducation] = useState("");
+
+	useEffect(() => {
+		if (editLinkedinUrl) {
+			const extracted = extractLinkedinId(editLinkedinUrl);
+			if (extracted && !editLinkedinId) {
+				setEditLinkedinId(extracted);
+			}
+		}
+	}, [editLinkedinUrl, editLinkedinId]);
+
 	const [certificateRequestBeingViewed, setCertificateRequestBeingViewed] =
 		useState<EngagementCertificateRequest | null>(null);
 	const [exportAnchorEl, setExportAnchorEl] = useState<HTMLElement | null>(
@@ -224,6 +243,7 @@ export default function AdminDatabaseView() {
 		setEditLinkedinId(member.linkedin_id || "");
 		setEditLocation(member.location || "");
 		setEditCurrentCompany(member.current_company || "");
+		setEditEducation(member.education || "");
 	}
 
 	function getMemberDisplayName(userId: string): string {
@@ -333,6 +353,7 @@ export default function AdminDatabaseView() {
 				linkedin_id: editLinkedinId.trim() || null,
 				location: editLocation.trim() || null,
 				current_company: editCurrentCompany.trim() || null,
+				education: editEducation.trim() || null,
 			});
 			showToast("Member updated successfully", "success");
 			setMemberBeingEdited(null);
@@ -412,6 +433,7 @@ export default function AdminDatabaseView() {
 			"LinkedIn ID": member.linkedin_id || "",
 			Location: member.location || "",
 			Company: member.current_company || "",
+			"LinkedIn Education": member.education || "",
 			IBAN: member.sepa?.iban || "",
 			BIC: member.sepa?.bic || "",
 			"Bank Name": member.sepa?.bank_name || "",
@@ -867,6 +889,7 @@ export default function AdminDatabaseView() {
 										</TableCell>
 										<TableCell>{row.location || "—"}</TableCell>
 										<TableCell>{row.current_company || "—"}</TableCell>
+										<TableCell>{row.education || "—"}</TableCell>
 										<TableCell sx={{ fontFamily: "monospace" }}>
 											{row.sepa?.iban || "Not provided"}
 										</TableCell>
@@ -1030,7 +1053,11 @@ export default function AdminDatabaseView() {
 								: ""}
 						</Typography>
 						{/* ── LinkedIn & Professional ── */}
-						<Typography variant="subtitle2" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+						<Typography
+							variant="subtitle2"
+							color="text.secondary"
+							sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+						>
 							<LinkedInIcon fontSize="small" sx={{ color: "#0A66C2" }} />
 							LinkedIn & Professional
 						</Typography>
@@ -1061,6 +1088,14 @@ export default function AdminDatabaseView() {
 							value={editCurrentCompany}
 							onChange={(e) => setEditCurrentCompany(e.target.value)}
 							size="small"
+						/>
+						<TextField
+							label="LinkedIn Education"
+							placeholder="e.g. Technical University of Munich, Ludwig-Maximilians-Universität München"
+							value={editEducation}
+							onChange={(e) => setEditEducation(e.target.value)}
+							size="small"
+							helperText="Educational history parsed from LinkedIn or manually added, separated by commas."
 						/>
 						<Divider />
 						{/* ── Org fields ── */}

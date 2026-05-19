@@ -1,4 +1,8 @@
+import LinkedInIcon from "@mui/icons-material/LinkedIn";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
+import SchoolIcon from "@mui/icons-material/School";
 import SearchIcon from "@mui/icons-material/Search";
+import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import {
 	Avatar,
 	Box,
@@ -7,11 +11,13 @@ import {
 	CircularProgress,
 	FormControl,
 	Grid,
+	IconButton,
 	InputAdornment,
 	InputLabel,
 	MenuItem,
 	Select,
 	TextField,
+	Tooltip,
 	Typography,
 	useTheme,
 } from "@mui/material";
@@ -97,6 +103,9 @@ export default function MemberList() {
 			const batch = (m.batch || "").toLowerCase();
 			const degree = (m.degree || "").toLowerCase();
 			const school = (m.school || "").toLowerCase();
+			const location = (m.location || "").toLowerCase();
+			const company = (m.current_company || "").toLowerCase();
+			const education = (m.education || "").toLowerCase();
 			if (
 				q &&
 				!(
@@ -106,7 +115,10 @@ export default function MemberList() {
 					boardRole.includes(q) ||
 					batch.includes(q) ||
 					degree.includes(q) ||
-					school.includes(q)
+					school.includes(q) ||
+					location.includes(q) ||
+					company.includes(q) ||
+					education.includes(q)
 				)
 			) {
 				return false;
@@ -377,6 +389,27 @@ function MemberCard({ member }: MemberCardProps) {
 							</Typography>
 						)}
 					</Box>
+					{member.linkedin_url && (
+						<Tooltip title="Connect on LinkedIn" arrow>
+							<IconButton
+								href={member.linkedin_url}
+								target="_blank"
+								rel="noopener noreferrer"
+								size="small"
+								sx={{
+									color: "#0A66C2",
+									alignSelf: "flex-start",
+									mt: -0.5,
+									mr: -0.5,
+									"&:hover": {
+										backgroundColor: alpha("#0A66C2", 0.08),
+									},
+								}}
+							>
+								<LinkedInIcon fontSize="small" />
+							</IconButton>
+						</Tooltip>
+					)}
 				</Box>
 
 				<Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
@@ -404,6 +437,94 @@ function MemberCard({ member }: MemberCardProps) {
 						/>
 					)}
 				</Box>
+
+				{(member.current_company || member.location || member.education) && (
+					<Box
+						sx={{
+							mt: 2,
+							pt: 1.5,
+							borderTop: `1px solid ${
+								theme.palette.mode === "light"
+									? alpha(theme.palette.text.primary, 0.06)
+									: alpha(theme.palette.common.white, 0.08)
+							}`,
+							display: "flex",
+							flexDirection: "column",
+							gap: 0.75,
+						}}
+					>
+						{member.current_company && (
+							<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+								<WorkOutlineIcon
+									sx={{
+										fontSize: 16,
+										color: theme.palette.text.secondary,
+										opacity: 0.75,
+									}}
+								/>
+								<Typography
+									variant="body2"
+									color="text.secondary"
+									sx={{
+										fontSize: "0.825rem",
+										fontWeight: 500,
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+									}}
+								>
+									{member.current_company}
+								</Typography>
+							</Box>
+						)}
+						{member.location && (
+							<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+								<LocationOnIcon
+									sx={{
+										fontSize: 16,
+										color: theme.palette.text.secondary,
+										opacity: 0.75,
+									}}
+								/>
+								<Typography
+									variant="body2"
+									color="text.secondary"
+									sx={{
+										fontSize: "0.825rem",
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+									}}
+								>
+									{member.location}
+								</Typography>
+							</Box>
+						)}
+						{member.education && (
+							<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+								<SchoolIcon
+									sx={{
+										fontSize: 16,
+										color: theme.palette.text.secondary,
+										opacity: 0.75,
+									}}
+								/>
+								<Typography
+									variant="body2"
+									color="text.secondary"
+									sx={{
+										fontSize: "0.825rem",
+										overflow: "hidden",
+										textOverflow: "ellipsis",
+										whiteSpace: "nowrap",
+									}}
+								>
+									{member.education}
+								</Typography>
+							</Box>
+						)}
+					</Box>
+				)}
 			</CardContent>
 		</GlassCard>
 	);
