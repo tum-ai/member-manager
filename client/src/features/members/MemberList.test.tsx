@@ -15,8 +15,8 @@ vi.mock("../../hooks/useMembersListData", () => ({
 				surname: "Example",
 				department: "Software Development",
 				member_role: "Member",
-				degree: "Bachelor Computer Science",
-				school: "TUM",
+				degree: "Bachelor Computer Science\nMaster Data Science",
+				school: "TUM\nLMU",
 				batch: "WS25",
 				member_status: "active",
 				active: true,
@@ -106,6 +106,23 @@ describe("MemberList", () => {
 		await user.click(screen.getByLabelText(/major \/ program/i));
 		await user.click(
 			await screen.findByRole("option", { name: "Computer Science" }),
+		);
+
+		expect(screen.getAllByText("Alice Example").length).toBeGreaterThan(0);
+		expect(screen.queryByText("Ben Boardmember")).not.toBeInTheDocument();
+		expect(screen.queryByText("Carla Example")).not.toBeInTheDocument();
+	});
+
+	it("filters members by a second current study", async () => {
+		const user = userEvent.setup();
+		renderMemberList();
+
+		await user.click(screen.getByLabelText(/degree/i));
+		await user.click(await screen.findByRole("option", { name: "Master" }));
+
+		await user.click(screen.getByLabelText(/major \/ program/i));
+		await user.click(
+			await screen.findByRole("option", { name: "Data Science" }),
 		);
 
 		expect(screen.getAllByText("Alice Example").length).toBeGreaterThan(0);

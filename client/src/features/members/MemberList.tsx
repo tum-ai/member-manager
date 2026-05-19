@@ -30,7 +30,7 @@ import {
 } from "../../lib/constants";
 import {
 	buildMemberNameSearchText,
-	formatDegree,
+	getEducationEntries,
 	getMemberStatusLabel,
 	getOperationalDepartment,
 	splitDegree,
@@ -82,7 +82,11 @@ export default function MemberList() {
 		if (!members) return [];
 		return [
 			...new Set(
-				members.map((member) => splitDegree(member.degree || "").program),
+				members.flatMap((member) =>
+					getEducationEntries(member.degree, member.school).map(
+						(entry) => splitDegree(entry.degree).program,
+					),
+				),
 			),
 		]
 			.filter((program) => program !== "")
@@ -93,7 +97,10 @@ export default function MemberList() {
 		if (!members) return [];
 		const q = search.trim().toLowerCase();
 		return members.filter((m) => {
-			const { type, program } = splitDegree(m.degree || "");
+			const educationEntries = getEducationEntries(m.degree, m.school);
+			const degreeMetadata = educationEntries.map((entry) =>
+				splitDegree(entry.degree),
+			);
 			const name = buildMemberNameSearchText(
 				m.given_name,
 				m.surname,
@@ -125,8 +132,18 @@ export default function MemberList() {
 			if (department && normalizedDepartment !== department) return false;
 			if (role && m.member_role !== role) return false;
 			if (memberStatus && status !== memberStatus) return false;
-			if (degreeType && type !== degreeType) return false;
-			if (degreeProgram && program !== degreeProgram) return false;
+			if (
+				degreeType &&
+				!degreeMetadata.some((entry) => entry.type === degreeType)
+			) {
+				return false;
+			}
+			if (
+				degreeProgram &&
+				!degreeMetadata.some((entry) => entry.program === degreeProgram)
+			) {
+				return false;
+			}
 			return true;
 		});
 	}, [
@@ -353,6 +370,7 @@ function MemberCard({ member }: MemberCardProps) {
 	const boardBadgeLabel = getBoardBadgeLabel(member);
 	const status =
 		member.member_status || (member.active ? "active" : "inactive");
+	const educationEntries = getEducationEntries(member.degree, member.school);
 	const showMemberRole = Boolean(
 		member.member_role && !isBoardOnlyMember(member),
 	);
@@ -430,16 +448,10 @@ function MemberCard({ member }: MemberCardProps) {
 					{member.batch && (
 						<Chip label={member.batch} size="small" variant="outlined" />
 					)}
-					{member.degree && (
+					{educationEntries.map((entry, index) => (
 						<Chip
-							label={formatDegree(member.degree)}
-							size="small"
-							variant="outlined"
-						/>
-					)}
-					{member.school && (
-						<Chip
-							label={member.school}
+							key={`${entry.degree}-${entry.school}-${index}`}
+							label={[entry.degree, entry.school].filter(Boolean).join(" · ")}
 							size="small"
 							variant="outlined"
 							sx={{
@@ -450,7 +462,7 @@ function MemberCard({ member }: MemberCardProps) {
 								},
 							}}
 						/>
-					)}
+					))}
 				</Box>
 			</CardContent>
 		</GlassCard>

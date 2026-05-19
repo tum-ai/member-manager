@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
 	buildMemberNameSearchText,
 	formatDegree,
+	getEducationEntries,
 	joinDegree,
+	serializeEducationEntries,
 	splitDegree,
 } from "./memberMetadata";
 
@@ -31,6 +33,30 @@ describe("memberMetadata", () => {
 			program: "Medicine",
 		});
 		expect(joinDegree("Staatsexamen", "Law")).toBe("Staatsexamen Law");
+	});
+
+	it("normalizes multiple current studies stored as newline-separated values", () => {
+		expect(formatDegree("B.Sc. Computer Science\nM.Sc. Data Science")).toBe(
+			"Bachelor Computer Science\nMaster Data Science",
+		);
+		expect(
+			getEducationEntries(
+				"B.Sc. Computer Science\nM.Sc. Data Science",
+				"TUM\nLMU",
+			),
+		).toEqual([
+			{ degree: "Bachelor Computer Science", school: "TUM" },
+			{ degree: "Master Data Science", school: "LMU" },
+		]);
+		expect(
+			serializeEducationEntries([
+				{ degree: "B.Sc. Computer Science", school: "TUM" },
+				{ degree: "Master Data Science", school: "LMU" },
+			]),
+		).toEqual({
+			degree: "Bachelor Computer Science\nMaster Data Science",
+			school: "TUM\nLMU",
+		});
 	});
 
 	it("builds a bidirectional member-name search string", () => {
