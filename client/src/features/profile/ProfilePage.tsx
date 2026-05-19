@@ -38,6 +38,7 @@ import {
 	MEMBER_ROLES,
 } from "../../lib/constants";
 import {
+	extractLinkedinId,
 	getEducationEntries,
 	getMemberStatusLabel,
 	resolveDepartmentForMemberRole,
@@ -141,8 +142,25 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			linkedin_id: "",
 			location: "",
 			current_company: "",
+			education: "",
 		},
 	});
+
+	const linkedinUrl = linkedinForm.watch("linkedin_url");
+	useEffect(() => {
+		if (linkedinUrl) {
+			const extracted = extractLinkedinId(linkedinUrl);
+			if (extracted) {
+				const currentId = linkedinForm.getValues("linkedin_id");
+				if (!currentId) {
+					linkedinForm.setValue("linkedin_id", extracted, {
+						shouldDirty: true,
+						shouldValidate: true,
+					});
+				}
+			}
+		}
+	}, [linkedinUrl, linkedinForm]);
 
 	const memberForm = useForm<MemberSchema>({
 		resolver: zodResolver(memberSchema),
@@ -226,10 +244,16 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 		// Populate LinkedIn form from DB data
 		linkedinForm.reset({
-			linkedin_url: (existing as Record<string, unknown>).linkedin_url as string || "",
-			linkedin_id: (existing as Record<string, unknown>).linkedin_id as string || "",
-			location: (existing as Record<string, unknown>).location as string || "",
-			current_company: (existing as Record<string, unknown>).current_company as string || "",
+			linkedin_url:
+				((existing as Record<string, unknown>).linkedin_url as string) || "",
+			linkedin_id:
+				((existing as Record<string, unknown>).linkedin_id as string) || "",
+			location:
+				((existing as Record<string, unknown>).location as string) || "",
+			current_company:
+				((existing as Record<string, unknown>).current_company as string) || "",
+			education:
+				((existing as Record<string, unknown>).education as string) || "",
 		});
 	}, [memberData, isLoadingMember, memberForm, linkedinForm, user]);
 
@@ -279,6 +303,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				linkedin_id: normalizeTextValue(linkedinValues.linkedin_id),
 				location: normalizeTextValue(linkedinValues.location),
 				current_company: normalizeTextValue(linkedinValues.current_company),
+				education: normalizeTextValue(linkedinValues.education),
 			};
 			if (isAdmin) {
 				Object.assign(memberPayload, {
@@ -799,13 +824,19 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 						{/* ── LinkedIn & Professional Presence ── */}
 						<GlassCard variant="elevated" sx={{ mt: 3 }}>
 							<CardContent sx={{ p: 3 }}>
-								<Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}>
+								<Box
+									sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}
+								>
 									<LinkedInIcon sx={{ color: "#0A66C2" }} />
 									<Typography variant="h6" sx={{ fontWeight: 500 }}>
 										LinkedIn & Professional Presence
 									</Typography>
 								</Box>
-								<Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+								<Typography
+									variant="body2"
+									color="text.secondary"
+									sx={{ mb: 3 }}
+								>
 									Keep your professional info up to date. This data is visible
 									to other TUM.ai members.
 								</Typography>
@@ -831,7 +862,10 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 															rel="noopener noreferrer"
 															sx={{ minWidth: 0, px: 1 }}
 														>
-															<LinkedInIcon fontSize="small" sx={{ color: "#0A66C2" }} />
+															<LinkedInIcon
+																fontSize="small"
+																sx={{ color: "#0A66C2" }}
+															/>
 														</Button>
 													) : undefined,
 												},
@@ -861,6 +895,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											label="Current Company / Organisation"
 											placeholder="Acme GmbH"
 											{...linkedinForm.register("current_company")}
+										/>
+									</Grid>
+
+									<Grid size={12}>
+										<TextField
+											label="LinkedIn Education"
+											placeholder="e.g. Technical University of Munich, Ludwig-Maximilians-Universität München"
+											{...linkedinForm.register("education")}
+											helperText="Raw educational history scraped from LinkedIn or manually added, separated by commas."
 										/>
 									</Grid>
 								</Grid>

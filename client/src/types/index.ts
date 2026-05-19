@@ -27,6 +27,7 @@ export interface Member {
 	linkedin_url?: string | null;
 	location?: string | null;
 	current_company?: string | null;
+	education?: string | null;
 	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
 	[key: string]: any;
 }

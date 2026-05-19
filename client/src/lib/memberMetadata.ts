@@ -171,3 +171,17 @@ export function getOperationalDepartment(
 	}
 	return normalized ? normalized : null;
 }
+
+export function extractLinkedinId(url: string): string {
+	if (!url) return "";
+	try {
+		const cleaned = url.trim().replace(/\/+$/, ""); // remove trailing slashes
+		const parts = cleaned.split("/in/");
+		if (parts.length > 1) {
+			return parts[parts.length - 1].split(/[?#]/)[0]; // strip query params
+		}
+		return "";
+	} catch {
+		return "";
+	}
+}
