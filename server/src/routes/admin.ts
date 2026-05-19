@@ -88,6 +88,11 @@ const MemberUpdateSchema = z.object({
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
 		.optional(),
+	education: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
+		.optional(),
 });
 const MEMBER_DB_SORT_COLUMNS = new Set([
 	"active",
@@ -583,6 +588,9 @@ export async function adminRoutes(server: FastifyInstance) {
 			}
 			if (parsed.data.current_company !== undefined) {
 				memberUpdate.current_company = parsed.data.current_company;
+			}
+			if (parsed.data.education !== undefined) {
+				memberUpdate.education = parsed.data.education;
 			}
 
 			const { data: updatedMember, error: memberUpdateError } =

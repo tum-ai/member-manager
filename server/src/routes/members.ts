@@ -146,6 +146,10 @@ const UpdateMemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
+	education: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
 });
 
 const LOCAL_ADMIN_BANK_DETAILS = {
@@ -395,7 +399,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select(
-					"user_id, given_name, surname, batch, department, member_role, board_role, degree, school, active, member_status",
+					"user_id, given_name, surname, batch, department, member_role, board_role, degree, school, active, member_status, linkedin_id, linkedin_url, location, current_company, education",
 				)
 				.eq("member_status", DEFAULT_MEMBER_STATUS)
 				.order("surname", { ascending: true });
