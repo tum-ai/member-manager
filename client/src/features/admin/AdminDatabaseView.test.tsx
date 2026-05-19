@@ -113,6 +113,11 @@ describe("AdminDatabaseView", () => {
 				board_role: "Board Member",
 				member_status: "inactive",
 				access_role: "admin",
+				linkedin_url: null,
+				linkedin_id: null,
+				location: null,
+				current_company: null,
+				education: null,
 			});
 		});
 	}, 10_000);

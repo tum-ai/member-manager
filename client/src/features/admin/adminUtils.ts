@@ -24,6 +24,7 @@ export type AdminSortKey =
 	| "linkedin_url"
 	| "location"
 	| "current_company"
+	| "education"
 	| "iban"
 	| "bic"
 	| "bank_name"
@@ -82,6 +83,7 @@ export function filterAdminMembers(
 			member.linkedin_id,
 			member.location,
 			member.current_company,
+			member.education,
 		]
 			.filter(Boolean)
 			.join(" ")

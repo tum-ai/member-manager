@@ -189,6 +189,7 @@ export function useAdminData() {
 			linkedin_url,
 			location,
 			current_company,
+			education,
 		}: {
 			userId: string;
 			department: string | null;
@@ -200,6 +201,7 @@ export function useAdminData() {
 			linkedin_url?: string | null;
 			location?: string | null;
 			current_company?: string | null;
+			education?: string | null;
 		}) => {
 			await apiClient(`/api/admin/members/${userId}`, {
 				method: "PATCH",
@@ -213,6 +215,7 @@ export function useAdminData() {
 					linkedin_url,
 					location,
 					current_company,
+					education,
 				}),
 			});
 		},
