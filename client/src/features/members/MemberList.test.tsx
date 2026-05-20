@@ -152,7 +152,7 @@ describe("MemberList", () => {
 		expect(screen.getAllByText("Software Development").length).toBeGreaterThan(
 			0,
 		);
-		expect(screen.queryByText("Research")).not.toBeInTheDocument();
+		expect(screen.getAllByText("Research").length).toBeGreaterThan(0);
 		expect(screen.getByText("Innovation Projects")).toBeInTheDocument();
 		expect(screen.getByText("Women@TUM.ai")).toBeInTheDocument();
 		expect(screen.getAllByText("Ben Boardmember")).toHaveLength(2);
@@ -174,7 +174,7 @@ describe("MemberList", () => {
 		expect(screen.queryByText("Carla Example")).not.toBeInTheDocument();
 	});
 
-	it("does not expose Board or Research in the department filter", async () => {
+	it("exposes Research but not Board in the department filter", async () => {
 		const user = userEvent.setup();
 		renderMemberList();
 
@@ -184,8 +184,8 @@ describe("MemberList", () => {
 			screen.queryByRole("option", { name: "Board" }),
 		).not.toBeInTheDocument();
 		expect(
-			screen.queryByRole("option", { name: "Research" }),
-		).not.toBeInTheDocument();
+			screen.getByRole("option", { name: "Research" }),
+		).toBeInTheDocument();
 		expect(screen.getAllByText("Board member").length).toBeGreaterThan(0);
 	});
 

@@ -135,7 +135,7 @@ describe("AdminDatabaseView", () => {
 		).toBeDisabled();
 	});
 
-	it("does not offer Board or Research as operational departments", async () => {
+	it("offers Research but not Board as a department", async () => {
 		const user = userEvent.setup();
 		renderAdminView();
 
@@ -146,8 +146,8 @@ describe("AdminDatabaseView", () => {
 			screen.queryByRole("option", { name: "Board" }),
 		).not.toBeInTheDocument();
 		expect(
-			screen.queryByRole("option", { name: "Research" }),
-		).not.toBeInTheDocument();
+			screen.getByRole("option", { name: "Research" }),
+		).toBeInTheDocument();
 	});
 
 	it("lets admins approve a pending member change request", async () => {

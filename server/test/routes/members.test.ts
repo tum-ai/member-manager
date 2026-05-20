@@ -336,13 +336,13 @@ describe("Members Routes", async () => {
 
 		test("returns correct fields", async () => {
 			resetDatabase();
-			const memberWithLegacyDepartment = mockDatabase.members.find(
+			const memberWithResearchDepartment = mockDatabase.members.find(
 				(member) => member.user_id === testUserIds.user,
 			);
-			if (!memberWithLegacyDepartment) {
+			if (!memberWithResearchDepartment) {
 				throw new Error("Expected test member to exist");
 			}
-			memberWithLegacyDepartment.department = "Research";
+			memberWithResearchDepartment.department = "Research";
 
 			const response = await app.inject({
 				method: "GET",
@@ -367,7 +367,7 @@ describe("Members Routes", async () => {
 			const normalizedMember = data.find(
 				(entry: { user_id: string }) => entry.user_id === testUserIds.user,
 			);
-			assert.strictEqual(normalizedMember.department, null);
+			assert.strictEqual(normalizedMember.department, "Research");
 		});
 
 		test("members are sorted by surname ascending", async () => {

@@ -5,6 +5,7 @@ export const DEPARTMENTS = [
 	"Makeathon",
 	"Marketing",
 	"Partners & Sponsors",
+	"Research",
 	"Software Development",
 	"Venture",
 ] as const;

@@ -160,13 +160,13 @@ describe("OrgChartView", () => {
 				.compareDocumentPosition(screen.getByText("Software Development")) &
 				Node.DOCUMENT_POSITION_PRECEDING,
 		).toBeTruthy();
-		expect(screen.queryByText("Lea Research")).not.toBeInTheDocument();
-		expect(screen.queryByText("Riley Research")).not.toBeInTheDocument();
+		expect(screen.getByText("Lea Research")).toBeInTheDocument();
+		expect(screen.getByText("Riley Research")).toBeInTheDocument();
 
 		await user.click(screen.getByRole("button", { name: /alpha research/i }));
 
-		expect(screen.getByText("Lea Research")).toBeInTheDocument();
-		expect(screen.getByText("Riley Research")).toBeInTheDocument();
+		expect(screen.getAllByText("Lea Research").length).toBeGreaterThan(1);
+		expect(screen.getAllByText("Riley Research").length).toBeGreaterThan(1);
 	});
 
 	it("shows innovation projects below departments and expands details on click", async () => {

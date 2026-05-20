@@ -61,11 +61,16 @@ function compactRequestedChanges(
 			? compacted.member_role
 			: undefined;
 
-	if (requestedRole || Object.hasOwn(compacted, "department")) {
+	if (requestedRole || typeof compacted.department === "string") {
 		compacted.department = resolveDepartmentForMemberRole(
 			requestedRole,
 			compacted.department as string | null | undefined,
 		);
+		if (!requestedRole && compacted.department === null) {
+			delete compacted.department;
+		}
+	} else if (compacted.department === null) {
+		delete compacted.department;
 	}
 
 	return compacted;
@@ -84,6 +89,10 @@ function hasValidDepartmentForRequestedRole(
 				: undefined,
 		)
 	);
+}
+
+function hasCompactedChanges(changes: Record<string, unknown>): boolean {
+	return Object.values(changes).some((value) => value !== undefined);
 }
 
 export async function changeRequestRoutes(server: FastifyInstance) {
@@ -107,12 +116,19 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 				});
 			}
 
+			const changes = compactRequestedChanges(parsed.changes);
+			if (!hasCompactedChanges(changes)) {
+				return reply.status(400).send({
+					error: "At least one requested change is required",
+				});
+			}
+
 			const { data, error } = await getSupabase()
 				.from("member_change_requests")
 				.insert({
 					user_id: user.id,
 					status: "pending",
-					changes: compactRequestedChanges(parsed.changes),
+					changes,
 					reason: parsed.reason ?? null,
 				})
 				.select()
@@ -232,7 +248,9 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 					typeof rawChanges.member_role === "string"
 						? rawChanges.member_role
 						: undefined;
-				const hasRequestedDepartment = Object.hasOwn(rawChanges, "department");
+				const hasRequestedDepartment =
+					typeof rawChanges.department === "string" ||
+					(requestedRole !== undefined && rawChanges.department === null);
 				const nextRole =
 					requestedRole ??
 					String(
@@ -240,6 +258,9 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 							"Member",
 					);
 				const approvedChanges: Record<string, unknown> = { ...rawChanges };
+				if (!requestedRole && rawChanges.department === null) {
+					delete approvedChanges.department;
+				}
 				if (requestedStatus) {
 					approvedChanges.active = statusToLegacyActive(requestedStatus);
 				}

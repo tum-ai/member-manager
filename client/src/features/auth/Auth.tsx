@@ -225,7 +225,7 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 							variant="outlined"
 							color="primary"
 							onClick={() =>
-								signInWithLocalUser("regular", "community-member@example.com")
+								signInWithLocalUser("regular", "regular-member@example.com")
 							}
 							disabled={localLoginInProgress !== null}
 							fullWidth

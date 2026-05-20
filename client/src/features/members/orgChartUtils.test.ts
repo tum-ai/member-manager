@@ -149,6 +149,7 @@ describe("buildOrgChart", () => {
 		]);
 		expect(chart.departments.map((group) => group.department)).toEqual([
 			"Marketing",
+			"Research",
 			"Software Development",
 		]);
 		expect(
@@ -173,12 +174,11 @@ describe("buildOrgChart", () => {
 			),
 		).not.toContain("Boris");
 		expect(
-			chart.departments.flatMap((group) =>
-				group.teamLeads
-					.concat(group.members)
-					.map((member) => member.given_name),
-			),
-		).not.toContain("Riley");
+			chart.departments.find((group) => group.department === "Research"),
+		).toMatchObject({
+			teamLeads: [expect.objectContaining({ given_name: "Lea" })],
+			members: [expect.objectContaining({ given_name: "Riley" })],
+		});
 		expect(chart.researchProjects).toHaveLength(1);
 		expect(chart.researchProjects[0]).toMatchObject({
 			id: "project-a",
