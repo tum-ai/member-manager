@@ -170,6 +170,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const mandateAgreed = sepaForm.watch("mandate_agreed");
 	const privacyAgreed = sepaForm.watch("privacy_agreed");
 	const isActive = memberForm.watch("active");
+	const shouldSubmitSepa = Boolean(sepaData) || sepaForm.formState.isDirty;
 
 	const openSepaModal = () => {
 		setPendingMandateAgreed(mandateAgreed);
@@ -227,11 +228,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const onSubmit = async (): Promise<void> => {
 		try {
 			const memberValid = await memberForm.trigger();
-			const sepaValid = await sepaForm.trigger();
+			const sepaValid = shouldSubmitSepa ? await sepaForm.trigger() : true;
 
 			if (!memberValid || !sepaValid) {
 				showToast(
-					"Please complete all required fields and agreements before saving.",
+					shouldSubmitSepa
+						? "Please complete all required fields and agreements before saving."
+						: "Please complete all required profile fields before saving.",
 					"error",
 				);
 				return;
@@ -263,7 +266,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				});
 			}
 			promises.push(updateMemberAsync(memberPayload));
-			promises.push(updateSepaAsync(sepaForm.getValues()));
+			if (shouldSubmitSepa) {
+				promises.push(updateSepaAsync(sepaForm.getValues()));
+			}
 
 			await Promise.all(promises);
 			showToast("Profile saved successfully!", "success");

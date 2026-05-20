@@ -91,6 +91,10 @@ function hasValidDepartmentForRequestedRole(
 	);
 }
 
+function hasCompactedChanges(changes: Record<string, unknown>): boolean {
+	return Object.values(changes).some((value) => value !== undefined);
+}
+
 export async function changeRequestRoutes(server: FastifyInstance) {
 	server.post(
 		"/member-change-requests",
@@ -112,12 +116,19 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 				});
 			}
 
+			const changes = compactRequestedChanges(parsed.changes);
+			if (!hasCompactedChanges(changes)) {
+				return reply.status(400).send({
+					error: "At least one requested change is required",
+				});
+			}
+
 			const { data, error } = await getSupabase()
 				.from("member_change_requests")
 				.insert({
 					user_id: user.id,
 					status: "pending",
-					changes: compactRequestedChanges(parsed.changes),
+					changes,
 					reason: parsed.reason ?? null,
 				})
 				.select()

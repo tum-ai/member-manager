@@ -115,6 +115,26 @@ describe("Member Change Request Routes", async () => {
 		assert.deepStrictEqual(payload.changes, { batch: "SS25" });
 	});
 
+	test("rejects requests with no effective changes after compaction", async () => {
+		resetDatabase();
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/member-change-requests",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				changes: {
+					department: null,
+				},
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 400);
+		assert.match(response.payload, /at least one requested change/i);
+	});
+
 	test("admin can list pending member change requests", async () => {
 		resetDatabase();
 		mockDatabase.member_change_requests.push({
