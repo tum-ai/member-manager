@@ -98,6 +98,38 @@ describe("SEPA Routes", async () => {
 			assert.ok(data.error);
 		});
 
+		test("rejects missing agreement confirmations", async () => {
+			resetDatabase();
+			const payload = mockSepaPayload({
+				user_id: testUserIds.user,
+				mandate_agreed: false,
+				privacy_agreed: false,
+			});
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/sepa",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify(payload),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			const data = JSON.parse(response.payload);
+			assert.deepStrictEqual(data.details, [
+				{
+					field: "mandate_agreed",
+					message: "You must agree to the SEPA mandate",
+				},
+				{
+					field: "privacy_agreed",
+					message: "You must agree to the Privacy Policy",
+				},
+			]);
+		});
+
 		test("accepts IBAN with spaces", async () => {
 			resetDatabase();
 			const payload = mockSepaPayload({
@@ -295,6 +327,35 @@ describe("SEPA Routes", async () => {
 			});
 
 			assert.strictEqual(response.statusCode, 400);
+		});
+
+		test("rejects update without Privacy Policy agreement", async () => {
+			resetDatabase();
+			const updatePayload = {
+				iban: "GB82WEST12345698765432",
+				bank_name: "Updated Bank",
+				mandate_agreed: true,
+				privacy_agreed: false,
+			};
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify(updatePayload),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			const data = JSON.parse(response.payload);
+			assert.deepStrictEqual(data.details, [
+				{
+					field: "privacy_agreed",
+					message: "You must agree to the Privacy Policy",
+				},
+			]);
 		});
 
 		test("rejects unauthenticated request", async () => {

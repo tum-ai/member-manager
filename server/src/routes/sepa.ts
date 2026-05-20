@@ -27,8 +27,12 @@ const SepaSchema = z.object({
 		}),
 	bic: z.string().optional(),
 	bank_name: z.string(),
-	mandate_agreed: z.boolean(),
-	privacy_agreed: z.boolean(),
+	mandate_agreed: z.boolean().refine((value) => value, {
+		message: "You must agree to the SEPA mandate",
+	}),
+	privacy_agreed: z.boolean().refine((value) => value, {
+		message: "You must agree to the Privacy Policy",
+	}),
 });
 
 const UpdateSepaSchema = SepaSchema.omit({

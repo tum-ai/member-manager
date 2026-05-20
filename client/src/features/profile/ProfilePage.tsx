@@ -89,6 +89,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const { showToast } = useToast();
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+	const [pendingMandateAgreed, setPendingMandateAgreed] = useState(false);
+	const [pendingPrivacyAgreed, setPendingPrivacyAgreed] = useState(false);
 	const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 	const [requestedDepartment, setRequestedDepartment] = useState("");
 	const [requestedRole, setRequestedRole] = useState("");
@@ -169,6 +171,16 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const privacyAgreed = sepaForm.watch("privacy_agreed");
 	const isActive = memberForm.watch("active");
 
+	const openSepaModal = () => {
+		setPendingMandateAgreed(mandateAgreed);
+		setShowSepaModal(true);
+	};
+
+	const openPrivacyModal = () => {
+		setPendingPrivacyAgreed(privacyAgreed);
+		setShowPrivacyModal(true);
+	};
+
 	useEffect(() => {
 		if (isLoadingMember) return;
 
@@ -217,37 +229,41 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			const memberValid = await memberForm.trigger();
 			const sepaValid = await sepaForm.trigger();
 
-			const promises: Promise<unknown>[] = [];
-			if (memberValid) {
-				const memberValues = memberForm.getValues();
-				const educationValues = serializeEducationEntries(
-					getEducationEntries(memberValues.degree, memberValues.school),
+			if (!memberValid || !sepaValid) {
+				showToast(
+					"Please complete all required fields and agreements before saving.",
+					"error",
 				);
-				const memberPayload = {
-					...buildSelfServiceMemberUpdatePayload(memberValues, {
-						includeAdminManagedFields: isAdmin,
-					}),
-					degree: normalizeSerializedTextValue(educationValues.degree),
-					school: normalizeSerializedTextValue(educationValues.school),
-				};
-				if (isAdmin) {
-					Object.assign(memberPayload, {
-						batch: normalizeTextValue(memberValues.batch),
-					});
-					const normalizedRole = normalizeTextValue(memberValues.member_role);
-					Object.assign(memberPayload, {
-						member_role: normalizedRole || "Member",
-						department: resolveDepartmentForMemberRole(
-							normalizedRole || "Member",
-							normalizeTextValue(memberValues.department),
-						),
-					});
-				}
-				promises.push(updateMemberAsync(memberPayload));
+				return;
 			}
-			if (sepaValid) {
-				promises.push(updateSepaAsync(sepaForm.getValues()));
+
+			const promises: Promise<unknown>[] = [];
+			const memberValues = memberForm.getValues();
+			const educationValues = serializeEducationEntries(
+				getEducationEntries(memberValues.degree, memberValues.school),
+			);
+			const memberPayload = {
+				...buildSelfServiceMemberUpdatePayload(memberValues, {
+					includeAdminManagedFields: isAdmin,
+				}),
+				degree: normalizeSerializedTextValue(educationValues.degree),
+				school: normalizeSerializedTextValue(educationValues.school),
+			};
+			if (isAdmin) {
+				Object.assign(memberPayload, {
+					batch: normalizeTextValue(memberValues.batch),
+				});
+				const normalizedRole = normalizeTextValue(memberValues.member_role);
+				Object.assign(memberPayload, {
+					member_role: normalizedRole || "Member",
+					department: resolveDepartmentForMemberRole(
+						normalizedRole || "Member",
+						normalizeTextValue(memberValues.department),
+					),
+				});
 			}
+			promises.push(updateMemberAsync(memberPayload));
+			promises.push(updateSepaAsync(sepaForm.getValues()));
 
 			await Promise.all(promises);
 			showToast("Profile saved successfully!", "success");
@@ -937,16 +953,14 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											<Checkbox
 												checked={mandateAgreed}
 												onChange={(e) => {
-													if (!mandateAgreed && e.target.checked) {
-														setShowSepaModal(true);
+													if (e.target.checked) {
+														openSepaModal();
+														return;
 													}
-													sepaForm.setValue(
-														"mandate_agreed",
-														e.target.checked,
-														{
-															shouldDirty: true,
-														},
-													);
+													sepaForm.setValue("mandate_agreed", false, {
+														shouldDirty: true,
+														shouldValidate: true,
+													});
 												}}
 											/>
 										}
@@ -957,7 +971,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 													component="span"
 													onClick={(e) => {
 														e.preventDefault();
-														setShowSepaModal(true);
+														e.stopPropagation();
+														openSepaModal();
 													}}
 													sx={{
 														color: theme.palette.primary.main,
@@ -969,24 +984,31 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												</Box>
 											</Typography>
 										}
-										sx={{ mb: 1 }}
+										sx={{ mb: 0.5 }}
 									/>
+									{sepaForm.formState.errors.mandate_agreed && (
+										<Typography
+											color="error"
+											variant="caption"
+											sx={{ display: "block", mb: 1 }}
+										>
+											{sepaForm.formState.errors.mandate_agreed.message}
+										</Typography>
+									)}
 
 									<FormControlLabel
 										control={
 											<Checkbox
 												checked={privacyAgreed}
 												onChange={(e) => {
-													if (!privacyAgreed && e.target.checked) {
-														setShowPrivacyModal(true);
+													if (e.target.checked) {
+														openPrivacyModal();
+														return;
 													}
-													sepaForm.setValue(
-														"privacy_agreed",
-														e.target.checked,
-														{
-															shouldDirty: true,
-														},
-													);
+													sepaForm.setValue("privacy_agreed", false, {
+														shouldDirty: true,
+														shouldValidate: true,
+													});
 												}}
 											/>
 										}
@@ -997,7 +1019,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 													component="span"
 													onClick={(e) => {
 														e.preventDefault();
-														setShowPrivacyModal(true);
+														e.stopPropagation();
+														openPrivacyModal();
 													}}
 													sx={{
 														color: theme.palette.primary.main,
@@ -1011,6 +1034,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											</Typography>
 										}
 									/>
+									{sepaForm.formState.errors.privacy_agreed && (
+										<Typography
+											color="error"
+											variant="caption"
+											sx={{ display: "block" }}
+										>
+											{sepaForm.formState.errors.privacy_agreed.message}
+										</Typography>
+									)}
 								</Box>
 							</CardContent>
 						</GlassCard>
@@ -1040,19 +1072,18 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				<Modal
 					title="SEPA Mandate Agreement"
 					onClose={() => setShowSepaModal(false)}
-					confirmDisabled={!mandateAgreed}
+					confirmDisabled={!pendingMandateAgreed}
 					onConfirm={() => {
-						sepaForm.setValue("mandate_agreed", true, { shouldDirty: true });
+						sepaForm.setValue("mandate_agreed", true, {
+							shouldDirty: true,
+							shouldValidate: true,
+						});
 						setShowSepaModal(false);
 					}}
 				>
 					<SepaMandate
-						sepaAgreed={mandateAgreed}
-						onCheckChange={(checked) =>
-							sepaForm.setValue("mandate_agreed", checked, {
-								shouldDirty: true,
-							})
-						}
+						sepaAgreed={pendingMandateAgreed}
+						onCheckChange={setPendingMandateAgreed}
 					/>
 				</Modal>
 			)}
@@ -1061,19 +1092,18 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				<Modal
 					title="Privacy Policy Agreement"
 					onClose={() => setShowPrivacyModal(false)}
-					confirmDisabled={!privacyAgreed}
+					confirmDisabled={!pendingPrivacyAgreed}
 					onConfirm={() => {
-						sepaForm.setValue("privacy_agreed", true, { shouldDirty: true });
+						sepaForm.setValue("privacy_agreed", true, {
+							shouldDirty: true,
+							shouldValidate: true,
+						});
 						setShowPrivacyModal(false);
 					}}
 				>
 					<PrivacyPolicy
-						privacyAgreed={privacyAgreed}
-						onCheckChange={(checked) =>
-							sepaForm.setValue("privacy_agreed", checked, {
-								shouldDirty: true,
-							})
-						}
+						privacyAgreed={pendingPrivacyAgreed}
+						onCheckChange={setPendingPrivacyAgreed}
 					/>
 				</Modal>
 			)}
