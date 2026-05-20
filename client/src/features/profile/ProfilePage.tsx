@@ -37,9 +37,10 @@ import {
 	MEMBER_ROLES,
 } from "../../lib/constants";
 import {
-	formatDegree,
+	getEducationEntries,
 	getMemberStatusLabel,
 	resolveDepartmentForMemberRole,
+	serializeEducationEntries,
 } from "../../lib/memberMetadata";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
 import {
@@ -99,6 +100,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const normalizeTextValue = (value?: string | null): string | null => {
 		const trimmed = value?.trim();
 		return trimmed ? trimmed : null;
+	};
+
+	const normalizeSerializedTextValue = (
+		value?: string | null,
+	): string | null => {
+		if (!value?.trim()) return null;
+		return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 	};
 
 	const {
@@ -212,12 +220,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			const promises: Promise<unknown>[] = [];
 			if (memberValid) {
 				const memberValues = memberForm.getValues();
+				const educationValues = serializeEducationEntries(
+					getEducationEntries(memberValues.degree, memberValues.school),
+				);
 				const memberPayload = {
 					...buildSelfServiceMemberUpdatePayload(memberValues, {
 						includeAdminManagedFields: isAdmin,
 					}),
-					degree: normalizeTextValue(formatDegree(memberValues.degree)),
-					school: normalizeTextValue(memberValues.school),
+					degree: normalizeSerializedTextValue(educationValues.degree),
+					school: normalizeSerializedTextValue(educationValues.school),
 				};
 				if (isAdmin) {
 					Object.assign(memberPayload, {

@@ -66,10 +66,10 @@ export default function EducationFields({
 		getEditableEducationEntries(degreeValue, schoolValue),
 	);
 	const [customProgramRows, setCustomProgramRows] = useState<
-		Record<number, boolean>
+		Record<string, boolean>
 	>({});
 	const [customSchoolRows, setCustomSchoolRows] = useState<
-		Record<number, boolean>
+		Record<string, boolean>
 	>({});
 
 	useEffect(() => {
@@ -86,6 +86,8 @@ export default function EducationFields({
 
 		lastCommittedValues.current = incomingValues;
 		setEntries(getEditableEducationEntries(degreeValue, schoolValue));
+		setCustomProgramRows({});
+		setCustomSchoolRows({});
 	}, [degreeValue, schoolValue]);
 
 	const commitEntries = (nextEntries: EditableEducationEntry[]): void => {
@@ -127,7 +129,7 @@ export default function EducationFields({
 					const isPresetProgram = (
 						DEGREE_PROGRAM_PRESETS as readonly string[]
 					).includes(program);
-					const selectedProgramOption = customProgramRows[index]
+					const selectedProgramOption = customProgramRows[entry.id]
 						? DEGREE_PROGRAM_CUSTOM_OPTION
 						: program === ""
 							? ""
@@ -137,7 +139,7 @@ export default function EducationFields({
 					const isPresetSchool = (SCHOOL_PRESETS as readonly string[]).includes(
 						entry.school,
 					);
-					const selectedSchoolOption = customSchoolRows[index]
+					const selectedSchoolOption = customSchoolRows[entry.id]
 						? SCHOOL_CUSTOM_OPTION
 						: entry.school === ""
 							? ""
@@ -188,14 +190,14 @@ export default function EducationFields({
 											if (chosen === DEGREE_PROGRAM_CUSTOM_OPTION) {
 												setCustomProgramRows((current) => ({
 													...current,
-													[index]: true,
+													[entry.id]: true,
 												}));
 												updateEntry(index, { degree: joinDegree(type, "") });
 												return;
 											}
 											setCustomProgramRows((current) => ({
 												...current,
-												[index]: false,
+												[entry.id]: false,
 											}));
 											updateEntry(index, { degree: joinDegree(type, chosen) });
 										}}
@@ -236,14 +238,14 @@ export default function EducationFields({
 											if (chosen === SCHOOL_CUSTOM_OPTION) {
 												setCustomSchoolRows((current) => ({
 													...current,
-													[index]: true,
+													[entry.id]: true,
 												}));
 												updateEntry(index, { school: "" });
 												return;
 											}
 											setCustomSchoolRows((current) => ({
 												...current,
-												[index]: false,
+												[entry.id]: false,
 											}));
 											updateEntry(index, { school: chosen });
 										}}

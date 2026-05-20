@@ -59,6 +59,24 @@ describe("memberMetadata", () => {
 		});
 	});
 
+	it("preserves row alignment when one education column is empty", () => {
+		const serialized = serializeEducationEntries([
+			{ degree: "", school: "TUM" },
+			{ degree: "Master Data Science", school: "LMU" },
+			{ degree: "PhD AI", school: "" },
+		]);
+
+		expect(serialized).toEqual({
+			degree: "\nMaster Data Science\nPhD AI",
+			school: "TUM\nLMU\n",
+		});
+		expect(getEducationEntries(serialized.degree, serialized.school)).toEqual([
+			{ degree: "", school: "TUM" },
+			{ degree: "Master Data Science", school: "LMU" },
+			{ degree: "PhD AI", school: "" },
+		]);
+	});
+
 	it("builds a bidirectional member-name search string", () => {
 		expect(buildMemberNameSearchText("Ada", "Lovelace")).toBe(
 			"Ada Lovelace Lovelace Ada",

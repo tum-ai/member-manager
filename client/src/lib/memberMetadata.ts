@@ -35,13 +35,15 @@ export interface EducationEntry {
 	school: string;
 }
 
-function splitStoredList(stored?: string | null): string[] {
-	return (stored ?? "")
-		.replace(/\r\n/g, "\n")
-		.replace(/\r/g, "\n")
-		.split("\n")
-		.map((entry) => entry.trim())
-		.filter(Boolean);
+function splitStoredList(
+	stored?: string | null,
+	{ preserveEmptyRows = false }: { preserveEmptyRows?: boolean } = {},
+): string[] {
+	const normalized = (stored ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+	if (!normalized.trim()) return [];
+
+	const entries = normalized.split("\n").map((entry) => entry.trim());
+	return preserveEmptyRows ? entries : entries.filter(Boolean);
 }
 
 export function getDegreeEntries(stored?: string | null): string[] {
@@ -52,8 +54,10 @@ export function getEducationEntries(
 	storedDegree?: string | null,
 	storedSchool?: string | null,
 ): EducationEntry[] {
-	const degrees = getDegreeEntries(storedDegree);
-	const schools = splitStoredList(storedSchool);
+	const degrees = splitStoredList(storedDegree, {
+		preserveEmptyRows: true,
+	}).map((entry) => formatSingleDegree(entry));
+	const schools = splitStoredList(storedSchool, { preserveEmptyRows: true });
 	const entryCount = Math.max(degrees.length, schools.length);
 
 	return Array.from({ length: entryCount }, (_, index) => ({
@@ -73,12 +77,8 @@ export function serializeEducationEntries(entries: readonly EducationEntry[]): {
 	return {
 		degree: nonEmptyEntries
 			.map((entry) => formatSingleDegree(entry.degree))
-			.filter(Boolean)
 			.join("\n"),
-		school: nonEmptyEntries
-			.map((entry) => entry.school.trim())
-			.filter(Boolean)
-			.join("\n"),
+		school: nonEmptyEntries.map((entry) => entry.school.trim()).join("\n"),
 	};
 }
 
