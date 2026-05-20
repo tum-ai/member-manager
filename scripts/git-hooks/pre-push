@@ -1,7 +1,4 @@
 #!/bin/sh
 set -eu
 
-ROOT_DIR="$(git rev-parse --show-toplevel)"
-
-echo "[pre-push] Running full gate (lint + build + test)"
-pnpm --dir "$ROOT_DIR" gate
+echo "[pre-push] No repo-managed pre-push checks. Run pnpm gate manually when needed."

@@ -10,6 +10,7 @@
 		"test": "pnpm test:scripts && pnpm -r run test",
 		"test:scripts": "node --test scripts/*.test.mjs",
 		"lint": "biome check api && pnpm -r run lint",
+		"lint:staged": "biome check --staged --no-errors-on-unmatched",
 		"lint:apply": "pnpm -r --parallel run lint:apply",
 		"hooks:install": "node scripts/install-git-hooks.mjs",
 		"setup:local": "node scripts/setup-local-env.mjs",
