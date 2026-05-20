@@ -114,9 +114,23 @@ Run all: `pnpm test`. Run one workspace: `pnpm --filter @member-manager/server t
 
 Verification tests that hit a running local stack live in `scripts/verify-*.test.mjs`. They skip silently if Supabase isn't reachable, so they're safe to run by default.
 
-## Full gate before push
+## Local hooks and full gate
 
-The merge gate is:
+Install the repo-managed Git hook once:
+
+```bash
+pnpm hooks:install
+```
+
+This writes `.git/hooks/pre-commit`, which runs a fast staged-file Biome check:
+
+```bash
+pnpm lint:staged
+```
+
+The installer is intentionally conservative: it refuses to overwrite a custom existing `pre-commit` hook. If it finds the previous repo-managed full-gate `pre-push` hook, it disables it by moving it to `.git/hooks/pre-push.member-manager-full-gate.disabled`; custom `pre-push` hooks are left untouched.
+
+The full merge gate remains:
 
 ```bash
 pnpm gate
@@ -128,13 +142,7 @@ That expands to:
 pnpm lint && pnpm build && pnpm test
 ```
 
-To enforce that locally before every push, install the repo-managed Git hook once:
-
-```bash
-pnpm hooks:install
-```
-
-This writes `.git/hooks/pre-push`, which runs `pnpm gate` and blocks the push on any failure. The installer is intentionally conservative: it refuses to overwrite a custom existing `pre-push` hook.
+Run `pnpm gate` manually before PRs, deploys, or risky changes. CI runs the full gate for pull requests and pushes to `main`.
 
 ## Schema migrations
 
