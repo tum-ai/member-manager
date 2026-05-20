@@ -139,7 +139,7 @@ pnpm gate
 That expands to:
 
 ```bash
-pnpm lint && pnpm build && pnpm test
+pnpm lint && pnpm test && pnpm build
 ```
 
 Run `pnpm gate` manually before PRs, deploys, or risky changes. CI runs the full gate for pull requests and pushes to `main`.
