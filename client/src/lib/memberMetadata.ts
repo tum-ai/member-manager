@@ -30,6 +30,58 @@ const DEGREE_TYPE_LABELS = [
 	...Object.keys(DEGREE_TYPE_ALIASES),
 ].sort((left, right) => right.length - left.length);
 
+export interface EducationEntry {
+	degree: string;
+	school: string;
+}
+
+function splitStoredList(
+	stored?: string | null,
+	{ preserveEmptyRows = false }: { preserveEmptyRows?: boolean } = {},
+): string[] {
+	const normalized = (stored ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+	if (!normalized.trim()) return [];
+
+	const entries = normalized.split("\n").map((entry) => entry.trim());
+	return preserveEmptyRows ? entries : entries.filter(Boolean);
+}
+
+export function getDegreeEntries(stored?: string | null): string[] {
+	return splitStoredList(stored).map((entry) => formatSingleDegree(entry));
+}
+
+export function getEducationEntries(
+	storedDegree?: string | null,
+	storedSchool?: string | null,
+): EducationEntry[] {
+	const degrees = splitStoredList(storedDegree, {
+		preserveEmptyRows: true,
+	}).map((entry) => formatSingleDegree(entry));
+	const schools = splitStoredList(storedSchool, { preserveEmptyRows: true });
+	const entryCount = Math.max(degrees.length, schools.length);
+
+	return Array.from({ length: entryCount }, (_, index) => ({
+		degree: degrees[index] ?? "",
+		school: schools[index] ?? "",
+	})).filter((entry) => entry.degree || entry.school);
+}
+
+export function serializeEducationEntries(entries: readonly EducationEntry[]): {
+	degree: string;
+	school: string;
+} {
+	const nonEmptyEntries = entries.filter(
+		(entry) => entry.degree.trim() || entry.school.trim(),
+	);
+
+	return {
+		degree: nonEmptyEntries
+			.map((entry) => formatSingleDegree(entry.degree))
+			.join("\n"),
+		school: nonEmptyEntries.map((entry) => entry.school.trim()).join("\n"),
+	};
+}
+
 export function splitDegree(stored: string): { type: string; program: string } {
 	const trimmed = (stored ?? "").trim();
 	for (const label of DEGREE_TYPE_LABELS) {
@@ -54,11 +106,15 @@ export function joinDegree(type: string, program: string): string {
 	return normalizedType || normalizedProgram;
 }
 
-export function formatDegree(stored?: string | null): string {
+function formatSingleDegree(stored?: string | null): string {
 	const normalized = stored?.trim() ?? "";
 	if (!normalized) return "";
 	const { type, program } = splitDegree(normalized);
 	return joinDegree(type, program);
+}
+
+export function formatDegree(stored?: string | null): string {
+	return getDegreeEntries(stored).join("\n");
 }
 
 export function getMemberStatusLabel(status?: string | null): string {

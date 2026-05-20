@@ -32,21 +32,15 @@ import { useMemberData } from "../../hooks/useMemberData";
 import { useSepaData } from "../../hooks/useSepaData";
 import {
 	BATCH_OPTIONS,
-	DEGREE_PROGRAM_CUSTOM_OPTION,
-	DEGREE_PROGRAM_PRESETS,
-	DEGREE_TYPES,
 	DEPARTMENTS,
 	getCurrentBatch,
 	MEMBER_ROLES,
-	SCHOOL_CUSTOM_OPTION,
-	SCHOOL_PRESETS,
 } from "../../lib/constants";
 import {
-	formatDegree,
+	getEducationEntries,
 	getMemberStatusLabel,
-	joinDegree,
 	resolveDepartmentForMemberRole,
-	splitDegree,
+	serializeEducationEntries,
 } from "../../lib/memberMetadata";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
 import {
@@ -58,6 +52,7 @@ import {
 import { generateMembershipProofPdf } from "../certificate/generators/membershipProofPdf";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
 import SepaMandate from "../sepa/SepaMandate";
+import EducationFields from "./EducationFields";
 import { buildSelfServiceMemberUpdatePayload } from "./profileFormUtils";
 
 interface ProfilePageProps {
@@ -101,12 +96,17 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const [isRequestingAlumniStatus, setIsRequestingAlumniStatus] =
 		useState(false);
 	const [changeRequestReason, setChangeRequestReason] = useState("");
-	const [isCustomProgramSelected, setIsCustomProgramSelected] = useState(false);
-	const [isCustomSchoolSelected, setIsCustomSchoolSelected] = useState(false);
 
 	const normalizeTextValue = (value?: string | null): string | null => {
 		const trimmed = value?.trim();
 		return trimmed ? trimmed : null;
+	};
+
+	const normalizeSerializedTextValue = (
+		value?: string | null,
+	): string | null => {
+		if (!value?.trim()) return null;
+		return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 	};
 
 	const {
@@ -176,9 +176,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		const slackBatch = getCurrentBatch();
 		const existing = memberData ?? {};
 
-		setIsCustomProgramSelected(false);
-		setIsCustomSchoolSelected(false);
-
 		memberForm.reset({
 			active: existing.active ?? true,
 			member_status:
@@ -223,12 +220,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			const promises: Promise<unknown>[] = [];
 			if (memberValid) {
 				const memberValues = memberForm.getValues();
+				const educationValues = serializeEducationEntries(
+					getEducationEntries(memberValues.degree, memberValues.school),
+				);
 				const memberPayload = {
 					...buildSelfServiceMemberUpdatePayload(memberValues, {
 						includeAdminManagedFields: isAdmin,
 					}),
-					degree: normalizeTextValue(formatDegree(memberValues.degree)),
-					school: normalizeTextValue(memberValues.school),
+					degree: normalizeSerializedTextValue(educationValues.degree),
+					school: normalizeSerializedTextValue(educationValues.school),
 				};
 				if (isAdmin) {
 					Object.assign(memberPayload, {
@@ -731,172 +731,18 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											/>
 										)}
 									</Grid>
-									<Grid size={{ xs: 12, sm: 6 }}>
-										{(() => {
-											const storedDegree = memberForm.watch("degree") || "";
-											const { type, program } = splitDegree(storedDegree);
-											return (
-												<TextField
-													select
-													label="Degree"
-													value={type}
-													onChange={(e) => {
-														memberForm.setValue(
-															"degree",
-															joinDegree(e.target.value, program),
-															{ shouldDirty: true },
-														);
-													}}
-												>
-													<MenuItem value="">None</MenuItem>
-													{DEGREE_TYPES.map((t) => (
-														<MenuItem key={t} value={t}>
-															{t}
-														</MenuItem>
-													))}
-												</TextField>
-											);
-										})()}
-									</Grid>
-									<Grid size={12}>
-										{(() => {
-											const storedDegree = memberForm.watch("degree") || "";
-											const { type, program } = splitDegree(storedDegree);
-											const isPresetProgram =
-												program === "" ||
-												(DEGREE_PROGRAM_PRESETS as readonly string[]).includes(
-													program,
-												);
-											const selectedProgramOption =
-												isPresetProgram && !isCustomProgramSelected
-													? program
-													: DEGREE_PROGRAM_CUSTOM_OPTION;
-											return (
-												<>
-													<TextField
-														select
-														label="Program"
-														value={selectedProgramOption}
-														onChange={(e) => {
-															const chosen = e.target.value;
-															if (chosen === DEGREE_PROGRAM_CUSTOM_OPTION) {
-																setIsCustomProgramSelected(true);
-																memberForm.setValue(
-																	"degree",
-																	joinDegree(type, ""),
-																	{ shouldDirty: true },
-																);
-															} else {
-																setIsCustomProgramSelected(false);
-																memberForm.setValue(
-																	"degree",
-																	joinDegree(type, chosen),
-																	{ shouldDirty: true },
-																);
-															}
-														}}
-														sx={{
-															mb:
-																selectedProgramOption ===
-																DEGREE_PROGRAM_CUSTOM_OPTION
-																	? 2
-																	: 0,
-														}}
-													>
-														<MenuItem value="">None</MenuItem>
-														{DEGREE_PROGRAM_PRESETS.map((p) => (
-															<MenuItem key={p} value={p}>
-																{p}
-															</MenuItem>
-														))}
-														<MenuItem value={DEGREE_PROGRAM_CUSTOM_OPTION}>
-															Other (custom)
-														</MenuItem>
-													</TextField>
-													{selectedProgramOption ===
-														DEGREE_PROGRAM_CUSTOM_OPTION && (
-														<TextField
-															label="Custom program name"
-															value={program}
-															onChange={(e) =>
-																memberForm.setValue(
-																	"degree",
-																	joinDegree(type, e.target.value),
-																	{ shouldDirty: true },
-																)
-															}
-														/>
-													)}
-												</>
-											);
-										})()}
-									</Grid>
-
-									<Grid size={12}>
-										{(() => {
-											const storedSchool = memberForm.watch("school") || "";
-											const isPresetSchool = (
-												SCHOOL_PRESETS as readonly string[]
-											).includes(storedSchool);
-											const selectedSchoolOption = isCustomSchoolSelected
-												? SCHOOL_CUSTOM_OPTION
-												: storedSchool === ""
-													? ""
-													: isPresetSchool
-														? storedSchool
-														: SCHOOL_CUSTOM_OPTION;
-											return (
-												<>
-													<TextField
-														select
-														label="School / University"
-														value={selectedSchoolOption}
-														onChange={(e) => {
-															const chosen = e.target.value;
-															if (chosen === SCHOOL_CUSTOM_OPTION) {
-																setIsCustomSchoolSelected(true);
-																memberForm.setValue("school", "", {
-																	shouldDirty: true,
-																});
-															} else {
-																setIsCustomSchoolSelected(false);
-																memberForm.setValue("school", chosen, {
-																	shouldDirty: true,
-																});
-															}
-														}}
-														sx={{
-															mb:
-																selectedSchoolOption === SCHOOL_CUSTOM_OPTION
-																	? 2
-																	: 0,
-														}}
-													>
-														<MenuItem value="">None</MenuItem>
-														{SCHOOL_PRESETS.map((s) => (
-															<MenuItem key={s} value={s}>
-																{s}
-															</MenuItem>
-														))}
-														<MenuItem value={SCHOOL_CUSTOM_OPTION}>
-															Other (custom)
-														</MenuItem>
-													</TextField>
-													{selectedSchoolOption === SCHOOL_CUSTOM_OPTION && (
-														<TextField
-															label="Custom school / university"
-															value={storedSchool}
-															onChange={(e) =>
-																memberForm.setValue("school", e.target.value, {
-																	shouldDirty: true,
-																})
-															}
-														/>
-													)}
-												</>
-											);
-										})()}
-									</Grid>
+									<EducationFields
+										degreeValue={memberForm.watch("degree")}
+										schoolValue={memberForm.watch("school")}
+										onChange={(values) => {
+											memberForm.setValue("degree", values.degree, {
+												shouldDirty: true,
+											});
+											memberForm.setValue("school", values.school, {
+												shouldDirty: true,
+											});
+										}}
+									/>
 								</Grid>
 							</CardContent>
 						</GlassCard>
