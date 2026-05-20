@@ -50,7 +50,28 @@ describe("Member Change Request Routes", async () => {
 		assert.strictEqual(mockDatabase.member_change_requests.length, 1);
 	});
 
-	test("rejects non-operational departments for roles that require a department", async () => {
+	test("rejects board as a department for roles that require one", async () => {
+		resetDatabase();
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/member-change-requests",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				changes: {
+					department: "Board",
+					member_role: "Member",
+				},
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 400);
+		assert.match(response.payload, /department is required/i);
+	});
+
+	test("accepts Research as a member department", async () => {
 		resetDatabase();
 		const response = await app.inject({
 			method: "POST",
@@ -67,8 +88,31 @@ describe("Member Change Request Routes", async () => {
 			}),
 		});
 
-		assert.strictEqual(response.statusCode, 400);
-		assert.match(response.payload, /department is required/i);
+		assert.strictEqual(response.statusCode, 201);
+		const payload = JSON.parse(response.payload);
+		assert.strictEqual(payload.changes.department, "Research");
+	});
+
+	test("batch-only requests ignore unrelated empty department values", async () => {
+		resetDatabase();
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/member-change-requests",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				changes: {
+					department: null,
+					batch: "SS25",
+				},
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 201);
+		const payload = JSON.parse(response.payload);
+		assert.deepStrictEqual(payload.changes, { batch: "SS25" });
 	});
 
 	test("admin can list pending member change requests", async () => {
@@ -169,6 +213,46 @@ describe("Member Change Request Routes", async () => {
 		);
 		assert.strictEqual(updatedMember?.member_status, "alumni");
 		assert.strictEqual(updatedMember?.active, false);
+	});
+
+	test("admin can approve batch-only requests without department coupling", async () => {
+		resetDatabase();
+		const member = mockDatabase.members.find(
+			(entry) => entry.user_id === testUserIds.user,
+		);
+		if (!member) throw new Error("Expected test member to exist");
+		member.member_role = "Member";
+		member.department = null;
+		mockDatabase.member_change_requests.push({
+			id: "request-batch-only",
+			user_id: testUserIds.user,
+			status: "pending",
+			changes: {
+				department: null,
+				batch: "SS25",
+			},
+			reason: "Wrong batch",
+			created_at: "2026-04-24T10:00:00Z",
+		});
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: "/api/admin/member-change-requests/request-batch-only",
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				decision: "approved",
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const updatedMember = mockDatabase.members.find(
+			(entry) => entry.user_id === testUserIds.user,
+		);
+		assert.strictEqual(updatedMember?.batch, "SS25");
+		assert.strictEqual(updatedMember?.department, null);
 	});
 
 	test("executive change requests clear requested operational department", async () => {

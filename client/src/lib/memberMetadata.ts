@@ -2,7 +2,7 @@ import { DEGREE_TYPES } from "./constants";
 
 export const MEMBER_STATUSES = ["active", "inactive", "alumni"] as const;
 export type MemberStatus = (typeof MEMBER_STATUSES)[number];
-const NON_OPERATIONAL_DEPARTMENTS = new Set(["Board", "Research"]);
+const NON_OPERATIONAL_DEPARTMENTS = new Set(["Board"]);
 
 const DEGREE_TYPE_ALIASES: Record<string, string> = {
 	"B.A.": "Bachelor",

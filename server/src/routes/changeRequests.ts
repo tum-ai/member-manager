@@ -61,11 +61,16 @@ function compactRequestedChanges(
 			? compacted.member_role
 			: undefined;
 
-	if (requestedRole || Object.hasOwn(compacted, "department")) {
+	if (requestedRole || typeof compacted.department === "string") {
 		compacted.department = resolveDepartmentForMemberRole(
 			requestedRole,
 			compacted.department as string | null | undefined,
 		);
+		if (!requestedRole && compacted.department === null) {
+			delete compacted.department;
+		}
+	} else if (compacted.department === null) {
+		delete compacted.department;
 	}
 
 	return compacted;
@@ -232,7 +237,9 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 					typeof rawChanges.member_role === "string"
 						? rawChanges.member_role
 						: undefined;
-				const hasRequestedDepartment = Object.hasOwn(rawChanges, "department");
+				const hasRequestedDepartment =
+					typeof rawChanges.department === "string" ||
+					(requestedRole !== undefined && rawChanges.department === null);
 				const nextRole =
 					requestedRole ??
 					String(
@@ -240,6 +247,9 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 							"Member",
 					);
 				const approvedChanges: Record<string, unknown> = { ...rawChanges };
+				if (!requestedRole && rawChanges.department === null) {
+					delete approvedChanges.department;
+				}
 				if (requestedStatus) {
 					approvedChanges.active = statusToLegacyActive(requestedStatus);
 				}

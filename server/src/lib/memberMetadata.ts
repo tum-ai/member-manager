@@ -15,7 +15,7 @@ export type MemberStatus = (typeof MEMBER_STATUSES)[number];
 export const DEFAULT_MEMBER_ROLE: MemberRole = "Member";
 export const DEFAULT_MEMBER_STATUS: MemberStatus = "active";
 const MEMBER_BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
-const NON_OPERATIONAL_DEPARTMENTS = new Set(["Board", "Research"]);
+const NON_OPERATIONAL_DEPARTMENTS = new Set(["Board"]);
 
 export const memberRoleSchema = z.enum(MEMBER_ROLES);
 export const memberStatusSchema = z.enum(MEMBER_STATUSES);

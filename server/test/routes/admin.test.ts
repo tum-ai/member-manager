@@ -349,7 +349,7 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(payload.department, "Community");
 		});
 
-		test("rejects non-operational departments for roles that require a department", async () => {
+		test("accepts Research as a member department", async () => {
 			resetDatabase();
 			const response = await app.inject({
 				method: "PATCH",
@@ -359,6 +359,23 @@ describe("Admin Routes", async () => {
 					"content-type": "application/json",
 				},
 				payload: JSON.stringify({ department: "Research" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.department, "Research");
+		});
+
+		test("rejects Board as a department for roles that require one", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/department`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ department: "Board" }),
 			});
 
 			assert.strictEqual(response.statusCode, 400);
