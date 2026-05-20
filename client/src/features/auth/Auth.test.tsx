@@ -80,7 +80,7 @@ describe("Auth", () => {
 
 		await waitFor(() => {
 			expect(signInWithPasswordMock).toHaveBeenCalledWith({
-				email: "community-member@example.com",
+				email: "regular-member@example.com",
 				password: "password123",
 			});
 		});

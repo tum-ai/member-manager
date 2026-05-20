@@ -47,7 +47,7 @@ begin
         ('00000000-0000-0000-0000-000000000003', 'board-lead@example.com', 'Bianca', 'Boardlead', 'WS23', 'Software Development', 'Team Lead', 'Board Member', 'M.Sc. Management & Technology', 'LMU', 'user'),
         ('00000000-0000-0000-0000-000000000004', 'board-member@example.com', 'Ben', 'Boardmember', 'SS24', 'Software Development', 'Member', 'Board Member', 'B.Sc. Computer Science', 'TUM', 'user'),
         ('00000000-0000-0000-0000-000000000005', 'community-lead@example.com', 'Clara', 'Community', 'WS23', 'Community', 'Team Lead', null, 'M.Sc. Management & Technology', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000006', 'community-member@example.com', 'Chris', 'Community', null, null, 'Member', null, null, null, 'user'),
+        ('00000000-0000-0000-0000-000000000006', 'regular-member@example.com', 'Regular', 'Member', null, null, 'Member', null, null, null, 'user'),
         ('00000000-0000-0000-0000-000000000007', 'innovation-lead@example.com', 'Ines', 'Innovation', 'WS23', 'Innovation Department', 'Team Lead', null, 'M.Sc. Management & Technology', 'LMU', 'user'),
         ('00000000-0000-0000-0000-000000000008', 'innovation-member@example.com', 'Ian', 'Innovation', 'SS24', 'Innovation Department', 'Member', null, 'B.Sc. Management & Technology', 'TUM', 'user'),
         ('00000000-0000-0000-0000-000000000009', 'legal-finance-lead@example.com', 'Lea', 'Finance', 'WS23', 'Legal & Finance', 'Team Lead', 'Board Member', 'M.Sc. Management & Technology', 'TUM', 'user'),

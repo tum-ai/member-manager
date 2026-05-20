@@ -111,6 +111,7 @@ Seeded local accounts:
 | Email | Password | Role |
 | --- | --- | --- |
 | `admin@example.com` | `password123` | admin |
+| `regular-member@example.com` | `password123` | user with admin-managed profile fields unset |
 | `user@example.com` | `password123` | user |
 
 ### 5. Useful workspace commands
