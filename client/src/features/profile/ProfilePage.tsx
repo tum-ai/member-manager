@@ -138,22 +138,27 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const linkedinForm = useForm<LinkedinSchema>({
 		resolver: zodResolver(linkedinSchema),
 		defaultValues: {
-			linkedin_url: "",
-			linkedin_id: "",
-			location: "",
+			linkedin_profile_url: "",
+			linkedin_profile_id: "",
+			public_location: "",
 			current_company: "",
-			education: "",
+			current_position: "",
+			professional_experience: "",
 		},
 	});
 
-	const linkedinUrl = linkedinForm.watch("linkedin_url");
+	const linkedinUrl = linkedinForm.watch("linkedin_profile_url");
+	const isLinkedinUrlValid =
+		/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i.test(
+			linkedinUrl?.trim() ?? "",
+		);
 	useEffect(() => {
 		if (linkedinUrl) {
 			const extracted = extractLinkedinId(linkedinUrl);
 			if (extracted) {
-				const currentId = linkedinForm.getValues("linkedin_id");
+				const currentId = linkedinForm.getValues("linkedin_profile_id");
 				if (!currentId) {
-					linkedinForm.setValue("linkedin_id", extracted, {
+					linkedinForm.setValue("linkedin_profile_id", extracted, {
 						shouldDirty: true,
 						shouldValidate: true,
 					});
@@ -242,18 +247,24 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			school: existing.school || "",
 		});
 
-		// Populate LinkedIn form from DB data
+		// Populate LinkedIn/professional form from DB data
 		linkedinForm.reset({
-			linkedin_url:
-				((existing as Record<string, unknown>).linkedin_url as string) || "",
-			linkedin_id:
-				((existing as Record<string, unknown>).linkedin_id as string) || "",
-			location:
-				((existing as Record<string, unknown>).location as string) || "",
+			linkedin_profile_url:
+				((existing as Record<string, unknown>)
+					.linkedin_profile_url as string) || "",
+			linkedin_profile_id:
+				((existing as Record<string, unknown>).linkedin_profile_id as string) ||
+				"",
+			public_location:
+				((existing as Record<string, unknown>).public_location as string) || "",
 			current_company:
 				((existing as Record<string, unknown>).current_company as string) || "",
-			education:
-				((existing as Record<string, unknown>).education as string) || "",
+			current_position:
+				((existing as Record<string, unknown>).current_position as string) ||
+				"",
+			professional_experience:
+				((existing as Record<string, unknown>)
+					.professional_experience as string) || "",
 		});
 	}, [memberData, isLoadingMember, memberForm, linkedinForm, user]);
 
@@ -298,12 +309,19 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				}),
 				degree: normalizeSerializedTextValue(educationValues.degree),
 				school: normalizeSerializedTextValue(educationValues.school),
-				// LinkedIn fields submitted with the member payload
-				linkedin_url: normalizeTextValue(linkedinValues.linkedin_url),
-				linkedin_id: normalizeTextValue(linkedinValues.linkedin_id),
-				location: normalizeTextValue(linkedinValues.location),
+				// LinkedIn/professional fields submitted with the member payload
+				linkedin_profile_url: normalizeTextValue(
+					linkedinValues.linkedin_profile_url,
+				),
+				linkedin_profile_id: normalizeTextValue(
+					linkedinValues.linkedin_profile_id,
+				),
+				public_location: normalizeTextValue(linkedinValues.public_location),
 				current_company: normalizeTextValue(linkedinValues.current_company),
-				education: normalizeTextValue(linkedinValues.education),
+				current_position: normalizeTextValue(linkedinValues.current_position),
+				professional_experience: normalizeSerializedTextValue(
+					linkedinValues.professional_experience,
+				),
 			};
 			if (isAdmin) {
 				Object.assign(memberPayload, {
@@ -817,6 +835,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											});
 										}}
 									/>
+									<Grid size={12}>
+										<Typography variant="caption" color="text.secondary">
+											Education imported from LinkedIn belongs in the degree and
+											school entries above.
+										</Typography>
+									</Grid>
 								</Grid>
 							</CardContent>
 						</GlassCard>
@@ -827,7 +851,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								<Box
 									sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}
 								>
-									<LinkedInIcon sx={{ color: "#0A66C2" }} />
+									<LinkedInIcon sx={{ color: "primary.main" }} />
 									<Typography variant="h6" sx={{ fontWeight: 500 }}>
 										LinkedIn & Professional Presence
 									</Typography>
@@ -846,26 +870,26 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 										<TextField
 											label="LinkedIn Profile URL"
 											placeholder="https://linkedin.com/in/your-profile"
-											{...linkedinForm.register("linkedin_url")}
-											error={!!linkedinForm.formState.errors.linkedin_url}
+											{...linkedinForm.register("linkedin_profile_url")}
+											error={
+												!!linkedinForm.formState.errors.linkedin_profile_url
+											}
 											helperText={
-												linkedinForm.formState.errors.linkedin_url?.message
+												linkedinForm.formState.errors.linkedin_profile_url
+													?.message
 											}
 											slotProps={{
 												input: {
-													endAdornment: linkedinForm.watch("linkedin_url") ? (
+													endAdornment: isLinkedinUrlValid ? (
 														<Button
 															size="small"
 															component="a"
-															href={linkedinForm.watch("linkedin_url")}
+															href={linkedinUrl}
 															target="_blank"
 															rel="noopener noreferrer"
-															sx={{ minWidth: 0, px: 1 }}
+															sx={{ minWidth: 0, px: 1, color: "primary.main" }}
 														>
-															<LinkedInIcon
-																fontSize="small"
-																sx={{ color: "#0A66C2" }}
-															/>
+															<LinkedInIcon fontSize="small" />
 														</Button>
 													) : undefined,
 												},
@@ -877,22 +901,31 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 										<TextField
 											label="LinkedIn ID / Slug"
 											placeholder="your-profile"
-											{...linkedinForm.register("linkedin_id")}
+											{...linkedinForm.register("linkedin_profile_id")}
 											helperText="The last part of your LinkedIn URL"
 										/>
 									</Grid>
 
 									<Grid size={{ xs: 12, sm: 6 }}>
 										<TextField
-											label="Current Location"
+											label="Public location"
 											placeholder="Munich, Germany"
-											{...linkedinForm.register("location")}
+											{...linkedinForm.register("public_location")}
+											helperText="Shown on your member profile; separate from your address."
 										/>
 									</Grid>
 
-									<Grid size={12}>
+									<Grid size={{ xs: 12, sm: 6 }}>
 										<TextField
-											label="Current Company / Organisation"
+											label="Current position"
+											placeholder="Product Manager, Founder, Student"
+											{...linkedinForm.register("current_position")}
+										/>
+									</Grid>
+
+									<Grid size={{ xs: 12, sm: 6 }}>
+										<TextField
+											label="Current company / organisation"
 											placeholder="Acme GmbH"
 											{...linkedinForm.register("current_company")}
 										/>
@@ -900,10 +933,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 									<Grid size={12}>
 										<TextField
-											label="LinkedIn Education"
-											placeholder="e.g. Technical University of Munich, Ludwig-Maximilians-Universität München"
-											{...linkedinForm.register("education")}
-											helperText="Raw educational history scraped from LinkedIn or manually added, separated by commas."
+											label="Professional experience"
+											placeholder="Current and past roles or stations, one per line"
+											{...linkedinForm.register("professional_experience")}
+											helperText="Use this for past LinkedIn stations; education belongs in the degree/school section above."
+											multiline
+											minRows={3}
 										/>
 									</Grid>
 								</Grid>

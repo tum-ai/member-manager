@@ -72,38 +72,40 @@ const BoardRoleSchema = z
 const AccessRoleSchema = z.object({
 	access_role: z.enum(["user", "admin"]),
 });
+
+const LINKEDIN_PROFILE_URL_REGEX =
+	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
+
+const OptionalTextUpdateSchema = z
+	.string()
+	.nullish()
+	.transform((v) => (v === undefined ? undefined : v?.trim() || null))
+	.optional();
+
+const OptionalLinkedInProfileUrlUpdateSchema = z
+	.union([
+		z.string().trim().regex(LINKEDIN_PROFILE_URL_REGEX, {
+			message: "Must be a valid LinkedIn profile URL",
+		}),
+		z.literal(""),
+		z.null(),
+		z.undefined(),
+	])
+	.transform((v) => (v === undefined ? undefined : v || null));
+
 const MemberUpdateSchema = z.object({
 	department: z.string().nullable().transform(normalizeNullableText),
 	member_role: memberRoleSchema,
 	board_role: BoardRoleSchema,
 	member_status: memberStatusSchema,
 	access_role: z.enum(["user", "admin"]),
-	// LinkedIn-enriched fields — admin-editable
-	linkedin_id: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
-		.optional(),
-	linkedin_url: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
-		.optional(),
-	location: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
-		.optional(),
-	current_company: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
-		.optional(),
-	education: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v?.trim() || null))
-		.optional(),
+	// LinkedIn/professional fields — admin-editable
+	linkedin_profile_id: OptionalTextUpdateSchema,
+	linkedin_profile_url: OptionalLinkedInProfileUrlUpdateSchema,
+	public_location: OptionalTextUpdateSchema,
+	current_company: OptionalTextUpdateSchema,
+	current_position: OptionalTextUpdateSchema,
+	professional_experience: OptionalTextUpdateSchema,
 });
 const MEMBER_DB_SORT_COLUMNS = new Set([
 	"active",
@@ -119,6 +121,11 @@ const MEMBER_DB_SORT_COLUMNS = new Set([
 	"surname",
 	"user_id",
 	"member_status",
+	"linkedin_profile_url",
+	"public_location",
+	"current_company",
+	"current_position",
+	"professional_experience",
 ]);
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -640,20 +647,24 @@ export async function adminRoutes(server: FastifyInstance) {
 				memberUpdate.board_role = parsed.data.board_role;
 			}
 			// Persist LinkedIn fields when provided
-			if (parsed.data.linkedin_id !== undefined) {
-				memberUpdate.linkedin_id = parsed.data.linkedin_id;
+			if (parsed.data.linkedin_profile_id !== undefined) {
+				memberUpdate.linkedin_profile_id = parsed.data.linkedin_profile_id;
 			}
-			if (parsed.data.linkedin_url !== undefined) {
-				memberUpdate.linkedin_url = parsed.data.linkedin_url;
+			if (parsed.data.linkedin_profile_url !== undefined) {
+				memberUpdate.linkedin_profile_url = parsed.data.linkedin_profile_url;
 			}
-			if (parsed.data.location !== undefined) {
-				memberUpdate.location = parsed.data.location;
+			if (parsed.data.public_location !== undefined) {
+				memberUpdate.public_location = parsed.data.public_location;
 			}
 			if (parsed.data.current_company !== undefined) {
 				memberUpdate.current_company = parsed.data.current_company;
 			}
-			if (parsed.data.education !== undefined) {
-				memberUpdate.education = parsed.data.education;
+			if (parsed.data.current_position !== undefined) {
+				memberUpdate.current_position = parsed.data.current_position;
+			}
+			if (parsed.data.professional_experience !== undefined) {
+				memberUpdate.professional_experience =
+					parsed.data.professional_experience;
 			}
 
 			const { data: updatedMember, error: memberUpdateError } =

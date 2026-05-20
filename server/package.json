@@ -5,11 +5,11 @@
 	"main": "dist/index.js",
 	"type": "module",
 	"scripts": {
-		"dev": "cross-env NODE_OPTIONS=--max-http-header-size=65536 tsx watch src/index.ts",
-		"dev:local": "cross-env NODE_OPTIONS=--max-http-header-size=65536 tsx watch src/index.ts",
+		"dev": "tsx watch src/index.ts",
+		"dev:local": "tsx watch src/index.ts",
 		"build": "tsc",
 		"backfill:encryption": "tsx src/scripts/backfillSensitiveData.ts",
-		"start": "cross-env NODE_OPTIONS=--max-http-header-size=65536 node dist/index.js",
+		"start": "node dist/index.js",
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write",
 		"test": "tsx --test test/**/*.test.ts"

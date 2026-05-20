@@ -3,8 +3,9 @@
 -- is required by the migration itself.
 
 ALTER TABLE "public"."members"
-    ADD COLUMN IF NOT EXISTS "linkedin_id"       text,   -- e.g. "donikamorina"
-    ADD COLUMN IF NOT EXISTS "linkedin_url"      text,   -- full profile URL
-    ADD COLUMN IF NOT EXISTS "location"          text,   -- current city / region
-    ADD COLUMN IF NOT EXISTS "current_company"   text,   -- latest employer
-    ADD COLUMN IF NOT EXISTS "education"         text;   -- comma-separated universities
+    ADD COLUMN IF NOT EXISTS "linkedin_profile_id" text, -- e.g. "donikamorina"
+    ADD COLUMN IF NOT EXISTS "linkedin_profile_url" text, -- full profile URL
+    ADD COLUMN IF NOT EXISTS "public_location" text, -- current city / region
+    ADD COLUMN IF NOT EXISTS "current_company" text, -- latest employer
+    ADD COLUMN IF NOT EXISTS "current_position" text, -- latest role/title
+    ADD COLUMN IF NOT EXISTS "professional_experience" text; -- current and past roles/stations

@@ -9,6 +9,8 @@ function isValidDate(dateString: string): boolean {
 }
 
 const BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
+const LINKEDIN_PROFILE_URL_REGEX =
+	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
 
 export const memberSchema = z.object({
 	active: z.boolean(),
@@ -45,7 +47,6 @@ export const memberSchema = z.object({
 	board_role: z.string().nullish(),
 	degree: z.string().nullish(),
 	school: z.string().nullish(),
-	education: z.string().nullish(),
 });
 
 export const sepaSchema = z.object({
@@ -111,20 +112,18 @@ export const engagementFormSchema = z.object({
 });
 
 export const linkedinSchema = z.object({
-	linkedin_url: z
+	linkedin_profile_url: z
 		.string()
 		.optional()
 		.refine(
-			(v) =>
-				!v ||
-				v.trim() === "" ||
-				/^https?:\/\/(www\.)?linkedin\.com\//.test(v.trim()),
-			"Must be a valid LinkedIn URL (https://linkedin.com/in/…)",
+			(v) => !v || v.trim() === "" || LINKEDIN_PROFILE_URL_REGEX.test(v.trim()),
+			"Must be a valid LinkedIn profile URL (https://linkedin.com/in/…)",
 		),
-	linkedin_id: z.string().optional(),
-	location: z.string().optional(),
+	linkedin_profile_id: z.string().optional(),
+	public_location: z.string().optional(),
 	current_company: z.string().optional(),
-	education: z.string().optional(),
+	current_position: z.string().optional(),
+	professional_experience: z.string().optional(),
 });
 
 export type MemberSchema = z.infer<typeof memberSchema>;

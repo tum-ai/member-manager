@@ -81,6 +81,13 @@ import {
 	sortAdminMembers,
 } from "./adminUtils";
 
+const LINKEDIN_PROFILE_URL_REGEX =
+	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
+
+function isLinkedinProfileUrl(value?: string | null): value is string {
+	return Boolean(value && LINKEDIN_PROFILE_URL_REGEX.test(value.trim()));
+}
+
 const initialFilters: AdminFilters = {
 	search: "",
 	mandateAgreed: "",
@@ -98,10 +105,11 @@ const sortableColumns: Array<{
 	{ key: "member_role", label: "Role", width: 160 },
 	{ key: "board_role", label: "Board", width: 140 },
 	{ key: "phone", label: "Phone", width: 150 },
-	{ key: "linkedin_url", label: "LinkedIn", width: 120 },
-	{ key: "location", label: "Location", width: 160 },
+	{ key: "linkedin_profile_url", label: "LinkedIn", width: 120 },
+	{ key: "public_location", label: "Public location", width: 170 },
+	{ key: "current_position", label: "Current position", width: 190 },
 	{ key: "current_company", label: "Company", width: 180 },
-	{ key: "education", label: "Education (LinkedIn)", width: 220 },
+	{ key: "professional_experience", label: "Experience", width: 240 },
 	{ key: "iban", label: "IBAN", width: 220 },
 	{ key: "bic", label: "BIC", width: 150 },
 	{ key: "bank_name", label: "Bank", width: 180 },
@@ -146,7 +154,9 @@ export default function AdminDatabaseView() {
 	const [editLinkedinId, setEditLinkedinId] = useState("");
 	const [editLocation, setEditLocation] = useState("");
 	const [editCurrentCompany, setEditCurrentCompany] = useState("");
-	const [editEducation, setEditEducation] = useState("");
+	const [editCurrentPosition, setEditCurrentPosition] = useState("");
+	const [editProfessionalExperience, setEditProfessionalExperience] =
+		useState("");
 
 	useEffect(() => {
 		if (editLinkedinUrl) {
@@ -244,11 +254,12 @@ export default function AdminDatabaseView() {
 		setEditIsBoardMember(member.board_role === BOARD_MEMBER_ROLE);
 		setEditStatus(getResolvedStatus(member));
 		setEditAccessRole(member.access_role === "admin" ? "admin" : "user");
-		setEditLinkedinUrl(member.linkedin_url || "");
-		setEditLinkedinId(member.linkedin_id || "");
-		setEditLocation(member.location || "");
+		setEditLinkedinUrl(member.linkedin_profile_url || "");
+		setEditLinkedinId(member.linkedin_profile_id || "");
+		setEditLocation(member.public_location || "");
 		setEditCurrentCompany(member.current_company || "");
-		setEditEducation(member.education || "");
+		setEditCurrentPosition(member.current_position || "");
+		setEditProfessionalExperience(member.professional_experience || "");
 	}
 
 	function getMemberDisplayName(userId: string): string {
@@ -365,11 +376,13 @@ export default function AdminDatabaseView() {
 				board_role: editIsBoardMember ? BOARD_MEMBER_ROLE : null,
 				member_status: editStatus,
 				access_role: editAccessRole,
-				linkedin_url: editLinkedinUrl.trim() || null,
-				linkedin_id: editLinkedinId.trim() || null,
-				location: editLocation.trim() || null,
+				linkedin_profile_url: editLinkedinUrl.trim() || null,
+				linkedin_profile_id: editLinkedinId.trim() || null,
+				public_location: editLocation.trim() || null,
 				current_company: editCurrentCompany.trim() || null,
-				education: editEducation.trim() || null,
+				current_position: editCurrentPosition.trim() || null,
+				professional_experience:
+					editProfessionalExperience.replace(/\r\n/g, "\n").trim() || null,
 			});
 			showToast("Member updated successfully", "success");
 			setMemberBeingEdited(null);
@@ -445,11 +458,12 @@ export default function AdminDatabaseView() {
 			Department: getOperationalDepartment(member.department) || "",
 			Role: member.member_role || "",
 			Board: member.board_role || "",
-			"LinkedIn URL": member.linkedin_url || "",
-			"LinkedIn ID": member.linkedin_id || "",
-			Location: member.location || "",
+			"LinkedIn URL": member.linkedin_profile_url || "",
+			"LinkedIn ID": member.linkedin_profile_id || "",
+			"Public Location": member.public_location || "",
+			"Current Position": member.current_position || "",
 			Company: member.current_company || "",
-			"LinkedIn Education": member.education || "",
+			"Professional Experience": member.professional_experience || "",
 			IBAN: member.sepa?.iban || "",
 			BIC: member.sepa?.bic || "",
 			"Bank Name": member.sepa?.bank_name || "",
@@ -485,8 +499,13 @@ export default function AdminDatabaseView() {
 
 	const editRoleNeedsDepartment = requiresDepartmentForMemberRole(editRole);
 	const editRoleIsExecutive = isExecutiveMemberRole(editRole);
+	const isEditLinkedinUrlInvalid = Boolean(
+		editLinkedinUrl.trim() && !isLinkedinProfileUrl(editLinkedinUrl),
+	);
 	const isMemberSaveDisabled =
-		isSavingMember || (editRoleNeedsDepartment && !editDepartment);
+		isSavingMember ||
+		(editRoleNeedsDepartment && !editDepartment) ||
+		isEditLinkedinUrlInvalid;
 	const memberLoadingMessage = isLoadingMoreMembers
 		? `Loaded ${loadedMemberCount} of ${totalMemberCount} members. Loading the rest in the background...`
 		: isRefreshingMembers
@@ -891,14 +910,14 @@ export default function AdminDatabaseView() {
 										</TableCell>
 										<TableCell>{row.phone || "Not provided"}</TableCell>
 										<TableCell>
-											{row.linkedin_url ? (
+											{isLinkedinProfileUrl(row.linkedin_profile_url) ? (
 												<Button
 													size="small"
 													component="a"
-													href={row.linkedin_url}
+													href={row.linkedin_profile_url}
 													target="_blank"
 													rel="noopener noreferrer"
-													sx={{ minWidth: 0, px: 1, color: "#0A66C2" }}
+													sx={{ minWidth: 0, px: 1, color: "primary.main" }}
 													startIcon={<LinkedInIcon fontSize="small" />}
 												>
 													View
@@ -907,9 +926,10 @@ export default function AdminDatabaseView() {
 												"—"
 											)}
 										</TableCell>
-										<TableCell>{row.location || "—"}</TableCell>
+										<TableCell>{row.public_location || "—"}</TableCell>
+										<TableCell>{row.current_position || "—"}</TableCell>
 										<TableCell>{row.current_company || "—"}</TableCell>
-										<TableCell>{row.education || "—"}</TableCell>
+										<TableCell>{row.professional_experience || "—"}</TableCell>
 										<TableCell sx={{ fontFamily: "monospace" }}>
 											{row.sepa?.iban || "Not provided"}
 										</TableCell>
@@ -1078,7 +1098,7 @@ export default function AdminDatabaseView() {
 							color="text.secondary"
 							sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
 						>
-							<LinkedInIcon fontSize="small" sx={{ color: "#0A66C2" }} />
+							<LinkedInIcon fontSize="small" sx={{ color: "primary.main" }} />
 							LinkedIn & Professional
 						</Typography>
 						<TextField
@@ -1086,6 +1106,12 @@ export default function AdminDatabaseView() {
 							placeholder="https://linkedin.com/in/your-profile"
 							value={editLinkedinUrl}
 							onChange={(e) => setEditLinkedinUrl(e.target.value)}
+							error={isEditLinkedinUrlInvalid}
+							helperText={
+								isEditLinkedinUrlInvalid
+									? "Use a LinkedIn profile URL like https://linkedin.com/in/name."
+									: undefined
+							}
 							size="small"
 						/>
 						<TextField
@@ -1096,26 +1122,36 @@ export default function AdminDatabaseView() {
 							size="small"
 						/>
 						<TextField
-							label="Current Location"
+							label="Public location"
 							placeholder="Munich, Germany"
 							value={editLocation}
 							onChange={(e) => setEditLocation(e.target.value)}
+							helperText="Shown on the member profile; separate from address fields."
 							size="small"
 						/>
 						<TextField
-							label="Current Company / Organisation"
+							label="Current position"
+							placeholder="Product Manager, Founder, Student"
+							value={editCurrentPosition}
+							onChange={(e) => setEditCurrentPosition(e.target.value)}
+							size="small"
+						/>
+						<TextField
+							label="Current company / organisation"
 							placeholder="Acme GmbH"
 							value={editCurrentCompany}
 							onChange={(e) => setEditCurrentCompany(e.target.value)}
 							size="small"
 						/>
 						<TextField
-							label="LinkedIn Education"
-							placeholder="e.g. Technical University of Munich, Ludwig-Maximilians-Universität München"
-							value={editEducation}
-							onChange={(e) => setEditEducation(e.target.value)}
+							label="Professional experience"
+							placeholder="Current and past roles or stations, one per line"
+							value={editProfessionalExperience}
+							onChange={(e) => setEditProfessionalExperience(e.target.value)}
 							size="small"
-							helperText="Educational history parsed from LinkedIn or manually added, separated by commas."
+							helperText="Use this for past LinkedIn stations; education belongs in degree/school."
+							multiline
+							minRows={3}
 						/>
 						<Divider />
 						{/* ── Org fields ── */}

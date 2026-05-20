@@ -45,6 +45,25 @@ function isValidDate(dateString: string): boolean {
 	return date.toISOString().slice(0, 10) === dateString;
 }
 
+const LINKEDIN_PROFILE_URL_REGEX =
+	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
+
+const optionalTrimmedTextSchema = z
+	.string()
+	.nullish()
+	.transform((v) => (v === undefined ? undefined : v?.trim() || null));
+
+const optionalLinkedInProfileUrlSchema = z
+	.union([
+		z.string().trim().regex(LINKEDIN_PROFILE_URL_REGEX, {
+			message: "Must be a valid LinkedIn profile URL",
+		}),
+		z.literal(""),
+		z.null(),
+		z.undefined(),
+	])
+	.transform((v) => (v === undefined ? undefined : v || null));
+
 const MemberSchema = z.object({
 	user_id: z.string(),
 	given_name: z.string().optional().default(""),
@@ -127,29 +146,13 @@ const UpdateMemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
-	// LinkedIn-enriched fields — member-editable
-	linkedin_id: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
-	linkedin_url: z
-		.string()
-		.url("Must be a valid URL")
-		.nullish()
-		.or(z.literal(""))
-		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
-	location: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
-	current_company: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
-	education: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v?.trim() || null)),
+	// LinkedIn/professional fields — member-editable
+	linkedin_profile_id: optionalTrimmedTextSchema,
+	linkedin_profile_url: optionalLinkedInProfileUrlSchema,
+	public_location: optionalTrimmedTextSchema,
+	current_company: optionalTrimmedTextSchema,
+	current_position: optionalTrimmedTextSchema,
+	professional_experience: optionalTrimmedTextSchema,
 });
 
 const LOCAL_ADMIN_BANK_DETAILS = {
@@ -399,7 +402,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select(
-					"user_id, given_name, surname, batch, department, member_role, board_role, degree, school, active, member_status, linkedin_id, linkedin_url, location, current_company, education",
+					"user_id, given_name, surname, batch, department, member_role, board_role, degree, school, active, member_status, linkedin_profile_id, linkedin_profile_url, public_location, current_company, current_position, professional_experience",
 				)
 				.in("member_status", ["active", "alumni"])
 				.order("surname", { ascending: true });

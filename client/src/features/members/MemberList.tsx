@@ -1,6 +1,5 @@
 import LinkedInIcon from "@mui/icons-material/LinkedIn";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
-import SchoolIcon from "@mui/icons-material/School";
 import SearchIcon from "@mui/icons-material/Search";
 import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import {
@@ -43,6 +42,13 @@ import {
 } from "../../lib/memberMetadata";
 import type { Member } from "../../types";
 import OrgChartView from "./OrgChartView";
+
+const LINKEDIN_PROFILE_URL_REGEX =
+	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
+
+function isLinkedinProfileUrl(value?: string | null): value is string {
+	return Boolean(value && LINKEDIN_PROFILE_URL_REGEX.test(value.trim()));
+}
 
 function getInitials(member: Member): string {
 	const first = member.given_name?.charAt(0) || "";
@@ -120,9 +126,10 @@ export default function MemberList() {
 			const batch = (m.batch || "").toLowerCase();
 			const degree = (m.degree || "").toLowerCase();
 			const school = (m.school || "").toLowerCase();
-			const location = (m.location || "").toLowerCase();
+			const publicLocation = (m.public_location || "").toLowerCase();
 			const company = (m.current_company || "").toLowerCase();
-			const education = (m.education || "").toLowerCase();
+			const position = (m.current_position || "").toLowerCase();
+			const experience = (m.professional_experience || "").toLowerCase();
 			if (
 				q &&
 				!(
@@ -134,9 +141,10 @@ export default function MemberList() {
 					degree.includes(q) ||
 					school.includes(q) ||
 					statusLabel.includes(q) ||
-					location.includes(q) ||
+					publicLocation.includes(q) ||
 					company.includes(q) ||
-					education.includes(q)
+					position.includes(q) ||
+					experience.includes(q)
 				)
 			) {
 				return false;
@@ -386,6 +394,12 @@ function MemberCard({ member }: MemberCardProps) {
 	const showMemberRole = Boolean(
 		member.member_role && !isBoardOnlyMember(member),
 	);
+	const linkedinProfileUrl = isLinkedinProfileUrl(member.linkedin_profile_url)
+		? member.linkedin_profile_url
+		: null;
+	const currentWork = [member.current_position, member.current_company]
+		.filter(Boolean)
+		.join(" · ");
 
 	return (
 		<GlassCard variant="interactive">
@@ -444,20 +458,20 @@ function MemberCard({ member }: MemberCardProps) {
 							</Typography>
 						)}
 					</Box>
-					{member.linkedin_url && (
-						<Tooltip title="Connect on LinkedIn" arrow>
+					{linkedinProfileUrl && (
+						<Tooltip title="View LinkedIn profile" arrow>
 							<IconButton
-								href={member.linkedin_url}
+								href={linkedinProfileUrl}
 								target="_blank"
 								rel="noopener noreferrer"
 								size="small"
 								sx={{
-									color: "#0A66C2",
+									color: "primary.main",
 									alignSelf: "flex-start",
 									mt: -0.5,
 									mr: -0.5,
 									"&:hover": {
-										backgroundColor: alpha("#0A66C2", 0.08),
+										backgroundColor: alpha(theme.palette.primary.main, 0.08),
 									},
 								}}
 							>
@@ -498,7 +512,9 @@ function MemberCard({ member }: MemberCardProps) {
 					))}
 				</Box>
 
-				{(member.current_company || member.location || member.education) && (
+				{(currentWork ||
+					member.public_location ||
+					member.professional_experience) && (
 					<Box
 						sx={{
 							mt: 2,
@@ -513,7 +529,7 @@ function MemberCard({ member }: MemberCardProps) {
 							gap: 0.75,
 						}}
 					>
-						{member.current_company && (
+						{currentWork && (
 							<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
 								<WorkOutlineIcon
 									sx={{
@@ -533,11 +549,11 @@ function MemberCard({ member }: MemberCardProps) {
 										whiteSpace: "nowrap",
 									}}
 								>
-									{member.current_company}
+									{currentWork}
 								</Typography>
 							</Box>
 						)}
-						{member.location && (
+						{member.public_location && (
 							<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
 								<LocationOnIcon
 									sx={{
@@ -556,17 +572,18 @@ function MemberCard({ member }: MemberCardProps) {
 										whiteSpace: "nowrap",
 									}}
 								>
-									{member.location}
+									{member.public_location}
 								</Typography>
 							</Box>
 						)}
-						{member.education && (
-							<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-								<SchoolIcon
+						{member.professional_experience && (
+							<Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
+								<WorkOutlineIcon
 									sx={{
 										fontSize: 16,
 										color: theme.palette.text.secondary,
 										opacity: 0.75,
+										mt: 0.25,
 									}}
 								/>
 								<Typography
@@ -575,11 +592,13 @@ function MemberCard({ member }: MemberCardProps) {
 									sx={{
 										fontSize: "0.825rem",
 										overflow: "hidden",
-										textOverflow: "ellipsis",
-										whiteSpace: "nowrap",
+										display: "-webkit-box",
+										WebkitLineClamp: 2,
+										WebkitBoxOrient: "vertical",
+										whiteSpace: "pre-line",
 									}}
 								>
-									{member.education}
+									{member.professional_experience}
 								</Typography>
 							</Box>
 						)}

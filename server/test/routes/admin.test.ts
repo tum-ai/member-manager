@@ -512,6 +512,12 @@ describe("Admin Routes", async () => {
 					board_role: "Board Member",
 					member_status: "inactive",
 					access_role: "admin",
+					linkedin_profile_url: "https://linkedin.com/in/example-profile",
+					linkedin_profile_id: "example-profile",
+					public_location: "Munich, Germany",
+					current_position: "Founder",
+					current_company: "Example AI",
+					professional_experience: "Example AI — Founder",
 				}),
 			});
 
@@ -524,10 +530,41 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(updatedMember?.board_role, "Board Member");
 			assert.strictEqual(updatedMember?.member_status, "inactive");
 			assert.strictEqual(updatedMember?.active, false);
+			assert.strictEqual(
+				updatedMember?.linkedin_profile_url,
+				"https://linkedin.com/in/example-profile",
+			);
+			assert.strictEqual(updatedMember?.current_position, "Founder");
+			assert.strictEqual(
+				updatedMember?.professional_experience,
+				"Example AI — Founder",
+			);
 			const updatedRole = mockDatabase.user_roles.find(
 				(entry) => entry.user_id === testUserIds.user,
 			);
 			assert.strictEqual(updatedRole?.role, "admin");
+		});
+
+		test("admin member edit rejects non-LinkedIn profile URLs", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Research",
+					member_role: "Member",
+					board_role: null,
+					member_status: "active",
+					access_role: "user",
+					linkedin_profile_url: "https://example.com/in/example-profile",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
 		});
 
 		test("admin can save member edits for an unclaimed member without writing a default access role", async () => {

@@ -175,12 +175,14 @@ export function getOperationalDepartment(
 export function extractLinkedinId(url: string): string {
 	if (!url) return "";
 	try {
-		const cleaned = url.trim().replace(/\/+$/, ""); // remove trailing slashes
-		const parts = cleaned.split("/in/");
-		if (parts.length > 1) {
-			return parts[parts.length - 1].split(/[?#]/)[0]; // strip query params
+		const parsed = new URL(url.trim());
+		const host = parsed.hostname.toLowerCase();
+		if (parsed.protocol !== "https:" || !/^(www\.)?linkedin\.com$/.test(host)) {
+			return "";
 		}
-		return "";
+
+		const [, section, slug] = parsed.pathname.split("/");
+		return section === "in" && slug ? decodeURIComponent(slug) : "";
 	} catch {
 		return "";
 	}

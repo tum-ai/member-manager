@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sepaSchema } from "./schemas";
+import { linkedinSchema, sepaSchema } from "./schemas";
 
 const validSepaPayload = {
 	iban: "DE89370400440532013000",
@@ -33,5 +33,21 @@ describe("sepaSchema", () => {
 		expect(result.error?.issues[0]?.message).toBe(
 			"You must agree to the Privacy Policy",
 		);
+	});
+});
+
+describe("linkedinSchema", () => {
+	it("accepts LinkedIn profile URLs and rejects arbitrary URLs", () => {
+		expect(
+			linkedinSchema.safeParse({
+				linkedin_profile_url: "https://linkedin.com/in/example-profile",
+			}).success,
+		).toBe(true);
+
+		expect(
+			linkedinSchema.safeParse({
+				linkedin_profile_url: "https://example.com/in/example-profile",
+			}).success,
+		).toBe(false);
 	});
 });
