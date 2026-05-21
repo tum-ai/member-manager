@@ -83,11 +83,19 @@ const MemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => normalizeMemberBatch(v)),
+	department: z
+		.string()
+		.nullish()
+		.transform((v) => normalizeOperationalDepartment(v)),
 	degree: z
 		.string()
 		.nullish()
 		.transform((v) => v || null),
 	school: z
+		.string()
+		.nullish()
+		.transform((v) => v || null),
+	research_project_id: z
 		.string()
 		.nullish()
 		.transform((v) => v || null),
@@ -124,6 +132,10 @@ const UpdateMemberSchema = z.object({
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
 	school: z
+		.string()
+		.nullish()
+		.transform((v) => (v === undefined ? undefined : v || null)),
+	research_project_id: z
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
@@ -316,10 +328,16 @@ export async function memberRoutes(server: FastifyInstance) {
 				};
 			}
 
+			const initialDepartment = resolveDepartmentForMemberRole(
+				DEFAULT_MEMBER_ROLE,
+				body.department,
+			);
 			const memberData = encryptRecord(
 				{
 					...body,
-					department: null,
+					department: initialDepartment,
+					research_project_id:
+						initialDepartment === "Research" ? body.research_project_id : null,
 					member_role: DEFAULT_MEMBER_ROLE,
 					member_status: DEFAULT_MEMBER_STATUS,
 					active: true,
@@ -376,7 +394,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select(
-					"user_id, given_name, surname, batch, department, member_role, board_role, degree, school, active, member_status",
+					"user_id, given_name, surname, batch, department, member_role, board_role, research_project_id, degree, school, active, member_status",
 				)
 				.in("member_status", ["active", "alumni"])
 				.order("surname", { ascending: true });
@@ -490,14 +508,19 @@ export async function memberRoutes(server: FastifyInstance) {
 				...body,
 				user_id: userId,
 			};
-			if (!isAdmin) {
-				delete updatePayload.batch;
-				delete updatePayload.department;
-				delete updatePayload.member_role;
-			} else if (
-				Object.hasOwn(body, "department") ||
-				Object.hasOwn(body, "member_role")
-			) {
+			const hasResearchProjectUpdate = Object.hasOwn(
+				body,
+				"research_project_id",
+			);
+			let existingMemberForManagedFields: {
+				member_role?: string | null;
+				department?: string | null;
+			} | null = null;
+			const fetchExistingMemberForManagedFields = async () => {
+				if (existingMemberForManagedFields) {
+					return existingMemberForManagedFields;
+				}
+
 				const { data: existingMember, error: existingMemberError } =
 					await getSupabase()
 						.from("members")
@@ -508,33 +531,104 @@ export async function memberRoutes(server: FastifyInstance) {
 				if (existingMemberError && !isNotFoundError(existingMemberError)) {
 					request.log.error(
 						{ err: existingMemberError, userId },
-						"Failed to fetch existing member before admin profile update",
+						"Failed to fetch existing member before profile update",
 					);
 					throw new DatabaseError();
 				}
 
-				const nextRole =
-					body.member_role ??
-					String(
-						(existingMember as { member_role?: string | null } | null)
-							?.member_role ?? DEFAULT_MEMBER_ROLE,
+				existingMemberForManagedFields =
+					(existingMember as {
+						member_role?: string | null;
+						department?: string | null;
+					} | null) ?? null;
+				return existingMemberForManagedFields;
+			};
+
+			if (!isAdmin) {
+				delete updatePayload.member_role;
+				const hasDepartmentUpdate = Object.hasOwn(body, "department");
+				if (hasDepartmentUpdate || hasResearchProjectUpdate) {
+					const existingMember = await fetchExistingMemberForManagedFields();
+					const currentRole = String(
+						existingMember?.member_role ?? DEFAULT_MEMBER_ROLE,
 					);
-				const requestedDepartment = Object.hasOwn(body, "department")
-					? body.department
-					: (existingMember as { department?: string | null } | null)
-							?.department;
-				const effectiveDepartment = resolveDepartmentForMemberRole(
-					nextRole,
-					requestedDepartment,
+					const effectiveDepartment = resolveDepartmentForMemberRole(
+						currentRole,
+						hasDepartmentUpdate ? body.department : existingMember?.department,
+					);
+					if (
+						hasDepartmentUpdate &&
+						requiresDepartmentForMemberRole(currentRole) &&
+						!effectiveDepartment
+					) {
+						return reply.status(400).send({
+							error: "Department is required for Member and Team Lead roles",
+						});
+					}
+
+					if (hasDepartmentUpdate) {
+						updatePayload.department = effectiveDepartment;
+					}
+					if (hasResearchProjectUpdate) {
+						updatePayload.research_project_id =
+							effectiveDepartment === "Research"
+								? (body.research_project_id ?? null)
+								: null;
+					} else if (
+						hasDepartmentUpdate &&
+						effectiveDepartment !== "Research"
+					) {
+						updatePayload.research_project_id = null;
+					}
+				}
+			} else if (
+				Object.hasOwn(body, "department") ||
+				Object.hasOwn(body, "member_role") ||
+				hasResearchProjectUpdate
+			) {
+				const existingMember = await fetchExistingMemberForManagedFields();
+				const updatesRoleOrDepartment =
+					Object.hasOwn(body, "department") ||
+					Object.hasOwn(body, "member_role");
+				let effectiveDepartment = normalizeOperationalDepartment(
+					existingMember?.department,
 				);
-				if (requiresDepartmentForMemberRole(nextRole) && !effectiveDepartment) {
-					return reply.status(400).send({
-						error: "Department is required for Member and Team Lead roles",
-					});
+
+				if (updatesRoleOrDepartment) {
+					const nextRole =
+						body.member_role ??
+						String(existingMember?.member_role ?? DEFAULT_MEMBER_ROLE);
+					const requestedDepartment = Object.hasOwn(body, "department")
+						? body.department
+						: existingMember?.department;
+					effectiveDepartment = resolveDepartmentForMemberRole(
+						nextRole,
+						requestedDepartment,
+					);
+					if (
+						requiresDepartmentForMemberRole(nextRole) &&
+						!effectiveDepartment
+					) {
+						return reply.status(400).send({
+							error: "Department is required for Member and Team Lead roles",
+						});
+					}
+
+					updatePayload.member_role = nextRole;
+					updatePayload.department = effectiveDepartment;
 				}
 
-				updatePayload.member_role = nextRole;
-				updatePayload.department = effectiveDepartment;
+				if (hasResearchProjectUpdate) {
+					updatePayload.research_project_id =
+						effectiveDepartment === "Research"
+							? (body.research_project_id ?? null)
+							: null;
+				} else if (
+					updatesRoleOrDepartment &&
+					effectiveDepartment !== "Research"
+				) {
+					updatePayload.research_project_id = null;
+				}
 			}
 
 			const memberData = encryptRecord(updatePayload, SENSITIVE_MEMBER_FIELDS);

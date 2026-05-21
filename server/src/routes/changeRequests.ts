@@ -61,7 +61,7 @@ function compactRequestedChanges(
 			? compacted.member_role
 			: undefined;
 
-	if (requestedRole || typeof compacted.department === "string") {
+	if (Object.hasOwn(compacted, "department")) {
 		compacted.department = resolveDepartmentForMemberRole(
 			requestedRole,
 			compacted.department as string | null | undefined,
@@ -69,8 +69,8 @@ function compactRequestedChanges(
 		if (!requestedRole && compacted.department === null) {
 			delete compacted.department;
 		}
-	} else if (compacted.department === null) {
-		delete compacted.department;
+	} else if (requestedRole && !requiresDepartmentForMemberRole(requestedRole)) {
+		compacted.department = null;
 	}
 
 	return compacted;

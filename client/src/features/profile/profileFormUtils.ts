@@ -19,11 +19,15 @@ export function buildSelfServiceMemberUpdatePayload(
 	}
 
 	const {
-		batch: _batch,
-		department: _department,
 		member_role: _memberRole,
+		department,
 		...selfServiceValues
 	} = editableValues;
+
+	const normalizedDepartment = department?.trim();
+	if (normalizedDepartment) {
+		return { ...selfServiceValues, department: normalizedDepartment };
+	}
 
 	return selfServiceValues;
 }

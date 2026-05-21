@@ -3,7 +3,7 @@ import { buildBatchOptions, getCurrentBatch } from "../../lib/constants";
 import { buildSelfServiceMemberUpdatePayload } from "./profileFormUtils";
 
 describe("ProfilePage", () => {
-	it("does not send admin-managed fields in the self-service profile update payload", () => {
+	it("lets self-service profile saves include batch and department but not role", () => {
 		expect(
 			buildSelfServiceMemberUpdatePayload({
 				user_id: "user-123",
@@ -21,6 +21,25 @@ describe("ProfilePage", () => {
 			surname: "User",
 			degree: "Bachelor Computer Science",
 			school: "TUM",
+			batch: "WS25",
+			department: "Software Development",
+		});
+	});
+
+	it("omits empty self-service departments so saves are not blocked", () => {
+		expect(
+			buildSelfServiceMemberUpdatePayload({
+				user_id: "user-123",
+				given_name: "Test",
+				surname: "User",
+				department: "",
+				batch: "WS25",
+			}),
+		).toEqual({
+			user_id: "user-123",
+			given_name: "Test",
+			surname: "User",
+			batch: "WS25",
 		});
 	});
 
