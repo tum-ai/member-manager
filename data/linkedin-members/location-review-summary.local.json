@@ -1,26 +1,20 @@
 {
   "overlapRows": 337,
-  "munichLocation": 135,
-  "nonMunichLocation": 104,
+  "acceptedLocation": 163,
+  "nonMunichLocation": 76,
   "missingLocation": 98,
+  "acceptedLocationRules": [
+    "berlin",
+    "freising",
+    "garching",
+    "muenchen",
+    "munich",
+    "münchen",
+    "san francisco",
+    "zurich"
+  ],
   "reviewFile": "data/linkedin-members/non-munich-review.local.jsonl",
-  "topNonMunichLocations": [
-    [
-      "San Francisco",
-      9
-    ],
-    [
-      "Berlin",
-      8
-    ],
-    [
-      "Zurich",
-      6
-    ],
-    [
-      "Garching",
-      4
-    ],
+  "topFlaggedLocations": [
     [
       "Berkeley",
       3
@@ -55,10 +49,6 @@
     ],
     [
       "San Diego",
-      1
-    ],
-    [
-      "Freising",
       1
     ],
     [
@@ -103,6 +93,26 @@
     ],
     [
       "Sidi Thabet",
+      1
+    ],
+    [
+      "Dublin",
+      1
+    ],
+    [
+      "Zug",
+      1
+    ],
+    [
+      "New York",
+      1
+    ],
+    [
+      "Los Angeles",
+      1
+    ],
+    [
+      "Holbrook",
       1
     ]
   ]
