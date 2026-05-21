@@ -38,7 +38,6 @@ import {
 	MEMBER_ROLES,
 } from "../../lib/constants";
 import {
-	extractLinkedinId,
 	getEducationEntries,
 	getMemberStatusLabel,
 	resolveDepartmentForMemberRole,
@@ -139,11 +138,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		resolver: zodResolver(linkedinSchema),
 		defaultValues: {
 			linkedin_profile_url: "",
-			linkedin_profile_id: "",
 			public_location: "",
 			current_company: "",
-			current_position: "",
-			professional_experience: "",
 		},
 	});
 
@@ -152,20 +148,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i.test(
 			linkedinUrl?.trim() ?? "",
 		);
-	useEffect(() => {
-		if (linkedinUrl) {
-			const extracted = extractLinkedinId(linkedinUrl);
-			if (extracted) {
-				const currentId = linkedinForm.getValues("linkedin_profile_id");
-				if (!currentId) {
-					linkedinForm.setValue("linkedin_profile_id", extracted, {
-						shouldDirty: true,
-						shouldValidate: true,
-					});
-				}
-			}
-		}
-	}, [linkedinUrl, linkedinForm]);
 
 	const memberForm = useForm<MemberSchema>({
 		resolver: zodResolver(memberSchema),
@@ -247,24 +229,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			school: existing.school || "",
 		});
 
-		// Populate LinkedIn/professional form from DB data
+		// Populate LinkedIn/current-work form from DB data
 		linkedinForm.reset({
 			linkedin_profile_url:
 				((existing as Record<string, unknown>)
 					.linkedin_profile_url as string) || "",
-			linkedin_profile_id:
-				((existing as Record<string, unknown>).linkedin_profile_id as string) ||
-				"",
 			public_location:
 				((existing as Record<string, unknown>).public_location as string) || "",
 			current_company:
 				((existing as Record<string, unknown>).current_company as string) || "",
-			current_position:
-				((existing as Record<string, unknown>).current_position as string) ||
-				"",
-			professional_experience:
-				((existing as Record<string, unknown>)
-					.professional_experience as string) || "",
 		});
 	}, [memberData, isLoadingMember, memberForm, linkedinForm, user]);
 
@@ -309,19 +282,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				}),
 				degree: normalizeSerializedTextValue(educationValues.degree),
 				school: normalizeSerializedTextValue(educationValues.school),
-				// LinkedIn/professional fields submitted with the member payload
+				// LinkedIn/current-work fields submitted with the member payload
 				linkedin_profile_url: normalizeTextValue(
 					linkedinValues.linkedin_profile_url,
 				),
-				linkedin_profile_id: normalizeTextValue(
-					linkedinValues.linkedin_profile_id,
-				),
 				public_location: normalizeTextValue(linkedinValues.public_location),
 				current_company: normalizeTextValue(linkedinValues.current_company),
-				current_position: normalizeTextValue(linkedinValues.current_position),
-				professional_experience: normalizeSerializedTextValue(
-					linkedinValues.professional_experience,
-				),
 			};
 			if (isAdmin) {
 				Object.assign(memberPayload, {
@@ -899,15 +865,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 									<Grid size={{ xs: 12, sm: 6 }}>
 										<TextField
-											label="LinkedIn ID / Slug"
-											placeholder="your-profile"
-											{...linkedinForm.register("linkedin_profile_id")}
-											helperText="The last part of your LinkedIn URL"
-										/>
-									</Grid>
-
-									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
 											label="Public location"
 											placeholder="Munich, Germany"
 											{...linkedinForm.register("public_location")}
@@ -917,28 +874,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 									<Grid size={{ xs: 12, sm: 6 }}>
 										<TextField
-											label="Current position"
-											placeholder="Product Manager, Founder, Student"
-											{...linkedinForm.register("current_position")}
-										/>
-									</Grid>
-
-									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
 											label="Current company / organisation"
 											placeholder="Acme GmbH"
 											{...linkedinForm.register("current_company")}
-										/>
-									</Grid>
-
-									<Grid size={12}>
-										<TextField
-											label="Professional experience"
-											placeholder="Current and past roles or stations, one per line"
-											{...linkedinForm.register("professional_experience")}
-											helperText="Use this for past LinkedIn stations; education belongs in the degree/school section above."
-											multiline
-											minRows={3}
 										/>
 									</Grid>
 								</Grid>

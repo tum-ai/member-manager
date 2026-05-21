@@ -23,12 +23,9 @@ export interface Member {
 	degree?: string | null;
 	school?: string | null;
 	avatar_url?: string | null;
-	linkedin_profile_id?: string | null;
 	linkedin_profile_url?: string | null;
 	public_location?: string | null;
 	current_company?: string | null;
-	current_position?: string | null;
-	professional_experience?: string | null;
 	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
 	[key: string]: any;
 }

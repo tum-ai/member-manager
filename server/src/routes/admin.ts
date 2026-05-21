@@ -99,13 +99,10 @@ const MemberUpdateSchema = z.object({
 	board_role: BoardRoleSchema,
 	member_status: memberStatusSchema,
 	access_role: z.enum(["user", "admin"]),
-	// LinkedIn/professional fields — admin-editable
-	linkedin_profile_id: OptionalTextUpdateSchema,
+	// LinkedIn/current-work fields — admin-editable
 	linkedin_profile_url: OptionalLinkedInProfileUrlUpdateSchema,
 	public_location: OptionalTextUpdateSchema,
 	current_company: OptionalTextUpdateSchema,
-	current_position: OptionalTextUpdateSchema,
-	professional_experience: OptionalTextUpdateSchema,
 });
 const MEMBER_DB_SORT_COLUMNS = new Set([
 	"active",
@@ -124,8 +121,6 @@ const MEMBER_DB_SORT_COLUMNS = new Set([
 	"linkedin_profile_url",
 	"public_location",
 	"current_company",
-	"current_position",
-	"professional_experience",
 ]);
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -646,10 +641,7 @@ export async function adminRoutes(server: FastifyInstance) {
 			if (parsed.data.board_role !== undefined) {
 				memberUpdate.board_role = parsed.data.board_role;
 			}
-			// Persist LinkedIn fields when provided
-			if (parsed.data.linkedin_profile_id !== undefined) {
-				memberUpdate.linkedin_profile_id = parsed.data.linkedin_profile_id;
-			}
+			// Persist LinkedIn/current-work fields when provided
 			if (parsed.data.linkedin_profile_url !== undefined) {
 				memberUpdate.linkedin_profile_url = parsed.data.linkedin_profile_url;
 			}
@@ -658,13 +650,6 @@ export async function adminRoutes(server: FastifyInstance) {
 			}
 			if (parsed.data.current_company !== undefined) {
 				memberUpdate.current_company = parsed.data.current_company;
-			}
-			if (parsed.data.current_position !== undefined) {
-				memberUpdate.current_position = parsed.data.current_position;
-			}
-			if (parsed.data.professional_experience !== undefined) {
-				memberUpdate.professional_experience =
-					parsed.data.professional_experience;
 			}
 
 			const { data: updatedMember, error: memberUpdateError } =

@@ -513,11 +513,8 @@ describe("Admin Routes", async () => {
 					member_status: "inactive",
 					access_role: "admin",
 					linkedin_profile_url: "https://linkedin.com/in/example-profile",
-					linkedin_profile_id: "example-profile",
 					public_location: "Munich, Germany",
-					current_position: "Founder",
 					current_company: "Example AI",
-					professional_experience: "Example AI — Founder",
 				}),
 			});
 
@@ -534,11 +531,8 @@ describe("Admin Routes", async () => {
 				updatedMember?.linkedin_profile_url,
 				"https://linkedin.com/in/example-profile",
 			);
-			assert.strictEqual(updatedMember?.current_position, "Founder");
-			assert.strictEqual(
-				updatedMember?.professional_experience,
-				"Example AI — Founder",
-			);
+			assert.strictEqual(updatedMember?.public_location, "Munich, Germany");
+			assert.strictEqual(updatedMember?.current_company, "Example AI");
 			const updatedRole = mockDatabase.user_roles.find(
 				(entry) => entry.user_id === testUserIds.user,
 			);

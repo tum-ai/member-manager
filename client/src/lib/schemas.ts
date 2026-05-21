@@ -119,11 +119,8 @@ export const linkedinSchema = z.object({
 			(v) => !v || v.trim() === "" || LINKEDIN_PROFILE_URL_REGEX.test(v.trim()),
 			"Must be a valid LinkedIn profile URL (https://linkedin.com/in/…)",
 		),
-	linkedin_profile_id: z.string().optional(),
 	public_location: z.string().optional(),
 	current_company: z.string().optional(),
-	current_position: z.string().optional(),
-	professional_experience: z.string().optional(),
 });
 
 export type MemberSchema = z.infer<typeof memberSchema>;

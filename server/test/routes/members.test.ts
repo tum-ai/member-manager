@@ -365,11 +365,8 @@ describe("Members Routes", async () => {
 			assert.ok("school" in member);
 			assert.ok("active" in member);
 			assert.ok("linkedin_profile_url" in member);
-			assert.ok("linkedin_profile_id" in member);
 			assert.ok("public_location" in member);
 			assert.ok("current_company" in member);
-			assert.ok("current_position" in member);
-			assert.ok("professional_experience" in member);
 			const normalizedMember = data.find(
 				(entry: { user_id: string }) => entry.user_id === testUserIds.user,
 			);
@@ -572,7 +569,7 @@ describe("Members Routes", async () => {
 			assert.match(String(storedMember?.street), /^enc-v1:/);
 		});
 
-		test("owner can update LinkedIn and professional profile fields", async () => {
+		test("owner can update LinkedIn and current-work profile fields", async () => {
 			resetDatabase();
 
 			const response = await app.inject({
@@ -584,11 +581,8 @@ describe("Members Routes", async () => {
 				},
 				payload: JSON.stringify({
 					linkedin_profile_url: "https://linkedin.com/in/example-profile",
-					linkedin_profile_id: "example-profile",
 					public_location: "Munich, Germany",
-					current_position: "Founder",
 					current_company: "Example AI",
-					professional_experience: "Example AI — Founder\nTUM.ai — Member",
 				}),
 			});
 
@@ -598,17 +592,12 @@ describe("Members Routes", async () => {
 				data.linkedin_profile_url,
 				"https://linkedin.com/in/example-profile",
 			);
-			assert.strictEqual(data.current_position, "Founder");
 			assert.strictEqual(data.current_company, "Example AI");
 
 			const storedMember = mockDatabase.members.find(
 				(member) => member.user_id === testUserIds.user,
 			);
 			assert.strictEqual(storedMember?.public_location, "Munich, Germany");
-			assert.strictEqual(
-				storedMember?.professional_experience,
-				"Example AI — Founder\nTUM.ai — Member",
-			);
 		});
 
 		test("rejects non-LinkedIn profile URLs", async () => {

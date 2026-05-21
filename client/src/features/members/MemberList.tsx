@@ -128,8 +128,6 @@ export default function MemberList() {
 			const school = (m.school || "").toLowerCase();
 			const publicLocation = (m.public_location || "").toLowerCase();
 			const company = (m.current_company || "").toLowerCase();
-			const position = (m.current_position || "").toLowerCase();
-			const experience = (m.professional_experience || "").toLowerCase();
 			if (
 				q &&
 				!(
@@ -142,9 +140,7 @@ export default function MemberList() {
 					school.includes(q) ||
 					statusLabel.includes(q) ||
 					publicLocation.includes(q) ||
-					company.includes(q) ||
-					position.includes(q) ||
-					experience.includes(q)
+					company.includes(q)
 				)
 			) {
 				return false;
@@ -397,9 +393,7 @@ function MemberCard({ member }: MemberCardProps) {
 	const linkedinProfileUrl = isLinkedinProfileUrl(member.linkedin_profile_url)
 		? member.linkedin_profile_url
 		: null;
-	const currentWork = [member.current_position, member.current_company]
-		.filter(Boolean)
-		.join(" · ");
+	const currentCompany = member.current_company?.trim();
 
 	return (
 		<GlassCard variant="interactive">
@@ -512,9 +506,7 @@ function MemberCard({ member }: MemberCardProps) {
 					))}
 				</Box>
 
-				{(currentWork ||
-					member.public_location ||
-					member.professional_experience) && (
+				{(currentCompany || member.public_location) && (
 					<Box
 						sx={{
 							mt: 2,
@@ -529,7 +521,7 @@ function MemberCard({ member }: MemberCardProps) {
 							gap: 0.75,
 						}}
 					>
-						{currentWork && (
+						{currentCompany && (
 							<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
 								<WorkOutlineIcon
 									sx={{
@@ -549,7 +541,7 @@ function MemberCard({ member }: MemberCardProps) {
 										whiteSpace: "nowrap",
 									}}
 								>
-									{currentWork}
+									{currentCompany}
 								</Typography>
 							</Box>
 						)}
@@ -573,32 +565,6 @@ function MemberCard({ member }: MemberCardProps) {
 									}}
 								>
 									{member.public_location}
-								</Typography>
-							</Box>
-						)}
-						{member.professional_experience && (
-							<Box sx={{ display: "flex", alignItems: "flex-start", gap: 1 }}>
-								<WorkOutlineIcon
-									sx={{
-										fontSize: 16,
-										color: theme.palette.text.secondary,
-										opacity: 0.75,
-										mt: 0.25,
-									}}
-								/>
-								<Typography
-									variant="body2"
-									color="text.secondary"
-									sx={{
-										fontSize: "0.825rem",
-										overflow: "hidden",
-										display: "-webkit-box",
-										WebkitLineClamp: 2,
-										WebkitBoxOrient: "vertical",
-										whiteSpace: "pre-line",
-									}}
-								>
-									{member.professional_experience}
 								</Typography>
 							</Box>
 						)}

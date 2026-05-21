@@ -39,13 +39,7 @@ import {
 	useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import {
-	type ReactElement,
-	type ReactNode,
-	useEffect,
-	useMemo,
-	useState,
-} from "react";
+import { type ReactElement, type ReactNode, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
@@ -60,7 +54,6 @@ import {
 	MEMBER_ROLES,
 } from "../../lib/constants";
 import {
-	extractLinkedinId,
 	getMemberStatusLabel,
 	getOperationalDepartment,
 	isExecutiveMemberRole,
@@ -107,9 +100,7 @@ const sortableColumns: Array<{
 	{ key: "phone", label: "Phone", width: 150 },
 	{ key: "linkedin_profile_url", label: "LinkedIn", width: 120 },
 	{ key: "public_location", label: "Public location", width: 170 },
-	{ key: "current_position", label: "Current position", width: 190 },
 	{ key: "current_company", label: "Company", width: 180 },
-	{ key: "professional_experience", label: "Experience", width: 240 },
 	{ key: "iban", label: "IBAN", width: 220 },
 	{ key: "bic", label: "BIC", width: 150 },
 	{ key: "bank_name", label: "Bank", width: 180 },
@@ -151,21 +142,8 @@ export default function AdminDatabaseView() {
 		"user",
 	);
 	const [editLinkedinUrl, setEditLinkedinUrl] = useState("");
-	const [editLinkedinId, setEditLinkedinId] = useState("");
 	const [editLocation, setEditLocation] = useState("");
 	const [editCurrentCompany, setEditCurrentCompany] = useState("");
-	const [editCurrentPosition, setEditCurrentPosition] = useState("");
-	const [editProfessionalExperience, setEditProfessionalExperience] =
-		useState("");
-
-	useEffect(() => {
-		if (editLinkedinUrl) {
-			const extracted = extractLinkedinId(editLinkedinUrl);
-			if (extracted && !editLinkedinId) {
-				setEditLinkedinId(extracted);
-			}
-		}
-	}, [editLinkedinUrl, editLinkedinId]);
 
 	const [certificateRequestBeingViewed, setCertificateRequestBeingViewed] =
 		useState<EngagementCertificateRequest | null>(null);
@@ -255,11 +233,8 @@ export default function AdminDatabaseView() {
 		setEditStatus(getResolvedStatus(member));
 		setEditAccessRole(member.access_role === "admin" ? "admin" : "user");
 		setEditLinkedinUrl(member.linkedin_profile_url || "");
-		setEditLinkedinId(member.linkedin_profile_id || "");
 		setEditLocation(member.public_location || "");
 		setEditCurrentCompany(member.current_company || "");
-		setEditCurrentPosition(member.current_position || "");
-		setEditProfessionalExperience(member.professional_experience || "");
 	}
 
 	function getMemberDisplayName(userId: string): string {
@@ -377,12 +352,8 @@ export default function AdminDatabaseView() {
 				member_status: editStatus,
 				access_role: editAccessRole,
 				linkedin_profile_url: editLinkedinUrl.trim() || null,
-				linkedin_profile_id: editLinkedinId.trim() || null,
 				public_location: editLocation.trim() || null,
 				current_company: editCurrentCompany.trim() || null,
-				current_position: editCurrentPosition.trim() || null,
-				professional_experience:
-					editProfessionalExperience.replace(/\r\n/g, "\n").trim() || null,
 			});
 			showToast("Member updated successfully", "success");
 			setMemberBeingEdited(null);
@@ -459,11 +430,8 @@ export default function AdminDatabaseView() {
 			Role: member.member_role || "",
 			Board: member.board_role || "",
 			"LinkedIn URL": member.linkedin_profile_url || "",
-			"LinkedIn ID": member.linkedin_profile_id || "",
 			"Public Location": member.public_location || "",
-			"Current Position": member.current_position || "",
 			Company: member.current_company || "",
-			"Professional Experience": member.professional_experience || "",
 			IBAN: member.sepa?.iban || "",
 			BIC: member.sepa?.bic || "",
 			"Bank Name": member.sepa?.bank_name || "",
@@ -927,9 +895,7 @@ export default function AdminDatabaseView() {
 											)}
 										</TableCell>
 										<TableCell>{row.public_location || "—"}</TableCell>
-										<TableCell>{row.current_position || "—"}</TableCell>
 										<TableCell>{row.current_company || "—"}</TableCell>
-										<TableCell>{row.professional_experience || "—"}</TableCell>
 										<TableCell sx={{ fontFamily: "monospace" }}>
 											{row.sepa?.iban || "Not provided"}
 										</TableCell>
@@ -1115,13 +1081,6 @@ export default function AdminDatabaseView() {
 							size="small"
 						/>
 						<TextField
-							label="LinkedIn ID / Slug"
-							placeholder="your-profile"
-							value={editLinkedinId}
-							onChange={(e) => setEditLinkedinId(e.target.value)}
-							size="small"
-						/>
-						<TextField
 							label="Public location"
 							placeholder="Munich, Germany"
 							value={editLocation}
@@ -1130,28 +1089,11 @@ export default function AdminDatabaseView() {
 							size="small"
 						/>
 						<TextField
-							label="Current position"
-							placeholder="Product Manager, Founder, Student"
-							value={editCurrentPosition}
-							onChange={(e) => setEditCurrentPosition(e.target.value)}
-							size="small"
-						/>
-						<TextField
 							label="Current company / organisation"
 							placeholder="Acme GmbH"
 							value={editCurrentCompany}
 							onChange={(e) => setEditCurrentCompany(e.target.value)}
 							size="small"
-						/>
-						<TextField
-							label="Professional experience"
-							placeholder="Current and past roles or stations, one per line"
-							value={editProfessionalExperience}
-							onChange={(e) => setEditProfessionalExperience(e.target.value)}
-							size="small"
-							helperText="Use this for past LinkedIn stations; education belongs in degree/school."
-							multiline
-							minRows={3}
 						/>
 						<Divider />
 						{/* ── Org fields ── */}

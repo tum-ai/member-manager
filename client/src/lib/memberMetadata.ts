@@ -171,19 +171,3 @@ export function getOperationalDepartment(
 	}
 	return normalized ? normalized : null;
 }
-
-export function extractLinkedinId(url: string): string {
-	if (!url) return "";
-	try {
-		const parsed = new URL(url.trim());
-		const host = parsed.hostname.toLowerCase();
-		if (parsed.protocol !== "https:" || !/^(www\.)?linkedin\.com$/.test(host)) {
-			return "";
-		}
-
-		const [, section, slug] = parsed.pathname.split("/");
-		return section === "in" && slug ? decodeURIComponent(slug) : "";
-	} catch {
-		return "";
-	}
-}

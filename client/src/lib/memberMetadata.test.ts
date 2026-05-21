@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildMemberNameSearchText,
-	extractLinkedinId,
 	formatDegree,
 	getEducationEntries,
 	joinDegree,
@@ -81,15 +80,6 @@ describe("memberMetadata", () => {
 	it("builds a bidirectional member-name search string", () => {
 		expect(buildMemberNameSearchText("Ada", "Lovelace")).toBe(
 			"Ada Lovelace Lovelace Ada",
-		);
-	});
-
-	it("extracts LinkedIn profile IDs only from LinkedIn profile URLs", () => {
-		expect(
-			extractLinkedinId("https://www.linkedin.com/in/example-profile/"),
-		).toBe("example-profile");
-		expect(extractLinkedinId("https://example.com/in/example-profile")).toBe(
-			"",
 		);
 	});
 });

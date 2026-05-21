@@ -146,13 +146,10 @@ const UpdateMemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
-	// LinkedIn/professional fields — member-editable
-	linkedin_profile_id: optionalTrimmedTextSchema,
+	// LinkedIn/current-work fields — member-editable
 	linkedin_profile_url: optionalLinkedInProfileUrlSchema,
 	public_location: optionalTrimmedTextSchema,
 	current_company: optionalTrimmedTextSchema,
-	current_position: optionalTrimmedTextSchema,
-	professional_experience: optionalTrimmedTextSchema,
 });
 
 const LOCAL_ADMIN_BANK_DETAILS = {
@@ -402,7 +399,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select(
-					"user_id, given_name, surname, batch, department, member_role, board_role, degree, school, active, member_status, linkedin_profile_id, linkedin_profile_url, public_location, current_company, current_position, professional_experience",
+					"user_id, given_name, surname, batch, department, member_role, board_role, degree, school, active, member_status, linkedin_profile_url, public_location, current_company",
 				)
 				.in("member_status", ["active", "alumni"])
 				.order("surname", { ascending: true });

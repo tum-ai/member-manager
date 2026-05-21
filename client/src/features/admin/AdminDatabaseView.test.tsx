@@ -114,11 +114,8 @@ describe("AdminDatabaseView", () => {
 				member_status: "inactive",
 				access_role: "admin",
 				linkedin_profile_url: null,
-				linkedin_profile_id: null,
 				public_location: null,
 				current_company: null,
-				current_position: null,
-				professional_experience: null,
 			});
 		});
 	}, 10_000);

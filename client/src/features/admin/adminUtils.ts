@@ -24,8 +24,6 @@ export type AdminSortKey =
 	| "linkedin_profile_url"
 	| "public_location"
 	| "current_company"
-	| "current_position"
-	| "professional_experience"
 	| "iban"
 	| "bic"
 	| "bank_name"
@@ -81,11 +79,8 @@ export function filterAdminMembers(
 			member.sepa?.bic,
 			member.sepa?.bank_name,
 			member.linkedin_profile_url,
-			member.linkedin_profile_id,
 			member.public_location,
 			member.current_company,
-			member.current_position,
-			member.professional_experience,
 		]
 			.filter(Boolean)
 			.join(" ")
