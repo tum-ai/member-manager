@@ -1,0 +1,109 @@
+{
+  "overlapRows": 337,
+  "munichLocation": 135,
+  "nonMunichLocation": 104,
+  "missingLocation": 98,
+  "reviewFile": "data/linkedin-members/non-munich-review.local.jsonl",
+  "topNonMunichLocations": [
+    [
+      "San Francisco",
+      9
+    ],
+    [
+      "Berlin",
+      8
+    ],
+    [
+      "Zurich",
+      6
+    ],
+    [
+      "Garching",
+      4
+    ],
+    [
+      "Berkeley",
+      3
+    ],
+    [
+      "Cambridge",
+      3
+    ],
+    [
+      "London",
+      3
+    ],
+    [
+      "Karlsruhe",
+      2
+    ],
+    [
+      "Paris",
+      2
+    ],
+    [
+      "Düsseldorf",
+      2
+    ],
+    [
+      "Ditzingen",
+      1
+    ],
+    [
+      "Helsingør",
+      1
+    ],
+    [
+      "San Diego",
+      1
+    ],
+    [
+      "Freising",
+      1
+    ],
+    [
+      "Palermo",
+      1
+    ],
+    [
+      "Kyiv",
+      1
+    ],
+    [
+      "Anières",
+      1
+    ],
+    [
+      "Hyderabad",
+      1
+    ],
+    [
+      "Üsküdar",
+      1
+    ],
+    [
+      "North Melbourne",
+      1
+    ],
+    [
+      "Frankfurt",
+      1
+    ],
+    [
+      "Weißenhorn",
+      1
+    ],
+    [
+      "Geneva",
+      1
+    ],
+    [
+      "Sunnyvale",
+      1
+    ],
+    [
+      "Sidi Thabet",
+      1
+    ]
+  ]
+}
