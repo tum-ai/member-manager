@@ -679,10 +679,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											{...memberForm.register("batch")}
 											value={memberForm.watch("batch") || ""}
 											error={!!memberForm.formState.errors.batch}
-											helperText={
-												memberForm.formState.errors.batch?.message ||
-												"Select your TUM.ai joining semester."
-											}
+											helperText={memberForm.formState.errors.batch?.message}
 										>
 											<MenuItem value="">None</MenuItem>
 											{BATCH_OPTIONS.map((batch) => (
@@ -707,7 +704,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 													});
 												}
 											}}
-											helperText="Select your operational home in TUM.ai."
 										>
 											<MenuItem value="">None</MenuItem>
 											{DEPARTMENTS.map((department) => (

@@ -324,9 +324,7 @@ export default function AdminDatabaseView() {
 	}
 
 	async function saveMemberChanges() {
-		if (!memberBeingEdited) return;
-		const roleNeedsDepartment = requiresDepartmentForMemberRole(editRole);
-		if (roleNeedsDepartment && !editDepartment) return;
+		if (!memberBeingEdited || isMissingRequiredDepartment) return;
 
 		const effectiveDepartment = resolveDepartmentForMemberRole(
 			editRole,
@@ -460,13 +458,30 @@ export default function AdminDatabaseView() {
 		editRole,
 		editDepartment || null,
 	);
+	const existingEditRole = memberBeingEdited?.member_role || "Member";
+	const existingEditDepartment = memberBeingEdited
+		? resolveDepartmentForMemberRole(
+				existingEditRole,
+				getOperationalDepartment(memberBeingEdited.department) || null,
+			)
+		: null;
+	const isPreservingMissingRequiredDepartment = Boolean(
+		memberBeingEdited &&
+			editRoleNeedsDepartment &&
+			!editDepartment &&
+			editRole === existingEditRole &&
+			!existingEditDepartment,
+	);
+	const isMissingRequiredDepartment =
+		editRoleNeedsDepartment &&
+		!editDepartment &&
+		!isPreservingMissingRequiredDepartment;
 	const editIsResearchDepartment = editEffectiveDepartment === "Research";
 	const researchProjectOptions = (researchProjects ?? []).filter((project) => {
 		const status = project.status?.trim().toLowerCase();
 		return !status || ["ongoing", "active", "in progress"].includes(status);
 	});
-	const isMemberSaveDisabled =
-		isSavingMember || (editRoleNeedsDepartment && !editDepartment);
+	const isMemberSaveDisabled = isSavingMember || isMissingRequiredDepartment;
 	const memberLoadingMessage = isLoadingMoreMembers
 		? `Loaded ${loadedMemberCount} of ${totalMemberCount} members. Loading the rest in the background...`
 		: isRefreshingMembers
@@ -1057,13 +1072,15 @@ export default function AdminDatabaseView() {
 								}
 							}}
 							disabled={editRoleIsExecutive}
-							error={editRoleNeedsDepartment && !editDepartment}
+							error={isMissingRequiredDepartment}
 							helperText={
 								editRoleIsExecutive
 									? "President and Vice-President are not assigned to a department."
-									: editRoleNeedsDepartment && !editDepartment
+									: isMissingRequiredDepartment
 										? "Select a department for Member and Team Lead roles."
-										: "Operational home. Board membership is assigned separately."
+										: isPreservingMissingRequiredDepartment
+											? "No department assigned yet; keep the role unchanged to save this profile update."
+											: "Operational home. Board membership is assigned separately."
 							}
 						>
 							<MenuItem value="">None</MenuItem>

@@ -105,7 +105,7 @@ describe("OrgChartView", () => {
 		);
 
 		expect(screen.getAllByText("Linus Finance")).toHaveLength(2);
-		expect(screen.getAllByText("Team Lead")).toHaveLength(1);
+		expect(screen.queryByText("Team Lead")).not.toBeInTheDocument();
 		expect(screen.getAllByText("Board member")).toHaveLength(1);
 	});
 

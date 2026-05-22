@@ -48,6 +48,21 @@ vi.mock("../../hooks/useAdminData", () => ({
 				research_project_id: null,
 				sepa: null,
 			},
+			{
+				user_id: "member-2",
+				given_name: "Bob",
+				surname: "NoDept",
+				email: "bob@example.com",
+				department: null,
+				member_role: "Member",
+				board_role: null,
+				member_status: "active",
+				access_role: "user",
+				active: true,
+				batch: null,
+				research_project_id: null,
+				sepa: null,
+			},
 		],
 		changeRequests: [
 			{
@@ -110,7 +125,9 @@ describe("AdminDatabaseView", () => {
 		const user = userEvent.setup();
 		renderAdminView();
 
-		await user.click(screen.getByRole("button", { name: /edit member/i }));
+		await user.click(
+			screen.getByRole("button", { name: /edit member alice example/i }),
+		);
 		await user.click(screen.getByLabelText(/role/i));
 		await user.click(await screen.findByRole("option", { name: "President" }));
 		await user.click(screen.getByLabelText(/board member/i));
@@ -140,7 +157,9 @@ describe("AdminDatabaseView", () => {
 		const user = userEvent.setup();
 		renderAdminView();
 
-		await user.click(screen.getByRole("button", { name: /edit member/i }));
+		await user.click(
+			screen.getByRole("button", { name: /edit member alice example/i }),
+		);
 		await user.click(screen.getByLabelText(/department/i));
 		await user.click(await screen.findByRole("option", { name: "None" }));
 
@@ -154,11 +173,49 @@ describe("AdminDatabaseView", () => {
 		).toBeDisabled();
 	});
 
+	it("lets admins save batch changes for members without a department when the role is unchanged", async () => {
+		const user = userEvent.setup();
+		renderAdminView();
+
+		await user.click(
+			screen.getByRole("button", { name: /edit member bob nodept/i }),
+		);
+		expect(
+			await screen.findByText(
+				/keep the role unchanged to save this profile update/i,
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /save member changes/i }),
+		).not.toBeDisabled();
+
+		await user.click(screen.getByLabelText(/batch/i));
+		await user.click(await screen.findByRole("option", { name: "SS25" }));
+		await user.click(
+			screen.getByRole("button", { name: /save member changes/i }),
+		);
+
+		await waitFor(() => {
+			expect(updateMemberAsync).toHaveBeenCalledWith({
+				userId: "member-2",
+				department: null,
+				member_role: "Member",
+				board_role: null,
+				member_status: "active",
+				access_role: "user",
+				batch: "SS25",
+				research_project_id: null,
+			});
+		});
+	});
+
 	it("offers Research but not Board as a department", async () => {
 		const user = userEvent.setup();
 		renderAdminView();
 
-		await user.click(screen.getByRole("button", { name: /edit member/i }));
+		await user.click(
+			screen.getByRole("button", { name: /edit member alice example/i }),
+		);
 		await user.click(screen.getByLabelText(/department/i));
 
 		expect(
