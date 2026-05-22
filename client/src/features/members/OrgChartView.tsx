@@ -39,12 +39,10 @@ function OrgChartPerson({
 	member,
 	highlight,
 	boardRole,
-	showMemberRole = true,
 }: {
 	member: Member;
 	highlight?: boolean;
 	boardRole?: string;
-	showMemberRole?: boolean;
 }) {
 	const theme = useTheme();
 
@@ -85,11 +83,6 @@ function OrgChartPerson({
 				<Typography sx={{ fontWeight: 700 }}>
 					{getDisplayName(member)}
 				</Typography>
-				{showMemberRole && member.member_role && (
-					<Typography variant="body2" color="primary">
-						{member.member_role}
-					</Typography>
-				)}
 				{boardRole && (
 					<Chip
 						label={boardRole}
@@ -128,10 +121,8 @@ function renderMembers(
 	options: {
 		showBoardBadge?: boolean;
 		highlight?: boolean;
-		showMemberRole?: boolean;
 	} = {
 		showBoardBadge: false,
-		showMemberRole: true,
 	},
 ) {
 	return members.map((member) => (
@@ -139,7 +130,6 @@ function renderMembers(
 			key={member.user_id}
 			member={member}
 			highlight={options.highlight}
-			showMemberRole={options.showMemberRole}
 			boardRole={
 				options.showBoardBadge ? getBoardBadgeLabel(member) : undefined
 			}
@@ -196,7 +186,6 @@ export default function OrgChartView({
 									<Stack spacing={1.25}>
 										{renderMembers(chart.board.presidents, {
 											highlight: true,
-											showMemberRole: false,
 										})}
 									</Stack>
 								</Grid>
@@ -213,7 +202,6 @@ export default function OrgChartView({
 									<Stack spacing={1.25}>
 										{renderMembers(chart.board.vicePresidents, {
 											highlight: true,
-											showMemberRole: false,
 										})}
 									</Stack>
 								</Grid>
@@ -230,7 +218,6 @@ export default function OrgChartView({
 									<Stack spacing={1.25}>
 										{renderMembers(chart.board.members, {
 											highlight: true,
-											showMemberRole: false,
 										})}
 									</Stack>
 								</Grid>

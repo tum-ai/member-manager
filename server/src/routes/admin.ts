@@ -610,9 +610,25 @@ export async function adminRoutes(server: FastifyInstance) {
 				parsed.data.member_role,
 				parsed.data.department,
 			);
+			const currentMemberRole =
+				typeof (existingMember as { member_role?: unknown }).member_role ===
+				"string"
+					? (existingMember as { member_role: string }).member_role || "Member"
+					: "Member";
+			const currentDepartment = resolveDepartmentForMemberRole(
+				currentMemberRole,
+				(existingMember as { department?: string | null }).department ?? null,
+			);
+			const roleChanged = parsed.data.member_role !== currentMemberRole;
+			const isPreservingMissingRequiredDepartment =
+				!roleChanged &&
+				!parsed.data.department &&
+				!currentDepartment &&
+				!effectiveDepartment;
 			if (
 				requiresDepartmentForMemberRole(parsed.data.member_role) &&
-				!effectiveDepartment
+				!effectiveDepartment &&
+				!isPreservingMissingRequiredDepartment
 			) {
 				return reply.status(400).send({
 					error: "Department is required for Member and Team Lead roles",
@@ -621,7 +637,6 @@ export async function adminRoutes(server: FastifyInstance) {
 
 			const memberUpdate: Record<string, unknown> = {
 				department: effectiveDepartment,
-				member_role: parsed.data.member_role,
 				member_status: parsed.data.member_status,
 				active: statusToLegacyActive(parsed.data.member_status),
 				research_project_id:
@@ -629,6 +644,9 @@ export async function adminRoutes(server: FastifyInstance) {
 						? (parsed.data.research_project_id ?? null)
 						: null,
 			};
+			if (roleChanged || effectiveDepartment) {
+				memberUpdate.member_role = parsed.data.member_role;
+			}
 			if (parsed.data.batch !== undefined) {
 				memberUpdate.batch = parsed.data.batch;
 			}

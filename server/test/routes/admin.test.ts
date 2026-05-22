@@ -560,6 +560,80 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(updatedMember?.research_project_id, "project-a");
 		});
 
+		test("admin can update batch for a member with no department when the role is unchanged", async () => {
+			resetDatabase();
+			const member = mockDatabase.members.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.ok(member);
+			member.department = null;
+			member.member_role = "Member";
+			member.board_role = null;
+			member.member_status = "active";
+			member.active = true;
+			member.batch = null;
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: null,
+					member_role: "Member",
+					board_role: null,
+					member_status: "active",
+					access_role: "user",
+					batch: "WS23",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updatedMember = mockDatabase.members.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.strictEqual(updatedMember?.department, null);
+			assert.strictEqual(updatedMember?.member_role, "Member");
+			assert.strictEqual(updatedMember?.batch, "WS23");
+		});
+
+		test("admin cannot change a member role that requires a department without setting one", async () => {
+			resetDatabase();
+			const member = mockDatabase.members.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.ok(member);
+			member.department = null;
+			member.member_role = "Member";
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: null,
+					member_role: "Team Lead",
+					board_role: null,
+					member_status: "active",
+					access_role: "user",
+					batch: "WS23",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			assert.match(response.payload, /department is required/i);
+			const unchangedMember = mockDatabase.members.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.strictEqual(unchangedMember?.department, null);
+			assert.strictEqual(unchangedMember?.member_role, "Member");
+		});
+
 		test("admin can save member edits for an unclaimed member without writing a default access role", async () => {
 			resetDatabase();
 			const unclaimedUserId = "unclaimed-user-123";
