@@ -512,6 +512,7 @@ describe("Admin Routes", async () => {
 					board_role: "Board Member",
 					member_status: "inactive",
 					access_role: "admin",
+					batch: "SS25",
 				}),
 			});
 
@@ -524,10 +525,39 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(updatedMember?.board_role, "Board Member");
 			assert.strictEqual(updatedMember?.member_status, "inactive");
 			assert.strictEqual(updatedMember?.active, false);
+			assert.strictEqual(updatedMember?.batch, "SS25");
 			const updatedRole = mockDatabase.user_roles.find(
 				(entry) => entry.user_id === testUserIds.user,
 			);
 			assert.strictEqual(updatedRole?.role, "admin");
+		});
+
+		test("admin can assign a research member to a research project", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Research",
+					member_role: "Member",
+					board_role: null,
+					member_status: "active",
+					access_role: "user",
+					batch: "WS23",
+					research_project_id: "project-a",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updatedMember = mockDatabase.members.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.strictEqual(updatedMember?.department, "Research");
+			assert.strictEqual(updatedMember?.research_project_id, "project-a");
 		});
 
 		test("admin can save member edits for an unclaimed member without writing a default access role", async () => {

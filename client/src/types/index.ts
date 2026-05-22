@@ -19,6 +19,7 @@ export interface Member {
 	department?: string | null;
 	member_role?: string | null;
 	board_role?: string | null;
+	research_project_id?: string | null;
 	access_role?: string | null;
 	degree?: string | null;
 	school?: string | null;

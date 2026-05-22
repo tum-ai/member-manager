@@ -185,6 +185,8 @@ export function useAdminData() {
 			board_role,
 			member_status,
 			access_role,
+			batch,
+			research_project_id,
 		}: {
 			userId: string;
 			department: string | null;
@@ -192,6 +194,8 @@ export function useAdminData() {
 			board_role: string | null;
 			member_status: string;
 			access_role: "user" | "admin";
+			batch?: string | null;
+			research_project_id?: string | null;
 		}) => {
 			await apiClient(`/api/admin/members/${userId}`, {
 				method: "PATCH",
@@ -201,6 +205,8 @@ export function useAdminData() {
 					board_role,
 					member_status,
 					access_role,
+					batch,
+					research_project_id,
 				}),
 			});
 		},

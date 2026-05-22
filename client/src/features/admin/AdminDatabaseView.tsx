@@ -47,7 +47,9 @@ import {
 	type MemberChangeRequest,
 	useAdminData,
 } from "../../hooks/useAdminData";
+import { useResearchProjects } from "../../hooks/useResearchProjects";
 import {
+	BATCH_OPTIONS,
 	BOARD_MEMBER_ROLE,
 	DEPARTMENTS,
 	MEMBER_ROLES,
@@ -125,6 +127,8 @@ export default function AdminDatabaseView() {
 		useState<AdminMember | null>(null);
 	const [editDepartment, setEditDepartment] = useState("");
 	const [editRole, setEditRole] = useState("Member");
+	const [editBatch, setEditBatch] = useState("");
+	const [editResearchProjectId, setEditResearchProjectId] = useState("");
 	const [editIsBoardMember, setEditIsBoardMember] = useState(false);
 	const [editStatus, setEditStatus] = useState("active");
 	const [editAccessRole, setEditAccessRole] = useState<"user" | "admin">(
@@ -135,6 +139,8 @@ export default function AdminDatabaseView() {
 	const [exportAnchorEl, setExportAnchorEl] = useState<HTMLElement | null>(
 		null,
 	);
+	const { researchProjects, isLoading: isLoadingResearchProjects } =
+		useResearchProjects();
 
 	const allMembers = members ?? [];
 	const loadedMemberCount = allMembers.length;
@@ -214,6 +220,8 @@ export default function AdminDatabaseView() {
 				? ""
 				: getOperationalDepartment(member.department) || "",
 		);
+		setEditBatch(member.batch || "");
+		setEditResearchProjectId(member.research_project_id || "");
 		setEditIsBoardMember(member.board_role === BOARD_MEMBER_ROLE);
 		setEditStatus(getResolvedStatus(member));
 		setEditAccessRole(member.access_role === "admin" ? "admin" : "user");
@@ -333,6 +341,11 @@ export default function AdminDatabaseView() {
 				board_role: editIsBoardMember ? BOARD_MEMBER_ROLE : null,
 				member_status: editStatus,
 				access_role: editAccessRole,
+				batch: editBatch || null,
+				research_project_id:
+					effectiveDepartment === "Research"
+						? editResearchProjectId || null
+						: null,
 			});
 			showToast("Member updated successfully", "success");
 			setMemberBeingEdited(null);
@@ -443,6 +456,15 @@ export default function AdminDatabaseView() {
 
 	const editRoleNeedsDepartment = requiresDepartmentForMemberRole(editRole);
 	const editRoleIsExecutive = isExecutiveMemberRole(editRole);
+	const editEffectiveDepartment = resolveDepartmentForMemberRole(
+		editRole,
+		editDepartment || null,
+	);
+	const editIsResearchDepartment = editEffectiveDepartment === "Research";
+	const researchProjectOptions = (researchProjects ?? []).filter((project) => {
+		const status = project.status?.trim().toLowerCase();
+		return !status || ["ongoing", "active", "in progress"].includes(status);
+	});
 	const isMemberSaveDisabled =
 		isSavingMember || (editRoleNeedsDepartment && !editDepartment);
 	const memberLoadingMessage = isLoadingMoreMembers
@@ -1012,9 +1034,28 @@ export default function AdminDatabaseView() {
 						</Typography>
 						<TextField
 							select
+							label="Batch"
+							value={editBatch}
+							onChange={(event) => setEditBatch(event.target.value)}
+							helperText="Member's TUM.ai joining semester."
+						>
+							<MenuItem value="">None</MenuItem>
+							{BATCH_OPTIONS.map((batch) => (
+								<MenuItem key={batch} value={batch}>
+									{batch}
+								</MenuItem>
+							))}
+						</TextField>
+						<TextField
+							select
 							label="Department"
 							value={editDepartment}
-							onChange={(event) => setEditDepartment(event.target.value)}
+							onChange={(event) => {
+								setEditDepartment(event.target.value);
+								if (event.target.value !== "Research") {
+									setEditResearchProjectId("");
+								}
+							}}
 							disabled={editRoleIsExecutive}
 							error={editRoleNeedsDepartment && !editDepartment}
 							helperText={
@@ -1032,6 +1073,25 @@ export default function AdminDatabaseView() {
 								</MenuItem>
 							))}
 						</TextField>
+						{editIsResearchDepartment && (
+							<TextField
+								select
+								label="Research project"
+								value={editResearchProjectId}
+								onChange={(event) =>
+									setEditResearchProjectId(event.target.value)
+								}
+								disabled={isLoadingResearchProjects}
+								helperText="Research project assignment for org chart grouping."
+							>
+								<MenuItem value="">No project selected</MenuItem>
+								{researchProjectOptions.map((project) => (
+									<MenuItem key={project.id} value={project.id}>
+										{project.title}
+									</MenuItem>
+								))}
+							</TextField>
+						)}
 						<TextField
 							select
 							label="Role"
@@ -1041,6 +1101,7 @@ export default function AdminDatabaseView() {
 								setEditRole(nextRole);
 								if (isExecutiveMemberRole(nextRole)) {
 									setEditDepartment("");
+									setEditResearchProjectId("");
 								}
 							}}
 						>

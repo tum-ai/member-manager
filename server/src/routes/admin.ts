@@ -8,6 +8,7 @@ import {
 	MEMBER_ROLES,
 	memberRoleSchema,
 	memberStatusSchema,
+	normalizeMemberBatch,
 	normalizeNullableText,
 	normalizeOperationalDepartment,
 	requiresDepartmentForMemberRole,
@@ -78,6 +79,18 @@ const MemberUpdateSchema = z.object({
 	board_role: BoardRoleSchema,
 	member_status: memberStatusSchema,
 	access_role: z.enum(["user", "admin"]),
+	batch: z
+		.string()
+		.nullish()
+		.transform((value) =>
+			value === undefined ? undefined : normalizeMemberBatch(value),
+		),
+	research_project_id: z
+		.string()
+		.nullish()
+		.transform((value) =>
+			value === undefined ? undefined : normalizeNullableText(value),
+		),
 });
 const MEMBER_DB_SORT_COLUMNS = new Set([
 	"active",
@@ -557,7 +570,9 @@ export async function adminRoutes(server: FastifyInstance) {
 			const { data: existingMember, error: memberLookupError } =
 				await getSupabase()
 					.from("members")
-					.select("department, member_role, board_role, member_status, active")
+					.select(
+						"department, member_role, board_role, member_status, active, batch, research_project_id",
+					)
 					.eq("user_id", userId)
 					.single();
 
@@ -609,7 +624,14 @@ export async function adminRoutes(server: FastifyInstance) {
 				member_role: parsed.data.member_role,
 				member_status: parsed.data.member_status,
 				active: statusToLegacyActive(parsed.data.member_status),
+				research_project_id:
+					effectiveDepartment === "Research"
+						? (parsed.data.research_project_id ?? null)
+						: null,
 			};
+			if (parsed.data.batch !== undefined) {
+				memberUpdate.batch = parsed.data.batch;
+			}
 			if (parsed.data.board_role !== undefined) {
 				memberUpdate.board_role = parsed.data.board_role;
 			}
@@ -663,6 +685,10 @@ export async function adminRoutes(server: FastifyInstance) {
 							(existingMember as { member_status?: string | null })
 								.member_status ?? null,
 						active: Boolean((existingMember as { active?: boolean }).active),
+						batch: (existingMember as { batch?: string | null }).batch ?? null,
+						research_project_id:
+							(existingMember as { research_project_id?: string | null })
+								.research_project_id ?? null,
 					};
 					const { error: rollbackError } = await getSupabase()
 						.from("members")

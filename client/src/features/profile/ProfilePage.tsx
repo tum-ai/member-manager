@@ -29,6 +29,7 @@ import { useToast } from "../../contexts/ToastContext";
 import { useIsAdmin } from "../../hooks/useIsAdmin";
 import { useMemberChangeRequests } from "../../hooks/useMemberChangeRequests";
 import { useMemberData } from "../../hooks/useMemberData";
+import { useResearchProjects } from "../../hooks/useResearchProjects";
 import { useSepaData } from "../../hooks/useSepaData";
 import {
 	BATCH_OPTIONS,
@@ -92,9 +93,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const [pendingMandateAgreed, setPendingMandateAgreed] = useState(false);
 	const [pendingPrivacyAgreed, setPendingPrivacyAgreed] = useState(false);
 	const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-	const [requestedDepartment, setRequestedDepartment] = useState("");
 	const [requestedRole, setRequestedRole] = useState("");
-	const [requestedBatch, setRequestedBatch] = useState("");
 	const [isRequestingAlumniStatus, setIsRequestingAlumniStatus] =
 		useState(false);
 	const [changeRequestReason, setChangeRequestReason] = useState("");
@@ -118,6 +117,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		isUpdating: isUpdatingMember,
 	} = useMemberData(user.id);
 	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
+	const { researchProjects, isLoading: isLoadingResearchProjects } =
+		useResearchProjects();
 	const {
 		requests: memberChangeRequests,
 		submitChangeRequestAsync,
@@ -207,6 +208,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			batch: existing.batch || slackBatch,
 			department: existing.department || "",
 			member_role: existing.member_role || "",
+			research_project_id: existing.research_project_id || "",
 			degree: existing.degree || "",
 			school: existing.school || "",
 		});
@@ -252,18 +254,33 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				degree: normalizeSerializedTextValue(educationValues.degree),
 				school: normalizeSerializedTextValue(educationValues.school),
 			};
+			let effectiveProfileDepartment = normalizeTextValue(
+				memberValues.department,
+			);
 			if (isAdmin) {
 				Object.assign(memberPayload, {
 					batch: normalizeTextValue(memberValues.batch),
 				});
 				const normalizedRole = normalizeTextValue(memberValues.member_role);
+				effectiveProfileDepartment = resolveDepartmentForMemberRole(
+					normalizedRole || "Member",
+					normalizeTextValue(memberValues.department),
+				);
 				Object.assign(memberPayload, {
 					member_role: normalizedRole || "Member",
-					department: resolveDepartmentForMemberRole(
-						normalizedRole || "Member",
-						normalizeTextValue(memberValues.department),
+					department: effectiveProfileDepartment,
+				});
+			}
+			if (effectiveProfileDepartment === "Research") {
+				Object.assign(memberPayload, {
+					research_project_id: normalizeTextValue(
+						memberValues.research_project_id,
 					),
 				});
+			} else if (isAdmin) {
+				Object.assign(memberPayload, { research_project_id: null });
+			} else {
+				delete memberPayload.research_project_id;
 			}
 			promises.push(updateMemberAsync(memberPayload));
 			if (shouldSubmitSepa) {
@@ -305,43 +322,41 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const isLoading = isLoadingMember || isLoadingSepa || isLoadingAdminRole;
 	const isUpdating = isUpdatingMember || isUpdatingSepa;
 	const latestMemberChangeRequest = memberChangeRequests[0];
+	const currentRole = memberForm.watch("member_role") || "Member";
+	const currentDepartment = memberForm.watch("department") || "";
+	const effectiveProfileDepartment = resolveDepartmentForMemberRole(
+		currentRole,
+		currentDepartment,
+	);
+	const researchProjectOptions = (researchProjects ?? []).filter((project) => {
+		const status = project.status?.trim().toLowerCase();
+		return !status || ["ongoing", "active", "in progress"].includes(status);
+	});
+	const isResearchDepartmentSelected =
+		effectiveProfileDepartment === "Research";
 
 	const handleSubmitMemberChangeRequest = async (): Promise<void> => {
-		const department = resolveDepartmentForMemberRole(
-			requestedRole,
-			normalizeTextValue(requestedDepartment),
-		);
 		const memberRole = normalizeTextValue(requestedRole);
-		const batch = normalizeTextValue(requestedBatch);
 		const reason = changeRequestReason.trim();
 
-		if (!department && !memberRole && !batch && !isRequestingAlumniStatus) {
-			showToast(
-				"Select at least one admin-managed field to request.",
-				"warning",
-			);
+		if (!memberRole && !isRequestingAlumniStatus) {
+			showToast("Select a role or alumni status change to request.", "warning");
 			return;
 		}
 
 		try {
 			const changes: {
-				department?: string | null;
 				member_role?: string;
-				batch?: string;
 				member_status?: string;
 			} = {};
-			if (department) changes.department = department;
 			if (memberRole) changes.member_role = memberRole;
-			if (batch) changes.batch = batch;
 			if (isRequestingAlumniStatus) changes.member_status = "alumni";
 
 			await submitChangeRequestAsync({
 				changes,
 				reason: reason || undefined,
 			});
-			setRequestedDepartment("");
 			setRequestedRole("");
-			setRequestedBatch("");
 			setIsRequestingAlumniStatus(false);
 			setChangeRequestReason("");
 			showToast("Change request sent to the admin and LnF team.", "success");
@@ -658,66 +673,49 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 								<Grid container spacing={2}>
 									<Grid size={{ xs: 12, sm: 6 }}>
-										{isAdmin ? (
-											<TextField
-												select
-												label="Batch"
-												{...memberForm.register("batch")}
-												value={memberForm.watch("batch") || ""}
-												error={!!memberForm.formState.errors.batch}
-												helperText={
-													memberForm.formState.errors.batch?.message ||
-													"You can edit this directly because you are an admin."
-												}
-											>
-												<MenuItem value="">None</MenuItem>
-												{BATCH_OPTIONS.map((batch) => (
-													<MenuItem key={batch} value={batch}>
-														{batch}
-													</MenuItem>
-												))}
-											</TextField>
-										) : (
-											<TextField
-												label="Batch"
-												value={memberForm.watch("batch") || "Not set"}
-												helperText="Batch changes are handled by admins. Request a change below."
-												disabled
-											/>
-										)}
+										<TextField
+											select
+											label="Batch"
+											{...memberForm.register("batch")}
+											value={memberForm.watch("batch") || ""}
+											error={!!memberForm.formState.errors.batch}
+											helperText={
+												memberForm.formState.errors.batch?.message ||
+												"Select your TUM.ai joining semester."
+											}
+										>
+											<MenuItem value="">None</MenuItem>
+											{BATCH_OPTIONS.map((batch) => (
+												<MenuItem key={batch} value={batch}>
+													{batch}
+												</MenuItem>
+											))}
+										</TextField>
 									</Grid>
 									<Grid size={{ xs: 12, sm: 6 }}>
-										{isAdmin ? (
-											<TextField
-												select
-												label="Department"
-												value={memberForm.watch("department") || ""}
-												onChange={(event) =>
-													memberForm.setValue(
-														"department",
-														event.target.value,
-														{
-															shouldDirty: true,
-														},
-													)
+										<TextField
+											select
+											label="Department"
+											value={currentDepartment}
+											onChange={(event) => {
+												memberForm.setValue("department", event.target.value, {
+													shouldDirty: true,
+												});
+												if (event.target.value !== "Research") {
+													memberForm.setValue("research_project_id", "", {
+														shouldDirty: true,
+													});
 												}
-												helperText="You can edit this directly because you are an admin."
-											>
-												<MenuItem value="">None</MenuItem>
-												{DEPARTMENTS.map((department) => (
-													<MenuItem key={department} value={department}>
-														{department}
-													</MenuItem>
-												))}
-											</TextField>
-										) : (
-											<TextField
-												label="Department"
-												value={memberForm.watch("department") || ""}
-												helperText="Departments are managed by admins"
-												disabled
-											/>
-										)}
+											}}
+											helperText="Select your operational home in TUM.ai."
+										>
+											<MenuItem value="">None</MenuItem>
+											{DEPARTMENTS.map((department) => (
+												<MenuItem key={department} value={department}>
+													{department}
+												</MenuItem>
+											))}
+										</TextField>
 									</Grid>
 
 									<Grid size={{ xs: 12, sm: 6 }}>
@@ -725,7 +723,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											<TextField
 												select
 												label="Role in TUM.ai"
-												value={memberForm.watch("member_role") || "Member"}
+												value={currentRole}
 												onChange={(event) => {
 													memberForm.setValue(
 														"member_role",
@@ -734,8 +732,26 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 															shouldDirty: true,
 														},
 													);
+													const nextDepartment = resolveDepartmentForMemberRole(
+														event.target.value,
+														currentDepartment,
+													);
+													if (nextDepartment !== currentDepartment) {
+														memberForm.setValue(
+															"department",
+															nextDepartment || "",
+															{
+																shouldDirty: true,
+															},
+														);
+													}
+													if (nextDepartment !== "Research") {
+														memberForm.setValue("research_project_id", "", {
+															shouldDirty: true,
+														});
+													}
 												}}
-												helperText="You can edit this directly because you are an admin."
+												helperText="Admins manage role assignments."
 											>
 												{MEMBER_ROLES.map((role) => (
 													<MenuItem key={role} value={role}>
@@ -746,12 +762,37 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 										) : (
 											<TextField
 												label="Role in TUM.ai"
-												value={memberForm.watch("member_role") || "Member"}
+												value={currentRole}
 												helperText="Roles are assigned by admins"
 												disabled
 											/>
 										)}
 									</Grid>
+									{isResearchDepartmentSelected && (
+										<Grid size={{ xs: 12, sm: 6 }}>
+											<TextField
+												select
+												label="Research project"
+												value={memberForm.watch("research_project_id") || ""}
+												onChange={(event) =>
+													memberForm.setValue(
+														"research_project_id",
+														event.target.value,
+														{ shouldDirty: true },
+													)
+												}
+												disabled={isLoadingResearchProjects}
+												helperText="Pick the research project you are part of."
+											>
+												<MenuItem value="">No project selected</MenuItem>
+												{researchProjectOptions.map((project) => (
+													<MenuItem key={project.id} value={project.id}>
+														{project.title}
+													</MenuItem>
+												))}
+											</TextField>
+										</Grid>
+									)}
 									<EducationFields
 										degreeValue={memberForm.watch("degree")}
 										schoolValue={memberForm.watch("school")}
@@ -772,27 +813,10 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 							<GlassCard variant="elevated" sx={{ mt: 3 }}>
 								<CardContent sx={{ p: 3 }}>
 									<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-										Request Changes
+										Request Role or Status Changes
 									</Typography>
 
 									<Grid container spacing={2}>
-										<Grid size={12}>
-											<TextField
-												select
-												label="Requested department"
-												value={requestedDepartment}
-												onChange={(event) =>
-													setRequestedDepartment(event.target.value)
-												}
-											>
-												<MenuItem value="">No change</MenuItem>
-												{DEPARTMENTS.map((department) => (
-													<MenuItem key={department} value={department}>
-														{department}
-													</MenuItem>
-												))}
-											</TextField>
-										</Grid>
 										<Grid size={12}>
 											<TextField
 												select
@@ -806,23 +830,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												{MEMBER_ROLES.map((role) => (
 													<MenuItem key={role} value={role}>
 														{role}
-													</MenuItem>
-												))}
-											</TextField>
-										</Grid>
-										<Grid size={12}>
-											<TextField
-												select
-												label="Requested batch"
-												value={requestedBatch}
-												onChange={(event) =>
-													setRequestedBatch(event.target.value)
-												}
-											>
-												<MenuItem value="">No change</MenuItem>
-												{BATCH_OPTIONS.map((batch) => (
-													<MenuItem key={batch} value={batch}>
-														{batch}
 													</MenuItem>
 												))}
 											</TextField>
@@ -864,7 +871,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												}
 												multiline
 												rows={3}
-												placeholder="Briefly explain why the admin-managed fields or status should change."
+												placeholder="Briefly explain why your role or status should change."
 											/>
 										</Grid>
 									</Grid>

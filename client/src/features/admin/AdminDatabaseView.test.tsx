@@ -15,6 +15,21 @@ const {
 	reviewCertificateRequestAsync: vi.fn(),
 }));
 
+vi.mock("../../hooks/useResearchProjects", () => ({
+	useResearchProjects: () => ({
+		researchProjects: [
+			{
+				id: "project-a",
+				title: "Alpha Research",
+				description: "Current project",
+				status: "ongoing",
+			},
+		],
+		isLoading: false,
+		error: null,
+	}),
+}));
+
 vi.mock("../../hooks/useAdminData", () => ({
 	useAdminData: () => ({
 		members: [
@@ -29,6 +44,8 @@ vi.mock("../../hooks/useAdminData", () => ({
 				member_status: "active",
 				access_role: "user",
 				active: true,
+				batch: "WS23",
+				research_project_id: null,
 				sepa: null,
 			},
 		],
@@ -113,6 +130,8 @@ describe("AdminDatabaseView", () => {
 				board_role: "Board Member",
 				member_status: "inactive",
 				access_role: "admin",
+				batch: "WS23",
+				research_project_id: null,
 			});
 		});
 	}, 10_000);

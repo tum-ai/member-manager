@@ -71,7 +71,7 @@ describe("Members Routes", async () => {
 			assert.match(String(storedMember?.city), /^enc-v1:/);
 		});
 
-		test("creation ignores admin-managed fields from self-service payloads", async () => {
+		test("creation applies self-service department and ignores role/status", async () => {
 			resetDatabase();
 			const newUserId = testUserIds.otherUser;
 			const payload = mockMemberPayload({
@@ -93,7 +93,7 @@ describe("Members Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
-			assert.strictEqual(data.department, null);
+			assert.strictEqual(data.department, "Legal & Finance");
 			assert.strictEqual(data.member_role, "Member");
 			assert.strictEqual(data.active, true);
 
@@ -101,7 +101,7 @@ describe("Members Routes", async () => {
 				(member) => member.user_id === newUserId,
 			);
 			assert.ok(storedMember);
-			assert.strictEqual(storedMember?.department, null);
+			assert.strictEqual(storedMember?.department, "Legal & Finance");
 			assert.strictEqual(storedMember?.member_role, "Member");
 			assert.strictEqual(storedMember?.active, true);
 		});
@@ -681,12 +681,8 @@ describe("Members Routes", async () => {
 			assert.notStrictEqual(body.member_role, "President");
 		});
 
-		test("user-facing PUT silently ignores department (admin-only field)", async () => {
+		test("user-facing PUT lets members update their own department", async () => {
 			resetDatabase();
-			const storedBefore = mockDatabase.members.find(
-				(member) => member.user_id === testUserIds.user,
-			);
-			const originalDepartment = storedBefore?.department;
 
 			const response = await app.inject({
 				method: "PUT",
@@ -705,17 +701,69 @@ describe("Members Routes", async () => {
 			const storedAfter = mockDatabase.members.find(
 				(member) => member.user_id === testUserIds.user,
 			);
-			assert.strictEqual(storedAfter?.department, originalDepartment);
+			assert.strictEqual(storedAfter?.department, "Legal & Finance");
 			const body = JSON.parse(response.payload);
-			assert.strictEqual(body.department, originalDepartment);
+			assert.strictEqual(body.department, "Legal & Finance");
 		});
 
-		test("user-facing PUT silently ignores batch (admin-only field)", async () => {
+		test("research members can set their own research project", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Research",
+					research_project_id: "project-a",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const storedAfter = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.strictEqual(storedAfter?.department, "Research");
+			assert.strictEqual(storedAfter?.research_project_id, "project-a");
+			const body = JSON.parse(response.payload);
+			assert.strictEqual(body.research_project_id, "project-a");
+		});
+
+		test("leaving Research clears the selected research project", async () => {
 			resetDatabase();
 			const storedBefore = mockDatabase.members.find(
 				(member) => member.user_id === testUserIds.user,
 			);
-			const originalBatch = storedBefore?.batch;
+			if (storedBefore) {
+				storedBefore.department = "Research";
+				storedBefore.research_project_id = "project-a";
+			}
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Community",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const storedAfter = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.strictEqual(storedAfter?.department, "Community");
+			assert.strictEqual(storedAfter?.research_project_id, null);
+		});
+
+		test("user-facing PUT lets members update their own batch", async () => {
+			resetDatabase();
 
 			const response = await app.inject({
 				method: "PUT",
@@ -734,9 +782,9 @@ describe("Members Routes", async () => {
 			const storedAfter = mockDatabase.members.find(
 				(member) => member.user_id === testUserIds.user,
 			);
-			assert.strictEqual(storedAfter?.batch, originalBatch);
+			assert.strictEqual(storedAfter?.batch, "SS25");
 			const body = JSON.parse(response.payload);
-			assert.strictEqual(body.batch, originalBatch);
+			assert.strictEqual(body.batch, "SS25");
 		});
 
 		test("rejects invalid batch formats", async () => {
