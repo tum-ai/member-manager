@@ -1,3 +1,5 @@
+import LinkedInIcon from "@mui/icons-material/LinkedIn";
+import LocationOnIcon from "@mui/icons-material/LocationOn";
 import SearchIcon from "@mui/icons-material/Search";
 import {
 	Avatar,
@@ -7,11 +9,13 @@ import {
 	CircularProgress,
 	FormControl,
 	Grid,
+	IconButton,
 	InputAdornment,
 	InputLabel,
 	MenuItem,
 	Select,
 	TextField,
+	Tooltip,
 	Typography,
 	useTheme,
 } from "@mui/material";
@@ -37,6 +41,13 @@ import {
 } from "../../lib/memberMetadata";
 import type { Member } from "../../types";
 import OrgChartView from "./OrgChartView";
+
+const LINKEDIN_PROFILE_URL_REGEX =
+	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
+
+function isLinkedinProfileUrl(value?: string | null): value is string {
+	return Boolean(value && LINKEDIN_PROFILE_URL_REGEX.test(value.trim()));
+}
 
 function getInitials(member: Member): string {
 	const first = member.given_name?.charAt(0) || "";
@@ -114,6 +125,7 @@ export default function MemberList() {
 			const batch = (m.batch || "").toLowerCase();
 			const degree = (m.degree || "").toLowerCase();
 			const school = (m.school || "").toLowerCase();
+			const publicLocation = (m.public_location || "").toLowerCase();
 			if (
 				q &&
 				!(
@@ -124,7 +136,8 @@ export default function MemberList() {
 					batch.includes(q) ||
 					degree.includes(q) ||
 					school.includes(q) ||
-					statusLabel.includes(q)
+					statusLabel.includes(q) ||
+					publicLocation.includes(q)
 				)
 			) {
 				return false;
@@ -374,6 +387,9 @@ function MemberCard({ member }: MemberCardProps) {
 	const showMemberRole = Boolean(
 		member.member_role && !isBoardOnlyMember(member),
 	);
+	const linkedinProfileUrl = isLinkedinProfileUrl(member.linkedin_profile_url)
+		? member.linkedin_profile_url
+		: null;
 
 	return (
 		<GlassCard variant="interactive">
@@ -432,6 +448,27 @@ function MemberCard({ member }: MemberCardProps) {
 							</Typography>
 						)}
 					</Box>
+					{linkedinProfileUrl && (
+						<Tooltip title="View LinkedIn profile" arrow>
+							<IconButton
+								href={linkedinProfileUrl}
+								target="_blank"
+								rel="noopener noreferrer"
+								size="small"
+								sx={{
+									color: "primary.main",
+									alignSelf: "flex-start",
+									mt: -0.5,
+									mr: -0.5,
+									"&:hover": {
+										backgroundColor: alpha(theme.palette.primary.main, 0.08),
+									},
+								}}
+							>
+								<LinkedInIcon fontSize="small" />
+							</IconButton>
+						</Tooltip>
+					)}
 				</Box>
 
 				<Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
@@ -464,6 +501,45 @@ function MemberCard({ member }: MemberCardProps) {
 						/>
 					))}
 				</Box>
+
+				{member.public_location && (
+					<Box
+						sx={{
+							mt: 2,
+							pt: 1.5,
+							borderTop: `1px solid ${
+								theme.palette.mode === "light"
+									? alpha(theme.palette.text.primary, 0.06)
+									: alpha(theme.palette.common.white, 0.08)
+							}`,
+							display: "flex",
+							flexDirection: "column",
+							gap: 0.75,
+						}}
+					>
+						<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+							<LocationOnIcon
+								sx={{
+									fontSize: 16,
+									color: theme.palette.text.secondary,
+									opacity: 0.75,
+								}}
+							/>
+							<Typography
+								variant="body2"
+								color="text.secondary"
+								sx={{
+									fontSize: "0.825rem",
+									overflow: "hidden",
+									textOverflow: "ellipsis",
+									whiteSpace: "nowrap",
+								}}
+							>
+								{member.public_location}
+							</Typography>
+						</Box>
+					</Box>
+				)}
 			</CardContent>
 		</GlassCard>
 	);

@@ -9,6 +9,8 @@ function isValidDate(dateString: string): boolean {
 }
 
 const BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
+const LINKEDIN_PROFILE_URL_REGEX =
+	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
 
 export const memberSchema = z.object({
 	active: z.boolean(),
@@ -110,7 +112,19 @@ export const engagementFormSchema = z.object({
 		.max(5, "Maximum 5 engagements allowed"),
 });
 
+export const linkedinSchema = z.object({
+	linkedin_profile_url: z
+		.string()
+		.optional()
+		.refine(
+			(v) => !v || v.trim() === "" || LINKEDIN_PROFILE_URL_REGEX.test(v.trim()),
+			"Must be a valid LinkedIn profile URL (https://linkedin.com/in/…)",
+		),
+	public_location: z.string().optional(),
+});
+
 export type MemberSchema = z.infer<typeof memberSchema>;
 export type SepaSchema = z.infer<typeof sepaSchema>;
+export type LinkedinSchema = z.infer<typeof linkedinSchema>;
 export type EngagementSchema = z.infer<typeof engagementSchema>;
 export type EngagementFormSchema = z.infer<typeof engagementFormSchema>;

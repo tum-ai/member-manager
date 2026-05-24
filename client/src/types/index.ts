@@ -24,6 +24,8 @@ export interface Member {
 	degree?: string | null;
 	school?: string | null;
 	avatar_url?: string | null;
+	linkedin_profile_url?: string | null;
+	public_location?: string | null;
 	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
 	[key: string]: any;
 }

@@ -15,7 +15,7 @@ import {
 	testTokens,
 	testUserIds,
 } from "../helpers.js";
-import { mockDatabase } from "../mocks/supabase.js";
+import { mockDatabase, mockSupabaseErrors } from "../mocks/supabase.js";
 
 describe("Admin Routes", async () => {
 	let app: FastifyInstance;
@@ -513,6 +513,8 @@ describe("Admin Routes", async () => {
 					member_status: "inactive",
 					access_role: "admin",
 					batch: "SS25",
+					linkedin_profile_url: "https://linkedin.com/in/example-profile",
+					public_location: "Munich, Germany",
 				}),
 			});
 
@@ -526,6 +528,11 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(updatedMember?.member_status, "inactive");
 			assert.strictEqual(updatedMember?.active, false);
 			assert.strictEqual(updatedMember?.batch, "SS25");
+			assert.strictEqual(
+				updatedMember?.linkedin_profile_url,
+				"https://linkedin.com/in/example-profile",
+			);
+			assert.strictEqual(updatedMember?.public_location, "Munich, Germany");
 			const updatedRole = mockDatabase.user_roles.find(
 				(entry) => entry.user_id === testUserIds.user,
 			);
@@ -632,6 +639,89 @@ describe("Admin Routes", async () => {
 			);
 			assert.strictEqual(unchangedMember?.department, null);
 			assert.strictEqual(unchangedMember?.member_role, "Member");
+		});
+
+		test("rolls back LinkedIn fields when access-role persistence fails", async () => {
+			resetDatabase();
+			const memberBefore = mockDatabase.members.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.ok(memberBefore);
+			Object.assign(memberBefore, {
+				department: "Software Development",
+				member_role: "Member",
+				board_role: null,
+				member_status: "active",
+				active: true,
+				batch: "WS23",
+				research_project_id: null,
+				linkedin_profile_url: "https://linkedin.com/in/original-profile",
+				public_location: "Munich",
+			});
+			mockSupabaseErrors.userRolesUpsert = {
+				message: "forced user role failure",
+			};
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Legal & Finance",
+					member_role: "Team Lead",
+					board_role: "Board Member",
+					member_status: "inactive",
+					access_role: "admin",
+					batch: "SS25",
+					research_project_id: null,
+					linkedin_profile_url: "https://linkedin.com/in/partial-save",
+					public_location: "Berlin",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 500);
+			const memberAfter = mockDatabase.members.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.strictEqual(memberAfter?.department, "Software Development");
+			assert.strictEqual(memberAfter?.member_role, "Member");
+			assert.strictEqual(memberAfter?.board_role, null);
+			assert.strictEqual(memberAfter?.member_status, "active");
+			assert.strictEqual(memberAfter?.active, true);
+			assert.strictEqual(memberAfter?.batch, "WS23");
+			assert.strictEqual(memberAfter?.research_project_id, null);
+			assert.strictEqual(
+				memberAfter?.linkedin_profile_url,
+				"https://linkedin.com/in/original-profile",
+			);
+			assert.strictEqual(memberAfter?.public_location, "Munich");
+		});
+
+		test("admin member edit rejects non-LinkedIn profile URLs", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Research",
+					member_role: "Member",
+					board_role: null,
+					member_status: "active",
+					access_role: "user",
+					batch: "WS23",
+					research_project_id: "project-a",
+					linkedin_profile_url: "https://example.com/in/example-profile",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
 		});
 
 		test("admin can save member edits for an unclaimed member without writing a default access role", async () => {

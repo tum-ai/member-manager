@@ -364,6 +364,8 @@ describe("Members Routes", async () => {
 			assert.ok("degree" in member);
 			assert.ok("school" in member);
 			assert.ok("active" in member);
+			assert.ok("linkedin_profile_url" in member);
+			assert.ok("public_location" in member);
 			const normalizedMember = data.find(
 				(entry: { user_id: string }) => entry.user_id === testUserIds.user,
 			);
@@ -564,6 +566,53 @@ describe("Members Routes", async () => {
 			);
 			assert.ok(storedMember);
 			assert.match(String(storedMember?.street), /^enc-v1:/);
+		});
+
+		test("owner can update LinkedIn and current-work profile fields", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					linkedin_profile_url: "https://linkedin.com/in/example-profile",
+					public_location: "Munich, Germany",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(
+				data.linkedin_profile_url,
+				"https://linkedin.com/in/example-profile",
+			);
+
+			const storedMember = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.strictEqual(storedMember?.public_location, "Munich, Germany");
+		});
+
+		test("rejects non-LinkedIn profile URLs", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					linkedin_profile_url: "https://example.com/in/example-profile",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
 		});
 
 		test("admin can update any profile", async () => {

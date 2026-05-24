@@ -45,6 +45,25 @@ function isValidDate(dateString: string): boolean {
 	return date.toISOString().slice(0, 10) === dateString;
 }
 
+const LINKEDIN_PROFILE_URL_REGEX =
+	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
+
+const optionalTrimmedTextSchema = z
+	.string()
+	.nullish()
+	.transform((v) => (v === undefined ? undefined : v?.trim() || null));
+
+const optionalLinkedInProfileUrlSchema = z
+	.union([
+		z.string().trim().regex(LINKEDIN_PROFILE_URL_REGEX, {
+			message: "Must be a valid LinkedIn profile URL",
+		}),
+		z.literal(""),
+		z.null(),
+		z.undefined(),
+	])
+	.transform((v) => (v === undefined ? undefined : v || null));
+
 const MemberSchema = z.object({
 	user_id: z.string(),
 	given_name: z.string().optional().default(""),
@@ -139,6 +158,9 @@ const UpdateMemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
+	// LinkedIn fields — member-editable
+	linkedin_profile_url: optionalLinkedInProfileUrlSchema,
+	public_location: optionalTrimmedTextSchema,
 });
 
 const LOCAL_ADMIN_BANK_DETAILS = {
@@ -394,7 +416,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select(
-					"user_id, given_name, surname, batch, department, member_role, board_role, research_project_id, degree, school, active, member_status",
+					"user_id, given_name, surname, batch, department, member_role, board_role, research_project_id, degree, school, active, member_status, linkedin_profile_url, public_location",
 				)
 				.in("member_status", ["active", "alumni"])
 				.order("surname", { ascending: true });
