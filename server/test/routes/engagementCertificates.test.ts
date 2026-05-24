@@ -84,6 +84,42 @@ describe("Engagement Certificate Routes", async () => {
 		}
 	});
 
+	test("normalizes an empty engagement special role out of storage", async () => {
+		resetDatabase();
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/engagement-certificates",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				engagements: [
+					{
+						id: "eng-empty-special-role",
+						startDate: "2025-10-01",
+						endDate: "2026-03-31",
+						isStillActive: false,
+						weeklyHours: "10",
+						department: "Software Development",
+						isTeamLead: false,
+						specialRole: "",
+						tasksDescription: "Built internal tooling",
+					},
+				],
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 201);
+		const storedEngagement = (
+			mockDatabase.engagement_certificate_requests[0].engagements as Array<
+				Record<string, unknown>
+			>
+		)[0];
+		assert.ok(!Object.hasOwn(storedEngagement, "specialRole"));
+	});
+
 	test("member can list their own engagement certificate requests", async () => {
 		resetDatabase();
 		mockDatabase.engagement_certificate_requests.push(

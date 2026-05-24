@@ -7,7 +7,6 @@ import { authenticate, requireAdmin } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
 const ENGAGEMENT_SPECIAL_ROLES = [
-	"",
 	"Board Member",
 	"Vice-President",
 	"President",
@@ -44,7 +43,10 @@ const EngagementEntrySchema = z
 		weeklyHours: z.string().min(1),
 		department: z.string().min(1),
 		isTeamLead: z.boolean(),
-		specialRole: z.enum(ENGAGEMENT_SPECIAL_ROLES).optional(),
+		specialRole: z.preprocess(
+			(value) => (value === "" ? undefined : value),
+			z.enum(ENGAGEMENT_SPECIAL_ROLES).optional(),
+		),
 		tasksDescription: z.string().trim().min(1).max(1000),
 	})
 	.refine(
@@ -64,7 +66,14 @@ const EngagementEntrySchema = z
 			message: "End date must be on or after start date",
 			path: ["endDate"],
 		},
-	);
+	)
+	.transform(({ specialRole, ...entry }) => {
+		if (!specialRole) {
+			return entry;
+		}
+
+		return { ...entry, specialRole };
+	});
 
 const CreateCertificateRequestSchema = z.object({
 	engagements: z.array(EngagementEntrySchema).min(1).max(5),
