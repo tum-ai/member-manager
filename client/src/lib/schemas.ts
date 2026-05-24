@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ENGAGEMENT_SPECIAL_ROLES } from "./constants";
 import { LINKEDIN_PROFILE_URL_REGEX } from "./linkedin";
 
 function isValidDate(dateString: string): boolean {
@@ -10,6 +11,16 @@ function isValidDate(dateString: string): boolean {
 }
 
 const BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
+
+function isValidEngagementSpecialRole(role: string | undefined): boolean {
+	return (
+		role === undefined ||
+		role === "" ||
+		ENGAGEMENT_SPECIAL_ROLES.includes(
+			role as (typeof ENGAGEMENT_SPECIAL_ROLES)[number],
+		)
+	);
+}
 
 export const memberSchema = z.object({
 	active: z.boolean(),
@@ -77,6 +88,10 @@ export const engagementSchema = z
 		weeklyHours: z.string().optional(),
 		department: z.string().min(1, "Department is required"),
 		isTeamLead: z.boolean(),
+		specialRole: z
+			.string()
+			.optional()
+			.refine(isValidEngagementSpecialRole, "Choose a valid special role"),
 		tasksDescription: z
 			.string()
 			.min(1, "Tasks description is required")

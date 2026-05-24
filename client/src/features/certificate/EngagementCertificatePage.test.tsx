@@ -75,6 +75,10 @@ describe("EngagementCertificatePage", () => {
 		await user.click(
 			await screen.findByRole("option", { name: /software development/i }),
 		);
+		await user.click(screen.getByLabelText(/^special role$/i));
+		await user.click(
+			await screen.findByRole("option", { name: "Vice-President" }),
+		);
 		await user.type(
 			screen.getByLabelText(/tasks \/ responsibilities/i),
 			"Built internal tooling",
@@ -85,5 +89,15 @@ describe("EngagementCertificatePage", () => {
 		);
 
 		await waitFor(() => expect(submitRequestAsync).toHaveBeenCalledTimes(1));
+		expect(submitRequestAsync).toHaveBeenCalledWith({
+			engagements: [
+				expect.objectContaining({
+					department: "Software Development",
+					isTeamLead: false,
+					specialRole: "Vice-President",
+					tasksDescription: "Built internal tooling",
+				}),
+			],
+		});
 	});
 });

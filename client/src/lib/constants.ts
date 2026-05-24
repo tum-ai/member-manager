@@ -12,6 +12,13 @@ export const DEPARTMENTS = [
 
 export const WEEKLY_HOURS_OPTIONS = [2, 5, 10, 15, 20] as const;
 
+export const ENGAGEMENT_SPECIAL_ROLES = [
+	"Board Member",
+	"Vice-President",
+	"President",
+] as const;
+export type EngagementSpecialRole = (typeof ENGAGEMENT_SPECIAL_ROLES)[number];
+
 // Canonical TUM.ai member roles. Keep in sync with:
 //   - `server/src/routes/admin.ts` (MEMBER_ROLES)
 //   - `supabase/migrations/20260423160500_member_role_enum_and_alumni.sql`

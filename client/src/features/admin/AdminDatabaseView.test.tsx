@@ -90,6 +90,7 @@ vi.mock("../../hooks/useAdminData", () => ({
 						weeklyHours: "10",
 						department: "Venture",
 						isTeamLead: true,
+						specialRole: "Board Member",
 						tasksDescription: "Built MVP\nRan workshops",
 					},
 				],
@@ -283,7 +284,9 @@ describe("AdminDatabaseView", () => {
 		expect(within(dialog).getByText(/weekly hours/i)).toBeInTheDocument();
 		expect(within(dialog).getByText("10 hours")).toBeInTheDocument();
 		expect(within(dialog).getByText("Venture")).toBeInTheDocument();
-		expect(within(dialog).getByText("Team Lead")).toBeInTheDocument();
+		expect(
+			within(dialog).getByText("Team Lead, Board Member"),
+		).toBeInTheDocument();
 		expect(within(dialog).getByText(/built mvp/i)).toBeInTheDocument();
 		expect(within(dialog).getByText(/ran workshops/i)).toBeInTheDocument();
 	});
