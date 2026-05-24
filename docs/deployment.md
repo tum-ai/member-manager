@@ -162,4 +162,4 @@ To avoid confusion: these files are **local-only** and have no production effect
 - `supabase/seed.sql` — only run by `supabase db reset` (local)
 - `scripts/*` — dev utilities, never invoked by Vercel
 - `client/vite.config.ts` `server.host: true` — Vite dev-server option; the prod build is static
-- `client/.env.local`, `server/.env.local`, `supabase/.env.local` — gitignored, not in the Vercel bundle
+- `client/.env.local`, `server/.env.local`, `client/.env.staging.local`, `server/.env.staging.local`, `supabase/.env.local` — gitignored, not in the Vercel bundle

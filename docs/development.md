@@ -11,12 +11,14 @@ The server and client both use a **Vite-style dotenv chain**:
 | 1 (lowest) | platform env (Vercel, your shell) | — | — |
 | 2 | `.env` | no (fills gaps only) | no (gitignored) |
 | 3 (highest) | `.env.local` | yes | no (gitignored) |
-| override | `DOTENV_CONFIG_PATH=<path>` | yes, replaces the chain | — |
+| staging override | `client/.env.staging.local` + `server/.env.staging.local` via `pnpm dev:staging` | yes, bypasses generated local env | no (gitignored) |
+| server override | `DOTENV_CONFIG_PATH=<path>` | yes, replaces the server chain | — |
 
 Implications:
 
-- In dev with local Supabase running, `.env.local` wins → `pnpm setup:local` is the source of truth.
-- In dev with the hosted Supabase project, leave `.env.local` absent; `.env` fills the blanks.
+- Default dev is Docker-local Supabase: `.env.local` wins → `pnpm setup:local` is the source of truth.
+- Hosted work should use the dedicated staging Supabase project via `pnpm dev:staging`, not production credentials.
+- `pnpm dev:staging` sets client staging values in `process.env` and points the server at `server/.env.staging.local` with `DOTENV_CONFIG_PATH`, so stale generated `.env.local` files cannot hijack staging mode.
 - In prod on Vercel, the `.env*` files don't exist in the bundle (gitignored, not deployed), so platform env vars win unconditionally. This is intentional prod-safety — do **not** commit `.env`.
 
 Server-side loader lives at `server/src/lib/loadEnv.ts`. The client side uses Vite's built-in behavior (same precedence).
@@ -56,26 +58,31 @@ Slack reimbursement notifications use Block Kit buttons when `APP_BASE_URL` is s
 
 See `docs/buchhaltungsbutler-sync.md` for the API research and design notes.
 
-## `pnpm dev` vs `pnpm dev:local`
+## Dev modes
 
-Same dev server, different Supabase backend:
+Same dev servers, explicit Supabase backend:
 
-| Command | Supabase | How env is wired |
-| --- | --- | --- |
-| `pnpm dev` | whichever `SUPABASE_URL` resolves (usually the **hosted** project from `.env`) | `.env` fills gaps; `.env.local` overrides if present |
-| `pnpm dev:local` | **local** Dockerized Supabase at `http://127.0.0.1:54321` | runs `supabase start` + `setup:local` first, then starts dev servers reading freshly written `.env.local` files |
+| Command | Supabase | Docker? | How env is wired |
+| --- | --- | --- | --- |
+| `pnpm dev` | **local** Supabase at `http://127.0.0.1:54321` | yes | alias for `pnpm dev:local` |
+| `pnpm dev:local` | **local** Supabase at `http://127.0.0.1:54321` | yes | runs `supabase start` + `setup:local`, then starts dev servers reading freshly written `.env.local` files |
+| `pnpm dev:staging` | dedicated hosted **staging** Supabase project | no Supabase Docker stack | reads `client/.env.staging.local` + `server/.env.staging.local`; bypasses generated `.env.local` values |
 
-Rule of thumb: use `pnpm dev:local` unless you have a specific reason to hit the shared hosted project (e.g. reproducing a prod-data bug). If you hit "Invalid token" on `/api/*`, you probably have the wrong `SUPABASE_URL` on the server side — the JWT has to be validated against the same Supabase instance that issued it.
+Rule of thumb: use `pnpm dev` for normal local work, especially schema/auth/data changes. Use `pnpm dev:staging` only when you intentionally want hosted staging data/config without Docker. Never point staging mode at production.
 
-The local API defaults to `http://127.0.0.1:8787` and Vite proxies `/api` there through `VITE_API_PROXY_TARGET`. Ports `3000` and `3001` are intentionally avoided because they are commonly occupied by other local apps; if `/api/*` returns a Next.js 404, restart with `pnpm dev:local` so the generated `.env.local` files point Vite at the member-manager API.
+If you hit "Invalid token" on `/api/*`, you probably have the wrong `SUPABASE_URL` on the server side — the JWT has to be validated against the same Supabase instance that issued it.
 
-## Slack OIDC locally
+The local API defaults to `http://127.0.0.1:8787` and Vite proxies `/api` there through `VITE_API_PROXY_TARGET`. Ports `3000` and `3001` are intentionally avoided because they are commonly occupied by other local apps; if `/api/*` returns a Next.js 404, restart with `pnpm dev` so the generated `.env.local` files point Vite at the member-manager API.
+
+## Slack OIDC locally and in staging
 
 Local Slack login is **optional**. Skip this section if email/password is enough.
 
 1. Copy `supabase/.env.example` → `supabase/.env.local`, fill in Slack Client ID and Secret from the TUM.ai Slack app.
 2. In the Slack app's "Redirect URLs", ensure `http://127.0.0.1:54321/auth/v1/callback` is present. `supabase/config.toml` also sets this value as `auth.external.slack_oidc.redirect_uri`; GoTrue rejects Slack OIDC with `Unsupported provider: missing redirect URI` if it is blank.
 3. Restart the stack: `pnpm supabase:stop && pnpm supabase:start`.
+
+For hosted staging, configure the staging Supabase dashboard and Slack app with the local browser redirect URLs you use during `pnpm dev:staging` (usually `http://localhost:5173/` and `http://127.0.0.1:5173/`).
 
 The wrapper script `scripts/supabase-start.mjs` loads `supabase/.env.local` into the CLI's environment before spawning, so the `env(...)` refs in `supabase/config.toml` resolve. The raw `supabase start` CLI does **not** do this — always go through the pnpm script.
 
@@ -162,14 +169,14 @@ The server encrypts certain columns before insert (`server/src/lib/sensitiveData
 `api/[...path].ts` is the Vercel entry point. It imports from `server/dist/app.js` (the built output), **not** `server/src/app.ts`. So:
 
 - Always run `pnpm build` before `vercel deploy` or before debugging the prod function locally with `vercel dev`.
-- Changes to server code require a rebuild to show up via the Vercel function path. (Plain `pnpm dev:local` bypasses this and uses `tsx watch` directly.)
+- Changes to server code require a rebuild to show up via the Vercel function path. (Plain `pnpm dev` / `pnpm dev:local` bypasses this and uses `tsx watch` directly.)
 
 ## Common failure modes (and first thing to check)
 
 | Symptom | First suspect |
 | --- | --- |
 | `Invalid token` on `/api/*` | Server `SUPABASE_URL` mismatched with the issuer of the JWT (wrong dev mode?) |
-| Client hangs minutes on boot | `SUPABASE_URL` unreachable; check `.env` files and DNS cache |
+| Client hangs minutes on boot | Supabase URL unreachable; check dev mode, staging/local `.env*` files, and DNS cache |
 | Slack login redirects back to site instead of Slack | `additional_redirect_urls` missing the exact URL (trailing-slash trap) |
 | `MemberList` stuck on spinner / error card | `/api/members` 401 or 500 — curl it with a Bearer token, check server logs |
 | `converting NULL to string is unsupported` in GoTrue | Don't touch the empty-string columns in `seed.sql` |
