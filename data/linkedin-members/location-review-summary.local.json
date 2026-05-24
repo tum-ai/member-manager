@@ -1,119 +1,13 @@
 {
   "overlapRows": 337,
   "acceptedLocation": 163,
-  "nonMunichLocation": 76,
+  "manualApprovedNonMunich": 31,
+  "manualRejectedNonMunich": 45,
   "missingLocation": 98,
-  "acceptedLocationRules": [
-    "berlin",
-    "freising",
-    "garching",
-    "muenchen",
-    "munich",
-    "münchen",
-    "san francisco",
-    "zurich"
-  ],
-  "reviewFile": "data/linkedin-members/non-munich-review.local.jsonl",
-  "topFlaggedLocations": [
-    [
-      "Berkeley",
-      3
-    ],
-    [
-      "Cambridge",
-      3
-    ],
-    [
-      "London",
-      3
-    ],
-    [
-      "Karlsruhe",
-      2
-    ],
-    [
-      "Paris",
-      2
-    ],
-    [
-      "Düsseldorf",
-      2
-    ],
-    [
-      "Ditzingen",
-      1
-    ],
-    [
-      "Helsingør",
-      1
-    ],
-    [
-      "San Diego",
-      1
-    ],
-    [
-      "Palermo",
-      1
-    ],
-    [
-      "Kyiv",
-      1
-    ],
-    [
-      "Anières",
-      1
-    ],
-    [
-      "Hyderabad",
-      1
-    ],
-    [
-      "Üsküdar",
-      1
-    ],
-    [
-      "North Melbourne",
-      1
-    ],
-    [
-      "Frankfurt",
-      1
-    ],
-    [
-      "Weißenhorn",
-      1
-    ],
-    [
-      "Geneva",
-      1
-    ],
-    [
-      "Sunnyvale",
-      1
-    ],
-    [
-      "Sidi Thabet",
-      1
-    ],
-    [
-      "Dublin",
-      1
-    ],
-    [
-      "Zug",
-      1
-    ],
-    [
-      "New York",
-      1
-    ],
-    [
-      "Los Angeles",
-      1
-    ],
-    [
-      "Holbrook",
-      1
-    ]
-  ]
+  "importCandidates": 292,
+  "excludedFromImport": 45,
+  "reviewFile": "data/linkedin-members/non-munich-review-links.md",
+  "approvedFile": "data/linkedin-members/non-munich-approved.local.jsonl",
+  "rejectedFile": "data/linkedin-members/non-munich-rejected.local.jsonl",
+  "importCandidatesFile": "data/linkedin-members/prod-import-candidates.local.jsonl"
 }

@@ -169,20 +169,28 @@ Accepted / non-flagged location rules currently include:
 - Garching
 - Freising
 
-Current review counts:
+Current review/import counts after manual review:
 
 - overlap rows: 337
 - accepted location: 163
-- still flagged: 76
+- manually approved non-Munich rows: 31
+- manually rejected non-Munich rows: 45
 - missing location: 98
+- import candidates: 292
 
 Each `prod-overlap.local.jsonl` row has:
 
-- `location_review_status`: `accepted_location`, `non_munich`, or `missing_location`
+- `location_review_status`: `accepted_location`, `manual_approved`, `manual_rejected`, or `missing_location`
 - `needs_location_review`: boolean
-- `location_review_reason`: present for flagged/missing cases
+- `manual_review`: present for manually reviewed non-Munich rows
+- `exclude_from_import`: true for manually rejected rows
 
-The focused review file only contains rows where `needs_location_review` is true.
+Review/import files:
+
+- `data/linkedin-members/non-munich-review-links.md` — Markdown link checklist that was manually filtered
+- `data/linkedin-members/non-munich-approved.local.jsonl` — 31 manually approved non-Munich matches
+- `data/linkedin-members/non-munich-rejected.local.jsonl` — 45 manually rejected non-Munich matches
+- `data/linkedin-members/prod-import-candidates.local.jsonl` — 292 rows currently eligible for import
 
 ## Current implementation behavior
 
@@ -249,17 +257,16 @@ All passed.
 
 ## Suggested next step
 
-Build a small one-off import script that reads `data/linkedin-members/prod-overlap.local.jsonl` and updates only rows where:
+Build a small one-off import script that reads `data/linkedin-members/prod-import-candidates.local.jsonl` and updates only the three approved fields:
 
-```text
-needs_location_review = false
-linkedin_profile_url is present
-```
+- `linkedin_profile_url`
+- `public_location`
+- `current_company`
 
 Potential dry-run output:
 
-- number of rows to update
-- number skipped due to review flag
+- number of rows to update (currently 292)
+- number skipped due to manual rejection (currently 45)
 - sample of updates
 
-Only after review should the script be pointed at prod.
+Only after final approval should the script be pointed at prod.
