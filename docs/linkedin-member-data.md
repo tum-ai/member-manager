@@ -257,39 +257,56 @@ All passed.
 
 ## Latest reviewed import set
 
-After manual review of non-Munich and missing-location matches, the current import candidate set is:
+After manual review and filtering, the current import candidate set is:
 
 - overlap rows: 337
-- accepted location: 163
-- manually approved non-Munich: 31
-- manually rejected non-Munich: 45
-- prefilter-approved missing-location: 92
+- accepted location: 128
+- manually approved non-Munich: 21
+- prefilter-approved missing-location: 42
 - manually approved missing-location: 5
+- manually rejected non-Munich: 45
 - manually rejected missing-location: 1
+- manually rejected wrong profile list: 4
+- excluded because both location and company are missing: 12
+- excluded because LinkedIn slug contains digits: 79
 - pending manual review: 0
-- import candidates: 291
-- excluded from import: 46
+- import candidates: 196
+- excluded from import: 141
 
-Import candidate file:
+Review candidate file:
 
 ```text
 data/linkedin-members/prod-import-candidates.local.jsonl
 ```
 
-This file should be the source for any future prod import.
+URL-only prod import file:
+
+```text
+data/linkedin-members/prod-linkedin-url-import-candidates.local.jsonl
+```
+
+Excluded rows are tracked in:
+
+```text
+data/linkedin-members/prod-import-excluded.local.jsonl
+data/linkedin-members/wrongmembers.md
+data/linkedin-members/wrongmembers-excluded.local.jsonl
+data/linkedin-members/no-location-or-company-excluded.local.jsonl
+data/linkedin-members/numeric-linkedin-slug-excluded.local.jsonl
+```
+
+The URL-only file should be the source for any future prod import. `current_company` and `public_location` remain review metadata only because they can drift without a LinkedIn refresh pipeline.
 
 ## Suggested next step
 
-Build a small one-off import script that reads `data/linkedin-members/prod-import-candidates.local.jsonl` and updates only the three approved fields:
+Build a small one-off import script that reads `data/linkedin-members/prod-linkedin-url-import-candidates.local.jsonl` and updates only:
 
 - `linkedin_profile_url`
-- `public_location`
-- `current_company`
 
 Potential dry-run output:
 
-- number of rows to update (currently 292)
-- number skipped due to manual rejection (currently 45)
+- number of rows to update (currently 196)
+- number skipped due to review/manual rejection/no-signal/numeric-slug filtering (currently 141)
 - sample of updates
 
 Only after final approval should the script be pointed at prod.
