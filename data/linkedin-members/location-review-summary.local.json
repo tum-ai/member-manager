@@ -3,11 +3,11 @@
   "acceptedLocation": 163,
   "manualApprovedNonMunich": 31,
   "manualRejectedNonMunich": 45,
-  "missingLocation": 98,
-  "importCandidates": 292,
-  "excludedFromImport": 45,
-  "reviewFile": "data/linkedin-members/non-munich-review-links.md",
-  "approvedFile": "data/linkedin-members/non-munich-approved.local.jsonl",
-  "rejectedFile": "data/linkedin-members/non-munich-rejected.local.jsonl",
+  "prefilterApprovedMissingLocation": 92,
+  "manualApprovedMissingLocation": 5,
+  "manualRejectedMissingLocation": 1,
+  "pendingManualReview": 0,
+  "importCandidates": 291,
+  "excludedFromImport": 46,
   "importCandidatesFile": "data/linkedin-members/prod-import-candidates.local.jsonl"
 }

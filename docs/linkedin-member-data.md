@@ -255,6 +255,29 @@ All passed.
 - Rows with `needs_location_review: true` should not be imported blindly.
 - Rows with missing location are not flagged as suspicious by the current rule, but they also give less confidence.
 
+## Latest reviewed import set
+
+After manual review of non-Munich and missing-location matches, the current import candidate set is:
+
+- overlap rows: 337
+- accepted location: 163
+- manually approved non-Munich: 31
+- manually rejected non-Munich: 45
+- prefilter-approved missing-location: 92
+- manually approved missing-location: 5
+- manually rejected missing-location: 1
+- pending manual review: 0
+- import candidates: 291
+- excluded from import: 46
+
+Import candidate file:
+
+```text
+data/linkedin-members/prod-import-candidates.local.jsonl
+```
+
+This file should be the source for any future prod import.
+
 ## Suggested next step
 
 Build a small one-off import script that reads `data/linkedin-members/prod-import-candidates.local.jsonl` and updates only the three approved fields:
