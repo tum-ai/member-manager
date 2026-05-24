@@ -187,6 +187,8 @@ export function useAdminData() {
 			access_role,
 			batch,
 			research_project_id,
+			linkedin_profile_url,
+			public_location,
 		}: {
 			userId: string;
 			department: string | null;
@@ -196,6 +198,8 @@ export function useAdminData() {
 			access_role: "user" | "admin";
 			batch?: string | null;
 			research_project_id?: string | null;
+			linkedin_profile_url?: string | null;
+			public_location?: string | null;
 		}) => {
 			await apiClient(`/api/admin/members/${userId}`, {
 				method: "PATCH",
@@ -207,6 +211,8 @@ export function useAdminData() {
 					access_role,
 					batch,
 					research_project_id,
+					linkedin_profile_url,
+					public_location,
 				}),
 			});
 		},

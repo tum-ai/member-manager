@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LINKEDIN_PROFILE_URL_REGEX } from "./linkedin";
 
 function isValidDate(dateString: string): boolean {
 	const regex = /^\d{4}-\d{2}-\d{2}$/;
@@ -110,7 +111,19 @@ export const engagementFormSchema = z.object({
 		.max(5, "Maximum 5 engagements allowed"),
 });
 
+export const linkedinSchema = z.object({
+	linkedin_profile_url: z
+		.string()
+		.optional()
+		.refine(
+			(v) => !v || v.trim() === "" || LINKEDIN_PROFILE_URL_REGEX.test(v.trim()),
+			"Must be a valid LinkedIn profile URL (https://linkedin.com/in/…)",
+		),
+	public_location: z.string().optional(),
+});
+
 export type MemberSchema = z.infer<typeof memberSchema>;
 export type SepaSchema = z.infer<typeof sepaSchema>;
+export type LinkedinSchema = z.infer<typeof linkedinSchema>;
 export type EngagementSchema = z.infer<typeof engagementSchema>;
 export type EngagementFormSchema = z.infer<typeof engagementFormSchema>;

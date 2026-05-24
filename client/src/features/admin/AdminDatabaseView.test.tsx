@@ -149,6 +149,8 @@ describe("AdminDatabaseView", () => {
 				access_role: "admin",
 				batch: "WS23",
 				research_project_id: null,
+				linkedin_profile_url: null,
+				public_location: null,
 			});
 		});
 	}, 10_000);
@@ -205,6 +207,8 @@ describe("AdminDatabaseView", () => {
 				access_role: "user",
 				batch: "SS25",
 				research_project_id: null,
+				linkedin_profile_url: null,
+				public_location: null,
 			});
 		});
 	});

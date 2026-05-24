@@ -73,6 +73,27 @@ const BoardRoleSchema = z
 const AccessRoleSchema = z.object({
 	access_role: z.enum(["user", "admin"]),
 });
+
+const LINKEDIN_PROFILE_URL_REGEX =
+	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
+
+const OptionalTextUpdateSchema = z
+	.string()
+	.nullish()
+	.transform((v) => (v === undefined ? undefined : v?.trim() || null))
+	.optional();
+
+const OptionalLinkedInProfileUrlUpdateSchema = z
+	.union([
+		z.string().trim().regex(LINKEDIN_PROFILE_URL_REGEX, {
+			message: "Must be a valid LinkedIn profile URL",
+		}),
+		z.literal(""),
+		z.null(),
+		z.undefined(),
+	])
+	.transform((v) => (v === undefined ? undefined : v || null));
+
 const MemberUpdateSchema = z.object({
 	department: z.string().nullable().transform(normalizeNullableText),
 	member_role: memberRoleSchema,
@@ -91,6 +112,9 @@ const MemberUpdateSchema = z.object({
 		.transform((value) =>
 			value === undefined ? undefined : normalizeNullableText(value),
 		),
+	// LinkedIn fields — admin-editable
+	linkedin_profile_url: OptionalLinkedInProfileUrlUpdateSchema,
+	public_location: OptionalTextUpdateSchema,
 });
 const MEMBER_DB_SORT_COLUMNS = new Set([
 	"active",
@@ -106,6 +130,8 @@ const MEMBER_DB_SORT_COLUMNS = new Set([
 	"surname",
 	"user_id",
 	"member_status",
+	"linkedin_profile_url",
+	"public_location",
 ]);
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -571,7 +597,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				await getSupabase()
 					.from("members")
 					.select(
-						"department, member_role, board_role, member_status, active, batch, research_project_id",
+						"department, member_role, board_role, member_status, active, batch, research_project_id, linkedin_profile_url, public_location",
 					)
 					.eq("user_id", userId)
 					.single();
@@ -653,6 +679,13 @@ export async function adminRoutes(server: FastifyInstance) {
 			if (parsed.data.board_role !== undefined) {
 				memberUpdate.board_role = parsed.data.board_role;
 			}
+			// Persist LinkedIn fields when provided
+			if (parsed.data.linkedin_profile_url !== undefined) {
+				memberUpdate.linkedin_profile_url = parsed.data.linkedin_profile_url;
+			}
+			if (parsed.data.public_location !== undefined) {
+				memberUpdate.public_location = parsed.data.public_location;
+			}
 
 			const { data: updatedMember, error: memberUpdateError } =
 				await getSupabase()
@@ -707,6 +740,12 @@ export async function adminRoutes(server: FastifyInstance) {
 						research_project_id:
 							(existingMember as { research_project_id?: string | null })
 								.research_project_id ?? null,
+						linkedin_profile_url:
+							(existingMember as { linkedin_profile_url?: string | null })
+								.linkedin_profile_url ?? null,
+						public_location:
+							(existingMember as { public_location?: string | null })
+								.public_location ?? null,
 					};
 					const { error: rollbackError } = await getSupabase()
 						.from("members")

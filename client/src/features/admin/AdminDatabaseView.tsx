@@ -2,6 +2,7 @@ import AccountBalanceOutlinedIcon from "@mui/icons-material/AccountBalanceOutlin
 import DownloadIcon from "@mui/icons-material/Download";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import LinkedInIcon from "@mui/icons-material/LinkedIn";
 import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
@@ -54,6 +55,7 @@ import {
 	DEPARTMENTS,
 	MEMBER_ROLES,
 } from "../../lib/constants";
+import { isLinkedinProfileUrl } from "../../lib/linkedin";
 import {
 	getMemberStatusLabel,
 	getOperationalDepartment,
@@ -92,6 +94,8 @@ const sortableColumns: Array<{
 	{ key: "member_role", label: "Role", width: 160 },
 	{ key: "board_role", label: "Board", width: 140 },
 	{ key: "phone", label: "Phone", width: 150 },
+	{ key: "linkedin_profile_url", label: "LinkedIn", width: 120 },
+	{ key: "public_location", label: "Public location", width: 170 },
 	{ key: "iban", label: "IBAN", width: 220 },
 	{ key: "bic", label: "BIC", width: 150 },
 	{ key: "bank_name", label: "Bank", width: 180 },
@@ -134,6 +138,9 @@ export default function AdminDatabaseView() {
 	const [editAccessRole, setEditAccessRole] = useState<"user" | "admin">(
 		"user",
 	);
+	const [editLinkedinUrl, setEditLinkedinUrl] = useState("");
+	const [editLocation, setEditLocation] = useState("");
+
 	const [certificateRequestBeingViewed, setCertificateRequestBeingViewed] =
 		useState<EngagementCertificateRequest | null>(null);
 	const [exportAnchorEl, setExportAnchorEl] = useState<HTMLElement | null>(
@@ -225,6 +232,8 @@ export default function AdminDatabaseView() {
 		setEditIsBoardMember(member.board_role === BOARD_MEMBER_ROLE);
 		setEditStatus(getResolvedStatus(member));
 		setEditAccessRole(member.access_role === "admin" ? "admin" : "user");
+		setEditLinkedinUrl(member.linkedin_profile_url || "");
+		setEditLocation(member.public_location || "");
 	}
 
 	function getMemberDisplayName(userId: string): string {
@@ -344,6 +353,8 @@ export default function AdminDatabaseView() {
 					effectiveDepartment === "Research"
 						? editResearchProjectId || null
 						: null,
+				linkedin_profile_url: editLinkedinUrl.trim() || null,
+				public_location: editLocation.trim() || null,
 			});
 			showToast("Member updated successfully", "success");
 			setMemberBeingEdited(null);
@@ -419,6 +430,8 @@ export default function AdminDatabaseView() {
 			Department: getOperationalDepartment(member.department) || "",
 			Role: member.member_role || "",
 			Board: member.board_role || "",
+			"LinkedIn URL": member.linkedin_profile_url || "",
+			"Public Location": member.public_location || "",
 			IBAN: member.sepa?.iban || "",
 			BIC: member.sepa?.bic || "",
 			"Bank Name": member.sepa?.bank_name || "",
@@ -481,7 +494,11 @@ export default function AdminDatabaseView() {
 		const status = project.status?.trim().toLowerCase();
 		return !status || ["ongoing", "active", "in progress"].includes(status);
 	});
-	const isMemberSaveDisabled = isSavingMember || isMissingRequiredDepartment;
+	const isEditLinkedinUrlInvalid = Boolean(
+		editLinkedinUrl.trim() && !isLinkedinProfileUrl(editLinkedinUrl),
+	);
+	const isMemberSaveDisabled =
+		isSavingMember || isMissingRequiredDepartment || isEditLinkedinUrlInvalid;
 	const memberLoadingMessage = isLoadingMoreMembers
 		? `Loaded ${loadedMemberCount} of ${totalMemberCount} members. Loading the rest in the background...`
 		: isRefreshingMembers
@@ -885,6 +902,24 @@ export default function AdminDatabaseView() {
 											)}
 										</TableCell>
 										<TableCell>{row.phone || "Not provided"}</TableCell>
+										<TableCell>
+											{isLinkedinProfileUrl(row.linkedin_profile_url) ? (
+												<Button
+													size="small"
+													component="a"
+													href={row.linkedin_profile_url.trim()}
+													target="_blank"
+													rel="noopener noreferrer"
+													sx={{ minWidth: 0, px: 1, color: "primary.main" }}
+													startIcon={<LinkedInIcon fontSize="small" />}
+												>
+													View
+												</Button>
+											) : (
+												"—"
+											)}
+										</TableCell>
+										<TableCell>{row.public_location || "—"}</TableCell>
 										<TableCell sx={{ fontFamily: "monospace" }}>
 											{row.sepa?.iban || "Not provided"}
 										</TableCell>
@@ -1047,6 +1082,38 @@ export default function AdminDatabaseView() {
 								? `Update ${memberBeingEdited.given_name} ${memberBeingEdited.surname}.`
 								: ""}
 						</Typography>
+						{/* ── LinkedIn & Professional ── */}
+						<Typography
+							variant="subtitle2"
+							color="text.secondary"
+							sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+						>
+							<LinkedInIcon fontSize="small" sx={{ color: "primary.main" }} />
+							LinkedIn & Professional
+						</Typography>
+						<TextField
+							label="LinkedIn Profile URL"
+							placeholder="https://linkedin.com/in/your-profile"
+							value={editLinkedinUrl}
+							onChange={(e) => setEditLinkedinUrl(e.target.value)}
+							error={isEditLinkedinUrlInvalid}
+							helperText={
+								isEditLinkedinUrlInvalid
+									? "Use a LinkedIn profile URL like https://linkedin.com/in/name."
+									: undefined
+							}
+							size="small"
+						/>
+						<TextField
+							label="Public location"
+							placeholder="Munich, Germany"
+							value={editLocation}
+							onChange={(e) => setEditLocation(e.target.value)}
+							helperText="Shown on the member profile; separate from address fields."
+							size="small"
+						/>
+						<Divider />
+						{/* ── Org fields ── */}
 						<TextField
 							select
 							label="Batch"

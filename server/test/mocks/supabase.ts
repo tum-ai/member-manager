@@ -46,6 +46,10 @@ interface MockData {
 	reimbursements: Array<Record<string, unknown>>;
 }
 
+export const mockSupabaseErrors = {
+	userRolesUpsert: null as unknown,
+};
+
 export const mockDatabase: MockData = {
 	members: [
 		{
@@ -71,6 +75,8 @@ export const mockDatabase: MockData = {
 			research_project_id: null,
 			degree: "B.Sc.",
 			school: "TUM",
+			linkedin_profile_url: null,
+			public_location: null,
 		},
 		{
 			user_id: MOCK_ADMIN_ID,
@@ -95,6 +101,8 @@ export const mockDatabase: MockData = {
 			research_project_id: null,
 			degree: "M.Sc.",
 			school: "TUM",
+			linkedin_profile_url: null,
+			public_location: null,
 		},
 	],
 	sepa: [
@@ -212,6 +220,7 @@ interface QueryBuilder {
 function createQueryBuilder(table: string): QueryBuilder {
 	const state = {
 		selectedColumns: "*",
+		forcedError: null as unknown,
 		filters: [] as Array<{ column: string; value: unknown }>,
 		inFilters: [] as Array<{ column: string; values: unknown[] }>,
 		orQuery: "" as string,
@@ -228,6 +237,10 @@ function createQueryBuilder(table: string): QueryBuilder {
 	};
 
 	const execute = (isSingle = false) => {
+		if (state.forcedError) {
+			return Promise.resolve({ data: null, error: state.forcedError });
+		}
+
 		let tableData: Array<Record<string, unknown>>;
 
 		// If we just inserted data, return that instead of querying
@@ -406,6 +419,11 @@ function createQueryBuilder(table: string): QueryBuilder {
 			data: Record<string, unknown> | Array<Record<string, unknown>>,
 			options?: { onConflict?: string; ignoreDuplicates?: boolean },
 		) => {
+			if (table === "user_roles" && mockSupabaseErrors.userRolesUpsert) {
+				state.forcedError = mockSupabaseErrors.userRolesUpsert;
+				return proxyBuilder;
+			}
+
 			const tableData = mockDatabase[table as keyof MockData];
 			const records = Array.isArray(data) ? data : [data];
 			const upsertedRecords: Array<Record<string, unknown>> = [];
@@ -536,6 +554,7 @@ export function createMockSupabaseClient(): SupabaseClient {
 }
 
 export function resetMockDatabase(): void {
+	mockSupabaseErrors.userRolesUpsert = null;
 	mockDatabase.members = [
 		{
 			user_id: MOCK_USER_ID,
@@ -560,6 +579,8 @@ export function resetMockDatabase(): void {
 			research_project_id: null,
 			degree: "B.Sc.",
 			school: "TUM",
+			linkedin_profile_url: null,
+			public_location: null,
 		},
 		{
 			user_id: MOCK_ADMIN_ID,
@@ -584,6 +605,8 @@ export function resetMockDatabase(): void {
 			research_project_id: null,
 			degree: "M.Sc.",
 			school: "TUM",
+			linkedin_profile_url: null,
+			public_location: null,
 		},
 	];
 
