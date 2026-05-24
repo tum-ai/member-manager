@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { LINKEDIN_PROFILE_URL_REGEX } from "./linkedin";
 
 function isValidDate(dateString: string): boolean {
 	const regex = /^\d{4}-\d{2}-\d{2}$/;
@@ -9,8 +10,6 @@ function isValidDate(dateString: string): boolean {
 }
 
 const BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
-const LINKEDIN_PROFILE_URL_REGEX =
-	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
 
 export const memberSchema = z.object({
 	active: z.boolean(),

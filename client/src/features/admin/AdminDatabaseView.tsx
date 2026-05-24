@@ -55,6 +55,7 @@ import {
 	DEPARTMENTS,
 	MEMBER_ROLES,
 } from "../../lib/constants";
+import { isLinkedinProfileUrl } from "../../lib/linkedin";
 import {
 	getMemberStatusLabel,
 	getOperationalDepartment,
@@ -75,13 +76,6 @@ import {
 	hasPrivacyAgreement,
 	sortAdminMembers,
 } from "./adminUtils";
-
-const LINKEDIN_PROFILE_URL_REGEX =
-	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
-
-function isLinkedinProfileUrl(value?: string | null): value is string {
-	return Boolean(value && LINKEDIN_PROFILE_URL_REGEX.test(value.trim()));
-}
 
 const initialFilters: AdminFilters = {
 	search: "",
@@ -913,7 +907,7 @@ export default function AdminDatabaseView() {
 												<Button
 													size="small"
 													component="a"
-													href={row.linkedin_profile_url}
+													href={row.linkedin_profile_url.trim()}
 													target="_blank"
 													rel="noopener noreferrer"
 													sx={{ minWidth: 0, px: 1, color: "primary.main" }}

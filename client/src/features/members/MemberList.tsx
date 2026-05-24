@@ -32,6 +32,7 @@ import {
 	DEPARTMENTS,
 	MEMBER_ROLES,
 } from "../../lib/constants";
+import { isLinkedinProfileUrl } from "../../lib/linkedin";
 import {
 	buildMemberNameSearchText,
 	getEducationEntries,
@@ -41,13 +42,6 @@ import {
 } from "../../lib/memberMetadata";
 import type { Member } from "../../types";
 import OrgChartView from "./OrgChartView";
-
-const LINKEDIN_PROFILE_URL_REGEX =
-	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
-
-function isLinkedinProfileUrl(value?: string | null): value is string {
-	return Boolean(value && LINKEDIN_PROFILE_URL_REGEX.test(value.trim()));
-}
 
 function getInitials(member: Member): string {
 	const first = member.given_name?.charAt(0) || "";
@@ -388,7 +382,7 @@ function MemberCard({ member }: MemberCardProps) {
 		member.member_role && !isBoardOnlyMember(member),
 	);
 	const linkedinProfileUrl = isLinkedinProfileUrl(member.linkedin_profile_url)
-		? member.linkedin_profile_url
+		? member.linkedin_profile_url.trim()
 		: null;
 
 	return (
@@ -451,6 +445,7 @@ function MemberCard({ member }: MemberCardProps) {
 					{linkedinProfileUrl && (
 						<Tooltip title="View LinkedIn profile" arrow>
 							<IconButton
+								aria-label="View LinkedIn profile"
 								href={linkedinProfileUrl}
 								target="_blank"
 								rel="noopener noreferrer"

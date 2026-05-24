@@ -39,6 +39,10 @@ import {
 	MEMBER_ROLES,
 } from "../../lib/constants";
 import {
+	isLinkedinProfileUrl,
+	normalizeLinkedinProfileUrl,
+} from "../../lib/linkedin";
+import {
 	getEducationEntries,
 	getMemberStatusLabel,
 	resolveDepartmentForMemberRole,
@@ -144,10 +148,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	});
 
 	const linkedinUrl = linkedinForm.watch("linkedin_profile_url");
-	const isLinkedinUrlValid =
-		/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i.test(
-			linkedinUrl?.trim() ?? "",
-		);
+	const normalizedLinkedinUrl = normalizeLinkedinProfileUrl(linkedinUrl);
+	const isLinkedinUrlValid = isLinkedinProfileUrl(linkedinUrl);
 
 	const memberForm = useForm<MemberSchema>({
 		resolver: zodResolver(memberSchema),
@@ -834,12 +836,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											});
 										}}
 									/>
-									<Grid size={12}>
-										<Typography variant="caption" color="text.secondary">
-											Education imported from LinkedIn belongs in the degree and
-											school entries above.
-										</Typography>
-									</Grid>
 								</Grid>
 							</CardContent>
 						</GlassCard>
@@ -883,7 +879,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 														<Button
 															size="small"
 															component="a"
-															href={linkedinUrl}
+															href={normalizedLinkedinUrl}
+															aria-label="View LinkedIn profile"
 															target="_blank"
 															rel="noopener noreferrer"
 															sx={{ minWidth: 0, px: 1, color: "primary.main" }}

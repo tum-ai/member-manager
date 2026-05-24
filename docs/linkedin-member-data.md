@@ -27,11 +27,7 @@ Therefore the safe import target is LinkedIn URL only. Members can click through
 
 ## Source data
 
-Original file supplied from WhatsApp temp storage:
-
-```text
-/Users/jakobfriedrich/Library/Containers/net.whatsapp.WhatsApp/Data/tmp/documents/5DEF83E9-3B23-4C80-868C-C87AEE88D999/members.jsonl
-```
+Original file was supplied as an exported LinkedIn JSONL file from local temporary storage.
 
 Local working copy, intentionally ignored by git:
 
