@@ -29,6 +29,21 @@ function formatMonthYear(dateStr: string): string {
 	});
 }
 
+function getEngagementRoleLabels(engagement: EngagementSchema): string[] {
+	const roles: string[] = [];
+
+	if (engagement.isTeamLead) {
+		roles.push("Team Lead");
+	}
+
+	const specialRole = engagement.specialRole?.trim();
+	if (specialRole) {
+		roles.push(specialRole);
+	}
+
+	return roles;
+}
+
 export async function generateEngagementCertificatePdf(
 	member: Member,
 	engagements: EngagementSchema[],
@@ -95,8 +110,9 @@ export async function generateEngagementCertificatePdf(
 			: formatMonthYear(engagement.endDate || "");
 
 		const period = `${start} - ${end}`;
+		const roleLabels = getEngagementRoleLabels(engagement);
 		const deptText = `${engagement.department}${
-			engagement.isTeamLead ? " (Team Lead)" : ""
+			roleLabels.length > 0 ? ` (${roleLabels.join(", ")})` : ""
 		}`;
 		const hoursText = engagement.weeklyHours
 			? `${engagement.weeklyHours} h/w`

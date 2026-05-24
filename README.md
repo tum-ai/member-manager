@@ -36,7 +36,7 @@ Authenticated routes:
 
 - `/`: My Profile
 - `/members`: authenticated member directory
-- `/engagement-certificate`: certificate flow
+- `/engagement-certificate`: certificate flow; each engagement records department, weekly hours, responsibilities, plus optional team-lead or board/executive special role
 - `/profile`: legacy alias redirected to `/`
 
 Data visibility:

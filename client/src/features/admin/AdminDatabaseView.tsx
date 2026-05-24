@@ -1035,9 +1035,7 @@ export default function AdminDatabaseView() {
 										/>
 										<CertificateDetailRow
 											label="Leadership"
-											value={
-												engagement.isTeamLead === true ? "Team Lead" : "Member"
-											}
+											value={formatCertificateLeadership(engagement)}
 										/>
 										<CertificateDetailRow
 											label="Tasks / Responsibilities"
@@ -1465,6 +1463,25 @@ function formatAdminValue(value: unknown): string {
 	}
 
 	return value === null || value === undefined ? "Not set" : String(value);
+}
+
+function formatCertificateLeadership(
+	engagement: Record<string, unknown>,
+): string {
+	const roles: string[] = [];
+
+	if (engagement.isTeamLead === true) {
+		roles.push("Team Lead");
+	}
+
+	if (typeof engagement.specialRole === "string") {
+		const specialRole = engagement.specialRole.trim();
+		if (specialRole) {
+			roles.push(specialRole);
+		}
+	}
+
+	return roles.length > 0 ? roles.join(", ") : "Member";
 }
 
 interface MetricCardProps {

@@ -53,6 +53,7 @@ describe("Engagement Certificate Routes", async () => {
 							weeklyHours: "10",
 							department: "Software Development",
 							isTeamLead: false,
+							specialRole: "President",
 							tasksDescription: "Built internal tooling",
 						},
 					],
@@ -66,6 +67,14 @@ describe("Engagement Certificate Routes", async () => {
 			assert.strictEqual(
 				mockDatabase.engagement_certificate_requests.length,
 				1,
+			);
+			assert.strictEqual(
+				(
+					mockDatabase.engagement_certificate_requests[0].engagements as Array<
+						Record<string, unknown>
+					>
+				)[0]?.specialRole,
+				"President",
 			);
 			assert.strictEqual(notifications.length, 1);
 			assert.strictEqual(notifications[0].requestId, payload.id);

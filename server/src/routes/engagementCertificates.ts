@@ -6,6 +6,13 @@ import { getSupabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
+const ENGAGEMENT_SPECIAL_ROLES = [
+	"",
+	"Board Member",
+	"Vice-President",
+	"President",
+] as const;
+
 function isValidDate(dateString: string): boolean {
 	const regex = /^\d{4}-\d{2}-\d{2}$/;
 	if (!regex.test(dateString)) {
@@ -37,6 +44,7 @@ const EngagementEntrySchema = z
 		weeklyHours: z.string().min(1),
 		department: z.string().min(1),
 		isTeamLead: z.boolean(),
+		specialRole: z.enum(ENGAGEMENT_SPECIAL_ROLES).optional(),
 		tasksDescription: z.string().trim().min(1).max(1000),
 	})
 	.refine(

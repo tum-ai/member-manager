@@ -74,7 +74,7 @@ The local API defaults to `http://127.0.0.1:8787` and Vite proxies `/api` there 
 Local Slack login is **optional**. Skip this section if email/password is enough.
 
 1. Copy `supabase/.env.example` → `supabase/.env.local`, fill in Slack Client ID and Secret from the TUM.ai Slack app.
-2. In the Slack app's "Redirect URLs", ensure `http://127.0.0.1:54321/auth/v1/callback` is present.
+2. In the Slack app's "Redirect URLs", ensure `http://127.0.0.1:54321/auth/v1/callback` is present. `supabase/config.toml` also sets this value as `auth.external.slack_oidc.redirect_uri`; GoTrue rejects Slack OIDC with `Unsupported provider: missing redirect URI` if it is blank.
 3. Restart the stack: `pnpm supabase:stop && pnpm supabase:start`.
 
 The wrapper script `scripts/supabase-start.mjs` loads `supabase/.env.local` into the CLI's environment before spawning, so the `env(...)` refs in `supabase/config.toml` resolve. The raw `supabase start` CLI does **not** do this — always go through the pnpm script.

@@ -24,7 +24,11 @@ import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useEngagementCertificateRequests } from "../../hooks/useEngagementCertificateRequests";
 import { useMemberData } from "../../hooks/useMemberData";
-import { DEPARTMENTS, WEEKLY_HOURS_OPTIONS } from "../../lib/constants";
+import {
+	DEPARTMENTS,
+	ENGAGEMENT_SPECIAL_ROLES,
+	WEEKLY_HOURS_OPTIONS,
+} from "../../lib/constants";
 import { downloadPdfBlob, formatGermanDate } from "../../lib/pdfUtils";
 import {
 	type EngagementFormSchema,
@@ -47,6 +51,7 @@ function createDefaultEngagement(): EngagementSchema {
 		weeklyHours: "",
 		department: "",
 		isTeamLead: false,
+		specialRole: "",
 		tasksDescription: "",
 	};
 }
@@ -397,7 +402,39 @@ export default function EngagementCertificatePage({
 									</TextField>
 								</Grid>
 
-								<Grid size={{ xs: 12 }}>
+								<Grid size={{ xs: 12, md: 6 }}>
+									<TextField
+										select
+										fullWidth
+										label="Special role"
+										slotProps={{
+											select: {
+												SelectDisplayProps: {
+													"aria-label": "Special role",
+												},
+											},
+										}}
+										{...form.register(`engagements.${index}.specialRole`)}
+										value={form.watch(`engagements.${index}.specialRole`) || ""}
+										error={
+											!!form.formState.errors.engagements?.[index]?.specialRole
+										}
+										helperText={
+											form.formState.errors.engagements?.[index]?.specialRole
+												?.message ||
+											"Optional board or executive responsibility."
+										}
+									>
+										<MenuItem value="">None</MenuItem>
+										{ENGAGEMENT_SPECIAL_ROLES.map((role) => (
+											<MenuItem key={role} value={role}>
+												{role}
+											</MenuItem>
+										))}
+									</TextField>
+								</Grid>
+
+								<Grid size={{ xs: 12, md: 6 }}>
 									<FormControlLabel
 										control={
 											<Checkbox
@@ -508,7 +545,8 @@ export default function EngagementCertificatePage({
 				)}
 
 				<Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}>
-					* All fields are required
+					* Dates, weekly hours, department, and responsibilities are required.
+					Special role is optional.
 				</Typography>
 			</form>
 		</ToolPageShell>
