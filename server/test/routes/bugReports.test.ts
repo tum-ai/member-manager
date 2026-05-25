@@ -21,8 +21,6 @@ import {
 	testUserIds,
 } from "../helpers.js";
 
-const originalBugReportSlackAssignees = process.env.BUG_REPORT_SLACK_ASSIGNEES;
-
 describe("Bug Report Routes", async () => {
 	let app: FastifyInstance;
 
@@ -38,7 +36,6 @@ describe("Bug Report Routes", async () => {
 
 	test("member can submit a bug report to GitHub and notify Slack", async () => {
 		resetDatabase();
-		process.env.BUG_REPORT_SLACK_ASSIGNEES = "U123,U456";
 		const issues: BugReportIssuePayload[] = [];
 		const notifications: BugReportSlackNotification[] = [];
 		setBugReportIssueCreator(async (payload) => {
@@ -89,16 +86,9 @@ describe("Bug Report Routes", async () => {
 					issueNumber: 123,
 					issueUrl: "https://github.com/tum-ai/member-manager/issues/123",
 					issueTitle: "Bug: The profile form does not save my department.",
-					assigneeSlackId: "U123",
 				},
 			]);
 		} finally {
-			if (originalBugReportSlackAssignees === undefined) {
-				delete process.env.BUG_REPORT_SLACK_ASSIGNEES;
-			} else {
-				process.env.BUG_REPORT_SLACK_ASSIGNEES =
-					originalBugReportSlackAssignees;
-			}
 			resetBugReportIssueCreator();
 			resetSlackNotifier();
 		}

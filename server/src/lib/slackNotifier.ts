@@ -10,6 +10,7 @@ let cachedAdminEmails: {
 	emails: string[];
 	expiresAt: number;
 } | null = null;
+let cachedSlackBotUserId: string | null | undefined;
 
 export interface EngagementCertificateSlackNotification {
 	requestId: string;
@@ -66,22 +67,16 @@ type BugReportSlackNotifier = (
 	payload: BugReportSlackNotification,
 ) => Promise<void>;
 
-function parseCsv(value: string | undefined): string[] {
-	return (value ?? "")
-		.split(",")
-		.map((item) => item.trim())
-		.filter(Boolean);
-}
-
-export function selectBugReportSlackAssignee(
+function selectRoundRobinSlackMember(
 	issueNumber: number,
-	assignees = parseCsv(process.env.BUG_REPORT_SLACK_ASSIGNEES),
+	memberIds: string[],
 ): string | undefined {
-	if (assignees.length === 0) {
+	const sortedMemberIds = [...new Set(memberIds)].sort();
+	if (sortedMemberIds.length === 0) {
 		return undefined;
 	}
 
-	return assignees[(issueNumber - 1) % assignees.length];
+	return sortedMemberIds[(issueNumber - 1) % sortedMemberIds.length];
 }
 
 async function fetchAdminEmails(): Promise<string[]> {
@@ -118,7 +113,7 @@ async function fetchAdminEmails(): Promise<string[]> {
 
 async function slackApi<T>(
 	path: string,
-	body: Record<string, string>,
+	body: Record<string, string> = {},
 ): Promise<T> {
 	const token = process.env.SLACK_BOT_TOKEN;
 	if (!token) {
@@ -139,6 +134,70 @@ async function slackApi<T>(
 	}
 
 	return (await response.json()) as T;
+}
+
+async function getSlackBotUserId(): Promise<string | null> {
+	if (!process.env.SLACK_BOT_TOKEN) {
+		return null;
+	}
+	if (cachedSlackBotUserId !== undefined) {
+		return cachedSlackBotUserId;
+	}
+
+	const response = await slackApi<{
+		ok?: boolean;
+		error?: string;
+		user_id?: string;
+	}>("/auth.test");
+
+	if (!response.ok) {
+		throw new Error(response.error || "Slack auth test failed");
+	}
+
+	cachedSlackBotUserId = response.user_id ?? null;
+	return cachedSlackBotUserId;
+}
+
+async function fetchSlackConversationMemberIds(
+	channel: string,
+): Promise<string[]> {
+	const members: string[] = [];
+	let cursor = "";
+
+	do {
+		const response = await slackApi<{
+			ok?: boolean;
+			error?: string;
+			members?: string[];
+			response_metadata?: { next_cursor?: string };
+		}>("/conversations.members", {
+			channel,
+			limit: "1000",
+			...(cursor ? { cursor } : {}),
+		});
+
+		if (!response.ok) {
+			throw new Error(
+				response.error || `Slack channel member lookup failed for ${channel}`,
+			);
+		}
+
+		members.push(...(response.members ?? []));
+		cursor = response.response_metadata?.next_cursor ?? "";
+	} while (cursor);
+
+	const botUserId = await getSlackBotUserId();
+	return members.filter((memberId) => memberId && memberId !== botUserId);
+}
+
+async function selectBugReportSlackChannelMember(
+	issueNumber: number,
+	channel: string,
+): Promise<string | undefined> {
+	return selectRoundRobinSlackMember(
+		issueNumber,
+		await fetchSlackConversationMemberIds(channel),
+	);
 }
 
 export async function getSlackUserEmailById(
@@ -570,10 +629,25 @@ async function defaultReimbursementStatusSlackNotifier(
 async function defaultBugReportSlackNotifier(
 	payload: BugReportSlackNotification,
 ): Promise<void> {
+	const channel = getBugReportSlackChannelId();
+	let assigneeSlackId = payload.assigneeSlackId;
+
+	if (!assigneeSlackId) {
+		try {
+			assigneeSlackId = await selectBugReportSlackChannelMember(
+				payload.issueNumber,
+				channel,
+			);
+		} catch {
+			assigneeSlackId = undefined;
+		}
+	}
+
+	const notification = { ...payload, assigneeSlackId };
 	await postSlackMessage(
-		getBugReportSlackChannelId(),
-		buildBugReportMessage(payload),
-		buildBugReportBlocks(payload),
+		channel,
+		buildBugReportMessage(notification),
+		buildBugReportBlocks(notification),
 	);
 }
 
@@ -630,4 +704,5 @@ export function resetSlackNotifier(): void {
 		defaultReimbursementStatusSlackNotifier;
 	activeBugReportSlackNotifier = defaultBugReportSlackNotifier;
 	cachedAdminEmails = null;
+	cachedSlackBotUserId = undefined;
 }

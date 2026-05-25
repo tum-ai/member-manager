@@ -1,10 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createBugReportIssue } from "../lib/githubIssues.js";
-import {
-	notifyBugReport,
-	selectBugReportSlackAssignee,
-} from "../lib/slackNotifier.js";
+import { notifyBugReport } from "../lib/slackNotifier.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -58,7 +55,6 @@ export async function bugReportRoutes(server: FastifyInstance) {
 					issueNumber: issue.number,
 					issueUrl: issue.url,
 					issueTitle: issue.title,
-					assigneeSlackId: selectBugReportSlackAssignee(issue.number),
 				});
 			} catch (error) {
 				request.log.error(
