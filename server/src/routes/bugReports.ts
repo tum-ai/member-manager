@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { createBugReportIssue } from "../lib/githubIssues.js";
 import { notifyBugReport } from "../lib/slackNotifier.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
@@ -26,24 +27,40 @@ export async function bugReportRoutes(server: FastifyInstance) {
 			const userAgent =
 				parsed.userAgent || firstHeaderValue(request.headers["user-agent"]);
 
+			const bugReport = {
+				reporterUserId: user.id,
+				reporterEmail: user.email ?? "",
+				message: parsed.message,
+				stepsToReproduce: parsed.stepsToReproduce,
+				pageUrl: parsed.pageUrl || parsed.path,
+				userAgent,
+			};
+
+			let issue: Awaited<ReturnType<typeof createBugReportIssue>>;
 			try {
-				await notifyBugReport({
-					reporterUserId: user.id,
-					reporterEmail: user.email ?? "",
-					message: parsed.message,
-					stepsToReproduce: parsed.stepsToReproduce,
-					pageUrl: parsed.pageUrl || parsed.path,
-					userAgent,
-				});
+				issue = await createBugReportIssue(bugReport);
 			} catch (error) {
 				request.log.error(
 					{ err: error, userId: user.id },
-					"Failed to send bug report to Slack",
+					"Failed to create GitHub issue for bug report",
 				);
 				return reply.status(502).send({
 					error:
 						"Could not submit bug report right now. Please try again later.",
 				});
+			}
+
+			try {
+				await notifyBugReport({
+					issueNumber: issue.number,
+					issueUrl: issue.url,
+					issueTitle: issue.title,
+				});
+			} catch (error) {
+				request.log.error(
+					{ err: error, issueNumber: issue.number, userId: user.id },
+					"Failed to send bug report Slack notification",
+				);
 			}
 
 			return reply.status(202).send({ ok: true });

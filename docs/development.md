@@ -31,7 +31,7 @@ If `OPENAI_API_KEY` is absent, uploads still work: the receipt stays attached an
 
 Submitted reimbursement and invoice requests appear in the Finance Review queue for active Legal & Finance members and admins. If `SLACK_BOT_TOKEN` is set, those reviewers also receive a Slack DM. Approval, rejection, and paid status changes DM the requester by their Supabase auth email. Without Slack configuration, the queues and in-app statuses remain the source of truth.
 
-The subtle footer "Report a bug" action posts authenticated bug reports to Slack via `POST /api/bug-reports`. Set `SLACK_BOT_TOKEN` and, optionally, `BUG_REPORT_SLACK_CHANNEL_ID` to override the default Member Manager bug-report channel (`C0B3YGL3XS5`). The Slack bot must be invited to that channel. The report includes the signed-in user, current page, browser user agent, and the user's note.
+The subtle footer "Report a bug" action creates authenticated GitHub issues in this repo via `POST /api/bug-reports`, then posts a short Slack notification with the issue link and a round-robin mention of a current bug-report channel member. Configure a GitHub App with Issues read/write access and set `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and either `GITHUB_APP_PRIVATE_KEY` (escaped newlines are OK) or `GITHUB_APP_PRIVATE_KEY_BASE64`. Issues default to `tum-ai/member-manager`; override with `BUG_REPORT_GITHUB_REPOSITORY` or `BUG_REPORT_GITHUB_OWNER` + `BUG_REPORT_GITHUB_REPO`. Set optional `BUG_REPORT_GITHUB_LABELS` only for labels that already exist. Slack notification still needs `SLACK_BOT_TOKEN` and, optionally, `BUG_REPORT_SLACK_CHANNEL_ID` to override the default Member Manager bug-report channel (`C0B3YGL3XS5`). The Slack app must be invited to that channel and needs member-read access (`channels:read` for public channels). The tagged user is selected by issue number modulo the current channel member list after excluding the bot user. The GitHub issue includes the user id, current page, browser user agent, and the user's note, but not the reporter email.
 
 Finance review responses include receipt view/download URLs but never the raw `receipt_base64` payload. Reviewers can open `GET /api/reimbursements/review/:requestId/receipt` inline or add `?download=1` for an attachment response.
 
@@ -52,7 +52,7 @@ BUCHHALTUNGSBUTLER_API_KEY=
 BUCHHALTUNGSBUTLER_API_BASE_URL=
 ```
 
-Slack reimbursement notifications use Block Kit buttons when `APP_BASE_URL` is set, `SLACK_BOT_TOKEN` is available, and the Slack app has `chat:write`, `users:read`, `users:read.email`, and `im:write` scopes. Configure Slack interactivity to post to `/api/slack/interactions` and set `SLACK_SIGNING_SECRET` so the server can verify `X-Slack-Signature` before accepting approve / approve-and-sync button clicks.
+Slack reimbursement notifications use Block Kit buttons when `APP_BASE_URL` is set, `SLACK_BOT_TOKEN` is available, and the Slack app has `chat:write`, `users:read`, `users:read.email`, and `im:write` scopes. Footer bug-report channel-member rotation additionally needs `channels:read` for public channels (or the equivalent private-channel scope if the bug channel becomes private). Configure Slack interactivity to post to `/api/slack/interactions` and set `SLACK_SIGNING_SECRET` so the server can verify `X-Slack-Signature` before accepting approve / approve-and-sync button clicks.
 
 See `docs/buchhaltungsbutler-sync.md` for the API research and design notes.
 

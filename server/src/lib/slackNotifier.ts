@@ -10,6 +10,7 @@ let cachedAdminEmails: {
 	emails: string[];
 	expiresAt: number;
 } | null = null;
+let cachedSlackBotUserId: string | null | undefined;
 
 export interface EngagementCertificateSlackNotification {
 	requestId: string;
@@ -42,12 +43,10 @@ export interface ReimbursementStatusSlackNotification {
 }
 
 export interface BugReportSlackNotification {
-	reporterUserId: string;
-	reporterEmail: string;
-	message: string;
-	stepsToReproduce?: string;
-	pageUrl?: string;
-	userAgent?: string;
+	issueNumber: number;
+	issueUrl: string;
+	issueTitle: string;
+	assigneeSlackId?: string;
 }
 
 type SlackBlock = Record<string, unknown>;
@@ -67,6 +66,18 @@ type ReimbursementStatusSlackNotifier = (
 type BugReportSlackNotifier = (
 	payload: BugReportSlackNotification,
 ) => Promise<void>;
+
+function selectRoundRobinSlackMember(
+	issueNumber: number,
+	memberIds: string[],
+): string | undefined {
+	const sortedMemberIds = [...new Set(memberIds)].sort();
+	if (sortedMemberIds.length === 0) {
+		return undefined;
+	}
+
+	return sortedMemberIds[(issueNumber - 1) % sortedMemberIds.length];
+}
 
 async function fetchAdminEmails(): Promise<string[]> {
 	if (cachedAdminEmails && cachedAdminEmails.expiresAt > Date.now()) {
@@ -102,7 +113,7 @@ async function fetchAdminEmails(): Promise<string[]> {
 
 async function slackApi<T>(
 	path: string,
-	body: Record<string, string>,
+	body: Record<string, string> = {},
 ): Promise<T> {
 	const token = process.env.SLACK_BOT_TOKEN;
 	if (!token) {
@@ -123,6 +134,70 @@ async function slackApi<T>(
 	}
 
 	return (await response.json()) as T;
+}
+
+async function getSlackBotUserId(): Promise<string | null> {
+	if (!process.env.SLACK_BOT_TOKEN) {
+		return null;
+	}
+	if (cachedSlackBotUserId !== undefined) {
+		return cachedSlackBotUserId;
+	}
+
+	const response = await slackApi<{
+		ok?: boolean;
+		error?: string;
+		user_id?: string;
+	}>("/auth.test");
+
+	if (!response.ok) {
+		throw new Error(response.error || "Slack auth test failed");
+	}
+
+	cachedSlackBotUserId = response.user_id ?? null;
+	return cachedSlackBotUserId;
+}
+
+async function fetchSlackConversationMemberIds(
+	channel: string,
+): Promise<string[]> {
+	const members: string[] = [];
+	let cursor = "";
+
+	do {
+		const response = await slackApi<{
+			ok?: boolean;
+			error?: string;
+			members?: string[];
+			response_metadata?: { next_cursor?: string };
+		}>("/conversations.members", {
+			channel,
+			limit: "1000",
+			...(cursor ? { cursor } : {}),
+		});
+
+		if (!response.ok) {
+			throw new Error(
+				response.error || `Slack channel member lookup failed for ${channel}`,
+			);
+		}
+
+		members.push(...(response.members ?? []));
+		cursor = response.response_metadata?.next_cursor ?? "";
+	} while (cursor);
+
+	const botUserId = await getSlackBotUserId();
+	return members.filter((memberId) => memberId && memberId !== botUserId);
+}
+
+async function selectBugReportSlackChannelMember(
+	issueNumber: number,
+	channel: string,
+): Promise<string | undefined> {
+	return selectRoundRobinSlackMember(
+		issueNumber,
+		await fetchSlackConversationMemberIds(channel),
+	);
 }
 
 export async function getSlackUserEmailById(
@@ -440,80 +515,45 @@ function sanitizeSlackUserText(value: string, maxLength = 1800): string {
 		.replace(/```/g, "`\u200b``");
 }
 
-function slackCodeBlock(value: string): string {
-	return `\`\`\`${sanitizeSlackUserText(value)}\`\`\``;
+function buildBugReportAssigneeLine(
+	payload: BugReportSlackNotification,
+): string {
+	return payload.assigneeSlackId ? `<@${payload.assigneeSlackId}>` : "_no one_";
 }
 
 function buildBugReportMessage(payload: BugReportSlackNotification): string {
 	return [
-		"New Member Manager bug report",
-		`Reporter: ${payload.reporterEmail || payload.reporterUserId}`,
-		`User ID: ${payload.reporterUserId}`,
-		payload.pageUrl ? `Page: ${payload.pageUrl}` : undefined,
-		payload.userAgent ? `User agent: ${payload.userAgent}` : undefined,
-		"",
-		"What happened:",
-		sanitizeSlackUserText(payload.message),
-		payload.stepsToReproduce ? "" : undefined,
-		payload.stepsToReproduce ? "Steps to reproduce:" : undefined,
-		payload.stepsToReproduce
-			? sanitizeSlackUserText(payload.stepsToReproduce)
-			: undefined,
-	]
-		.filter((line): line is string => line !== undefined)
-		.join("\n");
+		`🐛 New bug report created: #${payload.issueNumber}`,
+		buildBugReportAssigneeLine(payload),
+		payload.issueUrl,
+	].join("\n");
 }
 
 function buildBugReportBlocks(
 	payload: BugReportSlackNotification,
 ): SlackBlock[] {
-	const fields: SlackBlock[] = [
-		{
-			type: "mrkdwn",
-			text: `*Reporter*\n${payload.reporterEmail || payload.reporterUserId}`,
-		},
-		{ type: "mrkdwn", text: `*User ID*\n${payload.reporterUserId}` },
-	];
-
-	if (payload.pageUrl) {
-		fields.push({ type: "mrkdwn", text: `*Page*\n${payload.pageUrl}` });
-	}
-
-	if (payload.userAgent) {
-		fields.push({
-			type: "mrkdwn",
-			text: `*Browser*\n${sanitizeSlackUserText(payload.userAgent, 400)}`,
-		});
-	}
-
-	const blocks: SlackBlock[] = [
+	return [
 		{
 			type: "header",
-			text: { type: "plain_text", text: "New Member Manager bug report" },
+			text: { type: "plain_text", text: "🐛 New bug report created" },
 		},
-		{ type: "section", fields },
 		{
 			type: "section",
 			text: {
 				type: "mrkdwn",
-				text: `*What happened*\n${slackCodeBlock(payload.message)}`,
+				text: `*Issue*\n<${payload.issueUrl}|#${
+					payload.issueNumber
+				} ${sanitizeSlackUserText(payload.issueTitle, 120)}>`,
 			},
 		},
-	];
-
-	if (payload.stepsToReproduce) {
-		blocks.push({
+		{
 			type: "section",
 			text: {
 				type: "mrkdwn",
-				text: `*Steps to reproduce*\n${slackCodeBlock(
-					payload.stepsToReproduce,
-				)}`,
+				text: buildBugReportAssigneeLine(payload),
 			},
-		});
-	}
-
-	return blocks;
+		},
+	];
 }
 
 async function defaultSlackNotifier(
@@ -587,10 +627,25 @@ async function defaultReimbursementStatusSlackNotifier(
 async function defaultBugReportSlackNotifier(
 	payload: BugReportSlackNotification,
 ): Promise<void> {
+	if (!process.env.SLACK_BOT_TOKEN) {
+		return;
+	}
+
+	const channel = getBugReportSlackChannelId();
+	let assigneeSlackId = payload.assigneeSlackId;
+
+	if (!assigneeSlackId) {
+		assigneeSlackId = await selectBugReportSlackChannelMember(
+			payload.issueNumber,
+			channel,
+		);
+	}
+
+	const notification = { ...payload, assigneeSlackId };
 	await postSlackMessage(
-		getBugReportSlackChannelId(),
-		buildBugReportMessage(payload),
-		buildBugReportBlocks(payload),
+		channel,
+		buildBugReportMessage(notification),
+		buildBugReportBlocks(notification),
 	);
 }
 
@@ -647,4 +702,5 @@ export function resetSlackNotifier(): void {
 		defaultReimbursementStatusSlackNotifier;
 	activeBugReportSlackNotifier = defaultBugReportSlackNotifier;
 	cachedAdminEmails = null;
+	cachedSlackBotUserId = undefined;
 }
