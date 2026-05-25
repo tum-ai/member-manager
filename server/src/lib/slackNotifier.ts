@@ -42,12 +42,10 @@ export interface ReimbursementStatusSlackNotification {
 }
 
 export interface BugReportSlackNotification {
-	reporterUserId: string;
-	reporterEmail: string;
-	message: string;
-	stepsToReproduce?: string;
-	pageUrl?: string;
-	userAgent?: string;
+	issueNumber: number;
+	issueUrl: string;
+	issueTitle: string;
+	assigneeSlackId?: string;
 }
 
 type SlackBlock = Record<string, unknown>;
@@ -440,80 +438,47 @@ function sanitizeSlackUserText(value: string, maxLength = 1800): string {
 		.replace(/```/g, "`\u200b``");
 }
 
-function slackCodeBlock(value: string): string {
-	return `\`\`\`${sanitizeSlackUserText(value)}\`\`\``;
+function buildBugReportAssigneeLine(
+	payload: BugReportSlackNotification,
+): string {
+	return payload.assigneeSlackId
+		? `Assigned to <@${payload.assigneeSlackId}>`
+		: "Assigned to _unassigned_";
 }
 
 function buildBugReportMessage(payload: BugReportSlackNotification): string {
 	return [
-		"New Member Manager bug report",
-		`Reporter: ${payload.reporterEmail || payload.reporterUserId}`,
-		`User ID: ${payload.reporterUserId}`,
-		payload.pageUrl ? `Page: ${payload.pageUrl}` : undefined,
-		payload.userAgent ? `User agent: ${payload.userAgent}` : undefined,
-		"",
-		"What happened:",
-		sanitizeSlackUserText(payload.message),
-		payload.stepsToReproduce ? "" : undefined,
-		payload.stepsToReproduce ? "Steps to reproduce:" : undefined,
-		payload.stepsToReproduce
-			? sanitizeSlackUserText(payload.stepsToReproduce)
-			: undefined,
-	]
-		.filter((line): line is string => line !== undefined)
-		.join("\n");
+		`🐛 New bug report created: #${payload.issueNumber}`,
+		buildBugReportAssigneeLine(payload),
+		payload.issueUrl,
+	].join("\n");
 }
 
 function buildBugReportBlocks(
 	payload: BugReportSlackNotification,
 ): SlackBlock[] {
-	const fields: SlackBlock[] = [
-		{
-			type: "mrkdwn",
-			text: `*Reporter*\n${payload.reporterEmail || payload.reporterUserId}`,
-		},
-		{ type: "mrkdwn", text: `*User ID*\n${payload.reporterUserId}` },
-	];
-
-	if (payload.pageUrl) {
-		fields.push({ type: "mrkdwn", text: `*Page*\n${payload.pageUrl}` });
-	}
-
-	if (payload.userAgent) {
-		fields.push({
-			type: "mrkdwn",
-			text: `*Browser*\n${sanitizeSlackUserText(payload.userAgent, 400)}`,
-		});
-	}
-
-	const blocks: SlackBlock[] = [
+	return [
 		{
 			type: "header",
-			text: { type: "plain_text", text: "New Member Manager bug report" },
+			text: { type: "plain_text", text: "🐛 New bug report created" },
 		},
-		{ type: "section", fields },
 		{
 			type: "section",
 			text: {
 				type: "mrkdwn",
-				text: `*What happened*\n${slackCodeBlock(payload.message)}`,
+				text: `*Issue*\n<${payload.issueUrl}|#${
+					payload.issueNumber
+				} ${sanitizeSlackUserText(payload.issueTitle, 120)}>`,
 			},
 		},
-	];
-
-	if (payload.stepsToReproduce) {
-		blocks.push({
+		{
 			type: "section",
 			text: {
 				type: "mrkdwn",
-				text: `*Steps to reproduce*\n${slackCodeBlock(
-					payload.stepsToReproduce,
-				)}`,
+				text: buildBugReportAssigneeLine(payload),
 			},
-		});
-	}
-
-	return blocks;
+		},
+	];
 }
 
 async function defaultSlackNotifier(

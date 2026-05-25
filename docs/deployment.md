@@ -41,8 +41,14 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `SUPABASE_SERVICE_ROLE_KEY` | from Supabase dashboard | never expose to client |
 | `FIELD_ENCRYPTION_KEY` | 32+ char strong random | **see warning below** |
 | `OPENAI_API_KEY` | OpenAI project key | optional; enables reimbursement receipt field extraction |
-| `SLACK_BOT_TOKEN` | Slack bot token | optional for workflow DMs; required for in-app bug reports |
-| `BUG_REPORT_SLACK_CHANNEL_ID` | `C0B3YGL3XS5` | Slack channel receiving footer bug reports; code defaults to this channel, but set explicitly in Vercel and invite the bot to the channel |
+| `GITHUB_APP_ID` | GitHub App ID | required for in-app bug reports; app needs Issues read/write access |
+| `GITHUB_APP_INSTALLATION_ID` | GitHub App installation ID | required for in-app bug reports; install the app on `tum-ai/member-manager` |
+| `GITHUB_APP_PRIVATE_KEY` | GitHub App private key PEM | required unless `GITHUB_APP_PRIVATE_KEY_BASE64` is set; escaped `\\n` newlines are supported |
+| `GITHUB_APP_PRIVATE_KEY_BASE64` | base64-encoded GitHub App private key PEM | optional alternative to `GITHUB_APP_PRIVATE_KEY` for hosts that dislike multiline secrets |
+| `BUG_REPORT_GITHUB_REPOSITORY` | `tum-ai/member-manager` | optional; target repo for footer bug-report issues |
+| `BUG_REPORT_GITHUB_LABELS` | e.g. `bug,reported-via-app` | optional; set only if these labels already exist in the repo |
+| `SLACK_BOT_TOKEN` | Slack bot token | optional for workflow DMs; required for bug-report Slack notifications |
+| `BUG_REPORT_SLACK_CHANNEL_ID` | `C0B3YGL3XS5` | Slack channel receiving footer bug-report issue notifications; code defaults to this channel, but set explicitly in Vercel and invite the bot to the channel |
 | `CORS_ORIGIN` | `https://<prod-domain>` | comma-separate if multiple; required for production, previews derive their Vercel URL automatically if unset |
 
 **Client build-time** (baked into the JS bundle by `vite build`; `VITE_` prefix required):
