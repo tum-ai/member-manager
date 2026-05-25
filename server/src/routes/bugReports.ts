@@ -1,7 +1,10 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { createBugReportIssue } from "../lib/githubIssues.js";
-import { notifyBugReport } from "../lib/slackNotifier.js";
+import {
+	notifyBugReport,
+	selectBugReportSlackAssignee,
+} from "../lib/slackNotifier.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -50,24 +53,12 @@ export async function bugReportRoutes(server: FastifyInstance) {
 				});
 			}
 
-			if (issue.assignmentError) {
-				request.log.error(
-					{
-						assignmentError: issue.assignmentError,
-						issueNumber: issue.number,
-						userId: user.id,
-					},
-					"Failed to assign GitHub issue for bug report",
-				);
-			}
-
 			try {
 				await notifyBugReport({
 					issueNumber: issue.number,
 					issueUrl: issue.url,
 					issueTitle: issue.title,
-					assigneeSlackId: issue.assignee?.slackId,
-					assigneeGithubUsername: issue.assignee?.githubUsername,
+					assigneeSlackId: selectBugReportSlackAssignee(issue.number),
 				});
 			} catch (error) {
 				request.log.error(

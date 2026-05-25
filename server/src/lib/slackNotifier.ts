@@ -46,7 +46,6 @@ export interface BugReportSlackNotification {
 	issueUrl: string;
 	issueTitle: string;
 	assigneeSlackId?: string;
-	assigneeGithubUsername?: string;
 }
 
 type SlackBlock = Record<string, unknown>;
@@ -66,6 +65,24 @@ type ReimbursementStatusSlackNotifier = (
 type BugReportSlackNotifier = (
 	payload: BugReportSlackNotification,
 ) => Promise<void>;
+
+function parseCsv(value: string | undefined): string[] {
+	return (value ?? "")
+		.split(",")
+		.map((item) => item.trim())
+		.filter(Boolean);
+}
+
+export function selectBugReportSlackAssignee(
+	issueNumber: number,
+	assignees = parseCsv(process.env.BUG_REPORT_SLACK_ASSIGNEES),
+): string | undefined {
+	if (assignees.length === 0) {
+		return undefined;
+	}
+
+	return assignees[(issueNumber - 1) % assignees.length];
+}
 
 async function fetchAdminEmails(): Promise<string[]> {
 	if (cachedAdminEmails && cachedAdminEmails.expiresAt > Date.now()) {
@@ -442,13 +459,9 @@ function sanitizeSlackUserText(value: string, maxLength = 1800): string {
 function buildBugReportAssigneeLine(
 	payload: BugReportSlackNotification,
 ): string {
-	if (payload.assigneeSlackId) {
-		return `Assigned to <@${payload.assigneeSlackId}>`;
-	}
-
-	return payload.assigneeGithubUsername
-		? `Assigned to GitHub @${payload.assigneeGithubUsername}`
-		: "Assigned to _unassigned_";
+	return payload.assigneeSlackId
+		? `Tagged <@${payload.assigneeSlackId}>`
+		: "Tagged _no one_";
 }
 
 function buildBugReportMessage(payload: BugReportSlackNotification): string {

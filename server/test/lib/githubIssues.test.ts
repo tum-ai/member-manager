@@ -16,9 +16,6 @@ const originalEnv = {
 	bugReportGithubOwner: process.env.BUG_REPORT_GITHUB_OWNER,
 	bugReportGithubRepo: process.env.BUG_REPORT_GITHUB_REPO,
 	bugReportGithubLabels: process.env.BUG_REPORT_GITHUB_LABELS,
-	bugReportAssigneesJson: process.env.BUG_REPORT_ASSIGNEES_JSON,
-	bugReportGithubAssignees: process.env.BUG_REPORT_GITHUB_ASSIGNEES,
-	bugReportSlackAssignees: process.env.BUG_REPORT_SLACK_ASSIGNEES,
 };
 const originalFetch = globalThis.fetch;
 
@@ -63,17 +60,11 @@ afterEach(() => {
 	restoreEnv("BUG_REPORT_GITHUB_OWNER", originalEnv.bugReportGithubOwner);
 	restoreEnv("BUG_REPORT_GITHUB_REPO", originalEnv.bugReportGithubRepo);
 	restoreEnv("BUG_REPORT_GITHUB_LABELS", originalEnv.bugReportGithubLabels);
-	restoreEnv("BUG_REPORT_ASSIGNEES_JSON", originalEnv.bugReportAssigneesJson);
-	restoreEnv(
-		"BUG_REPORT_GITHUB_ASSIGNEES",
-		originalEnv.bugReportGithubAssignees,
-	);
-	restoreEnv("BUG_REPORT_SLACK_ASSIGNEES", originalEnv.bugReportSlackAssignees);
 	globalThis.fetch = originalFetch;
 	resetBugReportIssueCreator();
 });
 
-test("createBugReportIssue creates and assigns a GitHub issue via GitHub App auth", async () => {
+test("createBugReportIssue creates a GitHub issue via GitHub App auth", async () => {
 	const { privateKey } = generateKeyPairSync("rsa", {
 		modulusLength: 2048,
 		privateKeyEncoding: { format: "pem", type: "pkcs8" },
@@ -86,10 +77,6 @@ test("createBugReportIssue creates and assigns a GitHub issue via GitHub App aut
 	process.env.GITHUB_APP_PRIVATE_KEY = privateKey.replace(/\n/g, "\\n");
 	process.env.BUG_REPORT_GITHUB_REPOSITORY = "tum-ai/member-manager";
 	process.env.BUG_REPORT_GITHUB_LABELS = "bug, reported-via-app";
-	process.env.BUG_REPORT_ASSIGNEES_JSON = JSON.stringify([
-		{ github: "alice", slackId: "U123" },
-		{ github: "bob", slackId: "U456" },
-	]);
 
 	globalThis.fetch = async (input, init) => {
 		const url = String(input);
@@ -116,12 +103,6 @@ test("createBugReportIssue creates and assigns a GitHub issue via GitHub App aut
 			);
 		}
 
-		if (url.endsWith("/repos/tum-ai/member-manager/issues/321/assignees")) {
-			return new Response(JSON.stringify({ assignees: [{ login: "alice" }] }), {
-				status: 201,
-			});
-		}
-
 		return new Response("not found", { status: 404 });
 	};
 
@@ -138,9 +119,8 @@ test("createBugReportIssue creates and assigns a GitHub issue via GitHub App aut
 		number: 321,
 		url: "https://github.com/tum-ai/member-manager/issues/321",
 		title: "Bug: Cannot save profile",
-		assignee: { githubUsername: "alice", slackId: "U123" },
 	});
-	assert.strictEqual(calls.length, 3);
+	assert.strictEqual(calls.length, 2);
 	assert.match(
 		getHeader(calls[0].init?.headers, "Authorization"),
 		/^Bearer .+\..+\..+$/,
@@ -158,7 +138,4 @@ test("createBugReportIssue creates and assigns a GitHub issue via GitHub App aut
 	assert.match(createdIssue.body, /## What happened/);
 	assert.match(createdIssue.body, /Reporter: `user@\u200btest\.com`/);
 	assert.deepStrictEqual(createdIssue.labels, ["bug", "reported-via-app"]);
-
-	const assignment = JSON.parse(String(calls[2].init?.body));
-	assert.deepStrictEqual(assignment, { assignees: ["alice"] });
 });
