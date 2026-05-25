@@ -27,7 +27,7 @@ At a glance:
 More reading:
 
 - [docs/repo-structure.md](./docs/repo-structure.md) — full directory breakdown
-- [docs/development.md](./docs/development.md) — env precedence, `dev` vs `dev:local`, Slack OIDC, DNS quirks, testing, common failure modes
+- [docs/development.md](./docs/development.md) — env precedence, dev modes, Slack OIDC, DNS quirks, testing, common failure modes
 - [docs/deployment.md](./docs/deployment.md) — Vercel env vars, Supabase dashboard config, Slack prod config, `FIELD_ENCRYPTION_KEY` warning
 
 ## Current App Flow
@@ -64,6 +64,8 @@ pnpm install
 
 ### 2. Start local Supabase
 
+Default development uses the Dockerized local Supabase stack.
+
 Prerequisites:
 
 - Docker
@@ -85,7 +87,7 @@ pnpm setup:local
 
 This shells out to `supabase status -o env`, parses the current anon / service-role keys, and writes both `.env.local` files. It is idempotent and preserves any `FIELD_ENCRYPTION_KEY` you have already set locally.
 
-`pnpm dev:local` also runs this step automatically, so most of the time you can skip straight to step 4.
+`pnpm dev` / `pnpm dev:local` also run this step automatically, so most of the time you can skip straight to step 4.
 
 **Optional — "Continue with Slack" login locally:**
 
@@ -94,10 +96,10 @@ To exercise Slack OIDC against the local stack, copy `supabase/.env.example` to 
 ### 4. Run the app
 
 ```bash
-pnpm dev:local
+pnpm dev
 ```
 
-This boots local Supabase, refreshes the `.env.local` files, and starts the client (`vite`) and server (`tsx watch`) in parallel against the local stack.
+`pnpm dev` is the Docker-local default. It boots local Supabase, refreshes the `.env.local` files, and starts the client (`vite`) and server (`tsx watch`) in parallel against the local stack. `pnpm dev:local` is kept as an explicit alias for the same mode.
 
 Local URLs:
 
@@ -106,18 +108,25 @@ Local URLs:
 - Supabase Studio: `http://127.0.0.1:54323`
 - Inbucket: `http://127.0.0.1:54324`
 
-Seeded local accounts:
+Seeded local accounts all use password `password123`.
 
-| Email | Password | Role |
-| --- | --- | --- |
-| `admin@example.com` | `password123` | admin |
-| `regular-member@example.com` | `password123` | user with admin-managed profile fields unset |
-| `user@example.com` | `password123` | user |
+| Email | Role / fixture purpose |
+| --- | --- |
+| `admin@example.com` | admin |
+| `legal-finance-lead@example.com` | finance reviewer with SEPA data |
+| `board-lead@example.com` | board/team-lead fixture with approved certificate request |
+| `regular-member@example.com` | user with admin-managed profile fields unset |
+| `user@example.com` | regular active member with SEPA data and pending requests |
+| `research-member@example.com` | alumni/research fixture |
+| `venture-member@example.com` | inactive fixture |
+
+Additional department/team-lead accounts are seeded for member-list, org-chart, admin, reimbursement, and certificate review flows.
 
 ### 5. Useful workspace commands
 
 ```bash
-pnpm dev
+pnpm dev              # Docker-local default
+pnpm dev:local        # explicit Docker-local mode
 pnpm build
 pnpm test
 pnpm lint

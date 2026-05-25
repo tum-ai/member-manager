@@ -27,7 +27,7 @@ async function viteRunning() {
 
 test("vite dev server responds on http://localhost:5173", async (t) => {
 	if (!(await viteRunning())) {
-		t.skip("Vite dev server not running; start `pnpm dev:local` first");
+		t.skip("Vite dev server not running; start `pnpm dev` first");
 		return;
 	}
 
@@ -37,7 +37,7 @@ test("vite dev server responds on http://localhost:5173", async (t) => {
 
 test("vite dev server responds on http://127.0.0.1:5173 (IPv4)", async (t) => {
 	if (!(await viteRunning())) {
-		t.skip("Vite dev server not running; start `pnpm dev:local` first");
+		t.skip("Vite dev server not running; start `pnpm dev` first");
 		return;
 	}
 
