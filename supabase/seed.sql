@@ -201,7 +201,33 @@ begin
         role = excluded.role;
 end $$;
 
--- Seed SEPA data for local test accounts
+-- Add local inspection data that exercises status filters, LinkedIn/location
+-- fields, research projects, and admin-managed profile edits.
+update public.members as member
+set
+    phone = seed.phone,
+    member_status = seed.member_status,
+    active = (seed.member_status = 'active'),
+    research_project_id = seed.research_project_id,
+    linkedin_profile_url = seed.linkedin_profile_url,
+    public_location = seed.public_location
+from (
+    values
+        ('00000000-0000-0000-0000-000000000001'::uuid, '+4915110000001', 'active', null, 'https://linkedin.com/in/ada-president', 'Munich, Germany'),
+        ('00000000-0000-0000-0000-000000000003'::uuid, '+4915110000003', 'active', null, 'https://linkedin.com/in/bianca-boardlead', 'Garching, Germany'),
+        ('00000000-0000-0000-0000-000000000006'::uuid, null, 'active', null, null, null),
+        ('00000000-0000-0000-0000-000000000009'::uuid, '+4915110000009', 'active', null, 'https://linkedin.com/in/lea-finance', 'Munich, Germany'),
+        ('00000000-0000-0000-0000-000000000011'::uuid, '+4915110000011', 'active', null, 'https://linkedin.com/in/maya-makeathon', 'Munich, Germany'),
+        ('00000000-0000-0000-0000-000000000017'::uuid, '+4915110000017', 'active', 'applied-ai-research', 'https://linkedin.com/in/rita-research', 'Munich, Germany'),
+        ('00000000-0000-0000-0000-000000000018'::uuid, '+4915110000018', 'alumni', 'robotics-lab', 'https://linkedin.com/in/robin-research', 'Berlin, Germany'),
+        ('00000000-0000-0000-0000-000000000020'::uuid, '+4915110000020', 'active', null, 'https://linkedin.com/in/regular-user', 'Munich, Germany'),
+        ('00000000-0000-0000-0000-000000000022'::uuid, null, 'inactive', null, null, 'Remote')
+) as seed(user_id, phone, member_status, research_project_id, linkedin_profile_url, public_location)
+where member.user_id = seed.user_id;
+
+-- Seed SEPA data for local test accounts. The regular user, finance reviewer,
+-- and admin have bank details so reimbursement and admin flows can be tested
+-- immediately after `pnpm dev` / `pnpm supabase:reset`.
 insert into public.sepa (
     user_id,
     iban,
@@ -219,6 +245,22 @@ insert into public.sepa (
         true
     ),
     (
+        '00000000-0000-0000-0000-000000000009',
+        'DE12500105170648489890',
+        'INGDDEFFXXX',
+        'ING-DiBa',
+        true,
+        true
+    ),
+    (
+        '00000000-0000-0000-0000-000000000011',
+        'DE89370400440532013000',
+        'COBADEFFXXX',
+        'Commerzbank',
+        true,
+        true
+    ),
+    (
         '00000000-0000-0000-0000-000000000020',
         'DE89370400440532013000',
         'COBADEFFXXX',
@@ -226,4 +268,326 @@ insert into public.sepa (
         true,
         true
     )
-on conflict (user_id) do nothing;
+on conflict (user_id) do update set
+    iban = excluded.iban,
+    bic = excluded.bic,
+    bank_name = excluded.bank_name,
+    mandate_agreed = excluded.mandate_agreed,
+    privacy_agreed = excluded.privacy_agreed;
+
+-- Seed role-history examples for the certificate and admin history views.
+insert into public.member_role_history (
+    id,
+    user_id,
+    role,
+    semester,
+    started_at,
+    ended_at,
+    note,
+    created_by
+) values
+    (
+        '10000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000020',
+        'Member',
+        'SS24',
+        '2024-04-01',
+        '2024-09-30',
+        'Joined Software Development as an active contributor.',
+        '00000000-0000-0000-0000-000000000001'
+    ),
+    (
+        '10000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-000000000003',
+        'Team Lead',
+        'WS24/25',
+        '2024-10-01',
+        null,
+        'Leads platform tooling and member manager workstreams.',
+        '00000000-0000-0000-0000-000000000001'
+    ),
+    (
+        '10000000-0000-0000-0000-000000000003',
+        '00000000-0000-0000-0000-000000000018',
+        'Alumni',
+        'SS25',
+        '2025-04-01',
+        null,
+        'Alumni after completing research project handover.',
+        '00000000-0000-0000-0000-000000000001'
+    )
+on conflict (id) do update set
+    user_id = excluded.user_id,
+    role = excluded.role,
+    semester = excluded.semester,
+    started_at = excluded.started_at,
+    ended_at = excluded.ended_at,
+    note = excluded.note,
+    created_by = excluded.created_by;
+
+-- Seed member-change requests covering pending, approved, and rejected states.
+insert into public.member_change_requests (
+    id,
+    user_id,
+    status,
+    changes,
+    reason,
+    review_note,
+    reviewed_by,
+    reviewed_at,
+    created_at
+) values
+    (
+        '20000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000020',
+        'pending',
+        '{"department": "Research", "degree": "M.Sc. Computer Science"}'::jsonb,
+        'I joined the applied AI research group this semester.',
+        null,
+        null,
+        null,
+        now() - interval '2 days'
+    ),
+    (
+        '20000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-000000000018',
+        'approved',
+        '{"member_status": "alumni"}'::jsonb,
+        'Graduated and moved into alumni status.',
+        'Approved for local inspection data.',
+        '00000000-0000-0000-0000-000000000001',
+        now() - interval '5 days',
+        now() - interval '7 days'
+    ),
+    (
+        '20000000-0000-0000-0000-000000000003',
+        '00000000-0000-0000-0000-000000000006',
+        'rejected',
+        '{"member_role": "Team Lead", "department": "Software Development"}'::jsonb,
+        'Testing rejected review copy in the admin queue.',
+        'Team lead changes require board confirmation.',
+        '00000000-0000-0000-0000-000000000001',
+        now() - interval '1 day',
+        now() - interval '3 days'
+    )
+on conflict (id) do update set
+    user_id = excluded.user_id,
+    status = excluded.status,
+    changes = excluded.changes,
+    reason = excluded.reason,
+    review_note = excluded.review_note,
+    reviewed_by = excluded.reviewed_by,
+    reviewed_at = excluded.reviewed_at,
+    created_at = excluded.created_at;
+
+-- Seed engagement-certificate approval states.
+insert into public.engagement_certificate_requests (
+    id,
+    user_id,
+    status,
+    engagements,
+    review_note,
+    reviewed_by,
+    reviewed_at,
+    created_at
+) values
+    (
+        '30000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000020',
+        'pending',
+        '[{"id":"seed-engagement-1","startDate":"2024-04-01","endDate":"","isStillActive":true,"weeklyHours":"5","department":"Software Development","isTeamLead":false,"tasksDescription":"Built internal member-management tooling and fixed production support issues."}]'::jsonb,
+        null,
+        null,
+        null,
+        now() - interval '1 day'
+    ),
+    (
+        '30000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-000000000003',
+        'approved',
+        '[{"id":"seed-engagement-2","startDate":"2023-10-01","endDate":"2025-03-31","isStillActive":false,"weeklyHours":"10","department":"Software Development","isTeamLead":true,"specialRole":"Board Member","tasksDescription":"Led platform architecture, mentored contributors, and represented the team on the board."}]'::jsonb,
+        'Approved for local certificate download testing.',
+        '00000000-0000-0000-0000-000000000001',
+        now() - interval '4 days',
+        now() - interval '6 days'
+    ),
+    (
+        '30000000-0000-0000-0000-000000000003',
+        '00000000-0000-0000-0000-000000000006',
+        'rejected',
+        '[{"id":"seed-engagement-3","startDate":"2024-10-01","endDate":"2025-03-31","isStillActive":false,"weeklyHours":"2","department":"Community","isTeamLead":false,"tasksDescription":"Draft request with intentionally incomplete evidence for rejected-state UI."}]'::jsonb,
+        'Please add a more specific task description before resubmitting.',
+        '00000000-0000-0000-0000-000000000001',
+        now() - interval '2 days',
+        now() - interval '3 days'
+    )
+on conflict (id) do update set
+    user_id = excluded.user_id,
+    status = excluded.status,
+    engagements = excluded.engagements,
+    review_note = excluded.review_note,
+    reviewed_by = excluded.reviewed_by,
+    reviewed_at = excluded.reviewed_at,
+    created_at = excluded.created_at;
+
+-- Seed reimbursement review states with tiny placeholder PDF payloads.
+insert into public.reimbursements (
+    id,
+    user_id,
+    amount,
+    date,
+    description,
+    department,
+    submission_type,
+    payment_iban,
+    payment_bic,
+    receipt_filename,
+    receipt_mime_type,
+    receipt_base64,
+    status,
+    approval_status,
+    payment_status,
+    rejection_reason,
+    created_at,
+    updated_at,
+    bb_sync_status,
+    bb_receipt_id_by_customer,
+    bb_receipt_filename,
+    bb_synced_at,
+    bb_sync_attempts,
+    bb_last_sync_attempt_at,
+    bb_synced_by
+) values
+    (
+        '40000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000020',
+        42.50,
+        current_date - 12,
+        'Train ticket to Munich AI meetup',
+        'Software Development',
+        'reimbursement',
+        'DE89370400440532013000',
+        'COBADEFFXXX',
+        'train-ticket.pdf',
+        'application/pdf',
+        'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyA+PgplbmRvYmoKdHJhaWxlcgo8PCAvUm9vdCAxIDAgUiA+PgolJUVPRgo=',
+        'requested',
+        'pending',
+        'to_be_paid',
+        null,
+        now() - interval '12 days',
+        now() - interval '12 days',
+        'not_synced',
+        null,
+        null,
+        null,
+        0,
+        null,
+        null
+    ),
+    (
+        '40000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-000000000011',
+        128.90,
+        current_date - 22,
+        'Makeathon prototype materials',
+        'Makeathon',
+        'invoice',
+        'DE89370400440532013000',
+        'COBADEFFXXX',
+        'prototype-materials.pdf',
+        'application/pdf',
+        'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyA+PgplbmRvYmoKdHJhaWxlcgo8PCAvUm9vdCAxIDAgUiA+PgolJUVPRgo=',
+        'requested',
+        'approved',
+        'to_be_paid',
+        null,
+        now() - interval '20 days',
+        now() - interval '3 days',
+        'not_synced',
+        null,
+        null,
+        null,
+        0,
+        null,
+        null
+    ),
+    (
+        '40000000-0000-0000-0000-000000000003',
+        '00000000-0000-0000-0000-000000000009',
+        75.00,
+        current_date - 40,
+        'Finance workshop catering',
+        'Legal & Finance',
+        'reimbursement',
+        'DE12500105170648489890',
+        'INGDDEFFXXX',
+        'finance-catering.pdf',
+        'application/pdf',
+        'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyA+PgplbmRvYmoKdHJhaWxlcgo8PCAvUm9vdCAxIDAgUiA+PgolJUVPRgo=',
+        'paid',
+        'approved',
+        'paid',
+        null,
+        now() - interval '38 days',
+        now() - interval '10 days',
+        'synced',
+        'MM-LOCAL-0003',
+        'finance-catering.pdf',
+        now() - interval '10 days',
+        1,
+        now() - interval '10 days',
+        '00000000-0000-0000-0000-000000000001'
+    ),
+    (
+        '40000000-0000-0000-0000-000000000004',
+        '00000000-0000-0000-0000-000000000005',
+        19.99,
+        current_date - 8,
+        'Community stickers without budget approval',
+        'Community',
+        'reimbursement',
+        'DE89370400440532013000',
+        'COBADEFFXXX',
+        'stickers.pdf',
+        'application/pdf',
+        'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyA+PgplbmRvYmoKdHJhaWxlcgo8PCAvUm9vdCAxIDAgUiA+PgolJUVPRgo=',
+        'rejected',
+        'not_approved',
+        'to_be_paid',
+        'Budget owner did not approve this expense.',
+        now() - interval '8 days',
+        now() - interval '1 day',
+        'not_synced',
+        null,
+        null,
+        null,
+        0,
+        null,
+        null
+    )
+on conflict (id) do update set
+    user_id = excluded.user_id,
+    amount = excluded.amount,
+    date = excluded.date,
+    description = excluded.description,
+    department = excluded.department,
+    submission_type = excluded.submission_type,
+    payment_iban = excluded.payment_iban,
+    payment_bic = excluded.payment_bic,
+    receipt_filename = excluded.receipt_filename,
+    receipt_mime_type = excluded.receipt_mime_type,
+    receipt_base64 = excluded.receipt_base64,
+    status = excluded.status,
+    approval_status = excluded.approval_status,
+    payment_status = excluded.payment_status,
+    rejection_reason = excluded.rejection_reason,
+    created_at = excluded.created_at,
+    updated_at = excluded.updated_at,
+    bb_sync_status = excluded.bb_sync_status,
+    bb_receipt_id_by_customer = excluded.bb_receipt_id_by_customer,
+    bb_receipt_filename = excluded.bb_receipt_filename,
+    bb_synced_at = excluded.bb_synced_at,
+    bb_sync_attempts = excluded.bb_sync_attempts,
+    bb_last_sync_attempt_at = excluded.bb_last_sync_attempt_at,
+    bb_synced_by = excluded.bb_synced_by;

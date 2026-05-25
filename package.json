@@ -5,7 +5,6 @@
 	"scripts": {
 		"dev": "pnpm dev:local",
 		"dev:local": "pnpm supabase:start && pnpm setup:local && pnpm -r --parallel --filter @member-manager/client --filter @member-manager/server run dev:local",
-		"dev:staging": "node scripts/dev-staging.mjs",
 		"gate": "pnpm lint && pnpm test && pnpm build",
 		"build": "pnpm -r run build",
 		"test": "pnpm test:scripts && pnpm -r run test",

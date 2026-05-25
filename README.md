@@ -108,33 +108,25 @@ Local URLs:
 - Supabase Studio: `http://127.0.0.1:54323`
 - Inbucket: `http://127.0.0.1:54324`
 
-Seeded local accounts:
+Seeded local accounts all use password `password123`.
 
-| Email | Password | Role |
-| --- | --- | --- |
-| `admin@example.com` | `password123` | admin |
-| `regular-member@example.com` | `password123` | user with admin-managed profile fields unset |
-| `user@example.com` | `password123` | user |
+| Email | Role / fixture purpose |
+| --- | --- |
+| `admin@example.com` | admin |
+| `legal-finance-lead@example.com` | finance reviewer with SEPA data |
+| `board-lead@example.com` | board/team-lead fixture with approved certificate request |
+| `regular-member@example.com` | user with admin-managed profile fields unset |
+| `user@example.com` | regular active member with SEPA data and pending requests |
+| `research-member@example.com` | alumni/research fixture |
+| `venture-member@example.com` | inactive fixture |
 
-### 5. Hosted staging mode
+Additional department/team-lead accounts are seeded for member-list, org-chart, admin, reimbursement, and certificate review flows.
 
-Use this only for app work that should hit the dedicated hosted **staging** Supabase project without Docker. Do not use production Supabase credentials here.
-
-```bash
-cp client/.env.staging.example client/.env.staging.local
-cp server/.env.staging.example server/.env.staging.local
-# fill both files with the same staging Supabase project URL/keys
-pnpm dev:staging
-```
-
-`pnpm dev:staging` deliberately bypasses generated local `.env.local` files, so a stale local Supabase stack cannot hijack the hosted-staging run.
-
-### 6. Useful workspace commands
+### 5. Useful workspace commands
 
 ```bash
 pnpm dev              # Docker-local default
 pnpm dev:local        # explicit Docker-local mode
-pnpm dev:staging      # hosted staging Supabase, no Docker Supabase
 pnpm build
 pnpm test
 pnpm lint
