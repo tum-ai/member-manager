@@ -42,7 +42,10 @@ function getHeader(headers: HeadersInit | undefined, name: string): string {
 		return match?.[1] ?? "";
 	}
 
-	return headers[name] ?? "";
+	const match = Object.entries(headers).find(
+		([headerName]) => headerName.toLowerCase() === name.toLowerCase(),
+	);
+	return match?.[1] ?? "";
 }
 
 afterEach(() => {
@@ -136,6 +139,7 @@ test("createBugReportIssue creates a GitHub issue via GitHub App auth", async ()
 		"Bug: Cannot save profile after changing department.",
 	);
 	assert.match(createdIssue.body, /## What happened/);
-	assert.match(createdIssue.body, /Reporter: `user@\u200btest\.com`/);
+	assert.match(createdIssue.body, /User ID: `user-1`/);
+	assert.doesNotMatch(createdIssue.body, /user@test\.com/);
 	assert.deepStrictEqual(createdIssue.labels, ["bug", "reported-via-app"]);
 });

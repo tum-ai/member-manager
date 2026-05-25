@@ -627,18 +627,18 @@ async function defaultReimbursementStatusSlackNotifier(
 async function defaultBugReportSlackNotifier(
 	payload: BugReportSlackNotification,
 ): Promise<void> {
+	if (!process.env.SLACK_BOT_TOKEN) {
+		return;
+	}
+
 	const channel = getBugReportSlackChannelId();
 	let assigneeSlackId = payload.assigneeSlackId;
 
 	if (!assigneeSlackId) {
-		try {
-			assigneeSlackId = await selectBugReportSlackChannelMember(
-				payload.issueNumber,
-				channel,
-			);
-		} catch {
-			assigneeSlackId = undefined;
-		}
+		assigneeSlackId = await selectBugReportSlackChannelMember(
+			payload.issueNumber,
+			channel,
+		);
 	}
 
 	const notification = { ...payload, assigneeSlackId };

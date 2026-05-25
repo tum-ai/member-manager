@@ -76,3 +76,40 @@ test("notifyBugReport tags a round-robin member from the Slack channel", async (
 	assert.strictEqual(postedMessage.channel, "CBUGS");
 	assert.match(postedMessage.text, /\n<@U3>\n/);
 });
+
+test("notifyBugReport exposes Slack member lookup failures", async () => {
+	const calls: string[] = [];
+	process.env.SLACK_BOT_TOKEN = "xoxb-test";
+	process.env.BUG_REPORT_SLACK_CHANNEL_ID = "CBUGS";
+
+	globalThis.fetch = async (input) => {
+		const url = String(input);
+		calls.push(url);
+
+		if (url.endsWith("/conversations.members")) {
+			return new Response(
+				JSON.stringify({ ok: false, error: "missing_scope" }),
+				{ status: 200 },
+			);
+		}
+
+		if (url.endsWith("/chat.postMessage")) {
+			return new Response(JSON.stringify({ ok: true }), { status: 200 });
+		}
+
+		return new Response("not found", { status: 404 });
+	};
+
+	await assert.rejects(
+		() =>
+			notifyBugReport({
+				issueNumber: 2,
+				issueUrl: "https://github.com/tum-ai/member-manager/issues/2",
+				issueTitle: "Bug: Round robin",
+			}),
+		/missing_scope/,
+	);
+	assert.deepStrictEqual(calls, [
+		"https://slack.com/api/conversations.members",
+	]);
+});

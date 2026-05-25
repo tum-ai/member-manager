@@ -145,11 +145,11 @@ async function githubFetch<T>(
 	const response = await fetchWithTimeout(`${GITHUB_API_BASE_URL}${path}`, {
 		...rest,
 		headers: {
+			...headers,
 			Accept: "application/vnd.github+json",
 			Authorization: `Bearer ${token}`,
 			"User-Agent": USER_AGENT,
 			"X-GitHub-Api-Version": GITHUB_API_VERSION,
-			...headers,
 		},
 	});
 
@@ -236,8 +236,6 @@ function optionalContextLine(
 }
 
 function buildBugReportIssueBody(payload: BugReportIssuePayload): string {
-	const reporter = payload.reporterEmail || payload.reporterUserId;
-
 	return [
 		"## What happened",
 		codeBlock(payload.message),
@@ -248,7 +246,6 @@ function buildBugReportIssueBody(payload: BugReportIssuePayload): string {
 			: undefined,
 		"## Context",
 		[
-			`- Reporter: ${inlineCode(reporter)}`,
 			`- User ID: ${inlineCode(payload.reporterUserId)}`,
 			...optionalContextLine("Page", payload.pageUrl),
 			...optionalContextLine("User agent", payload.userAgent),
