@@ -74,5 +74,5 @@ test("notifyBugReport tags a round-robin member from the Slack channel", async (
 	assert.match(calls[0].body ?? "", /channel=CBUGS/);
 	const postedMessage = JSON.parse(calls[2].body ?? "{}");
 	assert.strictEqual(postedMessage.channel, "CBUGS");
-	assert.match(postedMessage.text, /Tagged <@U3>/);
+	assert.match(postedMessage.text, /\n<@U3>\n/);
 });

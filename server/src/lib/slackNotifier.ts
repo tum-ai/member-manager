@@ -518,9 +518,7 @@ function sanitizeSlackUserText(value: string, maxLength = 1800): string {
 function buildBugReportAssigneeLine(
 	payload: BugReportSlackNotification,
 ): string {
-	return payload.assigneeSlackId
-		? `Tagged <@${payload.assigneeSlackId}>`
-		: "Tagged _no one_";
+	return payload.assigneeSlackId ? `<@${payload.assigneeSlackId}>` : "_no one_";
 }
 
 function buildBugReportMessage(payload: BugReportSlackNotification): string {
