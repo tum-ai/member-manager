@@ -17,10 +17,17 @@ export interface BugReportIssuePayload {
 	userAgent?: string;
 }
 
+export interface BugReportAssignee {
+	githubUsername: string;
+	slackId?: string;
+}
+
 export interface BugReportIssue {
 	number: number;
 	url: string;
 	title: string;
+	assignee?: BugReportAssignee;
+	assignmentError?: string;
 }
 
 interface GitHubConfig {
@@ -47,6 +54,68 @@ function parseCsv(value: string | undefined): string[] {
 		.split(",")
 		.map((item) => item.trim())
 		.filter(Boolean);
+}
+
+function parseBugReportAssigneesJson(value: string): BugReportAssignee[] {
+	const parsed = JSON.parse(value) as unknown;
+	if (!Array.isArray(parsed)) {
+		throw new Error("BUG_REPORT_ASSIGNEES_JSON must be a JSON array");
+	}
+
+	return parsed.map((item, index) => {
+		if (!item || typeof item !== "object") {
+			throw new Error(
+				`BUG_REPORT_ASSIGNEES_JSON item ${index + 1} must be an object`,
+			);
+		}
+
+		const record = item as Record<string, unknown>;
+		const githubUsername =
+			typeof record.github === "string"
+				? record.github.trim()
+				: typeof record.githubUsername === "string"
+					? record.githubUsername.trim()
+					: "";
+		const slackId =
+			typeof record.slackId === "string" ? record.slackId.trim() : "";
+
+		if (!githubUsername) {
+			throw new Error(
+				`BUG_REPORT_ASSIGNEES_JSON item ${index + 1} is missing github`,
+			);
+		}
+
+		return {
+			githubUsername,
+			...(slackId ? { slackId } : {}),
+		};
+	});
+}
+
+function getBugReportAssignees(): BugReportAssignee[] {
+	const jsonAssignees = process.env.BUG_REPORT_ASSIGNEES_JSON?.trim();
+	if (jsonAssignees) {
+		return parseBugReportAssigneesJson(jsonAssignees);
+	}
+
+	const githubUsernames = parseCsv(process.env.BUG_REPORT_GITHUB_ASSIGNEES);
+	const slackIds = parseCsv(process.env.BUG_REPORT_SLACK_ASSIGNEES);
+
+	return githubUsernames.map((githubUsername, index) => ({
+		githubUsername,
+		...(slackIds[index] ? { slackId: slackIds[index] } : {}),
+	}));
+}
+
+function selectBugReportAssignee(
+	issueNumber: number,
+	assignees = getBugReportAssignees(),
+): BugReportAssignee | undefined {
+	if (assignees.length === 0) {
+		return undefined;
+	}
+
+	return assignees[(issueNumber - 1) % assignees.length];
 }
 
 function parseRepository(value: string | undefined): {
@@ -163,6 +232,10 @@ async function githubFetch<T>(
 	return (await response.json()) as T;
 }
 
+function errorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
 async function getInstallationAccessToken(
 	config: GitHubConfig,
 ): Promise<string> {
@@ -197,6 +270,25 @@ async function getInstallationAccessToken(
 	};
 
 	return response.token;
+}
+
+async function assignGitHubIssue(
+	config: GitHubConfig,
+	token: string,
+	issueNumber: number,
+	assignee: BugReportAssignee,
+): Promise<void> {
+	await githubFetch<unknown>(
+		`/repos/${encodeURIComponent(config.owner)}/${encodeURIComponent(
+			config.repo,
+		)}/issues/${issueNumber}/assignees`,
+		{
+			method: "POST",
+			token,
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ assignees: [assignee.githubUsername] }),
+		},
+	);
 }
 
 function sanitizeCodeBlockText(value: string): string {
@@ -291,10 +383,24 @@ async function defaultBugReportIssueCreator(
 		throw new Error("GitHub issue response was incomplete");
 	}
 
+	const selectedAssignee = selectBugReportAssignee(issue.number);
+	let assignedAssignee: BugReportAssignee | undefined;
+	let assignmentError: string | undefined;
+	if (selectedAssignee) {
+		try {
+			await assignGitHubIssue(config, token, issue.number, selectedAssignee);
+			assignedAssignee = selectedAssignee;
+		} catch (error) {
+			assignmentError = errorMessage(error);
+		}
+	}
+
 	return {
 		number: issue.number,
 		url: issue.html_url,
 		title: issue.title ?? title,
+		...(assignedAssignee ? { assignee: assignedAssignee } : {}),
+		...(assignmentError ? { assignmentError } : {}),
 	};
 }
 

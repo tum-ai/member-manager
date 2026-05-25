@@ -44,6 +44,7 @@ describe("Bug Report Routes", async () => {
 				number: 123,
 				url: "https://github.com/tum-ai/member-manager/issues/123",
 				title: "Bug: The profile form does not save my department.",
+				assignee: { githubUsername: "alice", slackId: "U123" },
 			};
 		});
 		setBugReportSlackNotifier(async (payload) => {
@@ -86,6 +87,8 @@ describe("Bug Report Routes", async () => {
 					issueNumber: 123,
 					issueUrl: "https://github.com/tum-ai/member-manager/issues/123",
 					issueTitle: "Bug: The profile form does not save my department.",
+					assigneeSlackId: "U123",
+					assigneeGithubUsername: "alice",
 				},
 			]);
 		} finally {

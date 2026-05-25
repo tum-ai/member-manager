@@ -50,11 +50,24 @@ export async function bugReportRoutes(server: FastifyInstance) {
 				});
 			}
 
+			if (issue.assignmentError) {
+				request.log.error(
+					{
+						assignmentError: issue.assignmentError,
+						issueNumber: issue.number,
+						userId: user.id,
+					},
+					"Failed to assign GitHub issue for bug report",
+				);
+			}
+
 			try {
 				await notifyBugReport({
 					issueNumber: issue.number,
 					issueUrl: issue.url,
 					issueTitle: issue.title,
+					assigneeSlackId: issue.assignee?.slackId,
+					assigneeGithubUsername: issue.assignee?.githubUsername,
 				});
 			} catch (error) {
 				request.log.error(

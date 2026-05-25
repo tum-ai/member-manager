@@ -46,6 +46,7 @@ export interface BugReportSlackNotification {
 	issueUrl: string;
 	issueTitle: string;
 	assigneeSlackId?: string;
+	assigneeGithubUsername?: string;
 }
 
 type SlackBlock = Record<string, unknown>;
@@ -441,8 +442,12 @@ function sanitizeSlackUserText(value: string, maxLength = 1800): string {
 function buildBugReportAssigneeLine(
 	payload: BugReportSlackNotification,
 ): string {
-	return payload.assigneeSlackId
-		? `Assigned to <@${payload.assigneeSlackId}>`
+	if (payload.assigneeSlackId) {
+		return `Assigned to <@${payload.assigneeSlackId}>`;
+	}
+
+	return payload.assigneeGithubUsername
+		? `Assigned to GitHub @${payload.assigneeGithubUsername}`
 		: "Assigned to _unassigned_";
 }
 
