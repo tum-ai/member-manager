@@ -3,6 +3,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { DatabaseError } from "../lib/errors.js";
 import { getSupabase } from "../lib/supabase.js";
+import { checkLegalFinanceRole } from "../lib/auth.js";
 import { authenticate, requireLegalFinance } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -297,10 +298,14 @@ export async function contractRoutes(server: FastifyInstance) {
 		"/contracts/templates",
 		{ preHandler: authenticate },
 		async (request, _reply) => {
-			const { data, error } = await getSupabase()
+			const user = (request as AuthenticatedRequest).user;
+			const isLF = await checkLegalFinanceRole(user.id);
+			let query = getSupabase()
 				.from("contract_templates")
 				.select("*")
 				.order("name", { ascending: true });
+			if (!isLF) query = query.eq("is_active", true);
+			const { data, error } = await query;
 
 			if (error) {
 				request.log.error({ err: error }, "Failed to list contract templates");
@@ -527,13 +532,15 @@ export async function contractRoutes(server: FastifyInstance) {
 		{ preHandler: authenticate },
 		async (request, _reply) => {
 			const user = (request as AuthenticatedRequest).user;
-			// RLS already enforces visibility: L&F see all, users see own.
-			const { data, error } = await getSupabase()
+			const isLF = await checkLegalFinanceRole(user.id);
+			let query = getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, template_id, submitter_user_id, status, submitted_at, signed_at, created_at, updated_at, signature_token, signature_token_expires_at",
+					"id, template_id, submitter_user_id, status, submitted_at, signed_at, created_at, updated_at, signature_token_expires_at",
 				)
 				.order("created_at", { ascending: false });
+			if (!isLF) query = query.eq("submitter_user_id", user.id);
+			const { data, error } = await query;
 			if (error) {
 				request.log.error(
 					{ err: error, userId: user.id },
@@ -549,6 +556,7 @@ export async function contractRoutes(server: FastifyInstance) {
 		"/contracts/submissions/:id",
 		{ preHandler: authenticate },
 		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select("*")
@@ -560,6 +568,10 @@ export async function contractRoutes(server: FastifyInstance) {
 				}
 				request.log.error({ err: error }, "Failed to fetch submission");
 				throw createContractDatabaseError(error);
+			}
+			const isLF = await checkLegalFinanceRole(user.id);
+			if (!isLF && data.submitter_user_id !== user.id) {
+				return reply.status(403).send({ error: "Forbidden" });
 			}
 			return data;
 		},
@@ -631,11 +643,25 @@ export async function contractRoutes(server: FastifyInstance) {
 			if (body.feedback_message !== undefined)
 				update.feedback_message = body.feedback_message;
 			if (body.generate_signature_token === true) {
+				const { data: current, error: currentError } = await getSupabase()
+					.from("contract_submissions")
+					.select("status")
+					.eq("id", request.params.id)
+					.single();
+				if (currentError || !current) {
+					return reply.status(404).send({ error: "Submission not found" });
+				}
+				if (current.status !== "approved") {
+					return reply
+						.status(400)
+						.send({ error: "Submission must be in 'approved' state to generate a signing link" });
+				}
 				const ttlHours = body.signature_token_ttl_hours ?? 24 * 30;
 				update.signature_token = generateSignatureToken();
 				update.signature_token_expires_at = new Date(
 					Date.now() + ttlHours * 60 * 60 * 1000,
 				).toISOString();
+				update.status = "sent_to_partner";
 			}
 
 			const { data, error } = await getSupabase()
@@ -695,6 +721,7 @@ export async function contractRoutes(server: FastifyInstance) {
 		},
 	);
 
+	// State machine for signing: approved → (generate token) → sent_to_partner → (partner signs) → partner_signed
 	server.post<{ Params: { token: string } }>(
 		"/contracts/sign/:token",
 		async (request, reply) => {
@@ -722,8 +749,8 @@ export async function contractRoutes(server: FastifyInstance) {
 			) {
 				return reply.status(410).send({ error: "Signing link expired" });
 			}
-			if (submission.signed_at) {
-				return reply.status(409).send({ error: "Contract already signed" });
+			if (submission.status !== "sent_to_partner") {
+				return reply.status(409).send({ error: "Contract is not in a signable state" });
 			}
 
 			const nowIso = new Date().toISOString();
@@ -733,8 +760,9 @@ export async function contractRoutes(server: FastifyInstance) {
 					signature_data: body.signature_data,
 					signer_name: body.signer_name,
 					signed_at: nowIso,
-					status: "signed",
+					status: "partner_signed",
 					signature_token: null,
+					signature_token_expires_at: null,
 					updated_at: nowIso,
 				})
 				.eq("id", submission.id)

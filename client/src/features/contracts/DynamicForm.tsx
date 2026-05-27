@@ -22,7 +22,7 @@ interface DynamicFormProps {
 	disabled?: boolean;
 }
 
-function isVisible(
+export function isVisible(
 	variable: ContractTemplateVariable,
 	values: Record<string, unknown>,
 ): boolean {
