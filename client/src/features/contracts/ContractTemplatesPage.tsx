@@ -83,7 +83,7 @@ export default function ContractTemplatesPage(): JSX.Element {
 						variant="contained"
 						onClick={() => setNewTemplateOpen(true)}
 					>
-						+ Neu
+						+ New
 					</Button>
 				</Stack>
 				{templatesQuery.isLoading ? (
@@ -106,7 +106,7 @@ export default function ContractTemplatesPage(): JSX.Element {
 							onDelete={() => {
 								if (
 									window.confirm(
-										`Template "${template.name}" wirklich löschen?`,
+										`Delete template "${template.name}"?`,
 									)
 								) {
 									deleteTemplate.mutate(template.id, {
@@ -127,7 +127,7 @@ export default function ContractTemplatesPage(): JSX.Element {
 				) : (
 					<Paper sx={{ p: 3 }}>
 						<Typography color="text.secondary">
-							Wähle ein Template aus oder erstelle ein neues.
+							Select a template or create a new one.
 						</Typography>
 					</Paper>
 				)}
@@ -169,7 +169,7 @@ function TemplateListItem({
 		<ListItemButton selected={selected} onClick={onSelect}>
 			<ListItemText
 				primary={template.name}
-				secondary={template.is_active ? "aktiv" : "inaktiv"}
+				secondary={template.is_active ? "active" : "inactive"}
 			/>
 			<IconButton
 				edge="end"
@@ -204,7 +204,7 @@ function NewTemplateDialog({
 	}, [open]);
 	return (
 		<Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-			<DialogTitle>Neues Template</DialogTitle>
+			<DialogTitle>New Template</DialogTitle>
 			<DialogContent>
 				<TextField
 					autoFocus
@@ -217,13 +217,13 @@ function NewTemplateDialog({
 				{error ? <Alert severity="error">{error.message}</Alert> : null}
 			</DialogContent>
 			<DialogActions>
-				<Button onClick={onClose}>Abbrechen</Button>
+				<Button onClick={onClose}>Cancel</Button>
 				<Button
 					variant="contained"
 					disabled={!name.trim() || submitting}
 					onClick={() => onCreate(name.trim())}
 				>
-					Erstellen
+					Create
 				</Button>
 			</DialogActions>
 		</Dialog>
@@ -292,7 +292,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 						}
 					/>
 					<TextField
-						label="Beschreibung"
+						label="Description"
 						value={draft.description}
 						onChange={(event) =>
 							setDraft({ ...draft, description: event.target.value })
@@ -302,7 +302,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 					/>
 					<TextField
 						label={
-							'Vertragstext (verwende {{variable}} und [WENN {{var}} = "x" DANN {…} SONST {…}])'
+							'Contract text (use {{variable}} and [IF {{var}} = "x" THEN {...} ELSE {...}])'
 						}
 						value={draft.contract_text}
 						onChange={(event) =>
@@ -321,7 +321,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 								}
 							/>
 						}
-						label="Aktiv (für Submitter sichtbar)"
+						label="Active (visible to submitters)"
 					/>
 					<Stack direction="row" spacing={1}>
 						<Button
@@ -336,7 +336,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 								})
 							}
 						>
-							Speichern
+							Save
 						</Button>
 						<Button
 							disabled={!dirty}
@@ -349,7 +349,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 								})
 							}
 						>
-							Verwerfen
+							Discard
 						</Button>
 					</Stack>
 					{updateTemplate.error ? (
@@ -362,7 +362,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 
 			<Paper sx={{ p: 3 }}>
 				<Typography variant="h6" gutterBottom>
-					Variablen
+					Variables
 				</Typography>
 				<Divider sx={{ mb: 2 }} />
 				<Stack spacing={1}>
@@ -388,7 +388,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 							<IconButton
 								size="small"
 								onClick={() =>
-									window.confirm("Variable löschen?") &&
+									window.confirm("Delete variable?") &&
 									deleteVariable.mutate(variable.id)
 								}
 							>
@@ -407,7 +407,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 
 			<Paper sx={{ p: 3 }}>
 				<Typography variant="h6" gutterBottom>
-					Conditional Bausteine
+					Conditional Blocks
 				</Typography>
 				<Divider sx={{ mb: 2 }} />
 				<Stack spacing={1}>
@@ -441,7 +441,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 							<IconButton
 								size="small"
 								onClick={() =>
-									window.confirm("Baustein löschen?") &&
+									window.confirm("Delete block?") &&
 									deleteBlock.mutate(block.id)
 								}
 							>
@@ -490,7 +490,7 @@ function NewVariableForm({
 
 	return (
 		<Stack spacing={1.5}>
-			<Typography variant="subtitle2">Neue Variable</Typography>
+			<Typography variant="subtitle2">New Variable</Typography>
 			<Stack direction="row" spacing={1}>
 				<TextField
 					label="variable_name"
@@ -507,7 +507,7 @@ function NewVariableForm({
 				/>
 				<TextField
 					select
-					label="Typ"
+					label="Type"
 					value={dataType}
 					onChange={(event) =>
 						setDataType(event.target.value as ContractVariableDataType)
@@ -523,14 +523,14 @@ function NewVariableForm({
 				</TextField>
 			</Stack>
 			<TextField
-				label="Hilfetext (optional)"
+				label="Help text (optional)"
 				value={helpText}
 				onChange={(event) => setHelpText(event.target.value)}
 				size="small"
 			/>
 			{dataType === "SELECT" ? (
 				<TextField
-					label="Optionen (kommagetrennt)"
+					label="Options (comma-separated)"
 					value={optionsRaw}
 					onChange={(event) => setOptionsRaw(event.target.value)}
 					size="small"
@@ -543,7 +543,7 @@ function NewVariableForm({
 						onChange={(event) => setRequired(event.target.checked)}
 					/>
 				}
-				label="Pflichtfeld"
+				label="Required field"
 			/>
 			{error ? <Alert severity="error">{error.message}</Alert> : null}
 			<Box>
@@ -579,7 +579,7 @@ function NewVariableForm({
 						setRequired(false);
 					}}
 				>
-					Variable hinzufügen
+					Add Variable
 				</Button>
 			</Box>
 		</Stack>
@@ -614,7 +614,7 @@ function NewBlockForm({
 
 	return (
 		<Stack spacing={1.5}>
-			<Typography variant="subtitle2">Neuer Baustein</Typography>
+			<Typography variant="subtitle2">New Block</Typography>
 			<Stack direction="row" spacing={1}>
 				<TextField
 					label="Name"
@@ -625,7 +625,7 @@ function NewBlockForm({
 				/>
 				<TextField
 					select
-					label="Bedingung"
+					label="Condition"
 					value={conditionType}
 					onChange={(event) =>
 						setConditionType(event.target.value as ContractConditionType)
@@ -649,7 +649,7 @@ function NewBlockForm({
 				) : null}
 				{needsValue ? (
 					<TextField
-						label="Wert"
+						label="Value"
 						value={conditionValue}
 						onChange={(event) => setConditionValue(event.target.value)}
 						size="small"
@@ -657,7 +657,7 @@ function NewBlockForm({
 				) : null}
 			</Stack>
 			<TextField
-				label="Baustein-Text"
+				label="Block Text"
 				value={blockText}
 				onChange={(event) => setBlockText(event.target.value)}
 				multiline
@@ -692,7 +692,7 @@ function NewBlockForm({
 						setBlockText("");
 					}}
 				>
-					Baustein hinzufügen
+					Add Block
 				</Button>
 			</Box>
 		</Stack>

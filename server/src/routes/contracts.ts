@@ -103,17 +103,18 @@ const SignBodySchema = z.object({
 
 // =========================================================================
 // Contract text renderer (ported & simplified from contract-generator)
-// Supports: {{variable}} substitution, [WENN {{var}} OP "value" DANN {..}
-// SONST {..}] inline conditionals, and appending DB conditional blocks.
+// Supports: {{variable}} substitution, [IF {{var}} OP "value" THEN {..}
+// ELSE {..}] inline conditionals, and appending DB conditional blocks.
+// German keywords are still accepted for templates ported from the old tool.
 // =========================================================================
 
 const VARIABLE_REGEX = /\{\{([a-zA-Z0-9_]+)\}\}/g;
 const CONDITIONAL_REGEX =
-	/\[WENN\s+\{\{([a-zA-Z0-9_]+)\}\}\s*(=|!=|enthält)\s*"([^"]*)"\s+DANN\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\}(?:\s+SONST\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\})?\]/g;
+	/\[(?:WENN|IF)\s+\{\{([a-zA-Z0-9_]+)\}\}\s*(=|!=|enthält|contains)\s*"([^"]*)"\s+(?:DANN|THEN)\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\}(?:\s+(?:SONST|ELSE)\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\})?\]/gi;
 
 function stringifyVariable(value: unknown): string {
 	if (value === null || value === undefined) return "";
-	if (typeof value === "boolean") return value ? "Ja" : "Nein";
+	if (typeof value === "boolean") return value ? "Yes" : "No";
 	if (Array.isArray(value)) return value.map(stringifyVariable).join(", ");
 	if (value instanceof Date) return value.toISOString().slice(0, 10);
 	if (typeof value === "object") return JSON.stringify(value);
@@ -127,12 +128,13 @@ function evaluateCondition(
 ): boolean {
 	const actual = stringifyVariable(rawValue).trim();
 	const target = expected.trim();
-	switch (operator) {
+	switch (operator.toLowerCase()) {
 		case "=":
 			return actual === target;
 		case "!=":
 			return actual !== target;
 		case "enthält":
+		case "contains":
 			return actual.toLowerCase().includes(target.toLowerCase());
 		default:
 			return false;
@@ -178,14 +180,21 @@ function blockMatches(
 	if (!variable) return false;
 	const raw = formData[variable];
 	const asString = stringifyVariable(raw).trim();
+	const normalized = asString.toLowerCase();
 	switch (block.condition_type) {
 		case "IF_YES":
-			return raw === true || asString === "Ja" || asString === "true";
+			return (
+				raw === true ||
+				normalized === "yes" ||
+				normalized === "ja" ||
+				normalized === "true"
+			);
 		case "IF_NO":
 			return (
 				raw === false ||
-				asString === "Nein" ||
-				asString === "false" ||
+				normalized === "no" ||
+				normalized === "nein" ||
+				normalized === "false" ||
 				asString === ""
 			);
 		case "IF_VALUE":

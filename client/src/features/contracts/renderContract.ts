@@ -8,11 +8,11 @@ import type {
 
 const VARIABLE_REGEX = /\{\{([a-zA-Z0-9_]+)\}\}/g;
 const CONDITIONAL_REGEX =
-	/\[WENN\s+\{\{([a-zA-Z0-9_]+)\}\}\s*(=|!=|enthält)\s*"([^"]*)"\s+DANN\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\}(?:\s+SONST\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\})?\]/g;
+	/\[(?:WENN|IF)\s+\{\{([a-zA-Z0-9_]+)\}\}\s*(=|!=|enthält|contains)\s*"([^"]*)"\s+(?:DANN|THEN)\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\}(?:\s+(?:SONST|ELSE)\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\})?\]/gi;
 
 function stringifyVariable(value: unknown): string {
 	if (value === null || value === undefined) return "";
-	if (typeof value === "boolean") return value ? "Ja" : "Nein";
+	if (typeof value === "boolean") return value ? "Yes" : "No";
 	if (Array.isArray(value)) return value.map(stringifyVariable).join(", ");
 	if (typeof value === "object") return JSON.stringify(value);
 	return String(value);
@@ -25,12 +25,13 @@ function evaluateCondition(
 ): boolean {
 	const actual = stringifyVariable(rawValue).trim();
 	const target = expected.trim();
-	switch (operator) {
+	switch (operator.toLowerCase()) {
 		case "=":
 			return actual === target;
 		case "!=":
 			return actual !== target;
 		case "enthält":
+		case "contains":
 			return actual.toLowerCase().includes(target.toLowerCase());
 		default:
 			return false;
@@ -71,15 +72,22 @@ function blockMatches(
 	if (!variable) return false;
 	const raw = formData[variable];
 	const asString = stringifyVariable(raw).trim();
+	const normalized = asString.toLowerCase();
 	const type: ContractConditionType = block.condition_type;
 	switch (type) {
 		case "IF_YES":
-			return raw === true || asString === "Ja" || asString === "true";
+			return (
+				raw === true ||
+				normalized === "yes" ||
+				normalized === "ja" ||
+				normalized === "true"
+			);
 		case "IF_NO":
 			return (
 				raw === false ||
-				asString === "Nein" ||
-				asString === "false" ||
+				normalized === "no" ||
+				normalized === "nein" ||
+				normalized === "false" ||
 				asString === ""
 			);
 		case "IF_VALUE":

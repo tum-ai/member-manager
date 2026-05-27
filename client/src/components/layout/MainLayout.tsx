@@ -209,7 +209,7 @@ export default function MainLayout({
 								</MenuItem>
 								<MenuItem value="/">My Profile</MenuItem>
 								<MenuItem value="/members">All Members</MenuItem>
-								<MenuItem value="/contracts">Verträge</MenuItem>
+								<MenuItem value="/contracts">Contracts</MenuItem>
 								{isAdmin && <MenuItem value="/admin">Admin</MenuItem>}
 							</Select>
 						</FormControl>
