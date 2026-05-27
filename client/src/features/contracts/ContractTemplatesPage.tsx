@@ -71,93 +71,89 @@ export default function ContractTemplatesPage(): JSX.Element {
 
 	return (
 		<ToolPageShell title="Manage Templates" maxWidth="100%">
-		<Box sx={{ display: "flex", gap: 2, minHeight: "70vh" }}>
-			<Paper sx={{ width: 320, p: 2 }}>
-				<Stack
-					direction="row"
-					alignItems="center"
-					justifyContent="space-between"
-					mb={1}
-				>
-					<Typography variant="h6">Templates</Typography>
-					<Button
-						size="small"
-						variant="contained"
-						onClick={() => setNewTemplateOpen(true)}
+			<Box sx={{ display: "flex", gap: 2, minHeight: "70vh" }}>
+				<Paper sx={{ width: 320, p: 2 }}>
+					<Stack
+						direction="row"
+						alignItems="center"
+						justifyContent="space-between"
+						mb={1}
 					>
-						+ New
-					</Button>
-				</Stack>
-				{templatesQuery.isLoading ? (
-					<Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
-						<CircularProgress size={24} />
-					</Box>
-				) : null}
-				{templatesQuery.error ? (
-					<Alert severity="error">
-						{(templatesQuery.error as Error).message}
-					</Alert>
-				) : null}
-				<List dense>
-					{(templatesQuery.data ?? []).map((template) => (
-						<TemplateListItem
-							key={template.id}
-							template={template}
-							selected={selectedId === template.id}
-							onSelect={() => setSelectedId(template.id)}
-							onDelete={() => {
-								if (
-									window.confirm(
-										`Delete template "${template.name}"?`,
-									)
-								) {
-									deleteTemplate.mutate(template.id, {
-										onSuccess: () => {
-											if (selectedId === template.id) setSelectedId(null);
-										},
-									});
-								}
-							}}
-						/>
-					))}
-				</List>
-			</Paper>
+						<Typography variant="h6">Templates</Typography>
+						<Button
+							size="small"
+							variant="contained"
+							onClick={() => setNewTemplateOpen(true)}
+						>
+							+ New
+						</Button>
+					</Stack>
+					{templatesQuery.isLoading ? (
+						<Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
+							<CircularProgress size={24} />
+						</Box>
+					) : null}
+					{templatesQuery.error ? (
+						<Alert severity="error">
+							{(templatesQuery.error as Error).message}
+						</Alert>
+					) : null}
+					<List dense>
+						{(templatesQuery.data ?? []).map((template) => (
+							<TemplateListItem
+								key={template.id}
+								template={template}
+								selected={selectedId === template.id}
+								onSelect={() => setSelectedId(template.id)}
+								onDelete={() => {
+									if (window.confirm(`Delete template "${template.name}"?`)) {
+										deleteTemplate.mutate(template.id, {
+											onSuccess: () => {
+												if (selectedId === template.id) setSelectedId(null);
+											},
+										});
+									}
+								}}
+							/>
+						))}
+					</List>
+				</Paper>
 
-			<Box sx={{ flex: 1, minWidth: 0 }}>
-				{selectedId ? (
-					<TemplateEditor templateId={selectedId} />
-				) : (
-					<Paper sx={{ p: 3 }}>
-						<Typography color="text.secondary">
-							Select a template or create a new one.
-						</Typography>
-					</Paper>
-				)}
-			</Box>
+				<Box sx={{ flex: 1, minWidth: 0 }}>
+					{selectedId ? (
+						<TemplateEditor templateId={selectedId} />
+					) : (
+						<Paper sx={{ p: 3 }}>
+							<Typography color="text.secondary">
+								Select a template or create a new one.
+							</Typography>
+						</Paper>
+					)}
+				</Box>
 
-			<NewTemplateDialog
-				open={newTemplateOpen}
-				onClose={() => setNewTemplateOpen(false)}
-				onCreate={(name) =>
-					createTemplate.mutate(
-						{ name, contract_text: "", is_active: true },
-						{
-							onSuccess: (template) => {
-								setSelectedId(template.id);
-								setNewTemplateOpen(false);
+				<NewTemplateDialog
+					open={newTemplateOpen}
+					onClose={() => setNewTemplateOpen(false)}
+					onCreate={(name) =>
+						createTemplate.mutate(
+							{ name, contract_text: "", is_active: true },
+							{
+								onSuccess: (template) => {
+									setSelectedId(template.id);
+									setNewTemplateOpen(false);
+								},
 							},
-						},
-					)
-				}
-				submitting={createTemplate.isPending}
-				error={createTemplate.error as Error | null}
-			/>
-		</Box>
-		{deleteTemplate.error ? (
-			<Alert severity="error" sx={{ mt: 2 }}>
-				{(deleteTemplate.error as Error).message}
-			</Alert>
-		) : null}
+						)
+					}
+					submitting={createTemplate.isPending}
+					error={createTemplate.error as Error | null}
+				/>
+			</Box>
+			{deleteTemplate.error ? (
+				<Alert severity="error" sx={{ mt: 2 }}>
+					{(deleteTemplate.error as Error).message}
+				</Alert>
+			) : null}
 		</ToolPageShell>
 	);
 }

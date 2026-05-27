@@ -1,9 +1,9 @@
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import { checkLegalFinanceRole } from "../lib/auth.js";
 import { DatabaseError } from "../lib/errors.js";
 import { getSupabase } from "../lib/supabase.js";
-import { checkLegalFinanceRole } from "../lib/auth.js";
 import { authenticate, requireLegalFinance } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -652,9 +652,10 @@ export async function contractRoutes(server: FastifyInstance) {
 					return reply.status(404).send({ error: "Submission not found" });
 				}
 				if (current.status !== "approved") {
-					return reply
-						.status(400)
-						.send({ error: "Submission must be in 'approved' state to generate a signing link" });
+					return reply.status(400).send({
+						error:
+							"Submission must be in 'approved' state to generate a signing link",
+					});
 				}
 				const ttlHours = body.signature_token_ttl_hours ?? 24 * 30;
 				update.signature_token = generateSignatureToken();
@@ -750,7 +751,9 @@ export async function contractRoutes(server: FastifyInstance) {
 				return reply.status(410).send({ error: "Signing link expired" });
 			}
 			if (submission.status !== "sent_to_partner") {
-				return reply.status(409).send({ error: "Contract is not in a signable state" });
+				return reply
+					.status(409)
+					.send({ error: "Contract is not in a signable state" });
 			}
 
 			const nowIso = new Date().toISOString();

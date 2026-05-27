@@ -54,7 +54,12 @@ export default function ContractFormPage(): JSX.Element {
 				if (!isVisible(v, formData)) return false;
 				if (!v.is_required) return false;
 				const val = formData[v.variable_name];
-				return val === undefined || val === null || val === "" || (Array.isArray(val) && val.length === 0);
+				return (
+					val === undefined ||
+					val === null ||
+					val === "" ||
+					(Array.isArray(val) && val.length === 0)
+				);
 			})
 			.map((v) => v.label);
 	}, [detailQuery.data, formData]);
@@ -104,7 +109,9 @@ export default function ContractFormPage(): JSX.Element {
 								<Stack direction="row" spacing={1} sx={{ mt: 3 }}>
 									<Button
 										variant="contained"
-										disabled={createSubmission.isPending || missingRequired.length > 0}
+										disabled={
+											createSubmission.isPending || missingRequired.length > 0
+										}
 										onClick={() =>
 											createSubmission.mutate(
 												{
