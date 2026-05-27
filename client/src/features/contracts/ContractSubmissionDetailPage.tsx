@@ -40,7 +40,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 			<Alert severity="error">{(submissionQuery.error as Error).message}</Alert>
 		);
 	const submission = submissionQuery.data;
-	if (!submission) return <Alert severity="warning">Nicht gefunden</Alert>;
+	if (!submission) return <Alert severity="warning">Not found</Alert>;
 
 	const signUrl = submission.signature_token
 		? `${window.location.origin}/contracts/sign/${submission.signature_token}`
@@ -50,7 +50,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 		<Box sx={{ p: 3 }}>
 			<Stack direction="row" alignItems="center" spacing={2} mb={2}>
 				<Typography variant="h5">
-					Einreichung {submission.id.slice(0, 8)}…
+					Submission {submission.id.slice(0, 8)}...
 				</Typography>
 				<Chip label={submission.status} />
 			</Stack>
@@ -58,7 +58,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 			<Stack spacing={3}>
 				<Paper sx={{ p: 3 }}>
 					<Typography variant="subtitle1" gutterBottom>
-						Formulardaten
+						Form Data
 					</Typography>
 					<Box
 						component="pre"
@@ -75,7 +75,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 
 				<Paper sx={{ p: 3 }}>
 					<Typography variant="subtitle1" gutterBottom>
-						Vertragstext (editierbar)
+						Contract Text (Editable)
 					</Typography>
 					<TextField
 						multiline
@@ -86,7 +86,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 						sx={{ fontFamily: "monospace" }}
 					/>
 					<TextField
-						label="Interne Notizen"
+						label="Internal Notes"
 						multiline
 						minRows={2}
 						fullWidth
@@ -98,7 +98,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 
 				<Paper sx={{ p: 3 }}>
 					<Typography variant="subtitle1" gutterBottom>
-						Aktionen
+						Actions
 					</Typography>
 					<Stack direction="row" spacing={1} flexWrap="wrap">
 						<Button
@@ -111,7 +111,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								})
 							}
 						>
-							Änderungen speichern
+							Save Changes
 						</Button>
 						<Button
 							variant="contained"
@@ -126,7 +126,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								})
 							}
 						>
-							Freigeben + Signing-Link erzeugen
+							Approve + Generate Signing Link
 						</Button>
 						<Button
 							variant="outlined"
@@ -139,7 +139,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								})
 							}
 						>
-							Rückfrage stellen
+							Request Clarification
 						</Button>
 						<Button
 							variant="outlined"
@@ -152,7 +152,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								})
 							}
 						>
-							Ablehnen
+							Reject
 						</Button>
 					</Stack>
 					{updateMutation.error ? (
@@ -163,7 +163,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					{signUrl ? (
 						<Box sx={{ mt: 2 }}>
 							<Typography variant="caption" color="text.secondary">
-								Signing-Link (an Partner senden):
+								Signing link (send to partner):
 							</Typography>
 							<TextField
 								value={signUrl}

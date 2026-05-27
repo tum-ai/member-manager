@@ -167,13 +167,13 @@ function fieldFor(
 		case "FILE":
 			return (
 				<TextField
-					label={`${variable.label} (Dateiname)`}
+					label={`${variable.label} (Filename)`}
 					value={typeof value === "string" ? value : ""}
 					onChange={(event) => setValue(event.target.value)}
 					required={variable.is_required}
 					helperText={
 						variable.help_text ??
-						"Dateiupload für MVP nicht implementiert — Dateiname eintragen"
+						"File upload is not implemented in the MVP - enter a filename"
 					}
 					disabled={disabled}
 					fullWidth

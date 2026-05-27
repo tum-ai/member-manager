@@ -54,13 +54,13 @@ export default function ContractFormPage(): JSX.Element {
 	return (
 		<Box sx={{ p: 3 }}>
 			<Typography variant="h5" gutterBottom>
-				Vertrag erstellen
+				Create Contract
 			</Typography>
 
 			{templatesQuery.isLoading ? (
 				<CircularProgress />
 			) : activeTemplates.length === 0 ? (
-				<Alert severity="info">Keine aktiven Templates verfügbar.</Alert>
+				<Alert severity="info">No active templates are available.</Alert>
 			) : (
 				<Stack spacing={3}>
 					<Paper sx={{ p: 2 }}>
@@ -88,7 +88,7 @@ export default function ContractFormPage(): JSX.Element {
 						<Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
 							<Paper sx={{ p: 3, flex: 1, minWidth: 320 }}>
 								<Typography variant="h6" gutterBottom>
-									Formular
+									Form
 								</Typography>
 								<DynamicForm
 									variables={detailQuery.data.variables}
@@ -113,7 +113,7 @@ export default function ContractFormPage(): JSX.Element {
 											)
 										}
 									>
-										Einreichen
+										Submit
 									</Button>
 									<Button
 										disabled={createSubmission.isPending}
@@ -125,7 +125,7 @@ export default function ContractFormPage(): JSX.Element {
 											})
 										}
 									>
-										Als Entwurf speichern
+										Save as Draft
 									</Button>
 								</Stack>
 								{createSubmission.error ? (
@@ -136,7 +136,7 @@ export default function ContractFormPage(): JSX.Element {
 							</Paper>
 							<Paper sx={{ p: 3, flex: 1, minWidth: 320 }}>
 								<Typography variant="h6" gutterBottom>
-									Vorschau
+									Preview
 								</Typography>
 								<Typography
 									sx={{
@@ -145,7 +145,7 @@ export default function ContractFormPage(): JSX.Element {
 										fontSize: 13,
 									}}
 								>
-									{preview || "(leer)"}
+									{preview || "(empty)"}
 								</Typography>
 							</Paper>
 						</Box>

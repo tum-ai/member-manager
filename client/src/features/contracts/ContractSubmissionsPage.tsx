@@ -25,15 +25,15 @@ const STATUS_FILTERS: Array<{
 	value: ContractSubmissionStatus | "all";
 	label: string;
 }> = [
-	{ value: "all", label: "Alle" },
-	{ value: "submitted", label: "Eingereicht" },
+	{ value: "all", label: "All" },
+	{ value: "submitted", label: "Submitted" },
 	{ value: "in_review", label: "In Review" },
-	{ value: "approved", label: "Freigegeben" },
-	{ value: "rejected", label: "Abgelehnt" },
-	{ value: "inquiry", label: "Rückfrage" },
-	{ value: "signed", label: "Unterzeichnet" },
-	{ value: "completed", label: "Abgeschlossen" },
-	{ value: "draft", label: "Entwurf" },
+	{ value: "approved", label: "Approved" },
+	{ value: "rejected", label: "Rejected" },
+	{ value: "inquiry", label: "Inquiry" },
+	{ value: "signed", label: "Signed" },
+	{ value: "completed", label: "Completed" },
+	{ value: "draft", label: "Draft" },
 ];
 
 const STATUS_COLOR: Record<
@@ -70,7 +70,7 @@ export default function ContractSubmissionsPage(): JSX.Element {
 				justifyContent="space-between"
 				mb={2}
 			>
-				<Typography variant="h5">Vertragseinreichungen</Typography>
+				<Typography variant="h5">Contract Submissions</Typography>
 				<TextField
 					select
 					size="small"
@@ -104,9 +104,9 @@ export default function ContractSubmissionsPage(): JSX.Element {
 							<TableRow>
 								<TableCell>ID</TableCell>
 								<TableCell>Status</TableCell>
-								<TableCell>Eingereicht am</TableCell>
-								<TableCell>Unterzeichnet am</TableCell>
-								<TableCell>Signing-Link</TableCell>
+								<TableCell>Submitted At</TableCell>
+								<TableCell>Signed At</TableCell>
+								<TableCell>Signing Link</TableCell>
 							</TableRow>
 						</TableHead>
 						<TableBody>
@@ -136,7 +136,7 @@ export default function ContractSubmissionsPage(): JSX.Element {
 									</TableCell>
 									<TableCell>
 										{submission.signature_token ? (
-											<Chip size="small" label="aktiv" color="primary" />
+											<Chip size="small" label="active" color="primary" />
 										) : (
 											"-"
 										)}
@@ -146,7 +146,7 @@ export default function ContractSubmissionsPage(): JSX.Element {
 							{filtered.length === 0 ? (
 								<TableRow>
 									<TableCell colSpan={5} align="center">
-										Keine Einreichungen.
+										No submissions.
 									</TableCell>
 								</TableRow>
 							) : null}

@@ -69,26 +69,26 @@ const baseToolGroups: ToolGroup[] = [
 		],
 	},
 	{
-		title: "Verträge",
+		title: "Contracts",
 		tools: [
 			{
-				title: "Vertrag erstellen",
+				title: "Create Contract",
 				description:
-					"Wähle ein Template, fülle die Variablen aus, sieh die Vorschau und reiche den Vertrag ein.",
+					"Choose a template, fill in the variables, preview the contract, and submit it.",
 				href: "/contracts",
 				Icon: DescriptionIcon,
 			},
 			{
-				title: "Vertragseinreichungen (L&F)",
+				title: "Contract Submissions (L&F)",
 				description:
-					"Eingereichte Verträge prüfen, freigeben und Signing-Links für Partner erzeugen.",
+					"Review submitted contracts, approve them, and generate signing links for partners.",
 				href: "/contracts/submissions",
 				Icon: FactCheckIcon,
 			},
 			{
-				title: "Templates verwalten (L&F)",
+				title: "Manage Templates (L&F)",
 				description:
-					"Vertragstemplates, Variablen und konditionale Bausteine pflegen.",
+					"Maintain contract templates, variables, and conditional blocks.",
 				href: "/contracts/templates",
 				Icon: RuleFolderIcon,
 			},
