@@ -87,6 +87,7 @@ export function mockSepaPayload(
 		bank_name: "Test Bank",
 		mandate_agreed: true,
 		privacy_agreed: true,
+		data_privacy_notice_agreed: true,
 		...overrides,
 	};
 }

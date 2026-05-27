@@ -41,6 +41,7 @@ const {
 			bank_name: "Commerzbank",
 			mandate_agreed: true,
 			privacy_agreed: true,
+			data_privacy_notice_agreed: true,
 		},
 		isLoading: false,
 		error: null as Error | null,
@@ -136,6 +137,7 @@ describe("ReimbursementPage", () => {
 			bank_name: "Commerzbank",
 			mandate_agreed: true,
 			privacy_agreed: true,
+			data_privacy_notice_agreed: true,
 		};
 		sepaState.isLoading = false;
 		sepaState.error = null;

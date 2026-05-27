@@ -58,6 +58,7 @@ import {
 	sepaSchema,
 } from "../../lib/schemas";
 import { generateMembershipProofPdf } from "../certificate/generators/membershipProofPdf";
+import DataPrivacyNotice from "../legal/DataPrivacyNotice";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
 import SepaMandate from "../sepa/SepaMandate";
 import EducationFields from "./EducationFields";
@@ -97,8 +98,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const { showToast } = useToast();
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+	const [showDataPrivacyNoticeModal, setShowDataPrivacyNoticeModal] =
+		useState(false);
 	const [pendingMandateAgreed, setPendingMandateAgreed] = useState(false);
 	const [pendingPrivacyAgreed, setPendingPrivacyAgreed] = useState(false);
+	const [pendingDataPrivacyNoticeAgreed, setPendingDataPrivacyNoticeAgreed] =
+		useState(false);
 	const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 	const [requestedRole, setRequestedRole] = useState("");
 	const [isRequestingAlumniStatus, setIsRequestingAlumniStatus] =
@@ -183,12 +188,14 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			bank_name: "",
 			mandate_agreed: false,
 			privacy_agreed: false,
+			data_privacy_notice_agreed: false,
 			user_id: user.id,
 		},
 	});
 
 	const mandateAgreed = sepaForm.watch("mandate_agreed");
 	const privacyAgreed = sepaForm.watch("privacy_agreed");
+	const dataPrivacyNoticeAgreed = sepaForm.watch("data_privacy_notice_agreed");
 	const isActive = memberForm.watch("active");
 	const shouldSubmitSepa = Boolean(sepaData) || sepaForm.formState.isDirty;
 
@@ -200,6 +207,11 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const openPrivacyModal = () => {
 		setPendingPrivacyAgreed(privacyAgreed);
 		setShowPrivacyModal(true);
+	};
+
+	const openDataPrivacyNoticeModal = () => {
+		setPendingDataPrivacyNoticeAgreed(dataPrivacyNoticeAgreed);
+		setShowDataPrivacyNoticeModal(true);
 	};
 
 	useEffect(() => {
@@ -250,6 +262,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				bank_name: sepaData.bank_name || "",
 				mandate_agreed: sepaData.mandate_agreed || false,
 				privacy_agreed: sepaData.privacy_agreed || false,
+				data_privacy_notice_agreed:
+					sepaData.data_privacy_notice_agreed || false,
 				user_id: user.id,
 			});
 		}
@@ -1146,9 +1160,64 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 										<Typography
 											color="error"
 											variant="caption"
-											sx={{ display: "block" }}
+											sx={{ display: "block", mb: 1 }}
 										>
 											{sepaForm.formState.errors.privacy_agreed.message}
+										</Typography>
+									)}
+
+									<FormControlLabel
+										control={
+											<Checkbox
+												checked={dataPrivacyNoticeAgreed}
+												onChange={(e) => {
+													if (e.target.checked) {
+														openDataPrivacyNoticeModal();
+														return;
+													}
+													sepaForm.setValue(
+														"data_privacy_notice_agreed",
+														false,
+														{
+															shouldDirty: true,
+															shouldValidate: true,
+														},
+													);
+												}}
+											/>
+										}
+										label={
+											<Typography variant="body2">
+												I agree to the{" "}
+												<Box
+													component="span"
+													onClick={(e) => {
+														e.preventDefault();
+														e.stopPropagation();
+														openDataPrivacyNoticeModal();
+													}}
+													sx={{
+														color: theme.palette.primary.main,
+														cursor: "pointer",
+														"&:hover": { textDecoration: "underline" },
+													}}
+												>
+													Data Privacy Notice
+												</Box>{" "}
+												*
+											</Typography>
+										}
+									/>
+									{sepaForm.formState.errors.data_privacy_notice_agreed && (
+										<Typography
+											color="error"
+											variant="caption"
+											sx={{ display: "block" }}
+										>
+											{
+												sepaForm.formState.errors.data_privacy_notice_agreed
+													.message
+											}
 										</Typography>
 									)}
 								</Box>
@@ -1212,6 +1281,26 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 					<PrivacyPolicy
 						privacyAgreed={pendingPrivacyAgreed}
 						onCheckChange={setPendingPrivacyAgreed}
+					/>
+				</Modal>
+			)}
+
+			{showDataPrivacyNoticeModal && (
+				<Modal
+					title="Data Privacy Notice Agreement"
+					onClose={() => setShowDataPrivacyNoticeModal(false)}
+					confirmDisabled={!pendingDataPrivacyNoticeAgreed}
+					onConfirm={() => {
+						sepaForm.setValue("data_privacy_notice_agreed", true, {
+							shouldDirty: true,
+							shouldValidate: true,
+						});
+						setShowDataPrivacyNoticeModal(false);
+					}}
+				>
+					<DataPrivacyNotice
+						dataPrivacyNoticeAgreed={pendingDataPrivacyNoticeAgreed}
+						onCheckChange={setPendingDataPrivacyNoticeAgreed}
 					/>
 				</Modal>
 			)}

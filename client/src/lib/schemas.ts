@@ -70,6 +70,9 @@ export const sepaSchema = z.object({
 	privacy_agreed: z.boolean().refine((value) => value, {
 		message: "You must agree to the Privacy Policy",
 	}),
+	data_privacy_notice_agreed: z.boolean().refine((value) => value, {
+		message: "You must agree to the Data Privacy Notice",
+	}),
 	user_id: z.string(),
 });
 

@@ -54,6 +54,7 @@ export interface Sepa {
 	bank_name: string;
 	mandate_agreed: boolean;
 	privacy_agreed: boolean;
+	data_privacy_notice_agreed: boolean;
 	user_id: string;
 	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
 	[key: string]: any;
@@ -65,6 +66,10 @@ export interface SepaUpdateEventDetail {
 
 export interface PrivacyUpdateEventDetail {
 	privacy_agreed: boolean;
+}
+
+export interface DataPrivacyNoticeUpdateEventDetail {
+	data_privacy_notice_agreed: boolean;
 }
 
 // Re-export User so we don't have to import from supabase-js everywhere if we don't want to

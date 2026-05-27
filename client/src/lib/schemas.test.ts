@@ -7,6 +7,7 @@ const validSepaPayload = {
 	bank_name: "Test Bank",
 	mandate_agreed: true,
 	privacy_agreed: true,
+	data_privacy_notice_agreed: true,
 	user_id: "user-123",
 };
 
@@ -32,6 +33,18 @@ describe("sepaSchema", () => {
 		expect(result.success).toBe(false);
 		expect(result.error?.issues[0]?.message).toBe(
 			"You must agree to the Privacy Policy",
+		);
+	});
+
+	it("requires the Data Privacy Notice agreement", () => {
+		const result = sepaSchema.safeParse({
+			...validSepaPayload,
+			data_privacy_notice_agreed: false,
+		});
+
+		expect(result.success).toBe(false);
+		expect(result.error?.issues[0]?.message).toBe(
+			"You must agree to the Data Privacy Notice",
 		);
 	});
 });

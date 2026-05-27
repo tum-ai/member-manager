@@ -42,6 +42,7 @@ const QuerySchema = z.object({
 	member_status: z.string().optional(),
 	mandate_agreed: z.string().optional(),
 	privacy_agreed: z.string().optional(),
+	data_privacy_notice_agreed: z.string().optional(),
 	sort_by: z.string().default("surname"),
 	sort_asc: z
 		.string()
@@ -190,6 +191,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				member_status,
 				mandate_agreed,
 				privacy_agreed,
+				data_privacy_notice_agreed,
 				sort_by,
 				sort_asc,
 			} = query;
@@ -198,7 +200,9 @@ export async function adminRoutes(server: FastifyInstance) {
 			const normalizedSearch = search?.trim().toLowerCase();
 			const hasAgreementFilter =
 				(mandate_agreed !== undefined && mandate_agreed !== "") ||
-				(privacy_agreed !== undefined && privacy_agreed !== "");
+				(privacy_agreed !== undefined && privacy_agreed !== "") ||
+				(data_privacy_notice_agreed !== undefined &&
+					data_privacy_notice_agreed !== "");
 			const needsFullProfileMap =
 				Boolean(normalizedSearch) || sort_by === "email";
 			const canUsePagedDbQuery =
@@ -233,18 +237,35 @@ export async function adminRoutes(server: FastifyInstance) {
 							department: normalizeOperationalDepartment(member.department),
 							email: profile?.email ?? "",
 							avatar_url: profile?.avatar_url ?? "",
-							sepa: decryptRecordSafely(
-								Array.isArray(member.sepa)
-									? member.sepa[0] || {}
-									: member.sepa || {},
-								SENSITIVE_SEPA_FIELDS,
-								({ field, error }) => {
-									request.log.warn(
-										{ err: error, userId: member.user_id, field },
-										"Failed to decrypt SEPA field; returning blank value",
-									);
-								},
-							),
+							sepa: (() => {
+								const sepa = decryptRecordSafely(
+									Array.isArray(member.sepa)
+										? member.sepa[0] || {}
+										: member.sepa || {},
+									SENSITIVE_SEPA_FIELDS,
+									({ field, error }) => {
+										request.log.warn(
+											{ err: error, userId: member.user_id, field },
+											"Failed to decrypt SEPA field; returning blank value",
+										);
+									},
+								);
+								const agreements = Array.isArray(member.member_agreements)
+									? member.member_agreements[0] || {}
+									: member.member_agreements || {};
+								return {
+									...sepa,
+									mandate_agreed:
+										agreements.sepa_mandate_agreed ??
+										Boolean(sepa.mandate_agreed),
+									privacy_agreed:
+										agreements.privacy_policy_agreed ??
+										Boolean(sepa.privacy_agreed),
+									data_privacy_notice_agreed: Boolean(
+										agreements.data_privacy_notice_agreed,
+									),
+								};
+							})(),
 						};
 					});
 
@@ -301,7 +322,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				if (canUsePagedDbQuery) {
 					let membersQuery = getSupabase()
 						.from("members")
-						.select("*, sepa(*)", { count: "exact" });
+						.select("*, sepa(*), member_agreements(*)", { count: "exact" });
 
 					if (member_status !== undefined && member_status !== "") {
 						membersQuery = membersQuery.eq("member_status", member_status);
@@ -342,7 +363,7 @@ export async function adminRoutes(server: FastifyInstance) {
 					let membersQuery = getSupabase()
 						.from("members")
 						.select(
-							"*, sepa(*)",
+							"*, sepa(*), member_agreements(*)",
 							scanOffset === 0 ? { count: "exact" } : undefined,
 						);
 					if (member_status !== undefined && member_status !== "") {
@@ -442,6 +463,21 @@ export async function adminRoutes(server: FastifyInstance) {
 						if (privacy_agreed !== undefined && privacy_agreed !== "") {
 							const hasPrivacyAgreement = Boolean(member.sepa?.privacy_agreed);
 							if (hasPrivacyAgreement !== (privacy_agreed === "true")) {
+								return false;
+							}
+						}
+
+						if (
+							data_privacy_notice_agreed !== undefined &&
+							data_privacy_notice_agreed !== ""
+						) {
+							const hasDataPrivacyNoticeAgreement = Boolean(
+								member.sepa?.data_privacy_notice_agreed,
+							);
+							if (
+								hasDataPrivacyNoticeAgreement !==
+								(data_privacy_notice_agreed === "true")
+							) {
 								return false;
 							}
 						}

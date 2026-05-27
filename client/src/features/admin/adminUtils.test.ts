@@ -9,6 +9,7 @@ const baseFilters: AdminFilters = {
 	search: "",
 	mandateAgreed: "",
 	privacyAgreed: "",
+	dataPrivacyNoticeAgreed: "",
 	active: "",
 };
 
@@ -38,6 +39,7 @@ const members: AdminMember[] = [
 			bank_name: "TUM.ai Bank",
 			mandate_agreed: true,
 			privacy_agreed: true,
+			data_privacy_notice_agreed: true,
 		},
 	},
 	{
@@ -79,6 +81,17 @@ describe("filterAdminMembers", () => {
 		const filtered = filterAdminMembers(members, {
 			...baseFilters,
 			privacyAgreed: "false",
+		});
+
+		expect(filtered.map((member) => member.user_id)).toEqual([
+			"member-missing-sepa",
+		]);
+	});
+
+	it("treats missing SEPA data as not accepted for the data privacy notice filter", () => {
+		const filtered = filterAdminMembers(members, {
+			...baseFilters,
+			dataPrivacyNoticeAgreed: "false",
 		});
 
 		expect(filtered.map((member) => member.user_id)).toEqual([
