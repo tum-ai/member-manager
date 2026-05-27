@@ -1,6 +1,5 @@
 import {
 	Alert,
-	Box,
 	Chip,
 	CircularProgress,
 	MenuItem,
@@ -12,10 +11,10 @@ import {
 	TableHead,
 	TableRow,
 	TextField,
-	Typography,
 } from "@mui/material";
 import { useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import ToolPageShell from "../tools/ToolPageShell";
 import {
 	type ContractSubmissionStatus,
 	useContractSubmissions,
@@ -63,14 +62,13 @@ export default function ContractSubmissionsPage(): JSX.Element {
 	}, [submissionsQuery.data, statusFilter]);
 
 	return (
-		<Box sx={{ p: 3 }}>
+		<ToolPageShell title="Contract Submissions">
 			<Stack
 				direction="row"
 				alignItems="center"
-				justifyContent="space-between"
+				justifyContent="flex-end"
 				mb={2}
 			>
-				<Typography variant="h5">Contract Submissions</Typography>
 				<TextField
 					select
 					size="small"
@@ -154,6 +152,6 @@ export default function ContractSubmissionsPage(): JSX.Element {
 					</Table>
 				</Paper>
 			)}
-		</Box>
+		</ToolPageShell>
 	);
 }

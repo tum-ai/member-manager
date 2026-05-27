@@ -373,18 +373,21 @@ export async function contractRoutes(server: FastifyInstance) {
 		"/contracts/templates/:id",
 		{ preHandler: [authenticate, requireLegalFinance] },
 		async (request, reply) => {
-			const { error } = await getSupabase()
+			const { count, error } = await getSupabase()
 				.from("contract_templates")
-				.delete()
-				.eq("id", request.params.id)
-				.select("id")
-				.single();
+				.delete({ count: "exact" })
+				.eq("id", request.params.id);
 			if (error) {
-				if ((error as { code?: string }).code === "PGRST116") {
-					return reply.status(404).send({ error: "Template not found" });
+				if ((error as { code?: string }).code === "23503") {
+					return reply
+						.status(409)
+						.send({ error: "Cannot delete a template that has submissions." });
 				}
 				request.log.error({ err: error }, "Failed to delete template");
 				throw createContractDatabaseError(error);
+			}
+			if (!count || count === 0) {
+				return reply.status(404).send({ error: "Template not found" });
 			}
 			return reply.status(204).send();
 		},
