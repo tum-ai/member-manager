@@ -22,6 +22,7 @@ import {
 	Typography,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
+import ToolPageShell from "../tools/ToolPageShell";
 import {
 	type ContractConditionType,
 	type ContractTemplate,
@@ -69,7 +70,8 @@ export default function ContractTemplatesPage(): JSX.Element {
 	}, [selectedId, templatesQuery.data]);
 
 	return (
-		<Box sx={{ display: "flex", gap: 2, p: 3, minHeight: "70vh" }}>
+		<ToolPageShell title="Manage Templates" maxWidth="100%">
+		<Box sx={{ display: "flex", gap: 2, minHeight: "70vh" }}>
 			<Paper sx={{ width: 320, p: 2 }}>
 				<Stack
 					direction="row"
@@ -151,6 +153,12 @@ export default function ContractTemplatesPage(): JSX.Element {
 				error={createTemplate.error as Error | null}
 			/>
 		</Box>
+		{deleteTemplate.error ? (
+			<Alert severity="error" sx={{ mt: 2 }}>
+				{(deleteTemplate.error as Error).message}
+			</Alert>
+		) : null}
+		</ToolPageShell>
 	);
 }
 

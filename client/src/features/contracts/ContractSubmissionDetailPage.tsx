@@ -2,7 +2,6 @@ import {
 	Alert,
 	Box,
 	Button,
-	Chip,
 	CircularProgress,
 	Paper,
 	Stack,
@@ -11,6 +10,7 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import ToolPageShell from "../tools/ToolPageShell";
 import {
 	useContractSubmission,
 	useUpdateContractSubmission,
@@ -47,14 +47,10 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 		: null;
 
 	return (
-		<Box sx={{ p: 3 }}>
-			<Stack direction="row" alignItems="center" spacing={2} mb={2}>
-				<Typography variant="h5">
-					Submission {submission.id.slice(0, 8)}...
-				</Typography>
-				<Chip label={submission.status} />
-			</Stack>
-
+		<ToolPageShell
+			title={`Submission ${submission.id.slice(0, 8)}…`}
+			description={`Status: ${submission.status}`}
+		>
 			<Stack spacing={3}>
 				<Paper sx={{ p: 3 }}>
 					<Typography variant="subtitle1" gutterBottom>
@@ -175,6 +171,6 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					) : null}
 				</Paper>
 			</Stack>
-		</Box>
+		</ToolPageShell>
 	);
 }

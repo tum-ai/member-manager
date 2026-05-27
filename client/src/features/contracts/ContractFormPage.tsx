@@ -11,6 +11,7 @@ import {
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import ToolPageShell from "../tools/ToolPageShell";
 import DynamicForm from "./DynamicForm";
 import { renderContractText } from "./renderContract";
 import {
@@ -60,11 +61,7 @@ export default function ContractFormPage(): JSX.Element {
 	const createSubmission = useCreateContractSubmission();
 
 	return (
-		<Box sx={{ p: 3 }}>
-			<Typography variant="h5" gutterBottom>
-				Create Contract
-			</Typography>
-
+		<ToolPageShell title="Create Contract">
 			{templatesQuery.isLoading ? (
 				<CircularProgress />
 			) : activeTemplates.length === 0 ? (
@@ -165,6 +162,6 @@ export default function ContractFormPage(): JSX.Element {
 					) : null}
 				</Stack>
 			)}
-		</Box>
+		</ToolPageShell>
 	);
 }
