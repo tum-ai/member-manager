@@ -6,6 +6,7 @@ import errorHandler from "./plugins/errorHandler.js";
 import { adminRoutes } from "./routes/admin.js";
 import { bugReportRoutes } from "./routes/bugReports.js";
 import { changeRequestRoutes } from "./routes/changeRequests.js";
+import { contractRoutes } from "./routes/contracts.js";
 import { engagementCertificateRoutes } from "./routes/engagementCertificates.js";
 import { memberRoutes } from "./routes/members.js";
 import { reimbursementRoutes } from "./routes/reimbursements.js";
@@ -81,6 +82,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(sepaRoutes);
 			await api.register(adminRoutes);
 			await api.register(changeRequestRoutes);
+			await api.register(contractRoutes);
 			await api.register(engagementCertificateRoutes);
 			await api.register(reimbursementRoutes);
 			await api.register(researchProjectRoutes);

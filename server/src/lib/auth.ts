@@ -46,6 +46,13 @@ export async function checkReimbursementReviewer(
 	return member.department === "Legal & Finance" && memberStatus === "active";
 }
 
+// Legal & Finance department members (plus admins) own the contract
+// generator. Reuses the same predicate as the reimbursement reviewer check
+// because both gate on the same role/department combination.
+export async function checkLegalFinanceRole(userId: string): Promise<boolean> {
+	return checkReimbursementReviewer(userId);
+}
+
 export async function ensureOwnerOrAdmin(
 	userId: string,
 	targetId: string,

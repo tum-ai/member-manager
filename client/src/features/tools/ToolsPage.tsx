@@ -1,7 +1,9 @@
 import {
 	ArrowForward as ArrowForwardIcon,
+	Description as DescriptionIcon,
 	FactCheck as FactCheckIcon,
 	ReceiptLong as ReceiptLongIcon,
+	RuleFolder as RuleFolderIcon,
 	WorkspacePremium as WorkspacePremiumIcon,
 } from "@mui/icons-material";
 import {
@@ -66,6 +68,32 @@ const baseToolGroups: ToolGroup[] = [
 			},
 		],
 	},
+	{
+		title: "Verträge",
+		tools: [
+			{
+				title: "Vertrag erstellen",
+				description:
+					"Wähle ein Template, fülle die Variablen aus, sieh die Vorschau und reiche den Vertrag ein.",
+				href: "/contracts",
+				Icon: DescriptionIcon,
+			},
+			{
+				title: "Vertragseinreichungen (L&F)",
+				description:
+					"Eingereichte Verträge prüfen, freigeben und Signing-Links für Partner erzeugen.",
+				href: "/contracts/submissions",
+				Icon: FactCheckIcon,
+			},
+			{
+				title: "Templates verwalten (L&F)",
+				description:
+					"Vertragstemplates, Variablen und konditionale Bausteine pflegen.",
+				href: "/contracts/templates",
+				Icon: RuleFolderIcon,
+			},
+		],
+	},
 ];
 
 interface ToolsPageProps {
@@ -98,13 +126,24 @@ export default function ToolsPage({
 	const { member } = useMemberData(user.id);
 	const { isAdmin } = useIsAdmin(user.id);
 	const showFinanceReview = canUseFinanceReview(member, isAdmin);
+	// Contract admin tools (submissions list + templates editor) share the
+	// same role as Finance Review — Legal & Finance department or admin.
+	const showContractAdminTools = showFinanceReview;
 	const toolGroups = baseToolGroups
 		.map((group) => ({
 			...group,
-			tools: group.tools.filter(
-				(tool) =>
-					tool.href !== "/tools/reimbursement/review" || showFinanceReview,
-			),
+			tools: group.tools.filter((tool) => {
+				if (tool.href === "/tools/reimbursement/review") {
+					return showFinanceReview;
+				}
+				if (
+					tool.href === "/contracts/submissions" ||
+					tool.href === "/contracts/templates"
+				) {
+					return showContractAdminTools;
+				}
+				return true;
+			}),
 		}))
 		.filter((group) => group.tools.length > 0);
 

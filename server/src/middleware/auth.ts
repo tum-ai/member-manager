@@ -1,5 +1,9 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
-import { checkAdminRole, checkReimbursementReviewer } from "../lib/auth.js";
+import {
+	checkAdminRole,
+	checkLegalFinanceRole,
+	checkReimbursementReviewer,
+} from "../lib/auth.js";
 import { getSupabase } from "../lib/supabase.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -46,6 +50,29 @@ export async function requireAdmin(
 		request.log.error(
 			{ err: error, userId: user?.id },
 			"Failed to check admin role",
+		);
+		return reply.status(500).send({ error: "Internal Server Error" });
+	}
+}
+
+export async function requireLegalFinance(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const user = (request as AuthenticatedRequest).user;
+
+	try {
+		const allowed = await checkLegalFinanceRole(user.id);
+
+		if (!allowed) {
+			return reply
+				.status(403)
+				.send({ error: "Legal & Finance access required" });
+		}
+	} catch (error) {
+		request.log.error(
+			{ err: error, userId: user?.id },
+			"Failed to check Legal & Finance role",
 		);
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}
