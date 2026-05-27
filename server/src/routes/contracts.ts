@@ -376,8 +376,13 @@ export async function contractRoutes(server: FastifyInstance) {
 			const { error } = await getSupabase()
 				.from("contract_templates")
 				.delete()
-				.eq("id", request.params.id);
+				.eq("id", request.params.id)
+				.select("id")
+				.single();
 			if (error) {
+				if ((error as { code?: string }).code === "PGRST116") {
+					return reply.status(404).send({ error: "Template not found" });
+				}
 				request.log.error({ err: error }, "Failed to delete template");
 				throw createContractDatabaseError(error);
 			}
