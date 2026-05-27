@@ -382,7 +382,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 									variant="caption"
 								>
 									({variable.data_type}
-									{variable.is_required ? ", pflicht" : ""})
+									{variable.is_required ? ", required" : ""})
 								</Typography>
 							</Typography>
 							<IconButton

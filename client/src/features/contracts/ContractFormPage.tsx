@@ -36,9 +36,6 @@ export default function ContractFormPage(): JSX.Element {
 
 	const detailQuery = useContractTemplate(selectedId || undefined);
 	const [formData, setFormData] = useState<Record<string, unknown>>({});
-	useEffect(() => {
-		setFormData({});
-	}, []);
 
 	const preview = useMemo(() => {
 		if (!detailQuery.data) return "";
@@ -47,6 +44,17 @@ export default function ContractFormPage(): JSX.Element {
 			formData,
 			detailQuery.data.blocks,
 		);
+	}, [detailQuery.data, formData]);
+
+	const missingRequired = useMemo(() => {
+		if (!detailQuery.data) return [];
+		return detailQuery.data.variables
+			.filter((v) => {
+				if (!v.is_required) return false;
+				const val = formData[v.variable_name];
+				return val === undefined || val === null || val === "" || (Array.isArray(val) && val.length === 0);
+			})
+			.map((v) => v.label);
 	}, [detailQuery.data, formData]);
 
 	const createSubmission = useCreateContractSubmission();
@@ -98,7 +106,7 @@ export default function ContractFormPage(): JSX.Element {
 								<Stack direction="row" spacing={1} sx={{ mt: 3 }}>
 									<Button
 										variant="contained"
-										disabled={createSubmission.isPending}
+										disabled={createSubmission.isPending || missingRequired.length > 0}
 										onClick={() =>
 											createSubmission.mutate(
 												{
@@ -128,6 +136,11 @@ export default function ContractFormPage(): JSX.Element {
 										Save as Draft
 									</Button>
 								</Stack>
+								{missingRequired.length > 0 ? (
+									<Alert severity="warning" sx={{ mt: 2 }}>
+										Required fields missing: {missingRequired.join(", ")}
+									</Alert>
+								) : null}
 								{createSubmission.error ? (
 									<Alert severity="error" sx={{ mt: 2 }}>
 										{(createSubmission.error as Error).message}
