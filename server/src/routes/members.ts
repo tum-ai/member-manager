@@ -169,6 +169,7 @@ const LOCAL_ADMIN_BANK_DETAILS = {
 	bank_name: "Commerzbank",
 	mandate_agreed: true,
 	privacy_agreed: true,
+	data_privacy_notice_agreed: true,
 } as const;
 
 export async function memberRoutes(server: FastifyInstance) {
@@ -253,6 +254,23 @@ export async function memberRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
+			const { data: existingAgreements, error: agreementFetchError } =
+				await supabase
+					.from("member_agreements")
+					.select(
+						"user_id, sepa_mandate_agreed, privacy_policy_agreed, data_privacy_notice_agreed",
+					)
+					.eq("user_id", user.id)
+					.maybeSingle();
+
+			if (agreementFetchError && !isNotFoundError(agreementFetchError)) {
+				request.log.error(
+					{ err: agreementFetchError },
+					"Failed to check local admin member agreement profile",
+				);
+				throw new DatabaseError();
+			}
+
 			const sepaRecord = existingSepa as {
 				iban?: string | null;
 				bic?: string | null;
@@ -260,6 +278,12 @@ export async function memberRoutes(server: FastifyInstance) {
 				mandate_agreed?: boolean | null;
 				privacy_agreed?: boolean | null;
 			} | null;
+			const agreementRecord = existingAgreements as {
+				sepa_mandate_agreed?: boolean | null;
+				privacy_policy_agreed?: boolean | null;
+				data_privacy_notice_agreed?: boolean | null;
+			} | null;
+
 			if (!sepaRecord?.iban || !sepaRecord?.bic) {
 				const localAdminSepa = encryptRecord(
 					{
@@ -285,6 +309,39 @@ export async function memberRoutes(server: FastifyInstance) {
 					request.log.error(
 						{ err: sepaError },
 						"Failed to bootstrap local admin SEPA profile",
+					);
+					throw new DatabaseError();
+				}
+			}
+
+			if (
+				!agreementRecord?.sepa_mandate_agreed ||
+				!agreementRecord?.privacy_policy_agreed ||
+				!agreementRecord?.data_privacy_notice_agreed
+			) {
+				const { error: agreementError } = await supabase
+					.from("member_agreements")
+					.upsert(
+						{
+							user_id: user.id,
+							sepa_mandate_agreed:
+								agreementRecord?.sepa_mandate_agreed ??
+								LOCAL_ADMIN_BANK_DETAILS.mandate_agreed,
+							privacy_policy_agreed:
+								agreementRecord?.privacy_policy_agreed ??
+								LOCAL_ADMIN_BANK_DETAILS.privacy_agreed,
+							data_privacy_notice_agreed:
+								agreementRecord?.data_privacy_notice_agreed ??
+								LOCAL_ADMIN_BANK_DETAILS.data_privacy_notice_agreed,
+							updated_at: new Date().toISOString(),
+						},
+						{ onConflict: "user_id" },
+					);
+
+				if (agreementError) {
+					request.log.error(
+						{ err: agreementError },
+						"Failed to bootstrap local admin member agreement profile",
 					);
 					throw new DatabaseError();
 				}

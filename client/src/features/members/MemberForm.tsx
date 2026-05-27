@@ -13,9 +13,11 @@ import {
 	sepaSchema,
 } from "../../lib/schemas";
 import type {
+	DataPrivacyNoticeUpdateEventDetail,
 	PrivacyUpdateEventDetail,
 	SepaUpdateEventDetail,
 } from "../../types";
+import DataPrivacyNotice from "../legal/DataPrivacyNotice";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
 import SepaMandate from "../sepa/SepaMandate";
 
@@ -28,6 +30,8 @@ export default function MemberForm({ user }: MemberFormProps) {
 	const [statusRequestMessage, setStatusRequestMessage] = useState("");
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+	const [showDataPrivacyNoticeModal, setShowDataPrivacyNoticeModal] =
+		useState(false);
 
 	const {
 		member: memberData,
@@ -69,6 +73,7 @@ export default function MemberForm({ user }: MemberFormProps) {
 			bank_name: "",
 			mandate_agreed: false,
 			privacy_agreed: false,
+			data_privacy_notice_agreed: false,
 			user_id: user.id,
 		},
 	});
@@ -76,6 +81,7 @@ export default function MemberForm({ user }: MemberFormProps) {
 	const { dirtyFields: sepaDirtyFields } = sepaForm.formState;
 	const mandateAgreed = sepaForm.watch("mandate_agreed");
 	const privacyAgreed = sepaForm.watch("privacy_agreed");
+	const dataPrivacyNoticeAgreed = sepaForm.watch("data_privacy_notice_agreed");
 
 	useEffect(() => {
 		if (memberData) {
@@ -104,6 +110,8 @@ export default function MemberForm({ user }: MemberFormProps) {
 				bank_name: sepaData.bank_name || "",
 				mandate_agreed: sepaData.mandate_agreed || false,
 				privacy_agreed: sepaData.privacy_agreed || false,
+				data_privacy_notice_agreed:
+					sepaData.data_privacy_notice_agreed || false,
 				user_id: user.id,
 			});
 		}
@@ -156,12 +164,37 @@ export default function MemberForm({ user }: MemberFormProps) {
 			}
 		};
 
+		const handleDataPrivacyNoticeUpdate = (event: Event) => {
+			const customEvent =
+				event as CustomEvent<DataPrivacyNoticeUpdateEventDetail>;
+			if (
+				customEvent.detail &&
+				typeof customEvent.detail.data_privacy_notice_agreed === "boolean"
+			) {
+				sepaForm.setValue(
+					"data_privacy_notice_agreed",
+					customEvent.detail.data_privacy_notice_agreed,
+					{
+						shouldDirty: true,
+					},
+				);
+			}
+		};
+
 		window.addEventListener("sepa-updated", handleSepaUpdate);
 		window.addEventListener("privacy-updated", handlePrivacyUpdate);
+		window.addEventListener(
+			"data-privacy-notice-updated",
+			handleDataPrivacyNoticeUpdate,
+		);
 
 		return () => {
 			window.removeEventListener("sepa-updated", handleSepaUpdate);
 			window.removeEventListener("privacy-updated", handlePrivacyUpdate);
+			window.removeEventListener(
+				"data-privacy-notice-updated",
+				handleDataPrivacyNoticeUpdate,
+			);
 		};
 	}, [sepaForm]);
 
@@ -560,6 +593,40 @@ export default function MemberForm({ user }: MemberFormProps) {
 											*
 										</span>
 									</label>
+
+									<label className="flex items-start gap-3 p-3 rounded-lg border border-gray-700 bg-gray-900/30 hover:bg-gray-900/50 transition-colors cursor-pointer group">
+										<input
+											type="checkbox"
+											{...sepaForm.register("data_privacy_notice_agreed")}
+											className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
+											disabled={sepaForm.getValues(
+												"data_privacy_notice_agreed",
+											)}
+											onChange={(e) => {
+												if (e.target.checked) {
+													setShowDataPrivacyNoticeModal(true);
+													return;
+												}
+												sepaForm.setValue("data_privacy_notice_agreed", false, {
+													shouldDirty: true,
+												});
+											}}
+										/>
+										<span className="text-sm text-gray-300">
+											I agree to the{" "}
+											<button
+												type="button"
+												onClick={(e) => {
+													e.preventDefault();
+													setShowDataPrivacyNoticeModal(true);
+												}}
+												className="text-blue-400 hover:underline font-medium"
+											>
+												Data Privacy Notice
+											</button>{" "}
+											*
+										</span>
+									</label>
 								</div>
 							</div>
 						</div>
@@ -660,6 +727,37 @@ export default function MemberForm({ user }: MemberFormProps) {
 						privacyAgreed={privacyAgreed}
 						onCheckChange={(checked) =>
 							sepaForm.setValue("privacy_agreed", checked, {
+								shouldDirty: true,
+							})
+						}
+					/>
+				</Modal>
+			)}
+
+			{showDataPrivacyNoticeModal && (
+				<Modal
+					title="Data Privacy Notice Agreement"
+					onClose={() => setShowDataPrivacyNoticeModal(false)}
+					confirmDisabled={
+						!dataPrivacyNoticeAgreed ||
+						!sepaDirtyFields.data_privacy_notice_agreed
+					}
+					onConfirm={() => {
+						sepaForm.setValue("data_privacy_notice_agreed", true, {
+							shouldDirty: true,
+						});
+						window.dispatchEvent(
+							new CustomEvent("data-privacy-notice-updated", {
+								detail: { data_privacy_notice_agreed: true },
+							}),
+						);
+						setShowDataPrivacyNoticeModal(false);
+					}}
+				>
+					<DataPrivacyNotice
+						dataPrivacyNoticeAgreed={dataPrivacyNoticeAgreed}
+						onCheckChange={(checked) =>
+							sepaForm.setValue("data_privacy_notice_agreed", checked, {
 								shouldDirty: true,
 							})
 						}

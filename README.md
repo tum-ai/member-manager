@@ -9,7 +9,7 @@ The current product is the private member portal:
 - members authenticate with email/password or Slack OAuth
 - authenticated users land on `My Profile`
 - `All Members` is a secondary authenticated directory view
-- SEPA, privacy, and admin workflows stay internal
+- SEPA, privacy, data privacy notice, and admin workflows stay internal
 - sensitive fields are encrypted server-side before storage
 
 The public network explorer and graph are not part of the current implementation yet. That work is tracked in [ROADMAP.md](./ROADMAP.md).

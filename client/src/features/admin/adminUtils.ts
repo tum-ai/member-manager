@@ -12,6 +12,7 @@ export interface AdminFilters {
 	search: string;
 	mandateAgreed: string;
 	privacyAgreed: string;
+	dataPrivacyNoticeAgreed: string;
 	active: string;
 }
 
@@ -28,6 +29,7 @@ export type AdminSortKey =
 	| "bank_name"
 	| "mandate_agreed"
 	| "privacy_agreed"
+	| "data_privacy_notice_agreed"
 	| "active";
 
 export const BOOLEAN_FILTER_OPTIONS = [
@@ -49,6 +51,10 @@ export function hasMandateAgreement(member: AdminMember): boolean {
 
 export function hasPrivacyAgreement(member: AdminMember): boolean {
 	return member.sepa?.privacy_agreed ?? false;
+}
+
+export function hasDataPrivacyNoticeAgreement(member: AdminMember): boolean {
+	return member.sepa?.data_privacy_notice_agreed ?? false;
 }
 
 function normalizeBooleanFilterValue(
@@ -104,6 +110,14 @@ export function filterAdminMembers(
 			return false;
 		}
 
+		if (
+			filters.dataPrivacyNoticeAgreed !== "" &&
+			normalizeBooleanFilterValue(hasDataPrivacyNoticeAgreement(member)) !==
+				filters.dataPrivacyNoticeAgreed
+		) {
+			return false;
+		}
+
 		const memberStatus =
 			member.member_status || (member.active ? "active" : "inactive");
 		if (filters.active !== "" && memberStatus !== filters.active) {
@@ -129,6 +143,8 @@ export function getAdminSortValue(
 			return hasMandateAgreement(member) ? "1" : "0";
 		case "privacy_agreed":
 			return hasPrivacyAgreement(member) ? "1" : "0";
+		case "data_privacy_notice_agreed":
+			return hasDataPrivacyNoticeAgreement(member) ? "1" : "0";
 		case "active":
 			return member.member_status || (member.active ? "active" : "inactive");
 		case "surname":

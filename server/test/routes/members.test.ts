@@ -490,6 +490,20 @@ describe("Members Routes", async () => {
 						privacy_agreed: true,
 					},
 				);
+				assert.deepStrictEqual(
+					mockDatabase.member_agreements.find(
+						(row) => row.user_id === testUserIds.admin,
+					),
+					{
+						user_id: testUserIds.admin,
+						sepa_mandate_agreed: true,
+						privacy_policy_agreed: true,
+						data_privacy_notice_agreed: true,
+						updated_at: mockDatabase.member_agreements.find(
+							(row) => row.user_id === testUserIds.admin,
+						)?.updated_at,
+					},
+				);
 			} finally {
 				restoreEnvVar("SUPABASE_URL", previousSupabaseUrl);
 				restoreEnvVar("LOCAL_ADMIN_EMAILS", previousLocalAdminEmails);

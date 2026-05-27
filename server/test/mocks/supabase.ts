@@ -39,6 +39,7 @@ export const mockUsers: Record<string, User> = {
 interface MockData {
 	members: Array<Record<string, unknown>>;
 	sepa: Array<Record<string, unknown>>;
+	member_agreements: Array<Record<string, unknown>>;
 	user_roles: Array<Record<string, unknown>>;
 	member_role_history: Array<Record<string, unknown>>;
 	member_change_requests: Array<Record<string, unknown>>;
@@ -115,6 +116,16 @@ export const mockDatabase: MockData = {
 			mandate_agreed: true,
 			privacy_agreed: true,
 			created_at: "2024-01-01T00:00:00Z",
+		},
+	],
+	member_agreements: [
+		{
+			user_id: MOCK_USER_ID,
+			sepa_mandate_agreed: true,
+			privacy_policy_agreed: true,
+			data_privacy_notice_agreed: true,
+			created_at: "2024-01-01T00:00:00Z",
+			updated_at: "2024-01-01T00:00:00Z",
 		},
 	],
 	user_roles: [
@@ -215,6 +226,7 @@ interface QueryBuilder {
 	order: (column: string, options?: { ascending?: boolean }) => QueryBuilder;
 	range: (from: number, to: number) => QueryBuilder;
 	single: () => QueryResult;
+	maybeSingle: () => QueryResult;
 }
 
 function createQueryBuilder(table: string): QueryBuilder {
@@ -236,7 +248,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 		pendingDelete: false,
 	};
 
-	const execute = (isSingle = false) => {
+	const execute = (isSingle = false, isMaybeSingle = false) => {
 		if (state.forcedError) {
 			return Promise.resolve({ data: null, error: state.forcedError });
 		}
@@ -319,9 +331,13 @@ function createQueryBuilder(table: string): QueryBuilder {
 				const sepaData = mockDatabase.sepa.find(
 					(s) => s.user_id === member.user_id,
 				);
+				const agreementData = mockDatabase.member_agreements.find(
+					(agreement) => agreement.user_id === member.user_id,
+				);
 				return {
 					...member,
 					sepa: sepaData || {},
+					member_agreements: agreementData || {},
 				};
 			});
 		}
@@ -349,6 +365,9 @@ function createQueryBuilder(table: string): QueryBuilder {
 
 		if (isSingle) {
 			if (tableData.length === 0) {
+				if (isMaybeSingle) {
+					return Promise.resolve({ data: null, error: null });
+				}
 				return Promise.resolve({
 					data: null,
 					error: { code: "PGRST116", message: "Not found" },
@@ -479,6 +498,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 		},
 
 		single: () => execute(true),
+		maybeSingle: () => execute(true, true),
 	};
 
 	const proxyBuilder = new Proxy(builder, {
@@ -620,6 +640,17 @@ export function resetMockDatabase(): void {
 			mandate_agreed: true,
 			privacy_agreed: true,
 			created_at: "2024-01-01T00:00:00Z",
+		},
+	];
+
+	mockDatabase.member_agreements = [
+		{
+			user_id: MOCK_USER_ID,
+			sepa_mandate_agreed: true,
+			privacy_policy_agreed: true,
+			data_privacy_notice_agreed: true,
+			created_at: "2024-01-01T00:00:00Z",
+			updated_at: "2024-01-01T00:00:00Z",
 		},
 	];
 

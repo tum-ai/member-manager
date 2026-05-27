@@ -198,6 +198,22 @@ describe("Admin Routes", async () => {
 			);
 		});
 
+		test("data_privacy_notice_agreed=false includes members without a SEPA record", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/admin/members?data_privacy_notice_agreed=false",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.deepStrictEqual(
+				payload.data.map((member: { user_id: string }) => member.user_id),
+				[testUserIds.admin],
+			);
+		});
+
 		test("sorting works correctly", async () => {
 			resetDatabase();
 			const response = await app.inject({

@@ -104,6 +104,7 @@ describe("SEPA Routes", async () => {
 				user_id: testUserIds.user,
 				mandate_agreed: false,
 				privacy_agreed: false,
+				data_privacy_notice_agreed: false,
 			});
 
 			const response = await app.inject({
@@ -126,6 +127,10 @@ describe("SEPA Routes", async () => {
 				{
 					field: "privacy_agreed",
 					message: "You must agree to the Privacy Policy",
+				},
+				{
+					field: "data_privacy_notice_agreed",
+					message: "You must agree to the Data Privacy Notice",
 				},
 			]);
 		});
@@ -238,6 +243,7 @@ describe("SEPA Routes", async () => {
 				bank_name: "Updated Bank",
 				mandate_agreed: true,
 				privacy_agreed: true,
+				data_privacy_notice_agreed: true,
 			};
 
 			const response = await app.inject({
@@ -268,6 +274,7 @@ describe("SEPA Routes", async () => {
 				bank_name: "Admin Updated Bank",
 				mandate_agreed: true,
 				privacy_agreed: true,
+				data_privacy_notice_agreed: true,
 			};
 
 			const response = await app.inject({
@@ -292,6 +299,7 @@ describe("SEPA Routes", async () => {
 				bank_name: "Hacked Bank",
 				mandate_agreed: true,
 				privacy_agreed: true,
+				data_privacy_notice_agreed: true,
 			};
 
 			const response = await app.inject({
@@ -314,6 +322,7 @@ describe("SEPA Routes", async () => {
 				bank_name: "Test Bank",
 				mandate_agreed: true,
 				privacy_agreed: true,
+				data_privacy_notice_agreed: true,
 			};
 
 			const response = await app.inject({
@@ -336,6 +345,7 @@ describe("SEPA Routes", async () => {
 				bank_name: "Updated Bank",
 				mandate_agreed: true,
 				privacy_agreed: false,
+				data_privacy_notice_agreed: true,
 			};
 
 			const response = await app.inject({
@@ -365,6 +375,7 @@ describe("SEPA Routes", async () => {
 				bank_name: "Test Bank",
 				mandate_agreed: true,
 				privacy_agreed: true,
+				data_privacy_notice_agreed: true,
 			};
 
 			const response = await app.inject({

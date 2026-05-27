@@ -275,6 +275,43 @@ on conflict (user_id) do update set
     mandate_agreed = excluded.mandate_agreed,
     privacy_agreed = excluded.privacy_agreed;
 
+-- Seed agreement data for local test accounts.
+insert into public.member_agreements (
+    user_id,
+    sepa_mandate_agreed,
+    privacy_policy_agreed,
+    data_privacy_notice_agreed
+) values
+    (
+        '00000000-0000-0000-0000-000000000001',
+        true,
+        true,
+        true
+    ),
+    (
+        '00000000-0000-0000-0000-000000000009',
+        true,
+        true,
+        true
+    ),
+    (
+        '00000000-0000-0000-0000-000000000011',
+        true,
+        true,
+        true
+    ),
+    (
+        '00000000-0000-0000-0000-000000000020',
+        true,
+        true,
+        true
+    )
+on conflict (user_id) do update set
+    sepa_mandate_agreed = excluded.sepa_mandate_agreed,
+    privacy_policy_agreed = excluded.privacy_policy_agreed,
+    data_privacy_notice_agreed = excluded.data_privacy_notice_agreed,
+    updated_at = now();
+
 -- Seed role-history examples for the certificate and admin history views.
 insert into public.member_role_history (
     id,

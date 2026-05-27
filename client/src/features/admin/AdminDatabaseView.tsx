@@ -72,6 +72,7 @@ import {
 	BOOLEAN_FILTER_OPTIONS,
 	filterAdminMembers,
 	getAdminMemberInitials,
+	hasDataPrivacyNoticeAgreement,
 	hasMandateAgreement,
 	hasPrivacyAgreement,
 	sortAdminMembers,
@@ -81,6 +82,7 @@ const initialFilters: AdminFilters = {
 	search: "",
 	mandateAgreed: "",
 	privacyAgreed: "",
+	dataPrivacyNoticeAgreed: "",
 	active: "",
 };
 
@@ -101,6 +103,7 @@ const sortableColumns: Array<{
 	{ key: "bank_name", label: "Bank", width: 180 },
 	{ key: "mandate_agreed", label: "SEPA", width: 140 },
 	{ key: "privacy_agreed", label: "Privacy", width: 140 },
+	{ key: "data_privacy_notice_agreed", label: "Data Privacy", width: 170 },
 	{ key: "active", label: "Status", width: 140 },
 ];
 
@@ -439,6 +442,9 @@ export default function AdminDatabaseView() {
 			"Privacy Agreed": hasPrivacyAgreement(member)
 				? "Accepted"
 				: "Not accepted",
+			"Data Privacy Notice": hasDataPrivacyNoticeAgreement(member)
+				? "Accepted"
+				: "Not accepted",
 			Status: getMemberStatusLabel(
 				member.member_status || (member.active ? "active" : "inactive"),
 			),
@@ -629,6 +635,31 @@ export default function AdminDatabaseView() {
 							<TextField
 								select
 								size="small"
+								label="Data privacy"
+								value={filters.dataPrivacyNoticeAgreed}
+								onChange={(event) =>
+									setFilters((currentValue) => ({
+										...currentValue,
+										dataPrivacyNoticeAgreed: event.target.value,
+									}))
+								}
+								slotProps={{
+									inputLabel: { shrink: true },
+									select: getSelectProps(BOOLEAN_FILTER_OPTIONS),
+								}}
+							>
+								{BOOLEAN_FILTER_OPTIONS.map((option) => (
+									<MenuItem key={option.value} value={option.value}>
+										{option.label}
+									</MenuItem>
+								))}
+							</TextField>
+						</Grid>
+
+						<Grid size={{ xs: 12, sm: 4, lg: 2 }}>
+							<TextField
+								select
+								size="small"
 								label="Privacy policy"
 								value={filters.privacyAgreed}
 								onChange={(event) =>
@@ -782,6 +813,8 @@ export default function AdminDatabaseView() {
 							{filtered.map((row) => {
 								const sepaAccepted = hasMandateAgreement(row);
 								const privacyAccepted = hasPrivacyAgreement(row);
+								const dataPrivacyNoticeAccepted =
+									hasDataPrivacyNoticeAgreement(row);
 								const fullName =
 									`${row.given_name} ${row.surname}`.trim() || "Unnamed member";
 								const memberStatus = getResolvedStatus(row);
@@ -934,6 +967,9 @@ export default function AdminDatabaseView() {
 										</TableCell>
 										<TableCell>
 											<AgreementChip accepted={privacyAccepted} />
+										</TableCell>
+										<TableCell>
+											<AgreementChip accepted={dataPrivacyNoticeAccepted} />
 										</TableCell>
 										<TableCell>
 											<Chip
