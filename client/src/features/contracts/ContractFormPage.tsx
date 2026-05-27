@@ -12,7 +12,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ToolPageShell from "../tools/ToolPageShell";
-import DynamicForm from "./DynamicForm";
+import DynamicForm, { isVisible } from "./DynamicForm";
 import { renderContractText } from "./renderContract";
 import {
 	useContractTemplate,
@@ -51,6 +51,7 @@ export default function ContractFormPage(): JSX.Element {
 		if (!detailQuery.data) return [];
 		return detailQuery.data.variables
 			.filter((v) => {
+				if (!isVisible(v, formData)) return false;
 				if (!v.is_required) return false;
 				const val = formData[v.variable_name];
 				return val === undefined || val === null || val === "" || (Array.isArray(val) && val.length === 0);
