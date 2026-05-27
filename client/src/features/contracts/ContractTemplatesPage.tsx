@@ -22,7 +22,6 @@ import {
 	Typography,
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
-import ToolPageShell from "../tools/ToolPageShell";
 import {
 	type ContractConditionType,
 	type ContractTemplate,
@@ -70,91 +69,88 @@ export default function ContractTemplatesPage(): JSX.Element {
 	}, [selectedId, templatesQuery.data]);
 
 	return (
-		<ToolPageShell title="Manage Templates" maxWidth="100%">
-			<Box sx={{ display: "flex", gap: 2, minHeight: "70vh" }}>
-				<Paper sx={{ width: 320, p: 2 }}>
-					<Stack
-						direction="row"
-						alignItems="center"
-						justifyContent="space-between"
-						mb={1}
+		<Box sx={{ display: "flex", gap: 2, p: 3, minHeight: "70vh" }}>
+			<Paper sx={{ width: 320, p: 2 }}>
+				<Stack
+					direction="row"
+					alignItems="center"
+					justifyContent="space-between"
+					mb={1}
+				>
+					<Typography variant="h6">Templates</Typography>
+					<Button
+						size="small"
+						variant="contained"
+						onClick={() => setNewTemplateOpen(true)}
 					>
-						<Typography variant="h6">Templates</Typography>
-						<Button
-							size="small"
-							variant="contained"
-							onClick={() => setNewTemplateOpen(true)}
-						>
-							+ New
-						</Button>
-					</Stack>
-					{templatesQuery.isLoading ? (
-						<Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
-							<CircularProgress size={24} />
-						</Box>
-					) : null}
-					{templatesQuery.error ? (
-						<Alert severity="error">
-							{(templatesQuery.error as Error).message}
-						</Alert>
-					) : null}
-					<List dense>
-						{(templatesQuery.data ?? []).map((template) => (
-							<TemplateListItem
-								key={template.id}
-								template={template}
-								selected={selectedId === template.id}
-								onSelect={() => setSelectedId(template.id)}
-								onDelete={() => {
-									if (window.confirm(`Delete template "${template.name}"?`)) {
-										deleteTemplate.mutate(template.id, {
-											onSuccess: () => {
-												if (selectedId === template.id) setSelectedId(null);
-											},
-										});
-									}
-								}}
-							/>
-						))}
-					</List>
-				</Paper>
+						+ Neu
+					</Button>
+				</Stack>
+				{templatesQuery.isLoading ? (
+					<Box sx={{ display: "flex", justifyContent: "center", p: 2 }}>
+						<CircularProgress size={24} />
+					</Box>
+				) : null}
+				{templatesQuery.error ? (
+					<Alert severity="error">
+						{(templatesQuery.error as Error).message}
+					</Alert>
+				) : null}
+				<List dense>
+					{(templatesQuery.data ?? []).map((template) => (
+						<TemplateListItem
+							key={template.id}
+							template={template}
+							selected={selectedId === template.id}
+							onSelect={() => setSelectedId(template.id)}
+							onDelete={() => {
+								if (
+									window.confirm(
+										`Template "${template.name}" wirklich löschen?`,
+									)
+								) {
+									deleteTemplate.mutate(template.id, {
+										onSuccess: () => {
+											if (selectedId === template.id) setSelectedId(null);
+										},
+									});
+								}
+							}}
+						/>
+					))}
+				</List>
+			</Paper>
 
-				<Box sx={{ flex: 1, minWidth: 0 }}>
-					{selectedId ? (
-						<TemplateEditor templateId={selectedId} />
-					) : (
-						<Paper sx={{ p: 3 }}>
-							<Typography color="text.secondary">
-								Select a template or create a new one.
-							</Typography>
-						</Paper>
-					)}
-				</Box>
-
-				<NewTemplateDialog
-					open={newTemplateOpen}
-					onClose={() => setNewTemplateOpen(false)}
-					onCreate={(name) =>
-						createTemplate.mutate(
-							{ name, contract_text: "", is_active: true },
-							{
-								onSuccess: (template) => {
-									setSelectedId(template.id);
-									setNewTemplateOpen(false);
-								},
-							},
-						)
-					}
-					submitting={createTemplate.isPending}
-					error={createTemplate.error as Error | null}
-				/>
+			<Box sx={{ flex: 1, minWidth: 0 }}>
+				{selectedId ? (
+					<TemplateEditor templateId={selectedId} />
+				) : (
+					<Paper sx={{ p: 3 }}>
+						<Typography color="text.secondary">
+							Wähle ein Template aus oder erstelle ein neues.
+						</Typography>
+					</Paper>
+				)}
 			</Box>
-			{deleteTemplate.error ? (
-				<Alert severity="error" sx={{ mt: 2 }}>
-					{(deleteTemplate.error as Error).message}
-				</Alert>
-			) : null}
-		</ToolPageShell>
+
+			<NewTemplateDialog
+				open={newTemplateOpen}
+				onClose={() => setNewTemplateOpen(false)}
+				onCreate={(name) =>
+					createTemplate.mutate(
+						{ name, contract_text: "", is_active: true },
+						{
+							onSuccess: (template) => {
+								setSelectedId(template.id);
+								setNewTemplateOpen(false);
+							},
+						},
+					)
+				}
+				submitting={createTemplate.isPending}
+				error={createTemplate.error as Error | null}
+			/>
+		</Box>
 	);
 }
 
@@ -173,7 +169,7 @@ function TemplateListItem({
 		<ListItemButton selected={selected} onClick={onSelect}>
 			<ListItemText
 				primary={template.name}
-				secondary={template.is_active ? "active" : "inactive"}
+				secondary={template.is_active ? "aktiv" : "inaktiv"}
 			/>
 			<IconButton
 				edge="end"
@@ -208,7 +204,7 @@ function NewTemplateDialog({
 	}, [open]);
 	return (
 		<Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-			<DialogTitle>New Template</DialogTitle>
+			<DialogTitle>Neues Template</DialogTitle>
 			<DialogContent>
 				<TextField
 					autoFocus
@@ -221,13 +217,13 @@ function NewTemplateDialog({
 				{error ? <Alert severity="error">{error.message}</Alert> : null}
 			</DialogContent>
 			<DialogActions>
-				<Button onClick={onClose}>Cancel</Button>
+				<Button onClick={onClose}>Abbrechen</Button>
 				<Button
 					variant="contained"
 					disabled={!name.trim() || submitting}
 					onClick={() => onCreate(name.trim())}
 				>
-					Create
+					Erstellen
 				</Button>
 			</DialogActions>
 		</Dialog>
@@ -296,7 +292,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 						}
 					/>
 					<TextField
-						label="Description"
+						label="Beschreibung"
 						value={draft.description}
 						onChange={(event) =>
 							setDraft({ ...draft, description: event.target.value })
@@ -306,7 +302,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 					/>
 					<TextField
 						label={
-							'Contract text (use {{variable}} and [IF {{var}} = "x" THEN {...} ELSE {...}])'
+							'Vertragstext (verwende {{variable}} und [WENN {{var}} = "x" DANN {…} SONST {…}])'
 						}
 						value={draft.contract_text}
 						onChange={(event) =>
@@ -325,7 +321,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 								}
 							/>
 						}
-						label="Active (visible to submitters)"
+						label="Aktiv (für Submitter sichtbar)"
 					/>
 					<Stack direction="row" spacing={1}>
 						<Button
@@ -340,7 +336,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 								})
 							}
 						>
-							Save
+							Speichern
 						</Button>
 						<Button
 							disabled={!dirty}
@@ -353,7 +349,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 								})
 							}
 						>
-							Discard
+							Verwerfen
 						</Button>
 					</Stack>
 					{updateTemplate.error ? (
@@ -366,7 +362,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 
 			<Paper sx={{ p: 3 }}>
 				<Typography variant="h6" gutterBottom>
-					Variables
+					Variablen
 				</Typography>
 				<Divider sx={{ mb: 2 }} />
 				<Stack spacing={1}>
@@ -386,13 +382,13 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 									variant="caption"
 								>
 									({variable.data_type}
-									{variable.is_required ? ", required" : ""})
+									{variable.is_required ? ", pflicht" : ""})
 								</Typography>
 							</Typography>
 							<IconButton
 								size="small"
 								onClick={() =>
-									window.confirm("Delete variable?") &&
+									window.confirm("Variable löschen?") &&
 									deleteVariable.mutate(variable.id)
 								}
 							>
@@ -411,7 +407,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 
 			<Paper sx={{ p: 3 }}>
 				<Typography variant="h6" gutterBottom>
-					Conditional Blocks
+					Conditional Bausteine
 				</Typography>
 				<Divider sx={{ mb: 2 }} />
 				<Stack spacing={1}>
@@ -445,7 +441,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 							<IconButton
 								size="small"
 								onClick={() =>
-									window.confirm("Delete block?") &&
+									window.confirm("Baustein löschen?") &&
 									deleteBlock.mutate(block.id)
 								}
 							>
@@ -494,7 +490,7 @@ function NewVariableForm({
 
 	return (
 		<Stack spacing={1.5}>
-			<Typography variant="subtitle2">New Variable</Typography>
+			<Typography variant="subtitle2">Neue Variable</Typography>
 			<Stack direction="row" spacing={1}>
 				<TextField
 					label="variable_name"
@@ -511,7 +507,7 @@ function NewVariableForm({
 				/>
 				<TextField
 					select
-					label="Type"
+					label="Typ"
 					value={dataType}
 					onChange={(event) =>
 						setDataType(event.target.value as ContractVariableDataType)
@@ -527,14 +523,14 @@ function NewVariableForm({
 				</TextField>
 			</Stack>
 			<TextField
-				label="Help text (optional)"
+				label="Hilfetext (optional)"
 				value={helpText}
 				onChange={(event) => setHelpText(event.target.value)}
 				size="small"
 			/>
 			{dataType === "SELECT" ? (
 				<TextField
-					label="Options (comma-separated)"
+					label="Optionen (kommagetrennt)"
 					value={optionsRaw}
 					onChange={(event) => setOptionsRaw(event.target.value)}
 					size="small"
@@ -547,7 +543,7 @@ function NewVariableForm({
 						onChange={(event) => setRequired(event.target.checked)}
 					/>
 				}
-				label="Required field"
+				label="Pflichtfeld"
 			/>
 			{error ? <Alert severity="error">{error.message}</Alert> : null}
 			<Box>
@@ -583,7 +579,7 @@ function NewVariableForm({
 						setRequired(false);
 					}}
 				>
-					Add Variable
+					Variable hinzufügen
 				</Button>
 			</Box>
 		</Stack>
@@ -618,7 +614,7 @@ function NewBlockForm({
 
 	return (
 		<Stack spacing={1.5}>
-			<Typography variant="subtitle2">New Block</Typography>
+			<Typography variant="subtitle2">Neuer Baustein</Typography>
 			<Stack direction="row" spacing={1}>
 				<TextField
 					label="Name"
@@ -629,7 +625,7 @@ function NewBlockForm({
 				/>
 				<TextField
 					select
-					label="Condition"
+					label="Bedingung"
 					value={conditionType}
 					onChange={(event) =>
 						setConditionType(event.target.value as ContractConditionType)
@@ -653,7 +649,7 @@ function NewBlockForm({
 				) : null}
 				{needsValue ? (
 					<TextField
-						label="Value"
+						label="Wert"
 						value={conditionValue}
 						onChange={(event) => setConditionValue(event.target.value)}
 						size="small"
@@ -661,7 +657,7 @@ function NewBlockForm({
 				) : null}
 			</Stack>
 			<TextField
-				label="Block Text"
+				label="Baustein-Text"
 				value={blockText}
 				onChange={(event) => setBlockText(event.target.value)}
 				multiline
@@ -696,7 +692,7 @@ function NewBlockForm({
 						setBlockText("");
 					}}
 				>
-					Add Block
+					Baustein hinzufügen
 				</Button>
 			</Box>
 		</Stack>

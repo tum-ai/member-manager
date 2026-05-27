@@ -61,7 +61,7 @@ export default function ContractSignPage(): JSX.Element {
 	return (
 		<Container maxWidth="md" sx={{ py: 6 }}>
 			<Typography variant="h4" gutterBottom>
-				Sign Contract
+				Vertrag unterzeichnen
 			</Typography>
 
 			{loading ? (
@@ -70,8 +70,8 @@ export default function ContractSignPage(): JSX.Element {
 				<Alert severity="error">{loadError}</Alert>
 			) : submitted ? (
 				<Alert severity="success">
-					Thank you - the contract has been signed. A copy will be sent by
-					email.
+					Vielen Dank — der Vertrag wurde unterzeichnet. Eine Kopie wird per
+					E-Mail versendet.
 				</Alert>
 			) : payload ? (
 				<Stack spacing={3}>
@@ -89,14 +89,14 @@ export default function ContractSignPage(): JSX.Element {
 					<Paper sx={{ p: 3 }}>
 						<Stack spacing={2}>
 							<TextField
-								label="Full Name"
+								label="Vollständiger Name"
 								value={signerName}
 								onChange={(event) => setSignerName(event.target.value)}
 								required
 							/>
 							<Box>
 								<Typography variant="subtitle2" gutterBottom>
-									Signature
+									Unterschrift
 								</Typography>
 								<SignaturePad onChange={setSignatureData} />
 							</Box>
@@ -108,7 +108,7 @@ export default function ContractSignPage(): JSX.Element {
 								disabled={!signatureData || !signerName.trim() || submitting}
 								onClick={handleSubmit}
 							>
-								Sign
+								Unterzeichnen
 							</Button>
 						</Stack>
 					</Paper>

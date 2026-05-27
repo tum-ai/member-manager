@@ -102,7 +102,7 @@ export default function SignaturePad({
 			</Box>
 			<Stack direction="row" spacing={1}>
 				<Button size="small" onClick={clear} disabled={isEmpty}>
-					Clear
+					Löschen
 				</Button>
 			</Stack>
 		</Stack>

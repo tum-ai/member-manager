@@ -2,6 +2,7 @@ import {
 	Alert,
 	Box,
 	Button,
+	Chip,
 	CircularProgress,
 	Paper,
 	Stack,
@@ -10,7 +11,6 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import ToolPageShell from "../tools/ToolPageShell";
 import {
 	useContractSubmission,
 	useUpdateContractSubmission,
@@ -40,21 +40,25 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 			<Alert severity="error">{(submissionQuery.error as Error).message}</Alert>
 		);
 	const submission = submissionQuery.data;
-	if (!submission) return <Alert severity="warning">Not found</Alert>;
+	if (!submission) return <Alert severity="warning">Nicht gefunden</Alert>;
 
 	const signUrl = submission.signature_token
 		? `${window.location.origin}/contracts/sign/${submission.signature_token}`
 		: null;
 
 	return (
-		<ToolPageShell
-			title={`Submission ${submission.id.slice(0, 8)}…`}
-			description={`Status: ${submission.status}`}
-		>
+		<Box sx={{ p: 3 }}>
+			<Stack direction="row" alignItems="center" spacing={2} mb={2}>
+				<Typography variant="h5">
+					Einreichung {submission.id.slice(0, 8)}…
+				</Typography>
+				<Chip label={submission.status} />
+			</Stack>
+
 			<Stack spacing={3}>
 				<Paper sx={{ p: 3 }}>
 					<Typography variant="subtitle1" gutterBottom>
-						Form Data
+						Formulardaten
 					</Typography>
 					<Box
 						component="pre"
@@ -71,7 +75,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 
 				<Paper sx={{ p: 3 }}>
 					<Typography variant="subtitle1" gutterBottom>
-						Contract Text (Editable)
+						Vertragstext (editierbar)
 					</Typography>
 					<TextField
 						multiline
@@ -82,7 +86,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 						sx={{ fontFamily: "monospace" }}
 					/>
 					<TextField
-						label="Internal Notes"
+						label="Interne Notizen"
 						multiline
 						minRows={2}
 						fullWidth
@@ -94,7 +98,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 
 				<Paper sx={{ p: 3 }}>
 					<Typography variant="subtitle1" gutterBottom>
-						Actions
+						Aktionen
 					</Typography>
 					<Stack direction="row" spacing={1} flexWrap="wrap">
 						<Button
@@ -107,7 +111,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								})
 							}
 						>
-							Save Changes
+							Änderungen speichern
 						</Button>
 						<Button
 							variant="contained"
@@ -122,7 +126,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								})
 							}
 						>
-							Approve + Generate Signing Link
+							Freigeben + Signing-Link erzeugen
 						</Button>
 						<Button
 							variant="outlined"
@@ -135,7 +139,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								})
 							}
 						>
-							Request Clarification
+							Rückfrage stellen
 						</Button>
 						<Button
 							variant="outlined"
@@ -148,7 +152,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								})
 							}
 						>
-							Reject
+							Ablehnen
 						</Button>
 					</Stack>
 					{updateMutation.error ? (
@@ -159,7 +163,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					{signUrl ? (
 						<Box sx={{ mt: 2 }}>
 							<Typography variant="caption" color="text.secondary">
-								Signing link (send to partner):
+								Signing-Link (an Partner senden):
 							</Typography>
 							<TextField
 								value={signUrl}
@@ -171,6 +175,6 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					) : null}
 				</Paper>
 			</Stack>
-		</ToolPageShell>
+		</Box>
 	);
 }

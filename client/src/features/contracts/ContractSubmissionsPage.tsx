@@ -1,5 +1,6 @@
 import {
 	Alert,
+	Box,
 	Chip,
 	CircularProgress,
 	MenuItem,
@@ -11,10 +12,10 @@ import {
 	TableHead,
 	TableRow,
 	TextField,
+	Typography,
 } from "@mui/material";
 import { useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
-import ToolPageShell from "../tools/ToolPageShell";
 import {
 	type ContractSubmissionStatus,
 	useContractSubmissions,
@@ -24,15 +25,15 @@ const STATUS_FILTERS: Array<{
 	value: ContractSubmissionStatus | "all";
 	label: string;
 }> = [
-	{ value: "all", label: "All" },
-	{ value: "submitted", label: "Submitted" },
+	{ value: "all", label: "Alle" },
+	{ value: "submitted", label: "Eingereicht" },
 	{ value: "in_review", label: "In Review" },
-	{ value: "approved", label: "Approved" },
-	{ value: "rejected", label: "Rejected" },
-	{ value: "inquiry", label: "Inquiry" },
-	{ value: "signed", label: "Signed" },
-	{ value: "completed", label: "Completed" },
-	{ value: "draft", label: "Draft" },
+	{ value: "approved", label: "Freigegeben" },
+	{ value: "rejected", label: "Abgelehnt" },
+	{ value: "inquiry", label: "Rückfrage" },
+	{ value: "signed", label: "Unterzeichnet" },
+	{ value: "completed", label: "Abgeschlossen" },
+	{ value: "draft", label: "Entwurf" },
 ];
 
 const STATUS_COLOR: Record<
@@ -62,13 +63,14 @@ export default function ContractSubmissionsPage(): JSX.Element {
 	}, [submissionsQuery.data, statusFilter]);
 
 	return (
-		<ToolPageShell title="Contract Submissions">
+		<Box sx={{ p: 3 }}>
 			<Stack
 				direction="row"
 				alignItems="center"
-				justifyContent="flex-end"
+				justifyContent="space-between"
 				mb={2}
 			>
+				<Typography variant="h5">Vertragseinreichungen</Typography>
 				<TextField
 					select
 					size="small"
@@ -102,9 +104,9 @@ export default function ContractSubmissionsPage(): JSX.Element {
 							<TableRow>
 								<TableCell>ID</TableCell>
 								<TableCell>Status</TableCell>
-								<TableCell>Submitted At</TableCell>
-								<TableCell>Signed At</TableCell>
-								<TableCell>Signing Link</TableCell>
+								<TableCell>Eingereicht am</TableCell>
+								<TableCell>Unterzeichnet am</TableCell>
+								<TableCell>Signing-Link</TableCell>
 							</TableRow>
 						</TableHead>
 						<TableBody>
@@ -134,7 +136,7 @@ export default function ContractSubmissionsPage(): JSX.Element {
 									</TableCell>
 									<TableCell>
 										{submission.signature_token ? (
-											<Chip size="small" label="active" color="primary" />
+											<Chip size="small" label="aktiv" color="primary" />
 										) : (
 											"-"
 										)}
@@ -144,7 +146,7 @@ export default function ContractSubmissionsPage(): JSX.Element {
 							{filtered.length === 0 ? (
 								<TableRow>
 									<TableCell colSpan={5} align="center">
-										No submissions.
+										Keine Einreichungen.
 									</TableCell>
 								</TableRow>
 							) : null}
@@ -152,6 +154,6 @@ export default function ContractSubmissionsPage(): JSX.Element {
 					</Table>
 				</Paper>
 			)}
-		</ToolPageShell>
+		</Box>
 	);
 }

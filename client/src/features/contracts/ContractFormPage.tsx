@@ -11,8 +11,7 @@ import {
 } from "@mui/material";
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ToolPageShell from "../tools/ToolPageShell";
-import DynamicForm, { isVisible } from "./DynamicForm";
+import DynamicForm from "./DynamicForm";
 import { renderContractText } from "./renderContract";
 import {
 	useContractTemplate,
@@ -37,6 +36,9 @@ export default function ContractFormPage(): JSX.Element {
 
 	const detailQuery = useContractTemplate(selectedId || undefined);
 	const [formData, setFormData] = useState<Record<string, unknown>>({});
+	useEffect(() => {
+		setFormData({});
+	}, []);
 
 	const preview = useMemo(() => {
 		if (!detailQuery.data) return "";
@@ -47,31 +49,18 @@ export default function ContractFormPage(): JSX.Element {
 		);
 	}, [detailQuery.data, formData]);
 
-	const missingRequired = useMemo(() => {
-		if (!detailQuery.data) return [];
-		return detailQuery.data.variables
-			.filter((v) => {
-				if (!isVisible(v, formData)) return false;
-				if (!v.is_required) return false;
-				const val = formData[v.variable_name];
-				return (
-					val === undefined ||
-					val === null ||
-					val === "" ||
-					(Array.isArray(val) && val.length === 0)
-				);
-			})
-			.map((v) => v.label);
-	}, [detailQuery.data, formData]);
-
 	const createSubmission = useCreateContractSubmission();
 
 	return (
-		<ToolPageShell title="Create Contract">
+		<Box sx={{ p: 3 }}>
+			<Typography variant="h5" gutterBottom>
+				Vertrag erstellen
+			</Typography>
+
 			{templatesQuery.isLoading ? (
 				<CircularProgress />
 			) : activeTemplates.length === 0 ? (
-				<Alert severity="info">No active templates are available.</Alert>
+				<Alert severity="info">Keine aktiven Templates verfügbar.</Alert>
 			) : (
 				<Stack spacing={3}>
 					<Paper sx={{ p: 2 }}>
@@ -99,7 +88,7 @@ export default function ContractFormPage(): JSX.Element {
 						<Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
 							<Paper sx={{ p: 3, flex: 1, minWidth: 320 }}>
 								<Typography variant="h6" gutterBottom>
-									Form
+									Formular
 								</Typography>
 								<DynamicForm
 									variables={detailQuery.data.variables}
@@ -109,9 +98,7 @@ export default function ContractFormPage(): JSX.Element {
 								<Stack direction="row" spacing={1} sx={{ mt: 3 }}>
 									<Button
 										variant="contained"
-										disabled={
-											createSubmission.isPending || missingRequired.length > 0
-										}
+										disabled={createSubmission.isPending}
 										onClick={() =>
 											createSubmission.mutate(
 												{
@@ -126,7 +113,7 @@ export default function ContractFormPage(): JSX.Element {
 											)
 										}
 									>
-										Submit
+										Einreichen
 									</Button>
 									<Button
 										disabled={createSubmission.isPending}
@@ -138,14 +125,9 @@ export default function ContractFormPage(): JSX.Element {
 											})
 										}
 									>
-										Save as Draft
+										Als Entwurf speichern
 									</Button>
 								</Stack>
-								{missingRequired.length > 0 ? (
-									<Alert severity="warning" sx={{ mt: 2 }}>
-										Required fields missing: {missingRequired.join(", ")}
-									</Alert>
-								) : null}
 								{createSubmission.error ? (
 									<Alert severity="error" sx={{ mt: 2 }}>
 										{(createSubmission.error as Error).message}
@@ -154,7 +136,7 @@ export default function ContractFormPage(): JSX.Element {
 							</Paper>
 							<Paper sx={{ p: 3, flex: 1, minWidth: 320 }}>
 								<Typography variant="h6" gutterBottom>
-									Preview
+									Vorschau
 								</Typography>
 								<Typography
 									sx={{
@@ -163,13 +145,13 @@ export default function ContractFormPage(): JSX.Element {
 										fontSize: 13,
 									}}
 								>
-									{preview || "(empty)"}
+									{preview || "(leer)"}
 								</Typography>
 							</Paper>
 						</Box>
 					) : null}
 				</Stack>
 			)}
-		</ToolPageShell>
+		</Box>
 	);
 }

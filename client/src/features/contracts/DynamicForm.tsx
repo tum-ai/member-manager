@@ -22,7 +22,7 @@ interface DynamicFormProps {
 	disabled?: boolean;
 }
 
-export function isVisible(
+function isVisible(
 	variable: ContractTemplateVariable,
 	values: Record<string, unknown>,
 ): boolean {
@@ -167,13 +167,13 @@ function fieldFor(
 		case "FILE":
 			return (
 				<TextField
-					label={`${variable.label} (Filename)`}
+					label={`${variable.label} (Dateiname)`}
 					value={typeof value === "string" ? value : ""}
 					onChange={(event) => setValue(event.target.value)}
 					required={variable.is_required}
 					helperText={
 						variable.help_text ??
-						"File upload is not implemented in the MVP - enter a filename"
+						"Dateiupload für MVP nicht implementiert — Dateiname eintragen"
 					}
 					disabled={disabled}
 					fullWidth
