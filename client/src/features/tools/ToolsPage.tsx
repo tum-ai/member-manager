@@ -1,7 +1,9 @@
 import {
 	ArrowForward as ArrowForwardIcon,
+	Description as DescriptionIcon,
 	FactCheck as FactCheckIcon,
 	ReceiptLong as ReceiptLongIcon,
+	RuleFolder as RuleFolderIcon,
 	WorkspacePremium as WorkspacePremiumIcon,
 } from "@mui/icons-material";
 import {
@@ -66,6 +68,32 @@ const baseToolGroups: ToolGroup[] = [
 			},
 		],
 	},
+	{
+		title: "Contracts",
+		tools: [
+			{
+				title: "Create Contract",
+				description:
+					"Choose a template, fill in the variables, preview the contract, and submit it.",
+				href: "/contracts",
+				Icon: DescriptionIcon,
+			},
+			{
+				title: "Contract Submissions (L&F)",
+				description:
+					"Review submitted contracts, approve them, and generate signing links for partners.",
+				href: "/contracts/submissions",
+				Icon: FactCheckIcon,
+			},
+			{
+				title: "Manage Templates (L&F)",
+				description:
+					"Maintain contract templates, variables, and conditional blocks.",
+				href: "/contracts/templates",
+				Icon: RuleFolderIcon,
+			},
+		],
+	},
 ];
 
 interface ToolsPageProps {
@@ -98,13 +126,24 @@ export default function ToolsPage({
 	const { member } = useMemberData(user.id);
 	const { isAdmin } = useIsAdmin(user.id);
 	const showFinanceReview = canUseFinanceReview(member, isAdmin);
+	// Contract admin tools (submissions list + templates editor) share the
+	// same role as Finance Review — Legal & Finance department or admin.
+	const showContractAdminTools = showFinanceReview;
 	const toolGroups = baseToolGroups
 		.map((group) => ({
 			...group,
-			tools: group.tools.filter(
-				(tool) =>
-					tool.href !== "/tools/reimbursement/review" || showFinanceReview,
-			),
+			tools: group.tools.filter((tool) => {
+				if (tool.href === "/tools/reimbursement/review") {
+					return showFinanceReview;
+				}
+				if (
+					tool.href === "/contracts/submissions" ||
+					tool.href === "/contracts/templates"
+				) {
+					return showContractAdminTools;
+				}
+				return true;
+			}),
 		}))
 		.filter((group) => group.tools.length > 0);
 

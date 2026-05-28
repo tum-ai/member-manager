@@ -8,12 +8,23 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import {
+	BrowserRouter,
+	Navigate,
+	Route,
+	Routes,
+	useLocation,
+} from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import { ToastProvider } from "./contexts/ToastContext";
 import AdminDatabaseView from "./features/admin/AdminDatabaseView";
 import Auth from "./features/auth/Auth";
 import EngagementCertificatePage from "./features/certificate/EngagementCertificatePage";
+import ContractFormPage from "./features/contracts/ContractFormPage";
+import ContractSignPage from "./features/contracts/ContractSignPage";
+import ContractSubmissionDetailPage from "./features/contracts/ContractSubmissionDetailPage";
+import ContractSubmissionsPage from "./features/contracts/ContractSubmissionsPage";
+import ContractTemplatesPage from "./features/contracts/ContractTemplatesPage";
 import MemberList from "./features/members/MemberList";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
@@ -122,22 +133,13 @@ export default function App(): JSX.Element {
 		);
 	}
 
-	if (!user) {
-		return (
-			<ThemeProvider theme={theme}>
-				<CssBaseline />
-				<Auth colorMode={colorMode} onToggleColorMode={toggleColorMode} />
-			</ThemeProvider>
-		);
-	}
-
 	return (
 		<ThemeProvider theme={theme}>
 			<CssBaseline />
 			<QueryClientProvider client={queryClient}>
 				<ToastProvider>
 					<BrowserRouter>
-						<AuthenticatedApp
+						<AppRouter
 							user={user}
 							colorMode={colorMode}
 							onLogout={handleLogout}
@@ -147,6 +149,47 @@ export default function App(): JSX.Element {
 				</ToastProvider>
 			</QueryClientProvider>
 		</ThemeProvider>
+	);
+}
+
+interface AppRouterProps {
+	user: User | null;
+	colorMode: AppColorMode;
+	onLogout: () => Promise<void>;
+	onToggleColorMode: () => void;
+}
+
+// The partner-signing page (/contracts/sign/:token) is public — render it
+// before the auth gate so unauthenticated partners can sign without an
+// account.
+function AppRouter({
+	user,
+	colorMode,
+	onLogout,
+	onToggleColorMode,
+}: AppRouterProps): JSX.Element {
+	const location = useLocation();
+	const isPublicSignRoute = location.pathname.startsWith("/contracts/sign/");
+
+	if (isPublicSignRoute) {
+		return (
+			<Routes>
+				<Route path="/contracts/sign/:token" element={<ContractSignPage />} />
+			</Routes>
+		);
+	}
+
+	if (!user) {
+		return <Auth colorMode={colorMode} onToggleColorMode={onToggleColorMode} />;
+	}
+
+	return (
+		<AuthenticatedApp
+			user={user}
+			colorMode={colorMode}
+			onLogout={onLogout}
+			onToggleColorMode={onToggleColorMode}
+		/>
 	);
 }
 
@@ -193,6 +236,19 @@ export function AuthenticatedApp({
 				<Route
 					path="/tools/engagement-certificate"
 					element={<EngagementCertificatePage user={user} />}
+				/>
+				<Route path="/contracts" element={<ContractFormPage />} />
+				<Route
+					path="/contracts/templates"
+					element={<ContractTemplatesPage />}
+				/>
+				<Route
+					path="/contracts/submissions"
+					element={<ContractSubmissionsPage />}
+				/>
+				<Route
+					path="/contracts/submissions/:id"
+					element={<ContractSubmissionDetailPage />}
 				/>
 				<Route
 					path="/admin"
