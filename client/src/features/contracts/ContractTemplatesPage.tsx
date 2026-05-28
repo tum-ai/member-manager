@@ -495,7 +495,8 @@ function NewVariableForm({
 
 	const VARIABLE_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_]*$/;
 	const variableNameInvalid =
-		variableName.trim().length > 0 && !VARIABLE_NAME_RE.test(variableName.trim());
+		variableName.trim().length > 0 &&
+		!VARIABLE_NAME_RE.test(variableName.trim());
 
 	return (
 		<Stack spacing={1.5}>
@@ -567,11 +568,11 @@ function NewVariableForm({
 					variant="contained"
 					size="small"
 					disabled={
-					!variableName.trim() ||
-					variableNameInvalid ||
-					!label.trim() ||
-					submitting
-				}
+						!variableName.trim() ||
+						variableNameInvalid ||
+						!label.trim() ||
+						submitting
+					}
 					onClick={() => {
 						const options =
 							dataType === "SELECT" && optionsRaw.trim()
