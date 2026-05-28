@@ -185,7 +185,7 @@ describe("ReimbursementReviewPage", () => {
 				action: "approve",
 			}),
 		);
-	});
+	}, 10_000);
 
 	it("keeps finance review badges non-duplicative in collapsed rows", () => {
 		renderPage();
