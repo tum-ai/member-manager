@@ -136,13 +136,11 @@ export default function CvPanel({ userId }: CvPanelProps) {
 				<Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1 }}>
 					<DescriptionOutlinedIcon sx={{ color: "primary.main" }} />
 					<Typography variant="h6" sx={{ fontWeight: 500 }}>
-						Your official TUM.ai CV
+						CV
 					</Typography>
 				</Box>
 				<Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-					This is your current CV on record. It may be shared with TUM.ai
-					partners if you have consented to partner sharing below. PDF only, max
-					5 MB.
+					PDF only, max 5 MB.
 				</Typography>
 
 				{isLoading ? (
