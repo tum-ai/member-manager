@@ -119,7 +119,7 @@ export default function ContractTemplatesPage(): JSX.Element {
 					</List>
 				</Paper>
 
-				<Box sx={{ flex: 1, minWidth: 0 }}>
+				<Box sx={{ flex: 1, minWidth: 0, overflow: "auto", maxHeight: "85vh" }}>
 					{selectedId ? (
 						<TemplateEditor templateId={selectedId} />
 					) : (
@@ -313,7 +313,8 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 							setDraft({ ...draft, contract_text: event.target.value })
 						}
 						multiline
-						minRows={14}
+						minRows={8}
+						maxRows={20}
 						sx={{ fontFamily: "monospace" }}
 					/>
 					<FormControlLabel
@@ -492,6 +493,10 @@ function NewVariableForm({
 	const [optionsRaw, setOptionsRaw] = useState("");
 	const [required, setRequired] = useState(false);
 
+	const VARIABLE_NAME_RE = /^[a-zA-Z][a-zA-Z0-9_]*$/;
+	const variableNameInvalid =
+		variableName.trim().length > 0 && !VARIABLE_NAME_RE.test(variableName.trim());
+
 	return (
 		<Stack spacing={1.5}>
 			<Typography variant="subtitle2">New Variable</Typography>
@@ -501,13 +506,20 @@ function NewVariableForm({
 					value={variableName}
 					onChange={(event) => setVariableName(event.target.value)}
 					size="small"
+					sx={{ flex: 1, minWidth: 120 }}
+					error={variableNameInvalid}
+					helperText={
+						variableNameInvalid
+							? "Must start with a letter; only letters, digits, underscores allowed"
+							: undefined
+					}
 				/>
 				<TextField
 					label="Label"
 					value={label}
 					onChange={(event) => setLabel(event.target.value)}
 					size="small"
-					sx={{ flex: 1 }}
+					sx={{ flex: 1, minWidth: 120 }}
 				/>
 				<TextField
 					select
@@ -517,7 +529,7 @@ function NewVariableForm({
 						setDataType(event.target.value as ContractVariableDataType)
 					}
 					size="small"
-					sx={{ minWidth: 120 }}
+					sx={{ width: 130, flexShrink: 0 }}
 				>
 					{DATA_TYPES.map((type) => (
 						<MenuItem key={type} value={type}>
@@ -554,7 +566,12 @@ function NewVariableForm({
 				<Button
 					variant="contained"
 					size="small"
-					disabled={!variableName.trim() || !label.trim() || submitting}
+					disabled={
+					!variableName.trim() ||
+					variableNameInvalid ||
+					!label.trim() ||
+					submitting
+				}
 					onClick={() => {
 						const options =
 							dataType === "SELECT" && optionsRaw.trim()
@@ -625,7 +642,7 @@ function NewBlockForm({
 					value={name}
 					onChange={(event) => setName(event.target.value)}
 					size="small"
-					sx={{ flex: 1 }}
+					sx={{ flex: 1, minWidth: 120 }}
 				/>
 				<TextField
 					select
@@ -635,7 +652,7 @@ function NewBlockForm({
 						setConditionType(event.target.value as ContractConditionType)
 					}
 					size="small"
-					sx={{ minWidth: 130 }}
+					sx={{ width: 130, flexShrink: 0 }}
 				>
 					{CONDITION_TYPES.map((type) => (
 						<MenuItem key={type} value={type}>
@@ -649,6 +666,7 @@ function NewBlockForm({
 						value={conditionVariable}
 						onChange={(event) => setConditionVariable(event.target.value)}
 						size="small"
+						sx={{ flex: 1, minWidth: 100 }}
 					/>
 				) : null}
 				{needsValue ? (
@@ -657,6 +675,7 @@ function NewBlockForm({
 						value={conditionValue}
 						onChange={(event) => setConditionValue(event.target.value)}
 						size="small"
+						sx={{ flex: 1, minWidth: 100 }}
 					/>
 				) : null}
 			</Stack>

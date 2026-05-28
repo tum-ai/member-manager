@@ -103,6 +103,7 @@ export function useContractTemplate(templateId: string | undefined) {
 	return useQuery({
 		queryKey: ["contract-template", templateId],
 		enabled: Boolean(templateId),
+		staleTime: 30_000,
 		queryFn: () =>
 			apiClient<ContractTemplateDetail>(
 				`/api/contracts/templates/${templateId}`,

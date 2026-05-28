@@ -84,8 +84,7 @@ export default function MainLayout({
 				position="sticky"
 				elevation={0}
 				sx={{
-					backgroundColor: "rgba(11, 2, 19, 0.76)",
-					backdropFilter: "blur(18px)",
+					backgroundColor: "rgba(11, 2, 19, 0.94)",
 					borderBottom: `1px solid ${theme.palette.divider}`,
 				}}
 			>
@@ -256,6 +255,7 @@ export default function MainLayout({
 					mx: "auto",
 					width: "100%",
 					position: "relative",
+					zIndex: 0,
 				}}
 			>
 				{children}
