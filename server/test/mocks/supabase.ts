@@ -605,6 +605,51 @@ export function createMockSupabaseClient(): SupabaseClient {
 			},
 		},
 		from: (table: string) => createQueryBuilder(table),
+		// Mirrors the insert_member_cv_version RPC: read max version, demote the
+		// current row, insert the new current row — atomically from the caller's
+		// perspective. Returns a `.single()`-shaped thenable.
+		rpc: (fnName: string, params: Record<string, unknown>) => {
+			const run = () => {
+				if (fnName !== "insert_member_cv_version") {
+					return Promise.resolve({
+						data: null,
+						error: { message: `Unknown rpc ${fnName}` },
+					});
+				}
+				const rows = mockDatabase.member_cvs;
+				const userId = params.p_user_id;
+				const userRows = rows.filter((r) => r.user_id === userId);
+				const prev = userRows.sort(
+					(a, b) => Number(b.version) - Number(a.version),
+				)[0];
+				const nextVersion = (prev ? Number(prev.version) : 0) + 1;
+				for (const row of userRows) {
+					row.is_current = false;
+				}
+				const inserted: Record<string, unknown> = {
+					id: params.p_id,
+					user_id: params.p_user_id,
+					storage_bucket: params.p_storage_bucket,
+					storage_path: params.p_storage_path,
+					original_filename: params.p_original_filename,
+					mime_type: params.p_mime_type,
+					size_bytes: params.p_size_bytes,
+					sha256: params.p_sha256,
+					source: params.p_source,
+					version: nextVersion,
+					is_current: true,
+					uploaded_by_user_id: params.p_uploaded_by_user_id ?? null,
+					supersedes_cv_id: prev?.id ?? null,
+					revoked_at: null,
+					uploaded_at: new Date().toISOString(),
+					created_at: new Date().toISOString(),
+				};
+				rows.push(inserted);
+				return Promise.resolve({ data: inserted, error: null });
+			};
+			// The lib only consumes `.rpc(...).single()`.
+			return { single: () => run() };
+		},
 		storage: {
 			from: (bucket: string) => ({
 				upload: async (path: string, body: Buffer, _options?: unknown) => {

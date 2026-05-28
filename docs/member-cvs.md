@@ -27,6 +27,10 @@ CV files live in a **private** Supabase Storage bucket `member-cvs`, PDF-only,
   `(user_id) WHERE is_current`).
 - A new upload inserts version `N+1`, sets it current, and flips the previous
   row's `is_current` to `false`. The old object is kept.
+- The version flip is performed atomically by the `insert_member_cv_version`
+  RPC, which takes a per-`user_id` advisory lock. The server uploads the object
+  first, then calls the RPC; concurrent uploads for the same member are
+  serialized and a failed insert rolls back without losing the current CV.
 
 `member_cvs` columns of note: `version`, `is_current`, `source`
 (`application | member_upload | admin_upload`), `sha256`, `size_bytes`,
@@ -38,9 +42,15 @@ Version 1 of most current members was backfilled from their application CV (see
 ## Consent
 
 Partner sharing is **opt-in** and **member-level**, stored as
-`members.partner_sharing_consent_at` (timestamp; `NULL` = no consent). A member
+`members.partner_sharing_consent_at` (timestamp; `NULL` = no consent), with
+`members.partner_sharing_consented_by_user_id` recording who set it. A member
 consents once; it applies to whatever their current CV is. Backfilled
 application CVs start with **no consent**.
+
+Only the member themselves may **grant** consent (`PUT …/cv/consent` with
+`consent: true` is rejected unless the caller is the member). Admins may reach
+the route but can only **clear/revoke** consent on a member's behalf — they
+cannot opt a member in. This keeps the opt-in GDPR-grade and attributable.
 
 A member only appears in the partner export if **all** of:
 

@@ -179,6 +179,37 @@ describe("CV routes", () => {
 		});
 		assert.equal(clear.json().partner_sharing_consent_at, null);
 	});
+
+	it("forbids an admin from granting consent on a member's behalf", async () => {
+		const app = await getTestApp();
+		const res = await app.inject({
+			method: "PUT",
+			url: `/api/members/${testUserIds.user}/cv/consent`,
+			headers: authHeaders(testTokens.admin),
+			payload: { consent: true },
+		});
+		assert.equal(res.statusCode, 403);
+	});
+
+	it("lets an admin clear/revoke a member's consent", async () => {
+		const app = await getTestApp();
+		// Member opts in first.
+		await app.inject({
+			method: "PUT",
+			url: `/api/members/${testUserIds.user}/cv/consent`,
+			headers: authHeaders(testTokens.user),
+			payload: { consent: true },
+		});
+		// Admin revokes.
+		const revoke = await app.inject({
+			method: "PUT",
+			url: `/api/members/${testUserIds.user}/cv/consent`,
+			headers: authHeaders(testTokens.admin),
+			payload: { consent: false },
+		});
+		assert.equal(revoke.statusCode, 200);
+		assert.equal(revoke.json().partner_sharing_consent_at, null);
+	});
 });
 
 describe("partner export", () => {

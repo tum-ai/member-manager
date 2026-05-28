@@ -119,30 +119,19 @@ export interface AddCvVersionInput {
 	uploadedByUserId: string | null;
 }
 
-// Insert a new CV version: upload the immutable object, insert metadata, and
-// flip the previous current row. Storage and metadata are kept consistent by
-// uploading first (named by the new row id) then inserting; on insert failure
-// the orphan object is best-effort removed.
+// Insert a new CV version. The immutable object is uploaded to storage first
+// (named by the new row id); the metadata flip — read version, demote the old
+// current row, insert the new current row — is then performed atomically by
+// the insert_member_cv_version RPC, which serializes concurrent uploads for
+// the same member with a per-user advisory lock. If the RPC fails, the whole
+// metadata change rolls back (the previous current CV is preserved) and the
+// orphan object is best-effort removed.
 export async function addCvVersion(
 	input: AddCvVersionInput,
 ): Promise<MemberCvRow> {
 	assertValidCvPdf(input.buffer);
 	const supabase = getSupabase();
 
-	const { data: existing, error: existingError } = await supabase
-		.from("member_cvs")
-		.select("id, version")
-		.eq("user_id", input.userId)
-		.order("version", { ascending: false })
-		.limit(1);
-	if (existingError) {
-		throw new DatabaseError(
-			`Failed to read existing CVs: ${existingError.message}`,
-		);
-	}
-
-	const previous = (existing?.[0] as { id: string; version: number }) ?? null;
-	const nextVersion = (previous?.version ?? 0) + 1;
 	const cvId = randomUUID();
 	const storagePath = cvStoragePath(input.userId, cvId);
 
@@ -156,42 +145,23 @@ export async function addCvVersion(
 		throw new DatabaseError(`Failed to upload CV: ${uploadError.message}`);
 	}
 
-	// Demote the current row before inserting the new current one so the
-	// partial unique index (one is_current per user) is never violated.
-	const { error: demoteError } = await supabase
-		.from("member_cvs")
-		.update({ is_current: false })
-		.eq("user_id", input.userId)
-		.eq("is_current", true);
-	if (demoteError) {
-		await supabase.storage.from(CV_BUCKET).remove([storagePath]);
-		throw new DatabaseError(
-			`Failed to supersede previous CV: ${demoteError.message}`,
-		);
-	}
-
 	const { data: inserted, error: insertError } = await supabase
-		.from("member_cvs")
-		.insert({
-			id: cvId,
-			user_id: input.userId,
-			storage_bucket: CV_BUCKET,
-			storage_path: storagePath,
-			original_filename: sanitizeCvFilename(input.originalFilename),
-			mime_type: CV_MIME_TYPE,
-			size_bytes: input.buffer.length,
-			sha256: sha256Hex(input.buffer),
-			source: input.source,
-			version: nextVersion,
-			is_current: true,
-			uploaded_by_user_id: input.uploadedByUserId,
-			supersedes_cv_id: previous?.id ?? null,
+		.rpc("insert_member_cv_version", {
+			p_id: cvId,
+			p_user_id: input.userId,
+			p_storage_bucket: CV_BUCKET,
+			p_storage_path: storagePath,
+			p_original_filename: sanitizeCvFilename(input.originalFilename),
+			p_mime_type: CV_MIME_TYPE,
+			p_size_bytes: input.buffer.length,
+			p_sha256: sha256Hex(input.buffer),
+			p_source: input.source,
+			p_uploaded_by_user_id: input.uploadedByUserId,
 		})
-		.select("*")
 		.single();
 	if (insertError || !inserted) {
 		await supabase.storage.from(CV_BUCKET).remove([storagePath]);
-		if (insertError?.code === "23505") {
+		if ((insertError as { code?: string } | null)?.code === "23505") {
 			throw new ConflictError("A newer CV version already exists. Retry.");
 		}
 		throw new DatabaseError(

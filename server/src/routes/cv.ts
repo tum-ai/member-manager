@@ -5,6 +5,7 @@ import { checkAdminRole, ensureOwnerOrAdmin } from "../lib/auth.js";
 import { getAuthEmails } from "../lib/authEmails.js";
 import {
 	DatabaseError,
+	ForbiddenError,
 	NotFoundError,
 	UnauthorizedError,
 	ValidationError,
@@ -192,6 +193,8 @@ export async function cvRoutes(server: FastifyInstance) {
 		async (request) => {
 			const { userId } = request.params;
 			const user = (request as AuthenticatedRequest).user;
+			// Owner or admin may reach this route; the opt-in itself is restricted
+			// to the member below (admins may only clear/revoke).
 			await ensureOwnerOrAdmin(
 				user.id,
 				userId,
@@ -199,11 +202,26 @@ export async function cvRoutes(server: FastifyInstance) {
 			);
 
 			const body = ConsentSchema.parse(request.body);
+
+			// GDPR-grade opt-in: only the member themselves may grant consent.
+			// Admins (or anyone acting on another member's behalf) may at most
+			// clear it. This prevents an admin from opting a member into partner
+			// sharing.
+			if (body.consent && user.id !== userId) {
+				throw new ForbiddenError(
+					"Only the member can grant partner-sharing consent",
+				);
+			}
+
 			const consentAt = body.consent ? new Date().toISOString() : null;
+			const consentedBy = body.consent ? user.id : null;
 
 			const { data, error } = await getSupabase()
 				.from("members")
-				.update({ partner_sharing_consent_at: consentAt })
+				.update({
+					partner_sharing_consent_at: consentAt,
+					partner_sharing_consented_by_user_id: consentedBy,
+				})
 				.eq("user_id", userId)
 				.select("partner_sharing_consent_at")
 				.single();
