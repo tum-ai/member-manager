@@ -125,6 +125,7 @@ Human-facing project documentation and repo-local reference material.
 docs/
 ├── brand/
 │   └── source/              # Vendored TUM.ai brand assets and extracted reference files
+├── member-cv-download.md    # Bulk-download member CVs from a Tally submissions export
 └── repo-structure.md        # This document
 ```
 
