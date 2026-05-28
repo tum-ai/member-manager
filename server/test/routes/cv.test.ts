@@ -160,55 +160,39 @@ describe("CV routes", () => {
 		assert.ok(res.rawPayload.equals(PDF_BYTES));
 	});
 
-	it("sets and clears partner-sharing consent", async () => {
+	it("derives partner-sharing consent from the Data Privacy Notice", async () => {
 		const app = await getTestApp();
-		const set = await app.inject({
-			method: "PUT",
+		const read = await app.inject({
+			method: "GET",
 			url: `/api/members/${testUserIds.user}/cv/consent`,
 			headers: authHeaders(testTokens.user),
-			payload: { consent: true },
 		});
-		assert.equal(set.statusCode, 200);
-		assert.ok(set.json().partner_sharing_consent_at);
-
-		const clear = await app.inject({
-			method: "PUT",
-			url: `/api/members/${testUserIds.user}/cv/consent`,
-			headers: authHeaders(testTokens.user),
-			payload: { consent: false },
-		});
-		assert.equal(clear.json().partner_sharing_consent_at, null);
+		assert.equal(read.statusCode, 200);
+		// MOCK_USER_ID has a member_agreements row with the DPN agreed.
+		assert.equal(read.json().consent, true);
 	});
 
-	it("forbids an admin from granting consent on a member's behalf", async () => {
+	it("reports no consent when the Data Privacy Notice is not agreed", async () => {
+		const app = await getTestApp();
+		// MOCK_ADMIN_ID has no member_agreements row.
+		const read = await app.inject({
+			method: "GET",
+			url: `/api/members/${testUserIds.admin}/cv/consent`,
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.equal(read.statusCode, 200);
+		assert.equal(read.json().consent, false);
+	});
+
+	it("has no consent setter (PUT is not allowed)", async () => {
 		const app = await getTestApp();
 		const res = await app.inject({
 			method: "PUT",
 			url: `/api/members/${testUserIds.user}/cv/consent`,
-			headers: authHeaders(testTokens.admin),
-			payload: { consent: true },
-		});
-		assert.equal(res.statusCode, 403);
-	});
-
-	it("lets an admin clear/revoke a member's consent", async () => {
-		const app = await getTestApp();
-		// Member opts in first.
-		await app.inject({
-			method: "PUT",
-			url: `/api/members/${testUserIds.user}/cv/consent`,
 			headers: authHeaders(testTokens.user),
 			payload: { consent: true },
 		});
-		// Admin revokes.
-		const revoke = await app.inject({
-			method: "PUT",
-			url: `/api/members/${testUserIds.user}/cv/consent`,
-			headers: authHeaders(testTokens.admin),
-			payload: { consent: false },
-		});
-		assert.equal(revoke.statusCode, 200);
-		assert.equal(revoke.json().partner_sharing_consent_at, null);
+		assert.equal(res.statusCode, 404);
 	});
 });
 
@@ -249,18 +233,13 @@ describe("partner export", () => {
 	it("exports only consented active members with a current CV", async () => {
 		const app = await getTestApp();
 
-		// Upload + consent for the regular member.
+		// MOCK_USER_ID has the Data Privacy Notice agreed (consent); upload a CV.
+		// MOCK_ADMIN_ID is active but has no agreement, so must be excluded.
 		await app.inject({
 			method: "POST",
 			url: `/api/members/${testUserIds.user}/cv`,
 			headers: authHeaders(testTokens.user),
 			payload: { filename: "cv.pdf", cv_base64: PDF_BASE64 },
-		});
-		await app.inject({
-			method: "PUT",
-			url: `/api/members/${testUserIds.user}/cv/consent`,
-			headers: authHeaders(testTokens.user),
-			payload: { consent: true },
 		});
 
 		const res = await app.inject({

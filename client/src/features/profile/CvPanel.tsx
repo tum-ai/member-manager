@@ -1,5 +1,7 @@
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import {
 	Box,
@@ -7,8 +9,6 @@ import {
 	CardContent,
 	Chip,
 	CircularProgress,
-	FormControlLabel,
-	Switch,
 	Typography,
 } from "@mui/material";
 import { useRef, useState } from "react";
@@ -53,12 +53,10 @@ export default function CvPanel({ userId }: CvPanelProps) {
 	const {
 		cv,
 		isLoading,
-		consentAt,
+		hasConsent,
 		isConsentLoading,
 		uploadCv,
 		isUploading,
-		setConsent,
-		isSavingConsent,
 		fetchCvBlob,
 	} = useMemberCv(userId);
 
@@ -107,26 +105,6 @@ export default function CvPanel({ userId }: CvPanelProps) {
 			);
 		} finally {
 			setIsDownloading(false);
-		}
-	};
-
-	const handleConsentToggle = async (
-		_event: React.ChangeEvent<HTMLInputElement>,
-		checked: boolean,
-	) => {
-		try {
-			await setConsent(checked);
-			showToast(
-				checked
-					? "You consented to sharing your CV with TUM.ai partners."
-					: "You withdrew consent. Your CV will not be included in future partner snapshots.",
-				"success",
-			);
-		} catch (error) {
-			showToast(
-				error instanceof Error ? error.message : "Failed to update consent.",
-				"error",
-			);
 		}
 	};
 
@@ -217,32 +195,35 @@ export default function CvPanel({ userId }: CvPanelProps) {
 					{cv ? "Replace CV" : "Upload CV"}
 				</Button>
 
-				<Box sx={{ mt: 3 }}>
-					<FormControlLabel
-						control={
-							<Switch
-								checked={consentAt !== null}
-								onChange={handleConsentToggle}
-								disabled={isConsentLoading || isSavingConsent}
+				{!isConsentLoading && (
+					<Box
+						sx={{
+							mt: 3,
+							display: "flex",
+							alignItems: "flex-start",
+							gap: 1,
+						}}
+					>
+						{hasConsent ? (
+							<CheckCircleOutlineIcon
+								fontSize="small"
+								sx={{ color: "primary.main", mt: "2px" }}
 							/>
-						}
-						label={
-							<Typography variant="body2">
-								Allow my current CV to be shared with TUM.ai partners
-							</Typography>
-						}
-					/>
-					{consentAt && (
-						<Typography
-							variant="caption"
-							color="text.secondary"
-							sx={{ display: "block", ml: 6 }}
-						>
-							Consented on {formatDate(consentAt)}. Only your current CV is
-							shared; new uploads replace it in future snapshots.
+						) : (
+							<InfoOutlinedIcon
+								fontSize="small"
+								color="disabled"
+								sx={{ mt: "2px" }}
+							/>
+						)}
+						<Typography variant="body2" color="text.secondary">
+							{hasConsent
+								? "Your current CV may be shared with TUM.ai partners, based on your Data Privacy Notice consent."
+								: "Your CV is not shared with TUM.ai partners. Partner sharing is governed by your Data Privacy Notice consent."}{" "}
+							Manage this under the Data Privacy Notice in your agreements.
 						</Typography>
-					)}
-				</Box>
+					</Box>
+				)}
 			</CardContent>
 		</GlassCard>
 	);

@@ -1,25 +1,14 @@
 begin;
 
 -- =========================================================================
--- Hardening for member CVs:
---   1. Atomic version insert (P1). Demoting the old current row and inserting
---      the new current row must be a single, serialized operation. Doing it
---      in two client round-trips can (a) leave a member with no current CV if
---      the insert fails after the demote, and (b) race under concurrent
---      uploads (two requests compute the same next version, one demotes the
---      other's row, then hits the unique constraint). A per-user advisory lock
---      inside a function serializes uploads for the same member.
---   2. Consent audit (P2). Record WHO set partner-sharing consent so opt-in is
---      attributable. The route enforces that only the member may opt in.
+-- Atomic version insert for member CVs (P1). Demoting the old current row and
+-- inserting the new current row must be a single, serialized operation. Doing
+-- it in two client round-trips can (a) leave a member with no current CV if the
+-- insert fails after the demote, and (b) race under concurrent uploads (two
+-- requests compute the same next version, one demotes the other's row, then
+-- hits the unique constraint). A per-user advisory lock inside a function
+-- serializes uploads for the same member.
 -- =========================================================================
-
--- ---- Consent audit column ---------------------------------------------------
-alter table "public"."members"
-    add column if not exists "partner_sharing_consented_by_user_id" uuid
-        references "auth"."users"("id") on delete set null;
-
-comment on column "public"."members"."partner_sharing_consented_by_user_id" is
-    'Who set partner_sharing_consent_at. For GDPR-grade opt-in only the member themselves may set consent; admins may at most clear it.';
 
 -- ---- Atomic CV version insert ----------------------------------------------
 -- The object is uploaded to storage by the caller first (named by p_id). This

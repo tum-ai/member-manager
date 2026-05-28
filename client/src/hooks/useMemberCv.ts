@@ -19,7 +19,7 @@ interface CvResponse {
 }
 
 interface ConsentResponse {
-	partner_sharing_consent_at: string | null;
+	consent: boolean;
 }
 
 // Read a base64 data URL from a File for JSON upload (mirrors the receipt flow).
@@ -64,19 +64,6 @@ export function useMemberCv(userId: string) {
 		},
 	});
 
-	const consentMutation = useMutation({
-		mutationFn: async (consent: boolean) =>
-			(await apiClient(`/api/members/${userId}/cv/consent`, {
-				method: "PUT",
-				body: JSON.stringify({ consent }),
-			})) as ConsentResponse,
-		onSuccess: () => {
-			queryClient.invalidateQueries({
-				queryKey: ["member-cv-consent", userId],
-			});
-		},
-	});
-
 	// CV bytes are not JSON; fetch with the auth token and return a Blob.
 	const fetchCvBlob = async (): Promise<Blob> => {
 		const {
@@ -100,13 +87,13 @@ export function useMemberCv(userId: string) {
 		cv: cvQuery.data?.cv ?? null,
 		isLoading: cvQuery.isLoading,
 		error: cvQuery.error,
-		consentAt: consentQuery.data?.partner_sharing_consent_at ?? null,
+		// Partner-sharing consent is derived from the Data Privacy Notice
+		// agreement; it is read-only here and managed via that notice.
+		hasConsent: consentQuery.data?.consent ?? false,
 		isConsentLoading: consentQuery.isLoading,
 		uploadCv: uploadMutation.mutateAsync,
 		isUploading: uploadMutation.isPending,
 		uploadError: uploadMutation.error,
-		setConsent: consentMutation.mutateAsync,
-		isSavingConsent: consentMutation.isPending,
 		fetchCvBlob,
 	};
 }

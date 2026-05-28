@@ -38,12 +38,10 @@ on conflict ("id") do update set
 -- the server using the service role (uploads, signed-URL minting). The bucket
 -- stays private; authenticated/anon clients have no direct object access.
 
--- ---- Member-level partner-sharing consent ----------------------------------
-alter table "public"."members"
-    add column if not exists "partner_sharing_consent_at" timestamptz;
-
-comment on column "public"."members"."partner_sharing_consent_at" is
-    'When the member consented to sharing their current CV with TUM.ai partners. NULL = no consent. Opt-in.';
+-- Partner-sharing consent is NOT stored on member_cvs/members. It is derived
+-- from the Data Privacy Notice agreement
+-- (member_agreements.data_privacy_notice_agreed), which is where the member
+-- grants/revokes it. See docs/member-cvs.md.
 
 -- ---- member_cvs table -------------------------------------------------------
 create table if not exists "public"."member_cvs" (

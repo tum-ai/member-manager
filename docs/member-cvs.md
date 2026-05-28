@@ -41,21 +41,25 @@ Version 1 of most current members was backfilled from their application CV (see
 
 ## Consent
 
-Partner sharing is **opt-in** and **member-level**, stored as
-`members.partner_sharing_consent_at` (timestamp; `NULL` = no consent), with
-`members.partner_sharing_consented_by_user_id` recording who set it. A member
-consents once; it applies to whatever their current CV is. Backfilled
-application CVs start with **no consent**.
+Partner sharing is **opt-in** and derived from the **Data Privacy Notice**
+agreement, stored as `member_agreements.data_privacy_notice_agreed`. The member
+grants or revokes it by (un)agreeing to the Data Privacy Notice in their
+profile agreements — there is no separate CV consent toggle and no consent
+setter on the CV routes. `GET …/cv/consent` is read-only and returns the
+derived `{ consent: boolean }`.
 
-Only the member themselves may **grant** consent (`PUT …/cv/consent` with
-`consent: true` is rejected unless the caller is the member). Admins may reach
-the route but can only **clear/revoke** consent on a member's behalf — they
-cannot opt a member in. This keeps the opt-in GDPR-grade and attributable.
+**Tradeoff to be aware of:** the Data Privacy Notice bundles three consents
+(website profile, event photos, partner sharing) and `data_privacy_notice_agreed`
+only becomes true when the member agrees to **all three**. So "agreed to the
+DPN" implies partner-sharing consent, but a member cannot currently decline
+*only* partner sharing while accepting the others. If that granularity is
+needed later, split the notice into per-item consents and point the export at
+the partner-sharing flag specifically.
 
 A member only appears in the partner export if **all** of:
 
 - `members.member_status = 'active'`
-- `members.partner_sharing_consent_at is not null`
+- `member_agreements.data_privacy_notice_agreed = true`
 - they have a current, non-revoked CV
 
 ## Member-facing APIs (authenticated)
@@ -67,9 +71,11 @@ receipt flow); PDF-only; 5 MB max.
 GET   /api/members/:userId/cv                 -> current CV metadata (no bytes)
 POST  /api/members/:userId/cv                 -> upload new current version
 GET   /api/members/:userId/cv/current/download -> PDF bytes (Content-Disposition)
-GET   /api/members/:userId/cv/consent         -> { partner_sharing_consent_at }
-PUT   /api/members/:userId/cv/consent         -> set/clear consent
+GET   /api/members/:userId/cv/consent         -> { consent: boolean } (read-only, DPN-derived)
 ```
+
+Consent is granted/revoked via the Data Privacy Notice, not these routes; there
+is no consent setter.
 
 `POST` body:
 
@@ -154,11 +160,11 @@ Response:
 
 There are two revocation paths, handled differently to keep the export quiet:
 
-- **Consent withdrawn**: member clears `partner_sharing_consent_at`. They simply
-  **drop out of `members[]`**. Partner Portal detects withdrawal by diffing its
-  snapshot against `members[]` (in snapshot, absent from export = withdrawn).
-  The export does **not** enumerate every non-consenting member (that would be
-  noise on every call).
+- **Consent withdrawn**: member un-agrees to the Data Privacy Notice
+  (`data_privacy_notice_agreed = false`). They simply **drop out of `members[]`**.
+  Partner Portal detects withdrawal by diffing its snapshot against `members[]`
+  (in snapshot, absent from export = withdrawn). The export does **not**
+  enumerate every non-consenting member (that would be noise on every call).
 - **CV revoked / legal deletion**: a consenting member's current CV row gets
   `revoked_at` (so they have no current shareable CV). They appear in
   `revoked[]` with `reason: "cv_revoked"` as a positive signal.

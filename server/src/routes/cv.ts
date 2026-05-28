@@ -5,7 +5,6 @@ import { checkAdminRole, ensureOwnerOrAdmin } from "../lib/auth.js";
 import { getAuthEmails } from "../lib/authEmails.js";
 import {
 	DatabaseError,
-	ForbiddenError,
 	NotFoundError,
 	UnauthorizedError,
 	ValidationError,
@@ -25,10 +24,6 @@ import type { AuthenticatedRequest } from "../types/index.js";
 const UploadCvSchema = z.object({
 	filename: z.string().trim().min(1).max(255),
 	cv_base64: z.string().trim().min(1),
-});
-
-const ConsentSchema = z.object({
-	consent: z.boolean(),
 });
 
 function stripDataUrlPrefix(value: string): string {
@@ -158,6 +153,10 @@ export async function cvRoutes(server: FastifyInstance) {
 		},
 	);
 
+	// Partner-sharing consent is derived from the Data Privacy Notice agreement
+	// (member_agreements.data_privacy_notice_agreed), which is where the member
+	// grants/revokes it. This route is read-only; there is no consent setter
+	// here. The member manages consent via the Data Privacy Notice.
 	server.get<{ Params: { userId: string } }>(
 		"/members/:userId/cv/consent",
 		{ preHandler: authenticate },
@@ -171,8 +170,8 @@ export async function cvRoutes(server: FastifyInstance) {
 			);
 
 			const { data, error } = await getSupabase()
-				.from("members")
-				.select("partner_sharing_consent_at")
+				.from("member_agreements")
+				.select("data_privacy_notice_agreed")
 				.eq("user_id", userId)
 				.maybeSingle();
 			if (error) {
@@ -180,59 +179,9 @@ export async function cvRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 			return {
-				partner_sharing_consent_at:
-					(data as { partner_sharing_consent_at: string | null } | null)
-						?.partner_sharing_consent_at ?? null,
-			};
-		},
-	);
-
-	server.put<{ Params: { userId: string } }>(
-		"/members/:userId/cv/consent",
-		{ preHandler: authenticate },
-		async (request) => {
-			const { userId } = request.params;
-			const user = (request as AuthenticatedRequest).user;
-			// Owner or admin may reach this route; the opt-in itself is restricted
-			// to the member below (admins may only clear/revoke).
-			await ensureOwnerOrAdmin(
-				user.id,
-				userId,
-				"You can only change your own consent",
-			);
-
-			const body = ConsentSchema.parse(request.body);
-
-			// GDPR-grade opt-in: only the member themselves may grant consent.
-			// Admins (or anyone acting on another member's behalf) may at most
-			// clear it. This prevents an admin from opting a member into partner
-			// sharing.
-			if (body.consent && user.id !== userId) {
-				throw new ForbiddenError(
-					"Only the member can grant partner-sharing consent",
-				);
-			}
-
-			const consentAt = body.consent ? new Date().toISOString() : null;
-			const consentedBy = body.consent ? user.id : null;
-
-			const { data, error } = await getSupabase()
-				.from("members")
-				.update({
-					partner_sharing_consent_at: consentAt,
-					partner_sharing_consented_by_user_id: consentedBy,
-				})
-				.eq("user_id", userId)
-				.select("partner_sharing_consent_at")
-				.single();
-			if (error) {
-				request.log.error({ err: error }, "Failed to update CV consent");
-				throw new DatabaseError();
-			}
-			return {
-				partner_sharing_consent_at: (
-					data as { partner_sharing_consent_at: string | null }
-				).partner_sharing_consent_at,
+				consent:
+					(data as { data_privacy_notice_agreed: boolean } | null)
+						?.data_privacy_notice_agreed ?? false,
 			};
 		},
 	);
@@ -245,7 +194,6 @@ interface ActiveMemberRow {
 	batch: string | null;
 	department: string | null;
 	linkedin_profile_url: string | null;
-	partner_sharing_consent_at: string | null;
 }
 
 // Server-to-server export consumed by the Partner Portal. Authenticated with a
@@ -274,7 +222,7 @@ export async function partnerExportRoutes(server: FastifyInstance) {
 			const { data: members, error: membersError } = await supabase
 				.from("members")
 				.select(
-					"user_id, given_name, surname, batch, department, linkedin_profile_url, partner_sharing_consent_at",
+					"user_id, given_name, surname, batch, department, linkedin_profile_url",
 				)
 				.eq("member_status", "active");
 			if (membersError) {
@@ -286,8 +234,24 @@ export async function partnerExportRoutes(server: FastifyInstance) {
 			}
 
 			const activeMembers = (members ?? []) as ActiveMemberRow[];
-			const consented = activeMembers.filter(
-				(m) => m.partner_sharing_consent_at !== null,
+
+			// Partner-sharing consent is the Data Privacy Notice agreement.
+			const { data: agreements, error: agreementsError } = await supabase
+				.from("member_agreements")
+				.select("user_id")
+				.eq("data_privacy_notice_agreed", true);
+			if (agreementsError) {
+				request.log.error(
+					{ err: agreementsError },
+					"Failed to read consent agreements for export",
+				);
+				throw new DatabaseError();
+			}
+			const consentedUserIds = new Set(
+				(agreements ?? []).map((a) => (a as { user_id: string }).user_id),
+			);
+			const consented = activeMembers.filter((m) =>
+				consentedUserIds.has(m.user_id),
 			);
 
 			const emails = await getAuthEmails(consented.map((m) => m.user_id));
