@@ -480,9 +480,9 @@ function MemberCard({ member }: MemberCardProps) {
 					{member.batch && (
 						<Chip label={member.batch} size="small" variant="outlined" />
 					)}
-					{educationEntries.map((entry, index) => (
+					{educationEntries.map((entry) => (
 						<Chip
-							key={`${entry.degree}-${entry.school}-${index}`}
+							key={`${entry.degree}-${entry.school}`}
 							label={[entry.degree, entry.school].filter(Boolean).join(" · ")}
 							size="small"
 							variant="outlined"
