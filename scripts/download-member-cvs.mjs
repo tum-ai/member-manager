@@ -25,7 +25,9 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, extname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
-const CV_COLUMN = "CV (preferably without picture)";
+// Older Tally exports name the CV column "CV"; newer ones use the longer
+// label. Check both, preferring the explicit longer one when present.
+const CV_COLUMNS = ["CV (preferably without picture)", "CV"];
 const FIRST_NAME_COLUMN = "First Name";
 const LAST_NAME_COLUMN = "Last Name";
 const EMAIL_COLUMN = "Email";
@@ -158,6 +160,16 @@ export function extensionFromUrl(url) {
 	}
 }
 
+export function getCvUrl(record) {
+	for (const column of CV_COLUMNS) {
+		const value = (record[column] || "").trim();
+		if (value) {
+			return value;
+		}
+	}
+	return "";
+}
+
 // Build collision-free `FirstName_LastName` base names. Duplicate names get a
 // numeric suffix so we never silently overwrite one member with another.
 export function buildFileNames(records) {
@@ -179,7 +191,7 @@ export function buildFileNames(records) {
 			seen.set(base, n);
 			base = `${base}_${n}`;
 		}
-		const ext = extensionFromUrl(record[CV_COLUMN]);
+		const ext = extensionFromUrl(getCvUrl(record));
 		result.push({ record, base, ext, fileName: `${base}${ext}` });
 	}
 	return result;
@@ -325,7 +337,7 @@ export function matchActiveMembersToRecords(members, records) {
 }
 
 async function downloadOne(entry, outDir, { force }) {
-	const url = (entry.record[CV_COLUMN] || "").trim();
+	const url = getCvUrl(entry.record);
 	const dest = join(outDir, entry.fileName);
 	if (!url) {
 		return { ...entry, status: "skipped", reason: "no CV url" };
@@ -393,7 +405,7 @@ export async function downloadMemberCvs(csvPath, outDir, options = {}) {
 		if (isTestRecord(record)) {
 			return false;
 		}
-		return Boolean((record[CV_COLUMN] || "").trim());
+		return Boolean(getCvUrl(record));
 	});
 	const testCount = records.length - active.length;
 	const entries = buildFileNames(active);
@@ -443,7 +455,7 @@ export async function downloadActiveMemberCvs(csvPaths, outDir, options = {}) {
 	);
 
 	const withCv = matched.filter((m) => {
-		const cv = (m.record[CV_COLUMN] || "").trim();
+		const cv = getCvUrl(m.record);
 		if (!cv) {
 			return false;
 		}
@@ -451,7 +463,7 @@ export async function downloadActiveMemberCvs(csvPaths, outDir, options = {}) {
 		return extensionFromUrl(cv) === ".pdf";
 	});
 	const skippedNonPdf = matched.filter((m) => {
-		const cv = (m.record[CV_COLUMN] || "").trim();
+		const cv = getCvUrl(m.record);
 		return cv && extensionFromUrl(cv) !== ".pdf";
 	});
 
@@ -530,7 +542,7 @@ function summarize(summary) {
 			);
 			for (const m of summary.skippedNonPdf) {
 				lines.push(
-					`  - ${m.member.givenName} ${m.member.surname} (${m.member.email || "no email"}): ${extensionFromUrl(m.record[CV_COLUMN])}`,
+					`  - ${m.member.givenName} ${m.member.surname} (${m.member.email || "no email"}): ${extensionFromUrl(getCvUrl(m.record))}`,
 				);
 			}
 		}
