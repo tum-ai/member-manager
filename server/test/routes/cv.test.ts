@@ -1,3 +1,4 @@
+import "../setup.js";
 import assert from "node:assert/strict";
 import { after, afterEach, before, describe, it } from "node:test";
 import {
