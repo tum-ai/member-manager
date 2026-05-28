@@ -61,6 +61,7 @@ import { generateMembershipProofPdf } from "../certificate/generators/membership
 import DataPrivacyNotice from "../legal/DataPrivacyNotice";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
 import SepaMandate from "../sepa/SepaMandate";
+import CvPanel from "./CvPanel";
 import EducationFields from "./EducationFields";
 import { buildSelfServiceMemberUpdatePayload } from "./profileFormUtils";
 
@@ -918,6 +919,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								</Grid>
 							</CardContent>
 						</GlassCard>
+
+						<CvPanel userId={user.id} />
 
 						{!isAdmin && (
 							<GlassCard variant="elevated" sx={{ mt: 3 }}>

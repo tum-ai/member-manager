@@ -9,6 +9,7 @@
 		"dev:local": "tsx watch src/index.ts",
 		"build": "tsc",
 		"backfill:encryption": "tsx src/scripts/backfillSensitiveData.ts",
+		"backfill:member-cvs": "tsx src/scripts/backfillMemberCvs.ts",
 		"start": "node dist/index.js",
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write",

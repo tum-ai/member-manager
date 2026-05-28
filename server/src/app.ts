@@ -7,6 +7,7 @@ import { adminRoutes } from "./routes/admin.js";
 import { bugReportRoutes } from "./routes/bugReports.js";
 import { changeRequestRoutes } from "./routes/changeRequests.js";
 import { contractRoutes } from "./routes/contracts.js";
+import { cvRoutes, partnerExportRoutes } from "./routes/cv.js";
 import { engagementCertificateRoutes } from "./routes/engagementCertificates.js";
 import { memberRoutes } from "./routes/members.js";
 import { reimbursementRoutes } from "./routes/reimbursements.js";
@@ -79,6 +80,8 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(slackInteractionRoutes);
 			await api.register(bugReportRoutes);
 			await api.register(memberRoutes);
+			await api.register(cvRoutes);
+			await api.register(partnerExportRoutes);
 			await api.register(sepaRoutes);
 			await api.register(adminRoutes);
 			await api.register(changeRequestRoutes);
