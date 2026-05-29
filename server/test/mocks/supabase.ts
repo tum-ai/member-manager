@@ -45,7 +45,11 @@ interface MockData {
 	member_change_requests: Array<Record<string, unknown>>;
 	engagement_certificate_requests: Array<Record<string, unknown>>;
 	reimbursements: Array<Record<string, unknown>>;
+	member_cvs: Array<Record<string, unknown>>;
 }
+
+// In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
+export const mockStorage = new Map<string, Buffer>();
 
 export const mockSupabaseErrors = {
 	userRolesUpsert: null as unknown,
@@ -141,6 +145,7 @@ export const mockDatabase: MockData = {
 	member_role_history: [],
 	member_change_requests: [],
 	engagement_certificate_requests: [],
+	member_cvs: [],
 	reimbursements: [
 		{
 			id: "reimbursement-older",
@@ -221,10 +226,12 @@ interface QueryBuilder {
 	) => QueryBuilder;
 	delete: () => QueryBuilder;
 	eq: (column: string, value: unknown) => QueryBuilder;
+	is: (column: string, value: unknown) => QueryBuilder;
 	in: (column: string, values: unknown[]) => QueryBuilder;
 	or: (query: string) => QueryBuilder;
 	order: (column: string, options?: { ascending?: boolean }) => QueryBuilder;
 	range: (from: number, to: number) => QueryBuilder;
+	limit: (count: number) => QueryBuilder;
 	single: () => QueryResult;
 	maybeSingle: () => QueryResult;
 }
@@ -234,7 +241,9 @@ function createQueryBuilder(table: string): QueryBuilder {
 		selectedColumns: "*",
 		forcedError: null as unknown,
 		filters: [] as Array<{ column: string; value: unknown }>,
+		isFilters: [] as Array<{ column: string; value: unknown }>,
 		inFilters: [] as Array<{ column: string; values: unknown[] }>,
+		limitCount: undefined as number | undefined,
 		orQuery: "" as string,
 		orderByConfig: undefined as
 			| { column: string; ascending: boolean }
@@ -289,6 +298,17 @@ function createQueryBuilder(table: string): QueryBuilder {
 			tableData = tableData.filter((row) =>
 				filter.values.includes(row[filter.column]),
 			);
+		}
+
+		// `.is(col, null)` / `.is(col, value)` — used by current-CV lookups.
+		for (const filter of state.isFilters) {
+			tableData = tableData.filter((row) => {
+				const value = row[filter.column];
+				if (filter.value === null) {
+					return value === null || value === undefined;
+				}
+				return value === filter.value;
+			});
 		}
 
 		// Apply a pending UPDATE now that filters are known. Mutates the real
@@ -363,6 +383,10 @@ function createQueryBuilder(table: string): QueryBuilder {
 			tableData = tableData.slice(from, to + 1);
 		}
 
+		if (state.limitCount !== undefined) {
+			tableData = tableData.slice(0, state.limitCount);
+		}
+
 		if (isSingle) {
 			if (tableData.length === 0) {
 				if (isMaybeSingle) {
@@ -406,7 +430,8 @@ function createQueryBuilder(table: string): QueryBuilder {
 					(table === "member_role_history" ||
 						table === "member_change_requests" ||
 						table === "engagement_certificate_requests" ||
-						table === "reimbursements") &&
+						table === "reimbursements" ||
+						table === "member_cvs") &&
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {
@@ -477,8 +502,18 @@ function createQueryBuilder(table: string): QueryBuilder {
 			return proxyBuilder;
 		},
 
+		is: (column: string, value: unknown) => {
+			state.isFilters.push({ column, value });
+			return proxyBuilder;
+		},
+
 		in: (column: string, values: unknown[]) => {
 			state.inFilters.push({ column, values });
+			return proxyBuilder;
+		},
+
+		limit: (count: number) => {
+			state.limitCount = count;
 			return proxyBuilder;
 		},
 
@@ -570,6 +605,91 @@ export function createMockSupabaseClient(): SupabaseClient {
 			},
 		},
 		from: (table: string) => createQueryBuilder(table),
+		// Mirrors the insert_member_cv_version RPC: read max version, demote the
+		// current row, insert the new current row — atomically from the caller's
+		// perspective. Returns a `.single()`-shaped thenable.
+		rpc: (fnName: string, params: Record<string, unknown>) => {
+			const run = () => {
+				if (fnName !== "insert_member_cv_version") {
+					return Promise.resolve({
+						data: null,
+						error: { message: `Unknown rpc ${fnName}` },
+					});
+				}
+				const rows = mockDatabase.member_cvs;
+				const userId = params.p_user_id;
+				const userRows = rows.filter((r) => r.user_id === userId);
+				const prev = userRows.sort(
+					(a, b) => Number(b.version) - Number(a.version),
+				)[0];
+				const nextVersion = (prev ? Number(prev.version) : 0) + 1;
+				for (const row of userRows) {
+					row.is_current = false;
+				}
+				const inserted: Record<string, unknown> = {
+					id: params.p_id,
+					user_id: params.p_user_id,
+					storage_bucket: params.p_storage_bucket,
+					storage_path: params.p_storage_path,
+					original_filename: params.p_original_filename,
+					mime_type: params.p_mime_type,
+					size_bytes: params.p_size_bytes,
+					sha256: params.p_sha256,
+					source: params.p_source,
+					version: nextVersion,
+					is_current: true,
+					uploaded_by_user_id: params.p_uploaded_by_user_id ?? null,
+					supersedes_cv_id: prev?.id ?? null,
+					revoked_at: null,
+					uploaded_at: new Date().toISOString(),
+					created_at: new Date().toISOString(),
+				};
+				rows.push(inserted);
+				return Promise.resolve({ data: inserted, error: null });
+			};
+			// The lib only consumes `.rpc(...).single()`.
+			return { single: () => run() };
+		},
+		storage: {
+			from: (bucket: string) => ({
+				upload: async (path: string, body: Buffer, _options?: unknown) => {
+					const key = `${bucket}/${path}`;
+					if (mockStorage.has(key)) {
+						return { data: null, error: { message: "Already exists" } };
+					}
+					mockStorage.set(key, Buffer.from(body));
+					return { data: { path }, error: null };
+				},
+				download: async (path: string) => {
+					const value = mockStorage.get(`${bucket}/${path}`);
+					if (!value) {
+						return { data: null, error: { message: "Not found" } };
+					}
+					return {
+						data: {
+							arrayBuffer: async () =>
+								value.buffer.slice(
+									value.byteOffset,
+									value.byteOffset + value.byteLength,
+								),
+						},
+						error: null,
+					};
+				},
+				createSignedUrl: async (path: string, expiresIn: number) => ({
+					data: {
+						signedUrl: `https://mock-storage.local/${bucket}/${path}?token=mock&exp=${expiresIn}`,
+					},
+					error: null,
+				}),
+				remove: async (paths: string[]) => {
+					for (const path of paths) {
+						mockStorage.delete(`${bucket}/${path}`);
+					}
+					return { data: null, error: null };
+				},
+			}),
+		},
 	} as unknown as SupabaseClient;
 }
 
@@ -668,6 +788,8 @@ export function resetMockDatabase(): void {
 	mockDatabase.member_role_history = [];
 	mockDatabase.member_change_requests = [];
 	mockDatabase.engagement_certificate_requests = [];
+	mockDatabase.member_cvs = [];
+	mockStorage.clear();
 	mockDatabase.reimbursements = [
 		{
 			id: "reimbursement-older",

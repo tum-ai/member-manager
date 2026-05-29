@@ -114,6 +114,14 @@ file_size_limit = "50MiB"
 # allowed_mime_types = ["image/png", "image/jpeg"]
 # objects_path = "./images"
 
+# Private bucket for member CVs. The authoritative bucket definition lives in
+# the member_cvs migration (so local + prod stay in parity); this block only
+# sets sensible local-dev limits.
+[storage.buckets.member-cvs]
+public = false
+file_size_limit = "5MiB"
+allowed_mime_types = ["application/pdf"]
+
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
 enabled = true

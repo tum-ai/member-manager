@@ -61,6 +61,7 @@ import { generateMembershipProofPdf } from "../certificate/generators/membership
 import DataPrivacyNotice from "../legal/DataPrivacyNotice";
 import PrivacyPolicy from "../legal/PrivacyPolicy";
 import SepaMandate from "../sepa/SepaMandate";
+import CvPanel from "./CvPanel";
 import EducationFields from "./EducationFields";
 import { buildSelfServiceMemberUpdatePayload } from "./profileFormUtils";
 
@@ -854,7 +855,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 							</CardContent>
 						</GlassCard>
 
-						{/* ── LinkedIn & Professional Presence ── */}
+						{/* ── LinkedIn & Location ── */}
 						<GlassCard variant="elevated" sx={{ mt: 3 }}>
 							<CardContent sx={{ p: 3 }}>
 								<Box
@@ -862,7 +863,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								>
 									<LinkedInIcon sx={{ color: "primary.main" }} />
 									<Typography variant="h6" sx={{ fontWeight: 500 }}>
-										LinkedIn & Professional Presence
+										LinkedIn & Location
 									</Typography>
 								</Box>
 								<Typography
@@ -870,8 +871,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									color="text.secondary"
 									sx={{ mb: 3 }}
 								>
-									Keep your professional info up to date. This data is visible
-									to other TUM.ai members.
+									This data is visible to other TUM.ai members.
 								</Typography>
 
 								<Grid container spacing={2}>
@@ -918,6 +918,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								</Grid>
 							</CardContent>
 						</GlassCard>
+
+						<CvPanel userId={user.id} />
 
 						{!isAdmin && (
 							<GlassCard variant="elevated" sx={{ mt: 3 }}>
