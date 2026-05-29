@@ -87,6 +87,31 @@ export async function getCurrentCv(
 	return (data as MemberCvRow | null) ?? null;
 }
 
+// Batch variant of getCurrentCv for export-style fan-outs: one query for many
+// members instead of N. Returns a map keyed by user_id; members without a
+// current, non-revoked CV are simply absent.
+export async function getCurrentCvsForUsers(
+	userIds: string[],
+): Promise<Map<string, MemberCvRow>> {
+	const result = new Map<string, MemberCvRow>();
+	if (userIds.length === 0) {
+		return result;
+	}
+	const { data, error } = await getSupabase()
+		.from("member_cvs")
+		.select("*")
+		.in("user_id", userIds)
+		.eq("is_current", true)
+		.is("revoked_at", null);
+	if (error) {
+		throw new DatabaseError(`Failed to read current CVs: ${error.message}`);
+	}
+	for (const row of (data ?? []) as MemberCvRow[]) {
+		result.set(row.user_id, row);
+	}
+	return result;
+}
+
 export async function downloadCvObject(row: MemberCvRow): Promise<Buffer> {
 	const { data, error } = await getSupabase()
 		.storage.from(row.storage_bucket)

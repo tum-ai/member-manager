@@ -55,6 +55,7 @@ export default function CvPanel({ userId }: CvPanelProps) {
 		isLoading,
 		hasConsent,
 		isConsentLoading,
+		isConsentError,
 		uploadCv,
 		isUploading,
 		fetchCvBlob,
@@ -69,7 +70,12 @@ export default function CvPanel({ userId }: CvPanelProps) {
 		event.target.value = "";
 		if (!file) return;
 
-		if (file.type !== "application/pdf") {
+		// Some browsers/OSes report an empty MIME type for local files, so fall
+		// back to the .pdf extension. The server validates the PDF magic bytes.
+		const looksLikePdf =
+			file.type === "application/pdf" ||
+			(file.type === "" && file.name.toLowerCase().endsWith(".pdf"));
+		if (!looksLikePdf) {
 			showToast("Please upload a PDF file.", "error");
 			return;
 		}
@@ -195,7 +201,7 @@ export default function CvPanel({ userId }: CvPanelProps) {
 					{cv ? "Replace CV" : "Upload CV"}
 				</Button>
 
-				{!isConsentLoading && (
+				{!isConsentLoading && !isConsentError && (
 					<Box
 						sx={{
 							mt: 3,

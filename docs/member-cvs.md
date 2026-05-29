@@ -6,8 +6,9 @@ exposes them to the Partner Portal.
 ## Principle and boundary
 
 - **Member Manager (this repo) is the source of truth for "what is this
-  member's current CV right now".** It owns CV files, versions, and the
-  member-level partner-sharing consent flag.
+  member's current CV right now".** It owns CV files and versions. Partner-
+  sharing consent is not a CV-specific flag; it is derived from the member's
+  Data Privacy Notice agreement (see [Consent](#consent)).
 - **Partner Portal is a separate product.** It owns partner accounts, payment
   plans, and **semester snapshots**. It consumes a server-to-server export from
   Member Manager, downloads each CV once into its own private storage, and
@@ -82,8 +83,6 @@ is no consent setter.
 ```json
 { "filename": "my_cv.pdf", "cv_base64": "<base64 PDF, optional data URL prefix>" }
 ```
-
-`PUT /cv/consent` body: `{ "consent": true | false }`.
 
 ## Partner Portal export contract
 

@@ -14,6 +14,7 @@ import {
 	createCvSignedUrl,
 	downloadCvObject,
 	getCurrentCv,
+	getCurrentCvsForUsers,
 	MAX_CV_BYTES,
 	type MemberCvRow,
 } from "../lib/memberCvs.js";
@@ -254,13 +255,15 @@ export async function partnerExportRoutes(server: FastifyInstance) {
 				consentedUserIds.has(m.user_id),
 			);
 
-			const emails = await getAuthEmails(consented.map((m) => m.user_id));
+			const consentedUserIdList = consented.map((m) => m.user_id);
+			const emails = await getAuthEmails(consentedUserIdList);
+			const currentCvs = await getCurrentCvsForUsers(consentedUserIdList);
 
 			const exported: unknown[] = [];
 			const revoked: { member_manager_user_id: string; reason: string }[] = [];
 
 			for (const member of consented) {
-				const current = await getCurrentCv(member.user_id);
+				const current = currentCvs.get(member.user_id);
 				if (!current) {
 					// Consented but no shareable current CV (revoked or deleted). This
 					// is a real revocation signal: the Partner Portal should reconcile

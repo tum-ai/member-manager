@@ -91,6 +91,7 @@ export function useMemberCv(userId: string) {
 		// agreement; it is read-only here and managed via that notice.
 		hasConsent: consentQuery.data?.consent ?? false,
 		isConsentLoading: consentQuery.isLoading,
+		isConsentError: consentQuery.isError,
 		uploadCv: uploadMutation.mutateAsync,
 		isUploading: uploadMutation.isPending,
 		uploadError: uploadMutation.error,
