@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { checkAdminRole, ensureOwnerOrAdmin } from "../lib/auth.js";
@@ -48,13 +48,13 @@ function toCvMetadata(row: MemberCvRow) {
 	};
 }
 
+// Hash both sides to a fixed 32-byte digest before comparing so timingSafeEqual
+// always receives equal-length inputs. This removes the length-dependent early
+// return, which would otherwise leak the secret's length via response timing.
 function constantTimeEquals(a: string, b: string): boolean {
-	const aBuf = Buffer.from(a);
-	const bBuf = Buffer.from(b);
-	if (aBuf.length !== bBuf.length) {
-		return false;
-	}
-	return timingSafeEqual(aBuf, bBuf);
+	const aHash = createHash("sha256").update(a).digest();
+	const bHash = createHash("sha256").update(b).digest();
+	return timingSafeEqual(aHash, bHash);
 }
 
 export async function cvRoutes(server: FastifyInstance) {
