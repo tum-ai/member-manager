@@ -9,10 +9,11 @@ begin;
 -- the current version. Files are never overwritten: a new upload inserts a
 -- new version and flips the previous one's is_current to false.
 --
--- Partner sharing is gated by a MEMBER-LEVEL consent flag on `members`
--- (opt-in). The Partner Portal is a separate product that consumes a
--- server-side export (manifest + short-lived signed URLs) and freezes its own
--- snapshots; it never reads this storage live. See docs/member-cvs.md.
+-- Partner sharing is gated by the member's Data Privacy Notice consent
+-- (member_agreements.data_privacy_notice_agreed), not a CV-specific flag (see
+-- below). The Partner Portal is a separate product that consumes a server-side
+-- export (manifest + short-lived signed URLs) and freezes its own snapshots; it
+-- never reads this storage live. See docs/member-cvs.md.
 -- =========================================================================
 
 -- ---- Private storage bucket -------------------------------------------------
