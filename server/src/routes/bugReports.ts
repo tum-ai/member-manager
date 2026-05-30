@@ -2,7 +2,9 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import {
 	decodeBugReportImage,
+	deleteBugReportImage,
 	MAX_BUG_REPORT_IMAGE_BASE64_CHARS,
+	type UploadedBugReportImage,
 	uploadBugReportImage,
 } from "../lib/bugReportImages.js";
 import { createBugReportIssue } from "../lib/githubIssues.js";
@@ -41,11 +43,11 @@ export async function bugReportRoutes(server: FastifyInstance) {
 			// via decodeBugReportImage's ValidationError). The upload itself is
 			// best-effort: if storage is unavailable we still file the report
 			// rather than losing the user's message.
-			let imageUrl: string | undefined;
+			let uploadedImage: UploadedBugReportImage | undefined;
 			if (parsed.image) {
 				const image = decodeBugReportImage(parsed.image.dataBase64);
 				try {
-					imageUrl = await uploadBugReportImage(image);
+					uploadedImage = await uploadBugReportImage(image);
 				} catch (error) {
 					request.log.error(
 						{ err: error, userId: user.id },
@@ -61,7 +63,7 @@ export async function bugReportRoutes(server: FastifyInstance) {
 				stepsToReproduce: parsed.stepsToReproduce,
 				pageUrl: parsed.pageUrl || parsed.path,
 				userAgent,
-				imageUrl,
+				imageUrl: uploadedImage?.url,
 			};
 
 			let issue: Awaited<ReturnType<typeof createBugReportIssue>>;
@@ -72,6 +74,19 @@ export async function bugReportRoutes(server: FastifyInstance) {
 					{ err: error, userId: user.id },
 					"Failed to create GitHub issue for bug report",
 				);
+				// The screenshot we just uploaded is now orphaned (public, UUID-only,
+				// referenced by no issue). Best-effort remove it so failed/retried
+				// submissions don't leave accessible objects behind.
+				if (uploadedImage) {
+					try {
+						await deleteBugReportImage(uploadedImage.path);
+					} catch (deleteError) {
+						request.log.error(
+							{ err: deleteError, userId: user.id },
+							"Failed to remove orphaned bug report image after issue creation failed",
+						);
+					}
+				}
 				return reply.status(502).send({
 					error:
 						"Could not submit bug report right now. Please try again later.",

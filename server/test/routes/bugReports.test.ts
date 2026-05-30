@@ -3,7 +3,9 @@ import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
 import type { FastifyInstance } from "fastify";
 import {
+	resetBugReportImageDeleter,
 	resetBugReportImageUploader,
+	setBugReportImageDeleter,
 	setBugReportImageUploader,
 } from "../../src/lib/bugReportImages.js";
 import {
@@ -36,6 +38,7 @@ describe("Bug Report Routes", async () => {
 		resetBugReportIssueCreator();
 		resetSlackNotifier();
 		resetBugReportImageUploader();
+		resetBugReportImageDeleter();
 		await closeTestApp();
 	});
 
@@ -108,7 +111,10 @@ describe("Bug Report Routes", async () => {
 		const issues: BugReportIssuePayload[] = [];
 		setBugReportImageUploader(async (image) => {
 			uploads.push(image.contentType);
-			return "https://example.test/bug-report-images/shot.png";
+			return {
+				url: "https://example.test/bug-report-images/shot.png",
+				path: "shot.png",
+			};
 		});
 		setBugReportIssueCreator(async (payload) => {
 			issues.push(payload);
@@ -148,12 +154,55 @@ describe("Bug Report Routes", async () => {
 		}
 	});
 
+	test("removes the uploaded image when GitHub issue creation fails", async () => {
+		resetDatabase();
+		const pngBase64 = Buffer.from([
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+		]).toString("base64");
+		const deletions: string[] = [];
+		setBugReportImageUploader(async () => ({
+			url: "https://example.test/bug-report-images/orphan.png",
+			path: "orphan.png",
+		}));
+		setBugReportImageDeleter(async (path) => {
+			deletions.push(path);
+		});
+		setBugReportIssueCreator(async () => {
+			throw new Error("GitHub unavailable");
+		});
+
+		try {
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/bug-reports",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					message: "Layout looks broken, see screenshot.",
+					image: { dataBase64: pngBase64 },
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 502);
+			assert.deepStrictEqual(deletions, ["orphan.png"]);
+		} finally {
+			resetBugReportImageUploader();
+			resetBugReportImageDeleter();
+			resetBugReportIssueCreator();
+		}
+	});
+
 	test("rejects an invalid attached image with 400", async () => {
 		resetDatabase();
 		let uploaderCalled = false;
 		setBugReportImageUploader(async () => {
 			uploaderCalled = true;
-			return "https://example.test/should-not-be-used.png";
+			return {
+				url: "https://example.test/should-not-be-used.png",
+				path: "should-not-be-used.png",
+			};
 		});
 
 		try {

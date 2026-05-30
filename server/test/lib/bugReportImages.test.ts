@@ -3,9 +3,12 @@ import assert from "node:assert";
 import { afterEach, test } from "node:test";
 import {
 	decodeBugReportImage,
+	deleteBugReportImage,
 	detectBugReportImageType,
 	MAX_BUG_REPORT_IMAGE_BYTES,
+	resetBugReportImageDeleter,
 	resetBugReportImageUploader,
+	setBugReportImageDeleter,
 	setBugReportImageUploader,
 	uploadBugReportImage,
 } from "../../src/lib/bugReportImages.js";
@@ -26,6 +29,7 @@ function toBase64(buffer: Buffer): string {
 
 afterEach(() => {
 	resetBugReportImageUploader();
+	resetBugReportImageDeleter();
 });
 
 test("detectBugReportImageType recognises supported formats", () => {
@@ -84,15 +88,29 @@ test("uploadBugReportImage delegates to the injected uploader", async () => {
 	const seen: string[] = [];
 	setBugReportImageUploader(async (image) => {
 		seen.push(image.contentType);
-		return "https://example.test/screenshot.png";
+		return { url: "https://example.test/screenshot.png", path: "shot.png" };
 	});
 
-	const url = await uploadBugReportImage({
+	const uploaded = await uploadBugReportImage({
 		buffer: PNG,
 		contentType: "image/png",
 		extension: "png",
 	});
 
-	assert.strictEqual(url, "https://example.test/screenshot.png");
+	assert.deepStrictEqual(uploaded, {
+		url: "https://example.test/screenshot.png",
+		path: "shot.png",
+	});
 	assert.deepStrictEqual(seen, ["image/png"]);
+});
+
+test("deleteBugReportImage delegates to the injected deleter", async () => {
+	const removed: string[] = [];
+	setBugReportImageDeleter(async (path) => {
+		removed.push(path);
+	});
+
+	await deleteBugReportImage("shot.png");
+
+	assert.deepStrictEqual(removed, ["shot.png"]);
 });

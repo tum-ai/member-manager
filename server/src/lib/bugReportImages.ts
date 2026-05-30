@@ -91,11 +91,22 @@ export function decodeBugReportImage(dataBase64: string): BugReportImage {
 	};
 }
 
-type BugReportImageUploader = (image: BugReportImage) => Promise<string>;
+export interface UploadedBugReportImage {
+	// Public URL embedded in the GitHub issue.
+	url: string;
+	// Storage object path, kept so the caller can remove an orphaned upload if
+	// issue creation later fails.
+	path: string;
+}
+
+type BugReportImageUploader = (
+	image: BugReportImage,
+) => Promise<UploadedBugReportImage>;
+type BugReportImageDeleter = (path: string) => Promise<void>;
 
 async function defaultBugReportImageUploader(
 	image: BugReportImage,
-): Promise<string> {
+): Promise<UploadedBugReportImage> {
 	const supabase = getSupabase();
 	const path = `${randomUUID()}.${image.extension}`;
 
@@ -115,16 +126,32 @@ async function defaultBugReportImageUploader(
 	if (!data?.publicUrl) {
 		throw new Error("Bug report image upload returned no public URL");
 	}
-	return data.publicUrl;
+	return { url: data.publicUrl, path };
+}
+
+async function defaultBugReportImageDeleter(path: string): Promise<void> {
+	const supabase = getSupabase();
+	const { error } = await supabase.storage
+		.from(BUG_REPORT_IMAGE_BUCKET)
+		.remove([path]);
+	if (error) {
+		throw new Error(`Failed to delete bug report image: ${error.message}`);
+	}
 }
 
 let activeBugReportImageUploader: BugReportImageUploader =
 	defaultBugReportImageUploader;
+let activeBugReportImageDeleter: BugReportImageDeleter =
+	defaultBugReportImageDeleter;
 
 export async function uploadBugReportImage(
 	image: BugReportImage,
-): Promise<string> {
+): Promise<UploadedBugReportImage> {
 	return activeBugReportImageUploader(image);
+}
+
+export async function deleteBugReportImage(path: string): Promise<void> {
+	return activeBugReportImageDeleter(path);
 }
 
 export function setBugReportImageUploader(
@@ -133,6 +160,14 @@ export function setBugReportImageUploader(
 	activeBugReportImageUploader = uploader;
 }
 
+export function setBugReportImageDeleter(deleter: BugReportImageDeleter): void {
+	activeBugReportImageDeleter = deleter;
+}
+
 export function resetBugReportImageUploader(): void {
 	activeBugReportImageUploader = defaultBugReportImageUploader;
+}
+
+export function resetBugReportImageDeleter(): void {
+	activeBugReportImageDeleter = defaultBugReportImageDeleter;
 }
