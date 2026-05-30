@@ -2,6 +2,9 @@
 	"name": "member-manager",
 	"private": true,
 	"type": "module",
+	"engines": {
+		"node": "24.x"
+	},
 	"scripts": {
 		"dev": "pnpm dev:local",
 		"dev:local": "pnpm supabase:start && pnpm setup:local && pnpm -r --parallel --filter @member-manager/client --filter @member-manager/server run dev:local",
@@ -22,6 +25,6 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",
-		"@types/node": "^20.19.41"
+		"@types/node": "^24.12.4"
 	}
 }
