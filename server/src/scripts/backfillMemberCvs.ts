@@ -75,6 +75,7 @@ async function main(): Promise<void> {
 	let skippedExisting = 0;
 	const unmatched: string[] = [];
 	const ambiguous: string[] = [];
+	const failed: string[] = [];
 
 	for (const file of entries) {
 		const key = nameKeyFromFilename(file);
@@ -89,30 +90,38 @@ async function main(): Promise<void> {
 		}
 		const userId = candidates[0];
 
-		const existing = await getCurrentCv(userId);
-		if (existing) {
-			skippedExisting += 1;
-			continue;
-		}
+		// One bad file (oversized, corrupt PDF, upload hiccup) must not abort the
+		// whole backfill. Record it and keep going; the run is idempotent so it
+		// can be safely re-run after the file is fixed.
+		try {
+			const existing = await getCurrentCv(userId);
+			if (existing) {
+				skippedExisting += 1;
+				continue;
+			}
 
-		if (!apply) {
-			inserted += 1; // would insert
-			continue;
-		}
+			if (!apply) {
+				inserted += 1; // would insert
+				continue;
+			}
 
-		const buffer = await readFile(join(cvDir, file));
-		await addCvVersion({
-			userId,
-			buffer,
-			originalFilename: file,
-			source: "application",
-			uploadedByUserId: null,
-		});
-		inserted += 1;
+			const buffer = await readFile(join(cvDir, file));
+			await addCvVersion({
+				userId,
+				buffer,
+				originalFilename: file,
+				source: "application",
+				uploadedByUserId: null,
+			});
+			inserted += 1;
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : "unknown error";
+			failed.push(`${file}: ${reason}`);
+		}
 	}
 
 	console.log(
-		`${apply ? "Backfill" : "Dry run"}: ${apply ? "inserted" : "would insert"}=${inserted} skipped_existing=${skippedExisting} unmatched=${unmatched.length} ambiguous=${ambiguous.length}`,
+		`${apply ? "Backfill" : "Dry run"}: ${apply ? "inserted" : "would insert"}=${inserted} skipped_existing=${skippedExisting} unmatched=${unmatched.length} ambiguous=${ambiguous.length} failed=${failed.length}`,
 	);
 	if (unmatched.length > 0) {
 		console.log("Unmatched files (no member by name):");
@@ -121,6 +130,10 @@ async function main(): Promise<void> {
 	if (ambiguous.length > 0) {
 		console.log("Ambiguous files (multiple members share the name):");
 		for (const f of ambiguous) console.log(`  - ${f}`);
+	}
+	if (failed.length > 0) {
+		console.log("Failed files (matched but not inserted):");
+		for (const f of failed) console.log(`  - ${f}`);
 	}
 	if (!apply) {
 		console.log("\nRe-run with --apply to write.");
