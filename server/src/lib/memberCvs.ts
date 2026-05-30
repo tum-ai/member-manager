@@ -8,7 +8,11 @@ import { getSupabase } from "./supabase.js";
 
 export const CV_BUCKET = "member-cvs";
 export const CV_MIME_TYPE = "application/pdf";
-export const MAX_CV_BYTES = 10 * 1024 * 1024; // 10 MiB, mirrors the DB + bucket.
+// Single source of truth for the CV size cap. Mirrors the DB size_bytes check
+// constraint and the member-cvs storage bucket file_size_limit (kept in sync via
+// migrations). The client enforces the same number independently.
+export const MAX_CV_MB = 10;
+export const MAX_CV_BYTES = MAX_CV_MB * 1024 * 1024;
 const SIGNED_URL_TTL_SECONDS = 60 * 10; // 10 minutes for internal export.
 
 export type CvSource = "application" | "member_upload" | "admin_upload";
@@ -41,9 +45,7 @@ export function assertValidCvPdf(buffer: Buffer): void {
 		throw new ValidationError("CV file is empty");
 	}
 	if (buffer.length > MAX_CV_BYTES) {
-		throw new ValidationError(
-			`CV file is too large (max ${Math.floor(MAX_CV_BYTES / (1024 * 1024))} MB)`,
-		);
+		throw new ValidationError(`CV file is too large (max ${MAX_CV_MB} MB)`);
 	}
 	if (!buffer.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC)) {
 		throw new ValidationError("CV must be a PDF file");

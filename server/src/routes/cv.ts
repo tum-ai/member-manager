@@ -16,6 +16,7 @@ import {
 	getCurrentCv,
 	getCurrentCvsForUsers,
 	MAX_CV_BYTES,
+	MAX_CV_MB,
 	type MemberCvRow,
 } from "../lib/memberCvs.js";
 import { getSupabase } from "../lib/supabase.js";
@@ -99,7 +100,7 @@ export async function cvRoutes(server: FastifyInstance) {
 				throw new ValidationError("CV file is empty");
 			}
 			if (buffer.length > MAX_CV_BYTES) {
-				throw new ValidationError("CV file is too large (max 10 MB)");
+				throw new ValidationError(`CV file is too large (max ${MAX_CV_MB} MB)`);
 			}
 
 			const isAdmin = await checkAdminRole(user.id);
