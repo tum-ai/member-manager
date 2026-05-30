@@ -1,5 +1,12 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import {
+	decodeBugReportImage,
+	deleteBugReportImage,
+	MAX_BUG_REPORT_IMAGE_BASE64_CHARS,
+	type UploadedBugReportImage,
+	uploadBugReportImage,
+} from "../lib/bugReportImages.js";
 import { createBugReportIssue } from "../lib/githubIssues.js";
 import { notifyBugReport } from "../lib/slackNotifier.js";
 import { authenticate } from "../middleware/auth.js";
@@ -11,6 +18,11 @@ const BugReportSchema = z.object({
 	pageUrl: z.string().trim().max(2048).optional(),
 	path: z.string().trim().max(512).optional(),
 	userAgent: z.string().trim().max(512).optional(),
+	image: z
+		.object({
+			dataBase64: z.string().min(1).max(MAX_BUG_REPORT_IMAGE_BASE64_CHARS),
+		})
+		.optional(),
 });
 
 function firstHeaderValue(value: string | string[] | undefined): string {
@@ -27,6 +39,23 @@ export async function bugReportRoutes(server: FastifyInstance) {
 			const userAgent =
 				parsed.userAgent || firstHeaderValue(request.headers["user-agent"]);
 
+			// Decode/validate up front so a malformed image fails the request (400
+			// via decodeBugReportImage's ValidationError). The upload itself is
+			// best-effort: if storage is unavailable we still file the report
+			// rather than losing the user's message.
+			let uploadedImage: UploadedBugReportImage | undefined;
+			if (parsed.image) {
+				const image = decodeBugReportImage(parsed.image.dataBase64);
+				try {
+					uploadedImage = await uploadBugReportImage(image);
+				} catch (error) {
+					request.log.error(
+						{ err: error, userId: user.id },
+						"Failed to upload bug report image; submitting without it",
+					);
+				}
+			}
+
 			const bugReport = {
 				reporterUserId: user.id,
 				reporterEmail: user.email ?? "",
@@ -34,6 +63,7 @@ export async function bugReportRoutes(server: FastifyInstance) {
 				stepsToReproduce: parsed.stepsToReproduce,
 				pageUrl: parsed.pageUrl || parsed.path,
 				userAgent,
+				imageUrl: uploadedImage?.url,
 			};
 
 			let issue: Awaited<ReturnType<typeof createBugReportIssue>>;
@@ -44,6 +74,19 @@ export async function bugReportRoutes(server: FastifyInstance) {
 					{ err: error, userId: user.id },
 					"Failed to create GitHub issue for bug report",
 				);
+				// The screenshot we just uploaded is now orphaned (public, UUID-only,
+				// referenced by no issue). Best-effort remove it so failed/retried
+				// submissions don't leave accessible objects behind.
+				if (uploadedImage) {
+					try {
+						await deleteBugReportImage(uploadedImage.path);
+					} catch (deleteError) {
+						request.log.error(
+							{ err: deleteError, userId: user.id },
+							"Failed to remove orphaned bug report image after issue creation failed",
+						);
+					}
+				}
 				return reply.status(502).send({
 					error:
 						"Could not submit bug report right now. Please try again later.",

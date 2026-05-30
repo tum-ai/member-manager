@@ -152,7 +152,6 @@ export default function CvPanel({ userId }: CvPanelProps) {
 								{cv.original_filename}
 							</Typography>
 							<Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, mt: 0.5 }}>
-								<Chip size="small" label={`Version ${cv.version}`} />
 								<Chip
 									size="small"
 									variant="outlined"

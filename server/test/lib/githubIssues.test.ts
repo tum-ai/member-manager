@@ -116,6 +116,8 @@ test("createBugReportIssue creates a GitHub issue via GitHub App auth", async ()
 		stepsToReproduce: "Open profile. Change department. Save.",
 		pageUrl: "https://members.tum-ai.com/profile",
 		userAgent: "node-test-agent",
+		imageUrl:
+			"https://example.supabase.co/storage/v1/object/public/bug-report-images/abc.png",
 	});
 
 	assert.deepStrictEqual(issue, {
@@ -141,5 +143,10 @@ test("createBugReportIssue creates a GitHub issue via GitHub App auth", async ()
 	assert.match(createdIssue.body, /## What happened/);
 	assert.match(createdIssue.body, /User ID: `user-1`/);
 	assert.doesNotMatch(createdIssue.body, /user@test\.com/);
+	assert.match(createdIssue.body, /## Screenshot/);
+	assert.match(
+		createdIssue.body,
+		/!\[Screenshot\]\(https:\/\/example\.supabase\.co\/storage\/v1\/object\/public\/bug-report-images\/abc\.png\)/,
+	);
 	assert.deepStrictEqual(createdIssue.labels, ["bug", "reported-via-app"]);
 });

@@ -15,6 +15,7 @@ export interface BugReportIssuePayload {
 	stepsToReproduce?: string;
 	pageUrl?: string;
 	userAgent?: string;
+	imageUrl?: string;
 }
 
 export interface BugReportIssue {
@@ -243,6 +244,11 @@ function buildBugReportIssueBody(payload: BugReportIssuePayload): string {
 			? ["## Steps to reproduce", codeBlock(payload.stepsToReproduce)].join(
 					"\n\n",
 				)
+			: undefined,
+		// imageUrl is a server-minted Supabase public URL (random UUID path), not
+		// user text, so it is safe to embed directly as a markdown image.
+		payload.imageUrl
+			? ["## Screenshot", `![Screenshot](${payload.imageUrl})`].join("\n\n")
 			: undefined,
 		"## Context",
 		[

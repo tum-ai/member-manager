@@ -1,4 +1,6 @@
 import BugReportOutlinedIcon from "@mui/icons-material/BugReportOutlined";
+import CloseIcon from "@mui/icons-material/Close";
+import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
 import {
 	Box,
 	Button,
@@ -8,13 +10,15 @@ import {
 	DialogContent,
 	DialogContentText,
 	DialogTitle,
+	IconButton,
 	Stack,
 	TextField,
+	Typography,
 	useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import type { User } from "@supabase/supabase-js";
-import { useState } from "react";
+import { type ClipboardEvent, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useToast } from "../../contexts/ToastContext";
 import { apiClient } from "../../lib/apiClient";
@@ -22,6 +26,16 @@ import { apiClient } from "../../lib/apiClient";
 interface BugReportButtonProps {
 	user: User | null;
 }
+
+// Mirrors the server-side limits in server/src/lib/bugReportImages.ts.
+const MAX_IMAGE_MB = 10;
+const MAX_IMAGE_BYTES = MAX_IMAGE_MB * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = [
+	"image/png",
+	"image/jpeg",
+	"image/gif",
+	"image/webp",
+];
 
 function getPageUrl(): string {
 	if (typeof window === "undefined") {
@@ -48,6 +62,7 @@ export default function BugReportButton({
 	const [isOpen, setIsOpen] = useState(false);
 	const [message, setMessage] = useState("");
 	const [stepsToReproduce, setStepsToReproduce] = useState("");
+	const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 
 	const trimmedMessage = message.trim();
@@ -56,6 +71,46 @@ export default function BugReportButton({
 	function resetForm(): void {
 		setMessage("");
 		setStepsToReproduce("");
+		setImageDataUrl(null);
+	}
+
+	// Let users paste a screenshot straight into the dialog. We grab the first
+	// image off the clipboard, validate it, and keep it as a data URL for both
+	// the preview and the submit payload.
+	function handlePaste(event: ClipboardEvent<HTMLDivElement>): void {
+		if (isSubmitting) {
+			return;
+		}
+		const imageItem = Array.from(event.clipboardData?.items ?? []).find(
+			(item) => item.kind === "file" && item.type.startsWith("image/"),
+		);
+		if (!imageItem) {
+			return;
+		}
+		event.preventDefault();
+		const file = imageItem.getAsFile();
+		if (!file) {
+			return;
+		}
+		if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+			showToast(
+				"Only PNG, JPEG, GIF, or WebP images can be attached.",
+				"error",
+			);
+			return;
+		}
+		if (file.size > MAX_IMAGE_BYTES) {
+			showToast(`Image is too large (max ${MAX_IMAGE_MB} MB).`, "error");
+			return;
+		}
+		const reader = new FileReader();
+		reader.onload = () => {
+			setImageDataUrl(typeof reader.result === "string" ? reader.result : null);
+		};
+		reader.onerror = () => {
+			showToast("Could not read the pasted image.", "error");
+		};
+		reader.readAsDataURL(file);
 	}
 
 	function handleClose(): void {
@@ -80,6 +135,9 @@ export default function BugReportButton({
 					pageUrl: getPageUrl(),
 					path: `${location.pathname}${location.search}${location.hash}`,
 					userAgent: getUserAgent(),
+					image: imageDataUrl
+						? { dataBase64: imageDataUrl.split(",")[1] ?? "" }
+						: undefined,
 				}),
 			});
 			showToast("Bug report sent. Thanks for flagging it.", "success");
@@ -146,7 +204,7 @@ export default function BugReportButton({
 				}}
 			>
 				<DialogTitle>Report a bug</DialogTitle>
-				<DialogContent>
+				<DialogContent onPaste={handlePaste}>
 					<Stack spacing={2.5} sx={{ pt: 0.5 }}>
 						<DialogContentText>
 							Send a short note to the Member Manager team. We’ll include your
@@ -176,6 +234,53 @@ export default function BugReportButton({
 									: "Submitting securely"
 							}
 						/>
+						{imageDataUrl ? (
+							<Box
+								sx={{
+									position: "relative",
+									alignSelf: "flex-start",
+									maxWidth: "100%",
+									borderRadius: 2,
+									overflow: "hidden",
+									border: `1px solid ${theme.palette.divider}`,
+								}}
+							>
+								<Box
+									component="img"
+									src={imageDataUrl}
+									alt="Attached screenshot"
+									sx={{ display: "block", maxWidth: "100%", maxHeight: 220 }}
+								/>
+								<IconButton
+									size="small"
+									onClick={() => setImageDataUrl(null)}
+									disabled={isSubmitting}
+									aria-label="Remove attached image"
+									sx={{
+										position: "absolute",
+										top: 6,
+										right: 6,
+										backgroundColor: alpha("#000000", 0.55),
+										color: "#FFFFFF",
+										"&:hover": { backgroundColor: alpha("#000000", 0.72) },
+									}}
+								>
+									<CloseIcon fontSize="small" />
+								</IconButton>
+							</Box>
+						) : (
+							<Stack
+								direction="row"
+								spacing={0.75}
+								alignItems="center"
+								sx={{ color: "text.secondary" }}
+							>
+								<ImageOutlinedIcon fontSize="small" />
+								<Typography variant="caption">
+									Tip: paste a screenshot (Ctrl/Cmd+V) to attach it.
+								</Typography>
+							</Stack>
+						)}
 					</Stack>
 				</DialogContent>
 				<DialogActions sx={{ px: 3, pb: 3 }}>
