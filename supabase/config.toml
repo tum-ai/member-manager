@@ -119,7 +119,7 @@ file_size_limit = "50MiB"
 # sets sensible local-dev limits.
 [storage.buckets.member-cvs]
 public = false
-file_size_limit = "5MiB"
+file_size_limit = "10MiB"
 allowed_mime_types = ["application/pdf"]
 
 # Allow connections via S3 compatible clients

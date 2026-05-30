@@ -17,7 +17,7 @@ import { useToast } from "../../contexts/ToastContext";
 import { useMemberCv } from "../../hooks/useMemberCv";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
 
-const MAX_CV_BYTES = 5 * 1024 * 1024;
+const MAX_CV_BYTES = 10 * 1024 * 1024;
 
 const SOURCE_LABELS: Record<string, string> = {
 	application: "From application",
@@ -80,7 +80,7 @@ export default function CvPanel({ userId }: CvPanelProps) {
 			return;
 		}
 		if (file.size > MAX_CV_BYTES) {
-			showToast("CV is too large. The maximum size is 5 MB.", "error");
+			showToast("CV is too large. The maximum size is 10 MB.", "error");
 			return;
 		}
 
@@ -124,7 +124,7 @@ export default function CvPanel({ userId }: CvPanelProps) {
 					</Typography>
 				</Box>
 				<Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-					PDF only, max 5 MB.
+					PDF only, max 10 MB.
 				</Typography>
 
 				{isLoading ? (

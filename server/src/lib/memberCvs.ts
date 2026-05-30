@@ -8,7 +8,7 @@ import { getSupabase } from "./supabase.js";
 
 export const CV_BUCKET = "member-cvs";
 export const CV_MIME_TYPE = "application/pdf";
-export const MAX_CV_BYTES = 5 * 1024 * 1024; // 5 MiB, mirrors the DB + bucket.
+export const MAX_CV_BYTES = 10 * 1024 * 1024; // 10 MiB, mirrors the DB + bucket.
 const SIGNED_URL_TTL_SECONDS = 60 * 10; // 10 minutes for internal export.
 
 export type CvSource = "application" | "member_upload" | "admin_upload";

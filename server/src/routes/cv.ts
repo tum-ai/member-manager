@@ -99,7 +99,7 @@ export async function cvRoutes(server: FastifyInstance) {
 				throw new ValidationError("CV file is empty");
 			}
 			if (buffer.length > MAX_CV_BYTES) {
-				throw new ValidationError("CV file is too large (max 5 MB)");
+				throw new ValidationError("CV file is too large (max 10 MB)");
 			}
 
 			const isAdmin = await checkAdminRole(user.id);
