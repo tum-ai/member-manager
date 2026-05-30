@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { MAX_CV_BYTES, MAX_CV_MB } from "@member-manager/shared";
 import { ConflictError, DatabaseError, ValidationError } from "./errors.js";
 import { getSupabase } from "./supabase.js";
 
@@ -8,11 +9,11 @@ import { getSupabase } from "./supabase.js";
 
 export const CV_BUCKET = "member-cvs";
 export const CV_MIME_TYPE = "application/pdf";
-// Single source of truth for the CV size cap. Mirrors the DB size_bytes check
-// constraint and the member-cvs storage bucket file_size_limit (kept in sync via
-// migrations). The client enforces the same number independently.
-export const MAX_CV_MB = 10;
-export const MAX_CV_BYTES = MAX_CV_MB * 1024 * 1024;
+// CV size cap lives in @member-manager/shared (single source of truth, mirrored
+// by the DB constraint + storage bucket limit). Re-exported so existing
+// importers of "./memberCvs.js" keep working.
+export { MAX_CV_BYTES, MAX_CV_MB };
+
 const SIGNED_URL_TTL_SECONDS = 60 * 10; // 10 minutes for internal export.
 
 export type CvSource = "application" | "member_upload" | "admin_upload";

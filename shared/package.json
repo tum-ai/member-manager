@@ -1,0 +1,25 @@
+{
+	"name": "@member-manager/shared",
+	"version": "1.0.0",
+	"description": "Framework-free domain types, constants, and helpers shared by client and server",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"default": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "tsc",
+		"lint": "biome check .",
+		"lint:apply": "biome check . --write"
+	},
+	"devDependencies": {
+		"typescript": "^5.9.3"
+	}
+}

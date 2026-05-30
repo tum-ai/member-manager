@@ -19,19 +19,16 @@ export const ENGAGEMENT_SPECIAL_ROLES = [
 ] as const;
 export type EngagementSpecialRole = (typeof ENGAGEMENT_SPECIAL_ROLES)[number];
 
-// Canonical TUM.ai member roles. Keep in sync with:
-//   - `server/src/routes/admin.ts` (MEMBER_ROLES)
-//   - `supabase/migrations/20260423160500_member_role_enum_and_alumni.sql`
-export const MEMBER_ROLES = [
-	"Member",
-	"Team Lead",
-	"Vice-President",
-	"President",
-] as const;
-export type MemberRole = (typeof MEMBER_ROLES)[number];
-export const DEFAULT_MEMBER_ROLE: MemberRole = "Member";
-
-export const BOARD_MEMBER_ROLE = "Board Member" as const;
+// Canonical TUM.ai member roles live in @member-manager/shared (single source
+// of truth for client + server). Re-exported here so existing imports from
+// "../../lib/constants" keep working. Keep DB enums in sync with the shared
+// values (supabase/migrations/20260423160500_member_role_enum_and_alumni.sql).
+export {
+	BOARD_MEMBER_ROLE,
+	DEFAULT_MEMBER_ROLE,
+	MEMBER_ROLES,
+	type MemberRole,
+} from "@member-manager/shared";
 
 // School/University presets. "Other" unlocks a free-text field.
 export const SCHOOL_PRESETS = [

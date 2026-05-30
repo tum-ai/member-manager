@@ -26,6 +26,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.4.0
         version: 5.4.0(react-hook-form@7.76.1(react@18.3.1))
+      '@member-manager/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@mui/icons-material':
         specifier: ^7.3.11
         version: 7.3.11(@mui/material@7.3.11(@emotion/react@11.14.0(@types/react@19.2.15)(react@18.3.1))(@emotion/styled@11.14.1(@emotion/react@11.14.0(@types/react@19.2.15)(react@18.3.1))(@types/react@19.2.15)(react@18.3.1))(@types/react@19.2.15)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(@types/react@19.2.15)(react@18.3.1)
@@ -117,6 +120,9 @@ importers:
       '@fastify/rate-limit':
         specifier: ^10.3.0
         version: 10.3.0
+      '@member-manager/shared':
+        specifier: workspace:*
+        version: link:../shared
       '@supabase/supabase-js':
         specifier: ^2.106.2
         version: 2.106.2
@@ -148,6 +154,12 @@ importers:
       tsx:
         specifier: ^4.22.3
         version: 4.22.3
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+
+  shared:
+    devDependencies:
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

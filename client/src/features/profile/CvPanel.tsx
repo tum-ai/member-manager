@@ -1,3 +1,4 @@
+import { MAX_CV_BYTES, MAX_CV_MB } from "@member-manager/shared";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -16,12 +17,6 @@ import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberCv } from "../../hooks/useMemberCv";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
-
-// Mirrors the server's MAX_CV_MB (server/src/lib/memberCvs.ts) and the DB +
-// storage bucket limits. Kept as a local const since client and server are
-// separate bundles (same pattern as MAX_RECEIPT_BYTES).
-const MAX_CV_MB = 10;
-const MAX_CV_BYTES = MAX_CV_MB * 1024 * 1024;
 
 const SOURCE_LABELS: Record<string, string> = {
 	application: "From application",
