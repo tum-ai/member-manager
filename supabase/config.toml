@@ -122,6 +122,14 @@ public = false
 file_size_limit = "10MiB"
 allowed_mime_types = ["application/pdf"]
 
+# Public bucket for bug-report screenshots. The authoritative bucket definition
+# lives in the bug_report_images migration; this block only sets local-dev
+# limits. Public so the images render inline in the GitHub issues we open.
+[storage.buckets.bug-report-images]
+public = true
+file_size_limit = "10MiB"
+allowed_mime_types = ["image/png", "image/jpeg", "image/gif", "image/webp"]
+
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
 enabled = true

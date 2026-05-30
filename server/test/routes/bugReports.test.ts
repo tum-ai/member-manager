@@ -3,6 +3,10 @@ import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
 import type { FastifyInstance } from "fastify";
 import {
+	resetBugReportImageUploader,
+	setBugReportImageUploader,
+} from "../../src/lib/bugReportImages.js";
+import {
 	type BugReportIssuePayload,
 	resetBugReportIssueCreator,
 	setBugReportIssueCreator,
@@ -31,6 +35,7 @@ describe("Bug Report Routes", async () => {
 	after(async () => {
 		resetBugReportIssueCreator();
 		resetSlackNotifier();
+		resetBugReportImageUploader();
 		await closeTestApp();
 	});
 
@@ -91,6 +96,86 @@ describe("Bug Report Routes", async () => {
 		} finally {
 			resetBugReportIssueCreator();
 			resetSlackNotifier();
+		}
+	});
+
+	test("attaches a pasted image to the bug report", async () => {
+		resetDatabase();
+		const pngBase64 = Buffer.from([
+			0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a,
+		]).toString("base64");
+		const uploads: string[] = [];
+		const issues: BugReportIssuePayload[] = [];
+		setBugReportImageUploader(async (image) => {
+			uploads.push(image.contentType);
+			return "https://example.test/bug-report-images/shot.png";
+		});
+		setBugReportIssueCreator(async (payload) => {
+			issues.push(payload);
+			return {
+				number: 200,
+				url: "https://github.com/tum-ai/member-manager/issues/200",
+				title: "Bug: With screenshot",
+			};
+		});
+		setBugReportSlackNotifier(async () => {});
+
+		try {
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/bug-reports",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					message: "Layout looks broken, see screenshot.",
+					image: { dataBase64: pngBase64 },
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 202);
+			assert.deepStrictEqual(uploads, ["image/png"]);
+			assert.strictEqual(issues.length, 1);
+			assert.strictEqual(
+				issues[0].imageUrl,
+				"https://example.test/bug-report-images/shot.png",
+			);
+		} finally {
+			resetBugReportImageUploader();
+			resetBugReportIssueCreator();
+			resetSlackNotifier();
+		}
+	});
+
+	test("rejects an invalid attached image with 400", async () => {
+		resetDatabase();
+		let uploaderCalled = false;
+		setBugReportImageUploader(async () => {
+			uploaderCalled = true;
+			return "https://example.test/should-not-be-used.png";
+		});
+
+		try {
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/bug-reports",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					message: "This attachment is not an image.",
+					image: {
+						dataBase64: Buffer.from("%PDF-1.7 not an image").toString("base64"),
+					},
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			assert.strictEqual(uploaderCalled, false);
+		} finally {
+			resetBugReportImageUploader();
 		}
 	});
 
