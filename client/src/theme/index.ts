@@ -166,7 +166,17 @@ const getAppTheme = (mode: AppColorMode = "light") => {
 				},
 			},
 			MuiTextField: {
-				defaultProps: { variant: "outlined", fullWidth: true },
+				// Always float the label. React-hook-form `register` fields are
+				// uncontrolled, so when values load asynchronously MUI never sees a
+				// "filled" event and leaves the label centered — overlapping the
+				// value. Forcing `shrink` also notches the outline (MUI ties the two
+				// together when `slotProps.inputLabel.shrink` is set), so this is the
+				// single source of truth instead of per-field `shrink` patches.
+				defaultProps: {
+					variant: "outlined",
+					fullWidth: true,
+					slotProps: { inputLabel: { shrink: true } },
+				},
 				styleOverrides: {
 					root: {
 						"& .MuiOutlinedInput-root": {
