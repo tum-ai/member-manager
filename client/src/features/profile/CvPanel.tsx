@@ -1,3 +1,4 @@
+import { MAX_CV_BYTES, MAX_CV_MB } from "@member-manager/shared";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import DownloadIcon from "@mui/icons-material/Download";
@@ -16,8 +17,6 @@ import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberCv } from "../../hooks/useMemberCv";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
-
-const MAX_CV_BYTES = 5 * 1024 * 1024;
 
 const SOURCE_LABELS: Record<string, string> = {
 	application: "From application",
@@ -80,7 +79,10 @@ export default function CvPanel({ userId }: CvPanelProps) {
 			return;
 		}
 		if (file.size > MAX_CV_BYTES) {
-			showToast("CV is too large. The maximum size is 5 MB.", "error");
+			showToast(
+				`CV is too large. The maximum size is ${MAX_CV_MB} MB.`,
+				"error",
+			);
 			return;
 		}
 
@@ -124,7 +126,7 @@ export default function CvPanel({ userId }: CvPanelProps) {
 					</Typography>
 				</Box>
 				<Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-					PDF only, max 5 MB.
+					PDF only, max {MAX_CV_MB} MB.
 				</Typography>
 
 				{isLoading ? (

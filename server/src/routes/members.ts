@@ -62,7 +62,10 @@ const optionalLinkedInProfileUrlSchema = z
 		z.null(),
 		z.undefined(),
 	])
-	.transform((v) => (v === undefined ? undefined : v || null));
+	.transform((v) => (v === undefined ? undefined : v || null))
+	// zod v4: a transform defeats the object's optional-key inference, so an
+	// absent key would be rejected without an explicit .optional().
+	.optional();
 
 const MemberSchema = z.object({
 	user_id: z.string(),

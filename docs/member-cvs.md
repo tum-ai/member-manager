@@ -20,7 +20,7 @@ Portal, and avoids cross-app authorization coupling.
 ## Storage model
 
 CV files live in a **private** Supabase Storage bucket `member-cvs`, PDF-only,
-5 MB max. Files are **immutable and never overwritten**:
+10 MB max. Files are **immutable and never overwritten**:
 
 - Object path: `member-cvs/{user_id}/{cv_id}.pdf`.
 - Metadata rows live in `public.member_cvs` (one immutable row per version).
@@ -66,7 +66,7 @@ A member only appears in the partner export if **all** of:
 ## Member-facing APIs (authenticated)
 
 Owner or admin only. Base64 JSON transport (consistent with the reimbursement
-receipt flow); PDF-only; 5 MB max.
+receipt flow); PDF-only; 10 MB max.
 
 ```txt
 GET   /api/members/:userId/cv                 -> current CV metadata (no bytes)

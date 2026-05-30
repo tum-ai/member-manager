@@ -11,6 +11,7 @@
 		"lint:apply": "biome check . --write"
 	},
 	"dependencies": {
+		"@member-manager/shared": "workspace:*",
 		"@emotion/react": "^11.14.0",
 		"@emotion/styled": "^11.14.1",
 		"@hookform/resolvers": "^5.4.0",

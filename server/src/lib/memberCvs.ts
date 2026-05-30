@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { MAX_CV_BYTES, MAX_CV_MB } from "@member-manager/shared";
 import { ConflictError, DatabaseError, ValidationError } from "./errors.js";
 import { getSupabase } from "./supabase.js";
 
@@ -8,7 +9,11 @@ import { getSupabase } from "./supabase.js";
 
 export const CV_BUCKET = "member-cvs";
 export const CV_MIME_TYPE = "application/pdf";
-export const MAX_CV_BYTES = 5 * 1024 * 1024; // 5 MiB, mirrors the DB + bucket.
+// CV size cap lives in @member-manager/shared (single source of truth, mirrored
+// by the DB constraint + storage bucket limit). Re-exported so existing
+// importers of "./memberCvs.js" keep working.
+export { MAX_CV_BYTES, MAX_CV_MB };
+
 const SIGNED_URL_TTL_SECONDS = 60 * 10; // 10 minutes for internal export.
 
 export type CvSource = "application" | "member_upload" | "admin_upload";
@@ -41,9 +46,7 @@ export function assertValidCvPdf(buffer: Buffer): void {
 		throw new ValidationError("CV file is empty");
 	}
 	if (buffer.length > MAX_CV_BYTES) {
-		throw new ValidationError(
-			`CV file is too large (max ${Math.floor(MAX_CV_BYTES / (1024 * 1024))} MB)`,
-		);
+		throw new ValidationError(`CV file is too large (max ${MAX_CV_MB} MB)`);
 	}
 	if (!buffer.subarray(0, PDF_MAGIC.length).equals(PDF_MAGIC)) {
 		throw new ValidationError("CV must be a PDF file");

@@ -1,8 +1,19 @@
 import { DEGREE_TYPES } from "./constants";
 
-export const MEMBER_STATUSES = ["active", "inactive", "alumni"] as const;
-export type MemberStatus = (typeof MEMBER_STATUSES)[number];
-const NON_OPERATIONAL_DEPARTMENTS = new Set(["Board"]);
+// Member domain types, enums, and pure helpers live in @member-manager/shared
+// (single source of truth for client + server). Re-exported so existing imports
+// from "../../lib/memberMetadata" keep working. `getOperationalDepartment` is
+// the client's historical name for the shared `normalizeOperationalDepartment`.
+export {
+	buildMemberNameSearchText,
+	getMemberStatusLabel,
+	isExecutiveMemberRole,
+	MEMBER_STATUSES,
+	type MemberStatus,
+	normalizeOperationalDepartment as getOperationalDepartment,
+	requiresDepartmentForMemberRole,
+	resolveDepartmentForMemberRole,
+} from "@member-manager/shared";
 
 const DEGREE_TYPE_ALIASES: Record<string, string> = {
 	"B.A.": "Bachelor",
@@ -115,59 +126,4 @@ function formatSingleDegree(stored?: string | null): string {
 
 export function formatDegree(stored?: string | null): string {
 	return getDegreeEntries(stored).join("\n");
-}
-
-export function getMemberStatusLabel(status?: string | null): string {
-	switch (status) {
-		case "inactive":
-			return "Inactive";
-		case "alumni":
-			return "Alumni";
-		default:
-			return "Active";
-	}
-}
-
-export function buildMemberNameSearchText(
-	givenName?: string | null,
-	surname?: string | null,
-): string {
-	const given = givenName?.trim() ?? "";
-	const family = surname?.trim() ?? "";
-	return [`${given} ${family}`.trim(), `${family} ${given}`.trim()]
-		.filter((value, index, values) => value && values.indexOf(value) === index)
-		.join(" ");
-}
-
-export function resolveDepartmentForMemberRole(
-	role: string | null | undefined,
-	department: string | null | undefined,
-): string | null {
-	if (isExecutiveMemberRole(role)) {
-		return null;
-	}
-
-	return getOperationalDepartment(department);
-}
-
-export function isExecutiveMemberRole(
-	role: string | null | undefined,
-): boolean {
-	return role === "President" || role === "Vice-President";
-}
-
-export function requiresDepartmentForMemberRole(
-	role: string | null | undefined,
-): boolean {
-	return role === "Member" || role === "Team Lead";
-}
-
-export function getOperationalDepartment(
-	department: string | null | undefined,
-): string | null {
-	const normalized = department?.trim();
-	if (normalized && NON_OPERATIONAL_DEPARTMENTS.has(normalized)) {
-		return null;
-	}
-	return normalized ? normalized : null;
 }

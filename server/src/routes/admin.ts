@@ -33,10 +33,10 @@ const PositiveIntFromString = z
 	.pipe(z.number().int().positive());
 
 const QuerySchema = z.object({
-	page: PositiveIntFromString.default("1"),
+	page: PositiveIntFromString.default(1),
 	limit: PositiveIntFromString.pipe(
 		z.number().max(ADMIN_PAGE_LIMIT_MAX),
-	).default("10"),
+	).default(10),
 	search: z.string().optional(),
 	active: z.string().optional(),
 	member_status: z.string().optional(),
@@ -47,7 +47,7 @@ const QuerySchema = z.object({
 	sort_asc: z
 		.string()
 		.transform((val) => val === "true")
-		.default("true"),
+		.default(true),
 });
 
 const StatusSchema = z.object({
@@ -93,7 +93,10 @@ const OptionalLinkedInProfileUrlUpdateSchema = z
 		z.null(),
 		z.undefined(),
 	])
-	.transform((v) => (v === undefined ? undefined : v || null));
+	.transform((v) => (v === undefined ? undefined : v || null))
+	// zod v4: a transform defeats the object's optional-key inference, so an
+	// absent key would be rejected without an explicit .optional().
+	.optional();
 
 const MemberUpdateSchema = z.object({
 	department: z.string().nullable().transform(normalizeNullableText),

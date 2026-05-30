@@ -4,10 +4,11 @@
 	"type": "module",
 	"scripts": {
 		"dev": "pnpm dev:local",
-		"dev:local": "pnpm supabase:start && pnpm setup:local && pnpm -r --parallel --filter @member-manager/client --filter @member-manager/server run dev:local",
+		"dev:local": "pnpm build:shared && pnpm supabase:start && pnpm setup:local && pnpm -r --parallel --filter @member-manager/client --filter @member-manager/server run dev:local",
 		"gate": "pnpm lint && pnpm test && pnpm build",
 		"build": "pnpm -r run build",
-		"test": "pnpm test:scripts && pnpm -r run test",
+		"build:shared": "pnpm --filter @member-manager/shared run build",
+		"test": "pnpm build:shared && pnpm test:scripts && pnpm -r run test",
 		"test:scripts": "node --test scripts/*.test.mjs",
 		"lint": "biome check api && pnpm -r run lint",
 		"lint:staged": "biome check --staged --no-errors-on-unmatched",
