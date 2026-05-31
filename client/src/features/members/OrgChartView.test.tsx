@@ -109,7 +109,7 @@ describe("OrgChartView", () => {
 		expect(screen.getAllByText("Board member")).toHaveLength(1);
 	});
 
-	it("shows research projects below departments and expands details on click", async () => {
+	it("toggles between departments and research projects", async () => {
 		const user = userEvent.setup();
 		render(
 			<ThemeProvider theme={getAppTheme("light")}>
@@ -151,22 +151,29 @@ describe("OrgChartView", () => {
 			</ThemeProvider>,
 		);
 
-		expect(screen.getByText("Research Projects")).toBeInTheDocument();
-		expect(screen.getByText("Alpha Research")).toBeInTheDocument();
-		expect(screen.getByText("Software Development")).toBeInTheDocument();
 		expect(
-			screen
-				.getByText("Research Projects")
-				.compareDocumentPosition(screen.getByText("Software Development")) &
-				Node.DOCUMENT_POSITION_PRECEDING,
-		).toBeTruthy();
-		expect(screen.getByText("Lea Research")).toBeInTheDocument();
-		expect(screen.getByText("Riley Research")).toBeInTheDocument();
+			screen.getByRole("group", { name: /org chart section view/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("button", { name: /^both$/i }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: /^departments$/i }),
+		).toHaveAttribute("aria-pressed", "true");
+		expect(screen.getByText("Software Development")).toBeInTheDocument();
+		expect(screen.queryByText("Alpha Research")).not.toBeInTheDocument();
 
-		await user.click(screen.getByRole("button", { name: /alpha research/i }));
+		await user.click(screen.getByRole("button", { name: /^research$/i }));
 
-		expect(screen.getAllByText("Lea Research").length).toBeGreaterThan(1);
-		expect(screen.getAllByText("Riley Research").length).toBeGreaterThan(1);
+		expect(screen.queryByText("Software Development")).not.toBeInTheDocument();
+		expect(screen.getByText("Alpha Research")).toBeInTheDocument();
+		expect(screen.getAllByText("Lea Research").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Riley Research").length).toBeGreaterThan(0);
+
+		await user.click(screen.getByRole("button", { name: /^departments$/i }));
+
+		expect(screen.getByText("Software Development")).toBeInTheDocument();
+		expect(screen.queryByText("Alpha Research")).not.toBeInTheDocument();
 	});
 
 	it("shows innovation projects below departments and expands details on click", async () => {

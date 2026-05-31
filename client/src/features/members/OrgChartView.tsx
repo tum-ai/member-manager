@@ -10,10 +10,13 @@ import {
 	Divider,
 	Grid,
 	Stack,
+	ToggleButton,
+	ToggleButtonGroup,
 	Typography,
 	useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
+import { type ReactNode, useState } from "react";
 import GlassCard from "../../components/ui/GlassCard";
 import { BOARD_MEMBER_ROLE } from "../../lib/constants";
 import type { InnovationProject, Member, ResearchProject } from "../../types";
@@ -24,6 +27,8 @@ interface OrgChartViewProps {
 	researchProjects?: ResearchProject[];
 	innovationProjects?: InnovationProject[];
 }
+
+type OrgChartFocus = "departments" | "research";
 
 function getInitials(member: Member): string {
 	const first = member.given_name?.charAt(0) || "";
@@ -137,11 +142,138 @@ function renderMembers(
 	));
 }
 
+function getMemberCountLabel(count: number): string {
+	return `${count} member${count !== 1 ? "s" : ""}`;
+}
+
+function OrgChartTeamCard({
+	title,
+	count,
+	description,
+	badges,
+	primaryLabel,
+	primaryMembers,
+	primaryEmpty,
+	primaryHighlight = true,
+	secondaryLabel,
+	secondaryMembers,
+	secondaryEmpty,
+	showBoardBadge,
+}: {
+	title: string;
+	count: number;
+	description?: string;
+	badges?: ReactNode;
+	primaryLabel: string;
+	primaryMembers: Member[];
+	primaryEmpty: string;
+	primaryHighlight?: boolean;
+	secondaryLabel: string;
+	secondaryMembers: Member[];
+	secondaryEmpty: string;
+	showBoardBadge?: boolean;
+}) {
+	const theme = useTheme();
+
+	return (
+		<Box
+			sx={{
+				height: "100%",
+				borderRadius: 3,
+				p: 2.5,
+				backgroundColor:
+					theme.palette.mode === "light"
+						? "rgba(255, 255, 255, 0.68)"
+						: "rgba(27, 0, 73, 0.28)",
+				boxShadow:
+					theme.palette.mode === "light"
+						? "inset 0 1px 0 rgba(255, 255, 255, 0.86), 0 14px 34px rgba(15, 23, 42, 0.05)"
+						: "inset 0 1px 0 rgba(255, 255, 255, 0.05)",
+			}}
+		>
+			<Box
+				sx={{
+					display: "flex",
+					justifyContent: "space-between",
+					alignItems: "flex-start",
+					gap: 1.5,
+					mb: 2,
+				}}
+			>
+				<Box sx={{ minWidth: 0 }}>
+					<Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+						{title}
+					</Typography>
+					{description && (
+						<Typography
+							variant="body2"
+							color="text.secondary"
+							sx={{ mt: 0.75 }}
+						>
+							{description}
+						</Typography>
+					)}
+					{badges && (
+						<Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.75, mt: 1 }}>
+							{badges}
+						</Box>
+					)}
+				</Box>
+				<Chip
+					label={getMemberCountLabel(count)}
+					size="small"
+					variant="outlined"
+					sx={{ flexShrink: 0 }}
+				/>
+			</Box>
+
+			<Typography
+				variant="caption"
+				color="text.secondary"
+				sx={{ display: "block", mb: 1 }}
+			>
+				{primaryLabel}
+			</Typography>
+			<Box sx={{ display: "grid", gap: 1.25, mb: 2.25 }}>
+				{primaryMembers.length > 0 ? (
+					renderMembers(primaryMembers, {
+						showBoardBadge,
+						highlight: primaryHighlight,
+					})
+				) : (
+					<Typography variant="body2" color="text.secondary">
+						{primaryEmpty}
+					</Typography>
+				)}
+			</Box>
+
+			<Typography
+				variant="caption"
+				color="text.secondary"
+				sx={{ display: "block", mb: 1 }}
+			>
+				{secondaryLabel}
+			</Typography>
+			<Box sx={{ display: "grid", gap: 1.25 }}>
+				{secondaryMembers.length > 0 ? (
+					renderMembers(secondaryMembers, { showBoardBadge })
+				) : (
+					<Typography variant="body2" color="text.secondary">
+						{secondaryEmpty}
+					</Typography>
+				)}
+			</Box>
+		</Box>
+	);
+}
+
 export default function OrgChartView({
 	members,
 	researchProjects = [],
 	innovationProjects = [],
 }: OrgChartViewProps): JSX.Element | null {
+	const theme = useTheme();
+	const [focus, setFocus] = useState<OrgChartFocus>("departments");
 	const chart = buildOrgChart(members, researchProjects, innovationProjects);
 	const boardMemberCount =
 		chart.board.presidents.length +
@@ -151,6 +283,14 @@ export default function OrgChartView({
 	const hasResearch = chart.researchProjects.length > 0;
 	const hasInnovation = chart.innovationProjects.length > 0;
 	const hasDepartments = chart.departments.length > 0;
+	const canToggleTeams = hasDepartments && hasResearch;
+	const activeFocus: OrgChartFocus = hasDepartments
+		? hasResearch
+			? focus
+			: "departments"
+		: "research";
+	const showDepartments = hasDepartments && activeFocus === "departments";
+	const showResearch = hasResearch && activeFocus === "research";
 
 	if (!hasBoard && !hasResearch && !hasInnovation && !hasDepartments) {
 		return null;
@@ -226,198 +366,173 @@ export default function OrgChartView({
 					</>
 				)}
 
-				{hasDepartments && (
+				{(hasDepartments || hasResearch) && (
 					<>
 						<Divider sx={{ mb: 3 }} />
-						<Typography variant="subtitle1" sx={{ mb: 1.5, fontWeight: 700 }}>
-							Departments
-						</Typography>
-						<Grid container spacing={2}>
-							{chart.departments.map((group) => (
-								<Grid key={group.department} size={{ xs: 12, md: 6 }}>
-									<GlassCard
-										sx={{
-											height: "100%",
-											backgroundColor: "transparent",
-										}}
-									>
-										<CardContent sx={{ p: 2.5 }}>
-											<Box
-												sx={{
-													display: "flex",
-													justifyContent: "space-between",
-													alignItems: "center",
-													gap: 1.5,
-													mb: 2,
-												}}
-											>
-												<Typography
-													variant="subtitle1"
-													sx={{ fontWeight: 700 }}
-												>
-													{group.department}
-												</Typography>
-												<Chip
-													label={`${group.teamLeads.length + group.members.length} member${group.teamLeads.length + group.members.length !== 1 ? "s" : ""}`}
-													size="small"
-													variant="outlined"
-												/>
-											</Box>
-
-											<Typography
-												variant="caption"
-												color="text.secondary"
-												sx={{ display: "block", mb: 1 }}
-											>
-												Team Leads
-											</Typography>
-											<Box sx={{ display: "grid", gap: 1.25, mb: 2.25 }}>
-												{group.teamLeads.length > 0 ? (
-													renderMembers(group.teamLeads, {
-														showBoardBadge: true,
-													})
-												) : (
-													<Typography variant="body2" color="text.secondary">
-														No team lead assigned yet.
-													</Typography>
-												)}
-											</Box>
-
-											<Typography
-												variant="caption"
-												color="text.secondary"
-												sx={{ display: "block", mb: 1 }}
-											>
-												Members
-											</Typography>
-											<Box sx={{ display: "grid", gap: 1.25 }}>
-												{group.members.length > 0 ? (
-													renderMembers(group.members, {
-														showBoardBadge: true,
-													})
-												) : (
-													<Typography variant="body2" color="text.secondary">
-														No active members in this department.
-													</Typography>
-												)}
-											</Box>
-										</CardContent>
-									</GlassCard>
-								</Grid>
-							))}
-						</Grid>
-					</>
-				)}
-
-				{hasResearch && (
-					<>
-						<Divider sx={{ my: 3 }} />
 						<Box
 							sx={{
 								display: "flex",
 								justifyContent: "space-between",
-								alignItems: "center",
+								alignItems: { xs: "stretch", sm: "center" },
+								flexDirection: { xs: "column", sm: "row" },
 								gap: 1.5,
 								mb: 1.5,
 							}}
 						>
 							<Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-								Research Projects
+								Teams
 							</Typography>
-							<Chip
-								label={`${chart.researchProjects.length} active project${chart.researchProjects.length !== 1 ? "s" : ""}`}
-								size="small"
-								variant="outlined"
-							/>
-						</Box>
-						<Stack spacing={1.5}>
-							{chart.researchProjects.map((project) => (
-								<Accordion
-									key={project.id}
-									disableGutters
-									slotProps={{ transition: { unmountOnExit: true } }}
+							{canToggleTeams && (
+								<ToggleButtonGroup
+									exclusive
+									size="small"
+									value={activeFocus}
+									aria-label="Org chart section view"
+									onChange={(_, nextFocus: OrgChartFocus | null) => {
+										if (nextFocus) {
+											setFocus(nextFocus);
+										}
+									}}
 									sx={{
-										backgroundColor: "transparent",
+										width: { xs: "100%", sm: "auto" },
+										alignSelf: { xs: "stretch", sm: "center" },
+										p: 0.5,
 										borderRadius: 2.5,
-										boxShadow: "none",
-										"&:before": { display: "none" },
+										backgroundColor:
+											theme.palette.mode === "light"
+												? "rgba(154, 100, 217, 0.08)"
+												: "rgba(154, 100, 217, 0.14)",
+										"& .MuiToggleButtonGroup-grouped": {
+											flex: { xs: 1, sm: "0 0 auto" },
+											gap: 0.75,
+											px: { xs: 1, sm: 1.5 },
+											border: 0,
+											borderRadius: "10px !important",
+											whiteSpace: "nowrap",
+											color: "text.secondary",
+											"&.Mui-selected": {
+												backgroundColor:
+													theme.palette.mode === "light"
+														? "rgba(255, 255, 255, 0.92)"
+														: "rgba(82, 53, 115, 0.56)",
+												color: "text.primary",
+												boxShadow:
+													theme.palette.mode === "light"
+														? "0 8px 20px rgba(15, 23, 42, 0.08)"
+														: "none",
+											},
+										},
 									}}
 								>
-									<AccordionSummary expandIcon={<ExpandMoreIcon />}>
-										<Box
-											sx={{
-												display: "flex",
-												justifyContent: "space-between",
-												alignItems: "center",
-												gap: 1.5,
-												width: "100%",
-												pr: 1,
-											}}
-										>
-											<Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-												{project.title}
-											</Typography>
-											{project.status && (
-												<Chip
-													label={project.status}
-													size="small"
-													color="primary"
-													variant="outlined"
-												/>
-											)}
-										</Box>
-									</AccordionSummary>
-									<AccordionDetails sx={{ pt: 0, px: 2.5, pb: 2.5 }}>
-										{project.description && (
-											<Typography
-												variant="body2"
-												color="text.secondary"
-												sx={{ mb: 2 }}
+									<ToggleButton value="departments">Departments</ToggleButton>
+									<ToggleButton value="research">Research</ToggleButton>
+								</ToggleButtonGroup>
+							)}
+						</Box>
+						<Grid container spacing={2.5} alignItems="stretch">
+							{showDepartments && (
+								<Grid size={{ xs: 12, md: showResearch ? 6 : 12 }}>
+									<Box
+										sx={{
+											display: "flex",
+											justifyContent: "space-between",
+											alignItems: "center",
+											gap: 1.5,
+											mb: 1.5,
+										}}
+									>
+										<Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+											Departments
+										</Typography>
+										<Chip
+											label={`${chart.departments.length} department${chart.departments.length !== 1 ? "s" : ""}`}
+											size="small"
+											variant="outlined"
+										/>
+									</Box>
+									<Grid container spacing={2}>
+										{chart.departments.map((group) => (
+											<Grid
+												key={group.department}
+												size={{ xs: 12, md: showResearch ? 12 : 6 }}
 											>
-												{project.description}
-											</Typography>
-										)}
-
-										<Typography
-											variant="caption"
-											color="text.secondary"
-											sx={{ display: "block", mb: 1 }}
-										>
-											Lead Supervisor
-										</Typography>
-										<Box sx={{ display: "grid", gap: 1.25, mb: 2.25 }}>
-											{project.leadSupervisor ? (
-												<OrgChartPerson
-													member={project.leadSupervisor}
-													highlight
+												<OrgChartTeamCard
+													title={group.department}
+													count={group.teamLeads.length + group.members.length}
+													primaryLabel="Team Leads"
+													primaryMembers={group.teamLeads}
+													primaryEmpty="No team lead assigned yet."
+													secondaryLabel="Members"
+													secondaryMembers={group.members}
+													secondaryEmpty="No active members in this department."
+													showBoardBadge
 												/>
-											) : (
-												<Typography variant="body2" color="text.secondary">
-													Not assigned in member manager yet.
-												</Typography>
-											)}
-										</Box>
+											</Grid>
+										))}
+									</Grid>
+								</Grid>
+							)}
 
-										<Typography
-											variant="caption"
-											color="text.secondary"
-											sx={{ display: "block", mb: 1 }}
-										>
-											Project Members
+							{showResearch && (
+								<Grid size={{ xs: 12, md: showDepartments ? 6 : 12 }}>
+									<Box
+										sx={{
+											display: "flex",
+											justifyContent: "space-between",
+											alignItems: "center",
+											gap: 1.5,
+											mb: 1.5,
+										}}
+									>
+										<Typography variant="subtitle2" sx={{ fontWeight: 800 }}>
+											Research Projects
 										</Typography>
-										<Box sx={{ display: "grid", gap: 1.25 }}>
-											{project.members.length > 0 ? (
-												renderMembers(project.members)
-											) : (
-												<Typography variant="body2" color="text.secondary">
-													No project members assigned yet.
-												</Typography>
-											)}
-										</Box>
-									</AccordionDetails>
-								</Accordion>
-							))}
-						</Stack>
+										<Chip
+											label={`${chart.researchProjects.length} active project${chart.researchProjects.length !== 1 ? "s" : ""}`}
+											size="small"
+											variant="outlined"
+										/>
+									</Box>
+									<Grid container spacing={2}>
+										{chart.researchProjects.map((project) => (
+											<Grid
+												key={project.id}
+												size={{ xs: 12, md: showDepartments ? 12 : 6 }}
+											>
+												<OrgChartTeamCard
+													title={project.title}
+													count={
+														project.members.length +
+														(project.leadSupervisor ? 1 : 0)
+													}
+													description={project.description}
+													badges={
+														project.status ? (
+															<Chip
+																label={project.status}
+																size="small"
+																color="primary"
+																variant="outlined"
+															/>
+														) : undefined
+													}
+													primaryLabel="Lead Supervisor"
+													primaryMembers={
+														project.leadSupervisor
+															? [project.leadSupervisor]
+															: []
+													}
+													primaryEmpty="Not assigned in member manager yet."
+													secondaryLabel="Project Members"
+													secondaryMembers={project.members}
+													secondaryEmpty="No project members assigned yet."
+												/>
+											</Grid>
+										))}
+									</Grid>
+								</Grid>
+							)}
+						</Grid>
 					</>
 				)}
 
