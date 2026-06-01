@@ -410,16 +410,15 @@ export async function memberRoutes(server: FastifyInstance) {
 				};
 			}
 
-			const initialDepartment = resolveDepartmentForMemberRole(
-				DEFAULT_MEMBER_ROLE,
-				body.department,
-			);
+			// Department is admin-managed: it gates access to department-internal
+			// tools, so members cannot self-assign it (not even at creation). New
+			// profiles start without a department and request one through
+			// member_change_requests for an admin to approve.
 			const memberData = encryptRecord(
 				{
 					...body,
-					department: initialDepartment,
-					research_project_id:
-						initialDepartment === "Research" ? body.research_project_id : null,
+					department: null,
+					research_project_id: null,
 					member_role: DEFAULT_MEMBER_ROLE,
 					member_status: DEFAULT_MEMBER_STATUS,
 					active: true,
@@ -627,41 +626,25 @@ export async function memberRoutes(server: FastifyInstance) {
 			};
 
 			if (!isAdmin) {
+				// member_role and department are admin-managed; members request
+				// changes through member_change_requests rather than editing them
+				// directly. Silently drop any attempt to set them here. The research
+				// project is resolved against the member's existing department.
 				delete updatePayload.member_role;
-				const hasDepartmentUpdate = Object.hasOwn(body, "department");
-				if (hasDepartmentUpdate || hasResearchProjectUpdate) {
+				delete updatePayload.department;
+				if (hasResearchProjectUpdate) {
 					const existingMember = await fetchExistingMemberForManagedFields();
 					const currentRole = String(
 						existingMember?.member_role ?? DEFAULT_MEMBER_ROLE,
 					);
 					const effectiveDepartment = resolveDepartmentForMemberRole(
 						currentRole,
-						hasDepartmentUpdate ? body.department : existingMember?.department,
+						existingMember?.department,
 					);
-					if (
-						hasDepartmentUpdate &&
-						requiresDepartmentForMemberRole(currentRole) &&
-						!effectiveDepartment
-					) {
-						return reply.status(400).send({
-							error: "Department is required for Member and Team Lead roles",
-						});
-					}
-
-					if (hasDepartmentUpdate) {
-						updatePayload.department = effectiveDepartment;
-					}
-					if (hasResearchProjectUpdate) {
-						updatePayload.research_project_id =
-							effectiveDepartment === "Research"
-								? (body.research_project_id ?? null)
-								: null;
-					} else if (
-						hasDepartmentUpdate &&
-						effectiveDepartment !== "Research"
-					) {
-						updatePayload.research_project_id = null;
-					}
+					updatePayload.research_project_id =
+						effectiveDepartment === "Research"
+							? (body.research_project_id ?? null)
+							: null;
 				}
 			} else if (
 				Object.hasOwn(body, "department") ||

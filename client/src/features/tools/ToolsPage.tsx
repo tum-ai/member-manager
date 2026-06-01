@@ -1,3 +1,4 @@
+import { memberHasPermission } from "@member-manager/shared";
 import {
 	ArrowForward as ArrowForwardIcon,
 	Description as DescriptionIcon,
@@ -100,7 +101,7 @@ interface ToolsPageProps {
 	user: User;
 }
 
-function canUseFinanceReview(
+export function canUseFinanceReview(
 	member:
 		| {
 				active?: boolean | null;
@@ -111,13 +112,7 @@ function canUseFinanceReview(
 		| undefined,
 	isAdmin: boolean,
 ): boolean {
-	if (isAdmin) {
-		return true;
-	}
-
-	const status =
-		member?.member_status || (member?.active ? "active" : "inactive");
-	return status === "active" && member?.department === "Legal & Finance";
+	return isAdmin || memberHasPermission(member, "finance.review");
 }
 
 export default function ToolsPage({
@@ -126,9 +121,10 @@ export default function ToolsPage({
 	const { member } = useMemberData(user.id);
 	const { isAdmin } = useIsAdmin(user.id);
 	const showFinanceReview = canUseFinanceReview(member, isAdmin);
-	// Contract admin tools (submissions list + templates editor) share the
-	// same role as Finance Review — Legal & Finance department or admin.
-	const showContractAdminTools = showFinanceReview;
+	// Contract admin tools (submissions list + templates editor) are gated by a
+	// separate permission so a department could be granted one without the other.
+	const showContractAdminTools =
+		isAdmin || memberHasPermission(member, "contracts.admin");
 	const toolGroups = baseToolGroups
 		.map((group) => ({
 			...group,

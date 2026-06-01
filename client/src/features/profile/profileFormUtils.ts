@@ -18,16 +18,14 @@ export function buildSelfServiceMemberUpdatePayload(
 		return editableValues;
 	}
 
+	// member_role and department are admin-managed. Members request changes to
+	// them via member_change_requests, so they must never be sent through the
+	// self-service profile update.
 	const {
 		member_role: _memberRole,
-		department,
+		department: _department,
 		...selfServiceValues
 	} = editableValues;
-
-	const normalizedDepartment = department?.trim();
-	if (normalizedDepartment) {
-		return { ...selfServiceValues, department: normalizedDepartment };
-	}
 
 	return selfServiceValues;
 }

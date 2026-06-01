@@ -29,8 +29,9 @@ import MemberList from "./features/members/MemberList";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
 import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
-import ToolsPage from "./features/tools/ToolsPage";
+import ToolsPage, { canUseFinanceReview } from "./features/tools/ToolsPage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
+import { useMemberData } from "./hooks/useMemberData";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
 import {
@@ -227,7 +228,7 @@ export function AuthenticatedApp({
 				/>
 				<Route
 					path="/tools/reimbursement/review"
-					element={<ReimbursementReviewPage />}
+					element={<FinanceReviewRoute user={user} />}
 				/>
 				<Route
 					path="/engagement-certificate"
@@ -254,7 +255,7 @@ export function AuthenticatedApp({
 					path="/admin"
 					element={
 						isLoadingAdminRole ? (
-							<AdminRouteLoading />
+							<RouteAccessLoading />
 						) : isAdmin ? (
 							<AdminDatabaseView />
 						) : (
@@ -268,7 +269,7 @@ export function AuthenticatedApp({
 	);
 }
 
-function AdminRouteLoading(): JSX.Element {
+function RouteAccessLoading(): JSX.Element {
 	return (
 		<Box
 			sx={{
@@ -280,7 +281,26 @@ function AdminRouteLoading(): JSX.Element {
 			}}
 		>
 			<CircularProgress size={24} />
-			<Typography color="text.secondary">Loading admin access...</Typography>
+			<Typography color="text.secondary">Checking access...</Typography>
 		</Box>
 	);
+}
+
+// Finance Review is gated to admins and active Legal & Finance members. The
+// server enforces this on every endpoint; this guard mirrors it so an
+// unauthorized user who navigates here directly is redirected instead of
+// shown an empty shell.
+function FinanceReviewRoute({ user }: { user: User }): JSX.Element {
+	const { member, isLoading: isLoadingMember } = useMemberData(user.id);
+	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
+
+	if (isLoadingMember || isLoadingAdminRole) {
+		return <RouteAccessLoading />;
+	}
+
+	if (!canUseFinanceReview(member, isAdmin)) {
+		return <Navigate to="/" replace />;
+	}
+
+	return <ReimbursementReviewPage />;
 }

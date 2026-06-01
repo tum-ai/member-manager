@@ -107,6 +107,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		useState(false);
 	const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 	const [requestedRole, setRequestedRole] = useState("");
+	const [requestedDepartment, setRequestedDepartment] = useState("");
 	const [isRequestingAlumniStatus, setIsRequestingAlumniStatus] =
 		useState(false);
 	const [changeRequestReason, setChangeRequestReason] = useState("");
@@ -387,10 +388,14 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 	const handleSubmitMemberChangeRequest = async (): Promise<void> => {
 		const memberRole = normalizeTextValue(requestedRole);
+		const department = normalizeTextValue(requestedDepartment);
 		const reason = changeRequestReason.trim();
 
-		if (!memberRole && !isRequestingAlumniStatus) {
-			showToast("Select a role or alumni status change to request.", "warning");
+		if (!memberRole && !department && !isRequestingAlumniStatus) {
+			showToast(
+				"Select a role, department, or alumni status change to request.",
+				"warning",
+			);
 			return;
 		}
 
@@ -398,8 +403,10 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 			const changes: {
 				member_role?: string;
 				member_status?: string;
+				department?: string;
 			} = {};
 			if (memberRole) changes.member_role = memberRole;
+			if (department) changes.department = department;
 			if (isRequestingAlumniStatus) changes.member_status = "alumni";
 
 			await submitChangeRequestAsync({
@@ -407,6 +414,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				reason: reason || undefined,
 			});
 			setRequestedRole("");
+			setRequestedDepartment("");
 			setIsRequestingAlumniStatus(false);
 			setChangeRequestReason("");
 			showToast("Change request sent to the admin and LnF team.", "success");
@@ -740,28 +748,41 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 										</TextField>
 									</Grid>
 									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											select
-											label="Department"
-											value={currentDepartment}
-											onChange={(event) => {
-												memberForm.setValue("department", event.target.value, {
-													shouldDirty: true,
-												});
-												if (event.target.value !== "Research") {
-													memberForm.setValue("research_project_id", "", {
-														shouldDirty: true,
-													});
-												}
-											}}
-										>
-											<MenuItem value="">None</MenuItem>
-											{DEPARTMENTS.map((department) => (
-												<MenuItem key={department} value={department}>
-													{department}
-												</MenuItem>
-											))}
-										</TextField>
+										{isAdmin ? (
+											<TextField
+												select
+												label="Department"
+												value={currentDepartment}
+												onChange={(event) => {
+													memberForm.setValue(
+														"department",
+														event.target.value,
+														{
+															shouldDirty: true,
+														},
+													);
+													if (event.target.value !== "Research") {
+														memberForm.setValue("research_project_id", "", {
+															shouldDirty: true,
+														});
+													}
+												}}
+											>
+												<MenuItem value="">None</MenuItem>
+												{DEPARTMENTS.map((department) => (
+													<MenuItem key={department} value={department}>
+														{department}
+													</MenuItem>
+												))}
+											</TextField>
+										) : (
+											<TextField
+												label="Department"
+												value={currentDepartment || "Not set"}
+												helperText="Departments are assigned by admins. Request a change below."
+												disabled
+											/>
+										)}
 									</Grid>
 
 									<Grid size={{ xs: 12, sm: 6 }}>
@@ -925,7 +946,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 							<GlassCard variant="elevated" sx={{ mt: 3 }}>
 								<CardContent sx={{ p: 3 }}>
 									<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-										Request Role or Status Changes
+										Request Role, Department, or Status Changes
 									</Typography>
 
 									<Grid container spacing={2}>
@@ -942,6 +963,24 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												{MEMBER_ROLES.map((role) => (
 													<MenuItem key={role} value={role}>
 														{role}
+													</MenuItem>
+												))}
+											</TextField>
+										</Grid>
+										<Grid size={12}>
+											<TextField
+												select
+												label="Requested department"
+												value={requestedDepartment}
+												onChange={(event) =>
+													setRequestedDepartment(event.target.value)
+												}
+												helperText="Department changes are reviewed by an admin."
+											>
+												<MenuItem value="">No change</MenuItem>
+												{DEPARTMENTS.map((department) => (
+													<MenuItem key={department} value={department}>
+														{department}
 													</MenuItem>
 												))}
 											</TextField>
