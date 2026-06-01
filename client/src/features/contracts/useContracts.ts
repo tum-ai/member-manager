@@ -1,3 +1,4 @@
+import type { ContractWorkflowStatus } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "../../lib/apiClient";
 
@@ -12,15 +13,12 @@ export type ContractVariableDataType =
 
 export type ContractConditionType = "ALWAYS" | "IF_YES" | "IF_NO" | "IF_VALUE";
 
-export type ContractSubmissionStatus =
-	| "draft"
-	| "submitted"
-	| "in_review"
-	| "approved"
-	| "rejected"
-	| "inquiry"
-	| "signed"
-	| "completed";
+export type ContractSubmissionStatus = ContractWorkflowStatus;
+
+export type ContractSubmissionReviewStatus = Exclude<
+	ContractSubmissionStatus,
+	"sent_to_partner" | "partner_comments" | "partner_signed" | "board_signed"
+>;
 
 export interface ContractTemplate {
 	id: string;
@@ -64,6 +62,12 @@ export interface ContractTemplateDetail {
 	blocks: ContractConditionalBlock[];
 }
 
+export interface RenderedContractDocument {
+	text: string;
+	html: string;
+	pages: string[];
+}
+
 export interface ContractSubmission {
 	id: string;
 	template_id: string;
@@ -79,6 +83,18 @@ export interface ContractSubmission {
 	signature_data: string | null;
 	signer_name: string | null;
 	signed_at: string | null;
+	admin_signature_data: string | null;
+	admin_signer_name: string | null;
+	admin_signed_at: string | null;
+	partner_comment: string | null;
+	partner_commented_at: string | null;
+	sent_to_partner_at: string | null;
+	final_pdf_token: string | null;
+	final_pdf_sent_at: string | null;
+	completed_at: string | null;
+	active_document_version_id: string | null;
+	sent_document_version_id: string | null;
+	final_document_version_id: string | null;
 	submitted_at: string;
 	created_at: string;
 	updated_at: string;
@@ -86,6 +102,8 @@ export interface ContractSubmission {
 
 export interface PublicSignPayload {
 	contract_text: string;
+	html: string;
+	pages: string[];
 	status: ContractSubmissionStatus;
 }
 
@@ -107,6 +125,25 @@ export function useContractTemplate(templateId: string | undefined) {
 		queryFn: () =>
 			apiClient<ContractTemplateDetail>(
 				`/api/contracts/templates/${templateId}`,
+			),
+	});
+}
+
+export function useContractPreview(
+	templateId: string | undefined,
+	formData: Record<string, unknown>,
+) {
+	return useQuery({
+		queryKey: ["contract-preview", templateId, formData],
+		enabled: Boolean(templateId),
+		staleTime: 5_000,
+		queryFn: () =>
+			apiClient<RenderedContractDocument>(
+				`/api/contracts/templates/${templateId}/preview`,
+				{
+					method: "POST",
+					body: JSON.stringify({ form_data: formData }),
+				},
 			),
 	});
 }
@@ -230,6 +267,25 @@ export function useContractSubmission(id: string | undefined) {
 	});
 }
 
+export function useContractSubmissionPreview(
+	id: string | undefined,
+	contractText: string,
+) {
+	return useQuery({
+		queryKey: ["contract-submission-preview", id, contractText],
+		enabled: Boolean(id),
+		staleTime: 5_000,
+		queryFn: () =>
+			apiClient<RenderedContractDocument>(
+				`/api/contracts/submissions/${id}/preview`,
+				{
+					method: "POST",
+					body: JSON.stringify({ contract_text: contractText }),
+				},
+			),
+	});
+}
+
 export function useCreateContractSubmission() {
 	const qc = useQueryClient();
 	return useMutation({
@@ -250,17 +306,51 @@ export function useUpdateContractSubmission(id: string) {
 	const qc = useQueryClient();
 	return useMutation({
 		mutationFn: (body: {
-			status?: ContractSubmissionStatus;
+			status?: ContractSubmissionReviewStatus;
 			admin_edited_text?: string | null;
 			notes?: string | null;
 			feedback_message?: string | null;
 			generate_signature_token?: boolean;
+			send_to_partner?: boolean;
 			signature_token_ttl_hours?: number;
 		}) =>
 			apiClient<ContractSubmission>(`/api/contracts/submissions/${id}`, {
 				method: "PATCH",
 				body: JSON.stringify(body),
 			}),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: SUBMISSIONS_QUERY_KEY });
+			qc.invalidateQueries({ queryKey: ["contract-submission", id] });
+		},
+	});
+}
+
+export function useBoardSignContractSubmission(id: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (body: { signature_data: string; signer_name: string }) =>
+			apiClient<ContractSubmission>(
+				`/api/contracts/submissions/${id}/board-signature`,
+				{
+					method: "POST",
+					body: JSON.stringify(body),
+				},
+			),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: SUBMISSIONS_QUERY_KEY });
+			qc.invalidateQueries({ queryKey: ["contract-submission", id] });
+		},
+	});
+}
+
+export function useFinalizeContractSubmission(id: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: () =>
+			apiClient<ContractSubmission>(
+				`/api/contracts/submissions/${id}/finalize`,
+				{ method: "POST" },
+			),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: SUBMISSIONS_QUERY_KEY });
 			qc.invalidateQueries({ queryKey: ["contract-submission", id] });
@@ -291,6 +381,25 @@ export async function postPublicSignature(
 		headers: { "Content-Type": "application/json" },
 		body: JSON.stringify(body),
 	});
+	if (!res.ok) {
+		const message =
+			(await res.json().catch(() => ({})))?.error ?? res.statusText;
+		throw new Error(message);
+	}
+}
+
+export async function postPublicComment(
+	token: string,
+	body: { comment: string },
+): Promise<void> {
+	const res = await fetch(
+		`/api/contracts/sign/${encodeURIComponent(token)}/comment`,
+		{
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+		},
+	);
 	if (!res.ok) {
 		const message =
 			(await res.json().catch(() => ({})))?.error ?? res.statusText;

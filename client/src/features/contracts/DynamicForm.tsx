@@ -1,3 +1,4 @@
+import { CONTRACT_PACKAGES } from "@member-manager/shared";
 import {
 	Box,
 	Checkbox,
@@ -51,6 +52,10 @@ function parseOptions(raw: unknown): string[] {
 		}
 	}
 	return [];
+}
+
+function formatOptionLabel(option: string): string {
+	return CONTRACT_PACKAGES[option]?.label ?? option;
 }
 
 function fieldFor(
@@ -154,7 +159,7 @@ function fieldFor(
 					>
 						{options.map((option) => (
 							<MenuItem key={option} value={option}>
-								{option}
+								{formatOptionLabel(option)}
 							</MenuItem>
 						))}
 					</Select>

@@ -100,10 +100,13 @@ describe("ToolsPage", () => {
 		renderToolsPage();
 
 		expect(
-			screen.queryByRole("link", { name: "Contract Submissions (L&F)" }),
+			screen.queryByRole("link", { name: "Create Contract" }),
 		).not.toBeInTheDocument();
 		expect(
-			screen.queryByRole("link", { name: "Manage Templates (L&F)" }),
+			screen.queryByRole("link", { name: "Contract Submissions" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: "Manage Templates" }),
 		).not.toBeInTheDocument();
 	});
 
@@ -112,11 +115,15 @@ describe("ToolsPage", () => {
 
 		renderToolsPage();
 
+		expect(screen.getByRole("link", { name: "Create Contract" })).toHaveAttribute(
+			"href",
+			"/contracts",
+		);
 		expect(
-			screen.getByRole("link", { name: "Contract Submissions (L&F)" }),
+			screen.getByRole("link", { name: "Contract Submissions" }),
 		).toHaveAttribute("href", "/contracts/submissions");
 		expect(
-			screen.getByRole("link", { name: "Manage Templates (L&F)" }),
+			screen.getByRole("link", { name: "Manage Templates" }),
 		).toHaveAttribute("href", "/contracts/templates");
 	});
 
@@ -129,7 +136,7 @@ describe("ToolsPage", () => {
 			screen.getByRole("link", { name: "Finance Review" }),
 		).toBeInTheDocument();
 		expect(
-			screen.getByRole("link", { name: "Contract Submissions (L&F)" }),
+			screen.getByRole("link", { name: "Contract Submissions" }),
 		).toBeInTheDocument();
 	});
 });

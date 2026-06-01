@@ -25,14 +25,19 @@ const STATUS_FILTERS: Array<{
 	label: string;
 }> = [
 	{ value: "all", label: "All" },
+	{ value: "draft", label: "Draft" },
 	{ value: "submitted", label: "Submitted" },
+	{ value: "legal_review", label: "Legal Review" },
 	{ value: "in_review", label: "In Review" },
 	{ value: "approved", label: "Approved" },
+	{ value: "sent_to_partner", label: "Sent to Partner" },
+	{ value: "partner_comments", label: "Partner Comments" },
+	{ value: "partner_signed", label: "Partner Signed" },
+	{ value: "board_signed", label: "Board Signed" },
 	{ value: "rejected", label: "Rejected" },
 	{ value: "inquiry", label: "Inquiry" },
 	{ value: "signed", label: "Signed" },
 	{ value: "completed", label: "Completed" },
-	{ value: "draft", label: "Draft" },
 ];
 
 const STATUS_COLOR: Record<
@@ -41,8 +46,13 @@ const STATUS_COLOR: Record<
 > = {
 	draft: "default",
 	submitted: "info",
+	legal_review: "info",
 	in_review: "info",
 	approved: "primary",
+	sent_to_partner: "primary",
+	partner_comments: "warning",
+	partner_signed: "success",
+	board_signed: "success",
 	rejected: "error",
 	inquiry: "warning",
 	signed: "success",

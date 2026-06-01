@@ -149,7 +149,16 @@ describe("AuthenticatedApp permission-gated routes", () => {
 		expect(screen.queryByText("Profile route")).not.toBeInTheDocument();
 	});
 
-	it("keeps the general /contracts route open without any permission", () => {
+	it("redirects the create-contract route when the permission is missing", () => {
+		renderAuthenticatedApp("/contracts");
+
+		expect(screen.getByText("Profile route")).toBeInTheDocument();
+		expect(screen.queryByText("Contract form route")).not.toBeInTheDocument();
+	});
+
+	it("renders the create-contract route when the permission is present", () => {
+		toolAccessState.permissions = ["contracts.admin"];
+
 		renderAuthenticatedApp("/contracts");
 
 		expect(screen.getByText("Contract form route")).toBeInTheDocument();

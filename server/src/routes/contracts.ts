@@ -1,10 +1,15 @@
 import { randomBytes } from "node:crypto";
+import { enrichContractFormData } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { checkContractsAdmin } from "../lib/auth.js";
 import { DatabaseError } from "../lib/errors.js";
+import { createTextPdf } from "../lib/simplePdf.js";
 import { getSupabase } from "../lib/supabase.js";
-import { authenticate, requireContractsAdmin } from "../middleware/auth.js";
+import {
+	authenticate,
+	requireBoardMember,
+	requireContractsAdmin,
+} from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
 // =========================================================================
@@ -26,6 +31,23 @@ const CONDITION_TYPES = ["ALWAYS", "IF_YES", "IF_NO", "IF_VALUE"] as const;
 const SUBMISSION_STATUSES = [
 	"draft",
 	"submitted",
+	"legal_review",
+	"in_review",
+	"approved",
+	"sent_to_partner",
+	"partner_comments",
+	"partner_signed",
+	"board_signed",
+	"rejected",
+	"inquiry",
+	"signed",
+	"completed",
+] as const;
+
+const REVIEW_STATUSES = [
+	"draft",
+	"submitted",
+	"legal_review",
 	"in_review",
 	"approved",
 	"rejected",
@@ -78,13 +100,22 @@ const SubmissionBodySchema = z.object({
 	status: z.enum(["draft", "submitted"]).optional().default("submitted"),
 });
 
+const PreviewBodySchema = z.object({
+	form_data: z.record(z.string(), z.unknown()),
+});
+
+const TextPreviewBodySchema = z.object({
+	contract_text: z.string().max(250_000),
+});
+
 const SubmissionPatchSchema = z
 	.object({
-		status: z.enum(SUBMISSION_STATUSES).optional(),
+		status: z.enum(REVIEW_STATUSES).optional(),
 		admin_edited_text: z.string().max(200_000).nullable().optional(),
 		notes: z.string().max(5000).nullable().optional(),
 		feedback_message: z.string().max(5000).nullable().optional(),
 		generate_signature_token: z.boolean().optional(),
+		send_to_partner: z.boolean().optional(),
 		signature_token_ttl_hours: z.number().int().min(1).max(720).optional(),
 	})
 	.refine(
@@ -93,13 +124,18 @@ const SubmissionPatchSchema = z
 			value.admin_edited_text !== undefined ||
 			value.notes !== undefined ||
 			value.feedback_message !== undefined ||
-			value.generate_signature_token === true,
+			value.generate_signature_token === true ||
+			value.send_to_partner === true,
 		{ message: "No-op patch" },
 	);
 
 const SignBodySchema = z.object({
 	signature_data: z.string().min(1).max(2_000_000),
 	signer_name: z.string().trim().min(1).max(200),
+});
+
+const CommentBodySchema = z.object({
+	comment: z.string().trim().min(1).max(5000),
 });
 
 // =========================================================================
@@ -225,12 +261,168 @@ export function renderContractText(
 	return substituteVariables(afterConditionals, formData);
 }
 
+interface RenderedContractDocument {
+	text: string;
+	html: string;
+	pages: string[];
+}
+
+function escapeHtml(value: string): string {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;")
+		.replace(/"/g, "&quot;")
+		.replace(/'/g, "&#39;");
+}
+
+function estimateParagraphLines(paragraph: string): number {
+	const lineCount = paragraph.split("\n").length;
+	const wrappedCount = Math.ceil(paragraph.length / 92);
+	return Math.max(lineCount, wrappedCount, 1) + 1;
+}
+
+function splitDocumentPages(text: string): string[] {
+	const paragraphs = text
+		.replace(/\r\n/g, "\n")
+		.replace(/\r/g, "\n")
+		.split(/\n{2,}/)
+		.map((paragraph) => paragraph.trim())
+		.filter(Boolean);
+
+	const pages: string[] = [];
+	let current: string[] = [];
+	let lineBudget = 0;
+	const maxLines = 48;
+
+	for (const paragraph of paragraphs) {
+		const estimatedLines = estimateParagraphLines(paragraph);
+		if (current.length > 0 && lineBudget + estimatedLines > maxLines) {
+			pages.push(current.join("\n\n"));
+			current = [];
+			lineBudget = 0;
+		}
+		current.push(paragraph);
+		lineBudget += estimatedLines;
+	}
+
+	if (current.length > 0) {
+		pages.push(current.join("\n\n"));
+	}
+
+	return pages.length > 0 ? pages : [""];
+}
+
+function paragraphToHtml(paragraph: string): string {
+	const trimmed = paragraph.trim();
+	if (!trimmed) return "";
+	if (/^SPONSORINGVERTRAG$|^KOOPERATIONSVERTRAG$/i.test(trimmed)) {
+		return `<h1>${escapeHtml(trimmed)}</h1>`;
+	}
+	if (/^§\s*\d+\s+/.test(trimmed) || /^[A-ZÄÖÜ][^\n]{1,70}$/.test(trimmed)) {
+		return `<h2>${escapeHtml(trimmed)}</h2>`;
+	}
+
+	const lines = trimmed
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean);
+	const isList = lines.length > 1 && lines.every((line) => /^[-•]/.test(line));
+	if (isList) {
+		const items = lines
+			.map((line) => `<li>${escapeHtml(line.replace(/^[-•]\s*/, ""))}</li>`)
+			.join("");
+		return `<ul>${items}</ul>`;
+	}
+
+	return `<p>${lines.map(escapeHtml).join("<br>")}</p>`;
+}
+
+function textToHtml(text: string): string {
+	return text
+		.split(/\n{2,}/)
+		.map(paragraphToHtml)
+		.filter(Boolean)
+		.join("");
+}
+
+function renderContractDocument(
+	contractText: string,
+	formData: Record<string, unknown>,
+	blocks: ConditionalBlockRow[],
+): RenderedContractDocument {
+	const text = renderContractText(contractText, formData, blocks);
+	const pages = splitDocumentPages(text).map(textToHtml);
+	return {
+		text,
+		html: pages.map((page) => `<section>${page}</section>`).join(""),
+		pages,
+	};
+}
+
 // =========================================================================
 // Helpers
 // =========================================================================
 
 function generateSignatureToken(): string {
 	return randomBytes(32).toString("hex");
+}
+
+function buildFinalPdfText(submission: Record<string, unknown>): string {
+	const contractText =
+		typeof submission.admin_edited_text === "string" &&
+		submission.admin_edited_text.trim()
+			? submission.admin_edited_text
+			: typeof submission.generated_contract_text === "string"
+				? submission.generated_contract_text
+				: "";
+	const partnerName =
+		typeof submission.signer_name === "string" ? submission.signer_name : "";
+	const partnerSignedAt =
+		typeof submission.signed_at === "string" ? submission.signed_at : "";
+	const boardName =
+		typeof submission.admin_signer_name === "string"
+			? submission.admin_signer_name
+			: "";
+	const boardSignedAt =
+		typeof submission.admin_signed_at === "string"
+			? submission.admin_signed_at
+			: "";
+
+	return [
+		contractText,
+		"",
+		"---",
+		"Signaturen",
+		`Partner: ${partnerName || "-"}${partnerSignedAt ? ` (${partnerSignedAt})` : ""}`,
+		`TUM.ai / Board: ${boardName || "-"}${boardSignedAt ? ` (${boardSignedAt})` : ""}`,
+	].join("\n");
+}
+
+function buildSignedDocumentText(
+	documentText: string,
+	submission: Record<string, unknown>,
+): string {
+	const partnerName =
+		typeof submission.signer_name === "string" ? submission.signer_name : "";
+	const partnerSignedAt =
+		typeof submission.signed_at === "string" ? submission.signed_at : "";
+	const boardName =
+		typeof submission.admin_signer_name === "string"
+			? submission.admin_signer_name
+			: "";
+	const boardSignedAt =
+		typeof submission.admin_signed_at === "string"
+			? submission.admin_signed_at
+			: "";
+
+	return [
+		documentText,
+		"",
+		"Signaturen",
+		`Partner: ${partnerName || "-"}${partnerSignedAt ? ` (${partnerSignedAt})` : ""}`,
+		`TUM.ai / Board: ${boardName || "-"}${boardSignedAt ? ` (${boardSignedAt})` : ""}`,
+	].join("\n");
 }
 
 function isMissingContractsTable(error: unknown): boolean {
@@ -285,28 +477,89 @@ async function fetchTemplateWithChildren(templateId: string) {
 	};
 }
 
+async function createDocumentVersion(args: {
+	submissionId: string;
+	source: string;
+	text: string;
+	formData: Record<string, unknown>;
+	createdBy?: string | null;
+}): Promise<Record<string, unknown>> {
+	const supabase = getSupabase();
+	const { data: latest, error: latestError } = await supabase
+		.from("contract_document_versions")
+		.select("version_number")
+		.eq("submission_id", args.submissionId)
+		.order("version_number", { ascending: false })
+		.limit(1);
+	if (latestError) throw latestError;
+
+	const latestVersion = Array.isArray(latest)
+		? Number(
+				(latest[0] as { version_number?: unknown } | undefined)
+					?.version_number ?? 0,
+			)
+		: 0;
+	const nextVersion = latestVersion + 1;
+	const pages = splitDocumentPages(args.text).map(textToHtml);
+	const { data, error } = await supabase
+		.from("contract_document_versions")
+		.insert({
+			submission_id: args.submissionId,
+			version_number: nextVersion,
+			source: args.source,
+			rendered_text: args.text,
+			rendered_html: pages.map((page) => `<section>${page}</section>`).join(""),
+			form_data_snapshot: args.formData,
+			created_by: args.createdBy ?? null,
+		})
+		.select("*")
+		.single();
+	if (error) throw error;
+	return data as Record<string, unknown>;
+}
+
+async function fetchDocumentVersion(
+	versionId: unknown,
+): Promise<Record<string, unknown> | null> {
+	if (typeof versionId !== "string" || !versionId) return null;
+	const { data, error } = await getSupabase()
+		.from("contract_document_versions")
+		.select("*")
+		.eq("id", versionId)
+		.maybeSingle();
+	if (error) throw error;
+	return (data as Record<string, unknown> | null) ?? null;
+}
+
+function textFromSubmission(submission: Record<string, unknown>): string {
+	if (
+		typeof submission.admin_edited_text === "string" &&
+		submission.admin_edited_text.trim()
+	) {
+		return submission.admin_edited_text;
+	}
+	return typeof submission.generated_contract_text === "string"
+		? submission.generated_contract_text
+		: "";
+}
+
 // =========================================================================
 // Route plugin
 // =========================================================================
 
 export async function contractRoutes(server: FastifyInstance) {
 	// ---------------------------------------------------------------------
-	// Templates: list/get for any authenticated user; mutate for
-	// contracts admins only.
+	// Templates: contract tools are limited to departments with contracts.admin.
 	// ---------------------------------------------------------------------
 
 	server.get(
 		"/contracts/templates",
-		{ preHandler: authenticate },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, _reply) => {
-			const user = (request as AuthenticatedRequest).user;
-			const isContractsAdmin = await checkContractsAdmin(user.id);
-			let query = getSupabase()
+			const { data, error } = await getSupabase()
 				.from("contract_templates")
 				.select("*")
 				.order("name", { ascending: true });
-			if (!isContractsAdmin) query = query.eq("is_active", true);
-			const { data, error } = await query;
 
 			if (error) {
 				request.log.error({ err: error }, "Failed to list contract templates");
@@ -319,7 +572,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get<{ Params: { id: string } }>(
 		"/contracts/templates/:id",
-		{ preHandler: authenticate },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
 			try {
 				const result = await fetchTemplateWithChildren(request.params.id);
@@ -330,6 +583,35 @@ export async function contractRoutes(server: FastifyInstance) {
 					return reply.status(404).send({ error: "Template not found" });
 				}
 				request.log.error({ err: error }, "Failed to fetch template");
+				throw createContractDatabaseError(error);
+			}
+		},
+	);
+
+	server.post<{ Params: { id: string } }>(
+		"/contracts/templates/:id/preview",
+		{ preHandler: [authenticate, requireContractsAdmin] },
+		async (request, reply) => {
+			const body = PreviewBodySchema.parse(request.body);
+			const formData = enrichContractFormData(body.form_data);
+			try {
+				const { template, blocks } = await fetchTemplateWithChildren(
+					request.params.id,
+				);
+				if (!template) {
+					return reply.status(404).send({ error: "Template not found" });
+				}
+				return renderContractDocument(
+					(template as { contract_text: string }).contract_text,
+					formData,
+					blocks,
+				);
+			} catch (error) {
+				const code = (error as { code?: string } | null)?.code;
+				if (code === "PGRST116") {
+					return reply.status(404).send({ error: "Template not found" });
+				}
+				request.log.error({ err: error }, "Failed to render contract preview");
 				throw createContractDatabaseError(error);
 			}
 		},
@@ -524,24 +806,20 @@ export async function contractRoutes(server: FastifyInstance) {
 	);
 
 	// ---------------------------------------------------------------------
-	// Submissions: list/own for users, list-all for contracts admins, create
-	// for anyone, patch (review/approve/sign-link) for contracts admins.
+	// Submissions: internal contract workflow is contracts.admin only.
 	// ---------------------------------------------------------------------
 
 	server.get(
 		"/contracts/submissions",
-		{ preHandler: authenticate },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, _reply) => {
 			const user = (request as AuthenticatedRequest).user;
-			const isContractsAdmin = await checkContractsAdmin(user.id);
-			let query = getSupabase()
+			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, template_id, submitter_user_id, status, submitted_at, signed_at, created_at, updated_at, signature_token_expires_at",
+					"id, template_id, submitter_user_id, status, submitted_at, signed_at, admin_signed_at, final_pdf_token, final_pdf_sent_at, created_at, updated_at, signature_token, signature_token_expires_at",
 				)
 				.order("created_at", { ascending: false });
-			if (!isContractsAdmin) query = query.eq("submitter_user_id", user.id);
-			const { data, error } = await query;
 			if (error) {
 				request.log.error(
 					{ err: error, userId: user.id },
@@ -555,9 +833,8 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id",
-		{ preHandler: authenticate },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
-			const user = (request as AuthenticatedRequest).user;
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select("*")
@@ -570,22 +847,33 @@ export async function contractRoutes(server: FastifyInstance) {
 				request.log.error({ err: error }, "Failed to fetch submission");
 				throw createContractDatabaseError(error);
 			}
-			const isContractsAdmin = await checkContractsAdmin(user.id);
-			if (!isContractsAdmin && data.submitter_user_id !== user.id) {
-				return reply.status(403).send({ error: "Forbidden" });
-			}
 			return data;
+		},
+	);
+
+	server.post<{ Params: { id: string } }>(
+		"/contracts/submissions/:id/preview",
+		{ preHandler: [authenticate, requireContractsAdmin] },
+		async (request, _reply) => {
+			const body = TextPreviewBodySchema.parse(request.body);
+			const pages = splitDocumentPages(body.contract_text).map(textToHtml);
+			return {
+				text: body.contract_text,
+				html: pages.map((page) => `<section>${page}</section>`).join(""),
+				pages,
+			};
 		},
 	);
 
 	server.post(
 		"/contracts/submissions",
-		{ preHandler: authenticate },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const body = SubmissionBodySchema.parse(request.body);
+			const formData = enrichContractFormData(body.form_data);
 
-			let rendered: string;
+			let rendered: RenderedContractDocument;
 			try {
 				const { template, blocks } = await fetchTemplateWithChildren(
 					body.template_id,
@@ -593,9 +881,9 @@ export async function contractRoutes(server: FastifyInstance) {
 				if (!template) {
 					return reply.status(404).send({ error: "Template not found" });
 				}
-				rendered = renderContractText(
+				rendered = renderContractDocument(
 					(template as { contract_text: string }).contract_text,
-					body.form_data,
+					formData,
 					blocks,
 				);
 			} catch (error) {
@@ -609,9 +897,9 @@ export async function contractRoutes(server: FastifyInstance) {
 				.insert({
 					template_id: body.template_id,
 					submitter_user_id: user.id,
-					form_data: body.form_data,
-					generated_contract_text: rendered,
-					status: body.status,
+					form_data: formData,
+					generated_contract_text: rendered.text,
+					status: body.status === "draft" ? "draft" : "legal_review",
 					submitted_at: now,
 				})
 				.select("*")
@@ -620,7 +908,33 @@ export async function contractRoutes(server: FastifyInstance) {
 				request.log.error({ err: error }, "Failed to create submission");
 				throw createContractDatabaseError(error);
 			}
-			return data;
+
+			try {
+				const version = await createDocumentVersion({
+					submissionId: String(data.id),
+					source: body.status === "draft" ? "draft" : "generated",
+					text: rendered.text,
+					formData,
+					createdBy: user.id,
+				});
+				const { data: updated, error: updateError } = await getSupabase()
+					.from("contract_submissions")
+					.update({
+						active_document_version_id: version.id,
+						updated_at: new Date().toISOString(),
+					})
+					.eq("id", data.id)
+					.select("*")
+					.single();
+				if (updateError) throw updateError;
+				return updated;
+			} catch (error) {
+				request.log.error(
+					{ err: error },
+					"Failed to create initial contract document version",
+				);
+				throw createContractDatabaseError(error);
+			}
 		},
 	);
 
@@ -630,6 +944,23 @@ export async function contractRoutes(server: FastifyInstance) {
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const body = SubmissionPatchSchema.parse(request.body);
+			const needsCurrent =
+				body.admin_edited_text !== undefined ||
+				body.generate_signature_token === true ||
+				body.send_to_partner === true;
+			let current: Record<string, unknown> | null = null;
+
+			if (needsCurrent) {
+				const { data, error } = await getSupabase()
+					.from("contract_submissions")
+					.select("*")
+					.eq("id", request.params.id)
+					.single();
+				if (error || !data) {
+					return reply.status(404).send({ error: "Submission not found" });
+				}
+				current = data as Record<string, unknown>;
+			}
 
 			const update: Record<string, unknown> = {
 				updated_at: new Date().toISOString(),
@@ -643,19 +974,20 @@ export async function contractRoutes(server: FastifyInstance) {
 			if (body.notes !== undefined) update.notes = body.notes;
 			if (body.feedback_message !== undefined)
 				update.feedback_message = body.feedback_message;
-			if (body.generate_signature_token === true) {
-				const { data: current, error: currentError } = await getSupabase()
-					.from("contract_submissions")
-					.select("status")
-					.eq("id", request.params.id)
-					.single();
-				if (currentError || !current) {
-					return reply.status(404).send({ error: "Submission not found" });
-				}
-				if (current.status !== "approved") {
+			if (
+				body.generate_signature_token === true ||
+				body.send_to_partner === true
+			) {
+				if (
+					![
+						"legal_review",
+						"in_review",
+						"approved",
+						"partner_comments",
+					].includes(String(current?.status))
+				) {
 					return reply.status(400).send({
-						error:
-							"Submission must be in 'approved' state to generate a signing link",
+						error: "Submission is not ready to send to the partner",
 					});
 				}
 				const ttlHours = body.signature_token_ttl_hours ?? 24 * 30;
@@ -664,6 +996,33 @@ export async function contractRoutes(server: FastifyInstance) {
 					Date.now() + ttlHours * 60 * 60 * 1000,
 				).toISOString();
 				update.status = "sent_to_partner";
+				update.sent_to_partner_at = new Date().toISOString();
+			}
+
+			if (
+				current &&
+				(body.admin_edited_text !== undefined || body.send_to_partner === true)
+			) {
+				const versionText =
+					body.admin_edited_text !== undefined &&
+					body.admin_edited_text !== null
+						? body.admin_edited_text
+						: textFromSubmission({ ...current, ...update });
+				const version = await createDocumentVersion({
+					submissionId: request.params.id,
+					source:
+						body.send_to_partner === true ? "sent_to_partner" : "legal_review",
+					text: versionText,
+					formData:
+						typeof current.form_data === "object" && current.form_data !== null
+							? (current.form_data as Record<string, unknown>)
+							: {},
+					createdBy: user.id,
+				});
+				update.active_document_version_id = version.id;
+				if (body.send_to_partner === true) {
+					update.sent_document_version_id = version.id;
+				}
 			}
 
 			const { data, error } = await getSupabase()
@@ -693,7 +1052,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, admin_edited_text, generated_contract_text, signature_token_expires_at, signed_at",
+					"id, status, admin_edited_text, generated_contract_text, sent_document_version_id, signature_token_expires_at, signed_at",
 				)
 				.eq("signature_token", request.params.token)
 				.maybeSingle();
@@ -715,11 +1074,84 @@ export async function contractRoutes(server: FastifyInstance) {
 				return reply.status(409).send({ error: "Contract already signed" });
 			}
 
+			const sentVersion = await fetchDocumentVersion(
+				(data as Record<string, unknown>).sent_document_version_id,
+			);
+			const contractText =
+				typeof sentVersion?.rendered_text === "string"
+					? sentVersion.rendered_text
+					: textFromSubmission(data as Record<string, unknown>);
+			const pages =
+				typeof sentVersion?.rendered_html === "string" &&
+				sentVersion.rendered_html.trim()
+					? splitDocumentPages(contractText).map(textToHtml)
+					: splitDocumentPages(contractText).map(textToHtml);
+
 			return {
-				contract_text:
-					data.admin_edited_text ?? data.generated_contract_text ?? "",
+				contract_text: contractText,
+				html:
+					typeof sentVersion?.rendered_html === "string"
+						? sentVersion.rendered_html
+						: pages.map((page) => `<section>${page}</section>`).join(""),
+				pages,
 				status: data.status,
 			};
+		},
+	);
+
+	server.post<{ Params: { token: string } }>(
+		"/contracts/sign/:token/comment",
+		async (request, reply) => {
+			const body = CommentBodySchema.parse(request.body);
+
+			const { data: submission, error: fetchError } = await getSupabase()
+				.from("contract_submissions")
+				.select("id, status, signature_token_expires_at, signed_at")
+				.eq("signature_token", request.params.token)
+				.maybeSingle();
+
+			if (fetchError) {
+				request.log.error(
+					{ err: fetchError },
+					"Failed to load submission for comment",
+				);
+				throw createContractDatabaseError(fetchError);
+			}
+			if (!submission) {
+				return reply.status(404).send({ error: "Invalid signing link" });
+			}
+			if (
+				submission.signature_token_expires_at &&
+				new Date(submission.signature_token_expires_at).getTime() < Date.now()
+			) {
+				return reply.status(410).send({ error: "Signing link expired" });
+			}
+			if (submission.signed_at || submission.status !== "sent_to_partner") {
+				return reply
+					.status(409)
+					.send({ error: "Contract is not awaiting partner comments" });
+			}
+
+			const nowIso = new Date().toISOString();
+			const { data, error } = await getSupabase()
+				.from("contract_submissions")
+				.update({
+					partner_comment: body.comment,
+					partner_commented_at: nowIso,
+					status: "partner_comments",
+					signature_token: null,
+					signature_token_expires_at: null,
+					updated_at: nowIso,
+				})
+				.eq("id", submission.id)
+				.select("id, status, partner_comment, partner_commented_at")
+				.single();
+			if (error) {
+				request.log.error({ err: error }, "Failed to record partner comment");
+				throw createContractDatabaseError(error);
+			}
+
+			return data;
 		},
 	);
 
@@ -777,9 +1209,151 @@ export async function contractRoutes(server: FastifyInstance) {
 				throw createContractDatabaseError(error);
 			}
 
-			// TODO(contract-mvp): emit fire-and-forget PDF + email to submitter.
-			// Handled in a later iteration; see plan task #5.
 			return data;
+		},
+	);
+
+	server.post<{ Params: { id: string } }>(
+		"/contracts/submissions/:id/board-signature",
+		{ preHandler: [authenticate, requireContractsAdmin, requireBoardMember] },
+		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
+			const body = SignBodySchema.parse(request.body);
+
+			const { data: current, error: currentError } = await getSupabase()
+				.from("contract_submissions")
+				.select("id, status, signed_at")
+				.eq("id", request.params.id)
+				.single();
+			if (currentError || !current) {
+				return reply.status(404).send({ error: "Submission not found" });
+			}
+			if (current.status !== "partner_signed" || !current.signed_at) {
+				return reply.status(409).send({
+					error: "Contract must be signed by the partner before board signing",
+				});
+			}
+
+			const nowIso = new Date().toISOString();
+			const { data, error } = await getSupabase()
+				.from("contract_submissions")
+				.update({
+					admin_signature_data: body.signature_data,
+					admin_signer_name: body.signer_name,
+					admin_signed_at: nowIso,
+					reviewed_by: user.id,
+					reviewed_at: nowIso,
+					status: "board_signed",
+					updated_at: nowIso,
+				})
+				.eq("id", request.params.id)
+				.select("*")
+				.single();
+			if (error) {
+				request.log.error({ err: error }, "Failed to record board signature");
+				throw createContractDatabaseError(error);
+			}
+
+			return data;
+		},
+	);
+
+	server.post<{ Params: { id: string } }>(
+		"/contracts/submissions/:id/finalize",
+		{ preHandler: [authenticate, requireContractsAdmin] },
+		async (request, reply) => {
+			const { data: current, error: currentError } = await getSupabase()
+				.from("contract_submissions")
+				.select("*")
+				.eq("id", request.params.id)
+				.single();
+			if (currentError || !current) {
+				return reply.status(404).send({ error: "Submission not found" });
+			}
+			if (current.status !== "board_signed" && current.status !== "completed") {
+				return reply.status(409).send({
+					error: "Contract must be board-signed before finalization",
+				});
+			}
+
+			const nowIso = new Date().toISOString();
+			const currentRecord = current as Record<string, unknown>;
+			const activeVersion = await fetchDocumentVersion(
+				currentRecord.active_document_version_id ??
+					currentRecord.sent_document_version_id,
+			);
+			const baseText =
+				typeof activeVersion?.rendered_text === "string"
+					? activeVersion.rendered_text
+					: textFromSubmission(currentRecord);
+			const finalText = buildSignedDocumentText(baseText, currentRecord);
+			const finalVersion = await createDocumentVersion({
+				submissionId: request.params.id,
+				source: "final",
+				text: finalText,
+				formData:
+					typeof currentRecord.form_data === "object" &&
+					currentRecord.form_data !== null
+						? (currentRecord.form_data as Record<string, unknown>)
+						: {},
+			});
+			const { data, error } = await getSupabase()
+				.from("contract_submissions")
+				.update({
+					final_pdf_token: current.final_pdf_token ?? generateSignatureToken(),
+					final_document_version_id: finalVersion.id,
+					active_document_version_id: finalVersion.id,
+					final_pdf_sent_at: nowIso,
+					completed_at: nowIso,
+					status: "completed",
+					updated_at: nowIso,
+				})
+				.eq("id", request.params.id)
+				.select("*")
+				.single();
+			if (error) {
+				request.log.error({ err: error }, "Failed to finalize contract");
+				throw createContractDatabaseError(error);
+			}
+
+			return data;
+		},
+	);
+
+	server.get<{ Params: { token: string } }>(
+		"/contracts/final/:token/pdf",
+		async (request, reply) => {
+			const { data, error } = await getSupabase()
+				.from("contract_submissions")
+				.select(
+					"id, status, final_document_version_id, admin_edited_text, generated_contract_text, signer_name, signed_at, admin_signer_name, admin_signed_at",
+				)
+				.eq("final_pdf_token", request.params.token)
+				.maybeSingle();
+
+			if (error) {
+				request.log.error({ err: error }, "Failed to fetch final PDF");
+				throw createContractDatabaseError(error);
+			}
+			if (data?.status !== "completed") {
+				return reply.status(404).send({ error: "Final PDF not found" });
+			}
+
+			const finalVersion = await fetchDocumentVersion(
+				(data as Record<string, unknown>).final_document_version_id,
+			);
+			const finalText =
+				typeof finalVersion?.rendered_text === "string"
+					? finalVersion.rendered_text
+					: buildFinalPdfText(data);
+			const pdf = createTextPdf(finalText);
+			return reply
+				.header("Content-Type", "application/pdf")
+				.header(
+					"Content-Disposition",
+					`inline; filename="contract-${data.id}.pdf"`,
+				)
+				.send(pdf);
 		},
 	);
 }

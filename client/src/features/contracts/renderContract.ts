@@ -1,6 +1,7 @@
 // Mirrors server/src/routes/contracts.ts:renderContractText so the form
 // preview matches what the server will store. Keep in sync if either side
 // changes the template DSL.
+import { enrichContractFormData } from "@member-manager/shared";
 import type {
 	ContractConditionalBlock,
 	ContractConditionType,
@@ -102,8 +103,9 @@ export function renderContractText(
 	formData: Record<string, unknown>,
 	blocks: ContractConditionalBlock[],
 ): string {
+	const enrichedFormData = enrichContractFormData(formData);
 	const matching = blocks
-		.filter((block) => blockMatches(block, formData))
+		.filter((block) => blockMatches(block, enrichedFormData))
 		.sort((a, b) => a.sort_order - b.sort_order)
 		.map((block) => block.block_text)
 		.filter((text) => text.trim().length > 0);
@@ -112,7 +114,7 @@ export function renderContractText(
 			? `${contractText}\n\n${matching.join("\n\n")}`
 			: contractText;
 	return substituteVariables(
-		applyInlineConditionals(combined, formData),
-		formData,
+		applyInlineConditionals(combined, enrichedFormData),
+		enrichedFormData,
 	);
 }
