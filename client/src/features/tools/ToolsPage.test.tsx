@@ -1,48 +1,29 @@
+import type { Permission } from "@member-manager/shared";
 import { ThemeProvider } from "@mui/material";
-import type { User } from "@supabase/supabase-js";
 import { render, screen, within } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import getAppTheme from "../../theme";
 import ToolsPage from "./ToolsPage";
 
-const { memberState, adminState } = vi.hoisted(() => ({
-	memberState: {
-		member: {
-			user_id: "user-123",
-			active: true,
-			member_status: "active",
-			department: "Software Development",
-		},
-	},
-	adminState: {
-		isAdmin: false,
+const { accessState } = vi.hoisted(() => ({
+	accessState: {
+		permissions: [] as Permission[],
 	},
 }));
 
-vi.mock("../../hooks/useMemberData", () => ({
-	useMemberData: () => ({
-		member: memberState.member,
-	}),
-}));
-
-vi.mock("../../hooks/useIsAdmin", () => ({
-	useIsAdmin: () => ({
-		isAdmin: adminState.isAdmin,
+vi.mock("../../hooks/useToolAccess", () => ({
+	useToolAccess: () => ({
+		permissions: accessState.permissions,
 		isLoading: false,
 	}),
 }));
-
-const mockUser = {
-	id: "user-123",
-	email: "user@test.com",
-} as User;
 
 function renderToolsPage() {
 	return render(
 		<ThemeProvider theme={getAppTheme("light")}>
 			<MemoryRouter>
-				<ToolsPage user={mockUser} />
+				<ToolsPage />
 			</MemoryRouter>
 		</ThemeProvider>,
 	);
@@ -50,13 +31,7 @@ function renderToolsPage() {
 
 describe("ToolsPage", () => {
 	beforeEach(() => {
-		adminState.isAdmin = false;
-		memberState.member = {
-			user_id: "user-123",
-			active: true,
-			member_status: "active",
-			department: "Software Development",
-		};
+		accessState.permissions = [];
 	});
 
 	it("renders the reimbursement tool link with the correct href", () => {
@@ -101,7 +76,7 @@ describe("ToolsPage", () => {
 		).toBeInTheDocument();
 	});
 
-	it("hides Finance Review when the member cannot use it", () => {
+	it("hides Finance Review without the finance.review permission", () => {
 		renderToolsPage();
 
 		expect(
@@ -109,13 +84,8 @@ describe("ToolsPage", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("shows Finance Review for active Legal & Finance members", () => {
-		memberState.member = {
-			user_id: "user-123",
-			active: true,
-			member_status: "active",
-			department: "Legal & Finance",
-		};
+	it("shows Finance Review with the finance.review permission", () => {
+		accessState.permissions = ["finance.review"];
 
 		renderToolsPage();
 
@@ -124,13 +94,42 @@ describe("ToolsPage", () => {
 		).toHaveAttribute("href", "/tools/reimbursement/review");
 	});
 
-	it("shows Finance Review for admins", () => {
-		adminState.isAdmin = true;
+	it("hides contract admin tools without the contracts.admin permission", () => {
+		accessState.permissions = ["finance.review"];
+
+		renderToolsPage();
+
+		expect(
+			screen.queryByRole("link", { name: "Contract Submissions (L&F)" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: "Manage Templates (L&F)" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("shows contract admin tools with the contracts.admin permission", () => {
+		accessState.permissions = ["contracts.admin"];
+
+		renderToolsPage();
+
+		expect(
+			screen.getByRole("link", { name: "Contract Submissions (L&F)" }),
+		).toHaveAttribute("href", "/contracts/submissions");
+		expect(
+			screen.getByRole("link", { name: "Manage Templates (L&F)" }),
+		).toHaveAttribute("href", "/contracts/templates");
+	});
+
+	it("shows all gated tools when every permission is granted", () => {
+		accessState.permissions = ["finance.review", "contracts.admin"];
 
 		renderToolsPage();
 
 		expect(
 			screen.getByRole("link", { name: "Finance Review" }),
-		).toHaveAttribute("href", "/tools/reimbursement/review");
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: "Contract Submissions (L&F)" }),
+		).toBeInTheDocument();
 	});
 });

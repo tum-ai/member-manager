@@ -76,7 +76,7 @@ describe("AuthenticatedApp admin routing", () => {
 	it("does not redirect direct admin URLs while the admin role is loading", () => {
 		renderAuthenticatedApp("/admin");
 
-		expect(screen.getByText(/loading admin access/i)).toBeInTheDocument();
+		expect(screen.getByText(/checking access/i)).toBeInTheDocument();
 		expect(screen.queryByText("Profile route")).not.toBeInTheDocument();
 	});
 

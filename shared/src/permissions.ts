@@ -3,16 +3,38 @@
 // department automatically inherits. Admins are superusers and bypass these
 // checks entirely. Department is admin-controlled (members request changes via
 // member_change_requests), so it is a trusted access boundary.
+//
+// The live mapping lives in the `department_permissions` table and is edited by
+// admins. This module is the framework-free catalog of assignable permissions
+// shared by client and server.
 
 export const PERMISSIONS = ["finance.review", "contracts.admin"] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
-// Maps each department to the permissions every active member inherits. Keep
-// keys in sync with the DEPARTMENTS list. Departments absent from this map
-// grant no special tool permissions.
-export const DEPARTMENT_PERMISSIONS: Record<string, readonly Permission[]> = {
-	"Legal & Finance": ["finance.review", "contracts.admin"],
+// Human-readable metadata for rendering the admin permission matrix.
+export const PERMISSION_DETAILS: Record<
+	Permission,
+	{ label: string; description: string }
+> = {
+	"finance.review": {
+		label: "Finance Review",
+		description:
+			"Approve reimbursement and invoice requests, then mark approved requests as paid.",
+	},
+	"contracts.admin": {
+		label: "Contract Administration",
+		description:
+			"Review and approve submitted contracts, manage templates, and generate partner signing links.",
+	},
 };
+
+// Maps each department to the permissions every active member inherits. Keys
+// are department names; values are subsets of PERMISSIONS.
+export type DepartmentPermissionMap = Record<string, Permission[]>;
+
+export function isPermission(value: unknown): value is Permission {
+	return typeof value === "string" && PERMISSIONS.includes(value as Permission);
+}
 
 interface MemberAccessFields {
 	active?: boolean | null;
@@ -27,25 +49,4 @@ export function isActiveMember(
 	const status =
 		member.member_status ?? (member.active ? "active" : "inactive");
 	return status === "active";
-}
-
-export function departmentHasPermission(
-	department: string | null | undefined,
-	permission: Permission,
-): boolean {
-	if (!department) return false;
-	return DEPARTMENT_PERMISSIONS[department]?.includes(permission) ?? false;
-}
-
-// True when the member is active and their department grants the permission.
-// Does NOT include the admin superuser bypass — callers combine this with their
-// own admin check, e.g. `isAdmin || memberHasPermission(member, permission)`.
-export function memberHasPermission(
-	member: MemberAccessFields | null | undefined,
-	permission: Permission,
-): boolean {
-	return (
-		isActiveMember(member) &&
-		departmentHasPermission(member?.department, permission)
-	);
 }

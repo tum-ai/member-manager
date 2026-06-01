@@ -3,7 +3,10 @@ import { buildBatchOptions, getCurrentBatch } from "../../lib/constants";
 import { buildSelfServiceMemberUpdatePayload } from "./profileFormUtils";
 
 describe("ProfilePage", () => {
-	it("lets self-service profile saves include batch and department but not role", () => {
+	it("lets self-service profile saves include batch but not role or department", () => {
+		// department and member_role are admin-managed (members request changes
+		// via member_change_requests), so they must be stripped from self-service
+		// saves even when present in the form values.
 		expect(
 			buildSelfServiceMemberUpdatePayload({
 				user_id: "user-123",
@@ -22,7 +25,6 @@ describe("ProfilePage", () => {
 			degree: "Bachelor Computer Science",
 			school: "TUM",
 			batch: "WS25",
-			department: "Software Development",
 		});
 	});
 

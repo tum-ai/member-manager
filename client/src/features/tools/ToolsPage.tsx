@@ -1,4 +1,3 @@
-import { memberHasPermission } from "@member-manager/shared";
 import {
 	ArrowForward as ArrowForwardIcon,
 	Description as DescriptionIcon,
@@ -17,12 +16,10 @@ import {
 	useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import type { User } from "@supabase/supabase-js";
 import type React from "react";
 import { Link as RouterLink } from "react-router-dom";
 import GlassCard from "../../components/ui/GlassCard";
-import { useIsAdmin } from "../../hooks/useIsAdmin";
-import { useMemberData } from "../../hooks/useMemberData";
+import { useToolAccess } from "../../hooks/useToolAccess";
 import { TOOL_CONTENT_MAX_WIDTH } from "./ToolPageShell";
 
 interface ToolDefinition {
@@ -97,34 +94,12 @@ const baseToolGroups: ToolGroup[] = [
 	},
 ];
 
-interface ToolsPageProps {
-	user: User;
-}
-
-export function canUseFinanceReview(
-	member:
-		| {
-				active?: boolean | null;
-				member_status?: string | null;
-				department?: string | null;
-		  }
-		| null
-		| undefined,
-	isAdmin: boolean,
-): boolean {
-	return isAdmin || memberHasPermission(member, "finance.review");
-}
-
-export default function ToolsPage({
-	user,
-}: ToolsPageProps): React.ReactElement {
-	const { member } = useMemberData(user.id);
-	const { isAdmin } = useIsAdmin(user.id);
-	const showFinanceReview = canUseFinanceReview(member, isAdmin);
+export default function ToolsPage(): React.ReactElement {
+	const { permissions } = useToolAccess();
+	const showFinanceReview = permissions.includes("finance.review");
 	// Contract admin tools (submissions list + templates editor) are gated by a
 	// separate permission so a department could be granted one without the other.
-	const showContractAdminTools =
-		isAdmin || memberHasPermission(member, "contracts.admin");
+	const showContractAdminTools = permissions.includes("contracts.admin");
 	const toolGroups = baseToolGroups
 		.map((group) => ({
 			...group,

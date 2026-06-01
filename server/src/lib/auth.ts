@@ -1,4 +1,5 @@
-import { memberHasPermission, type Permission } from "@member-manager/shared";
+import { isActiveMember, type Permission } from "@member-manager/shared";
+import { fetchDepartmentPermissions } from "./departmentPermissions.js";
 import { ForbiddenError, isNotFoundError } from "./errors.js";
 import { getSupabase } from "./supabase.js";
 
@@ -16,10 +17,10 @@ export async function checkAdminRole(userId: string): Promise<boolean> {
 	return roleData?.role === "admin";
 }
 
-// Department-scoped RBAC: admins are superusers; otherwise the member's
-// department must grant the permission (and the member must be active). The
-// department→permission map lives in @member-manager/shared so the client and
-// server stay in sync.
+// Department-scoped RBAC: admins are superusers; otherwise the member must be
+// active and their department must grant the permission. The department→
+// permission mapping lives in the `department_permissions` table, edited by
+// admins through the admin UI.
 export async function checkDepartmentPermission(
 	userId: string,
 	permission: Permission,
@@ -41,14 +42,18 @@ export async function checkDepartmentPermission(
 		throw error;
 	}
 
-	return memberHasPermission(
-		data as {
-			department?: string | null;
-			member_status?: string | null;
-			active?: boolean | null;
-		},
-		permission,
-	);
+	const member = data as {
+		department?: string | null;
+		member_status?: string | null;
+		active?: boolean | null;
+	};
+
+	if (!isActiveMember(member) || !member.department) {
+		return false;
+	}
+
+	const granted = await fetchDepartmentPermissions(member.department);
+	return granted.includes(permission);
 }
 
 export async function checkReimbursementReviewer(

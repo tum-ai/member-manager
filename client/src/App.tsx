@@ -29,9 +29,9 @@ import MemberList from "./features/members/MemberList";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
 import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
-import ToolsPage, { canUseFinanceReview } from "./features/tools/ToolsPage";
+import ToolsPage from "./features/tools/ToolsPage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
-import { useMemberData } from "./hooks/useMemberData";
+import { useToolAccess } from "./hooks/useToolAccess";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
 import {
@@ -221,14 +221,14 @@ export function AuthenticatedApp({
 				<Route path="/" element={<ProfilePage user={user} />} />
 				<Route path="/profile" element={<Navigate to="/" replace />} />
 				<Route path="/members" element={<MemberList />} />
-				<Route path="/tools" element={<ToolsPage user={user} />} />
+				<Route path="/tools" element={<ToolsPage />} />
 				<Route
 					path="/tools/reimbursement"
 					element={<ReimbursementPage user={user} />}
 				/>
 				<Route
 					path="/tools/reimbursement/review"
-					element={<FinanceReviewRoute user={user} />}
+					element={<FinanceReviewRoute />}
 				/>
 				<Route
 					path="/engagement-certificate"
@@ -286,19 +286,18 @@ function RouteAccessLoading(): JSX.Element {
 	);
 }
 
-// Finance Review is gated to admins and active Legal & Finance members. The
-// server enforces this on every endpoint; this guard mirrors it so an
+// Finance Review is gated by the finance.review permission (admins inherit it).
+// The server enforces this on every endpoint; this guard mirrors it so an
 // unauthorized user who navigates here directly is redirected instead of
 // shown an empty shell.
-function FinanceReviewRoute({ user }: { user: User }): JSX.Element {
-	const { member, isLoading: isLoadingMember } = useMemberData(user.id);
-	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
+function FinanceReviewRoute(): JSX.Element {
+	const { permissions, isLoading } = useToolAccess();
 
-	if (isLoadingMember || isLoadingAdminRole) {
+	if (isLoading) {
 		return <RouteAccessLoading />;
 	}
 
-	if (!canUseFinanceReview(member, isAdmin)) {
+	if (!permissions.includes("finance.review")) {
 		return <Navigate to="/" replace />;
 	}
 

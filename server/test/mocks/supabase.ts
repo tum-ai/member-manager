@@ -46,6 +46,7 @@ interface MockData {
 	engagement_certificate_requests: Array<Record<string, unknown>>;
 	reimbursements: Array<Record<string, unknown>>;
 	member_cvs: Array<Record<string, unknown>>;
+	department_permissions: Array<Record<string, unknown>>;
 }
 
 // In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
@@ -146,6 +147,14 @@ export const mockDatabase: MockData = {
 	member_change_requests: [],
 	engagement_certificate_requests: [],
 	member_cvs: [],
+	department_permissions: [
+		{
+			department: "Legal & Finance",
+			permissions: ["finance.review", "contracts.admin"],
+			updated_at: "2024-01-01T00:00:00Z",
+			updated_by: MOCK_ADMIN_ID,
+		},
+	],
 	reimbursements: [
 		{
 			id: "reimbursement-older",
@@ -789,6 +798,14 @@ export function resetMockDatabase(): void {
 	mockDatabase.member_change_requests = [];
 	mockDatabase.engagement_certificate_requests = [];
 	mockDatabase.member_cvs = [];
+	mockDatabase.department_permissions = [
+		{
+			department: "Legal & Finance",
+			permissions: ["finance.review", "contracts.admin"],
+			updated_at: "2024-01-01T00:00:00Z",
+			updated_by: MOCK_ADMIN_ID,
+		},
+	];
 	mockStorage.clear();
 	mockDatabase.reimbursements = [
 		{
