@@ -12,8 +12,17 @@ const adminState = vi.hoisted(() => ({
 	isLoading: true,
 }));
 
+const toolAccessState = vi.hoisted(() => ({
+	permissions: [] as string[],
+	isLoading: false,
+}));
+
 vi.mock("./hooks/useIsAdmin", () => ({
 	useIsAdmin: () => adminState,
+}));
+
+vi.mock("./hooks/useToolAccess", () => ({
+	useToolAccess: () => toolAccessState,
 }));
 
 vi.mock("./features/admin/AdminDatabaseView", () => ({
@@ -42,6 +51,22 @@ vi.mock("./features/reimbursements/ReimbursementReviewPage", () => ({
 
 vi.mock("./features/certificate/EngagementCertificatePage", () => ({
 	default: () => <div>Certificate route</div>,
+}));
+
+vi.mock("./features/contracts/ContractFormPage", () => ({
+	default: () => <div>Contract form route</div>,
+}));
+
+vi.mock("./features/contracts/ContractTemplatesPage", () => ({
+	default: () => <div>Contract templates route</div>,
+}));
+
+vi.mock("./features/contracts/ContractSubmissionsPage", () => ({
+	default: () => <div>Contract submissions route</div>,
+}));
+
+vi.mock("./features/contracts/ContractSubmissionDetailPage", () => ({
+	default: () => <div>Contract submission detail route</div>,
 }));
 
 const mockUser = {
@@ -87,5 +112,53 @@ describe("AuthenticatedApp admin routing", () => {
 		renderAuthenticatedApp("/admin");
 
 		expect(screen.getByText("Admin route")).toBeInTheDocument();
+	});
+});
+
+describe("AuthenticatedApp permission-gated routes", () => {
+	beforeEach(() => {
+		adminState.isAdmin = false;
+		adminState.isLoading = false;
+		toolAccessState.permissions = [];
+		toolAccessState.isLoading = false;
+	});
+
+	it("redirects contract-admin routes home when the permission is missing", () => {
+		renderAuthenticatedApp("/contracts/submissions");
+
+		expect(screen.getByText("Profile route")).toBeInTheDocument();
+		expect(
+			screen.queryByText("Contract submissions route"),
+		).not.toBeInTheDocument();
+	});
+
+	it("renders contract-admin routes when the contracts.admin permission is present", () => {
+		toolAccessState.permissions = ["contracts.admin"];
+
+		renderAuthenticatedApp("/contracts/submissions");
+
+		expect(screen.getByText("Contract submissions route")).toBeInTheDocument();
+	});
+
+	it("shows a loading state instead of redirecting while permissions load", () => {
+		toolAccessState.isLoading = true;
+
+		renderAuthenticatedApp("/contracts/templates");
+
+		expect(screen.getByText(/checking access/i)).toBeInTheDocument();
+		expect(screen.queryByText("Profile route")).not.toBeInTheDocument();
+	});
+
+	it("keeps the general /contracts route open without any permission", () => {
+		renderAuthenticatedApp("/contracts");
+
+		expect(screen.getByText("Contract form route")).toBeInTheDocument();
+	});
+
+	it("redirects finance review home when the finance.review permission is missing", () => {
+		renderAuthenticatedApp("/tools/reimbursement/review");
+
+		expect(screen.getByText("Profile route")).toBeInTheDocument();
+		expect(screen.queryByText("Finance review route")).not.toBeInTheDocument();
 	});
 });

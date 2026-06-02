@@ -1,3 +1,4 @@
+import type { Permission } from "@member-manager/shared";
 import {
 	Box,
 	CircularProgress,
@@ -7,7 +8,7 @@ import {
 } from "@mui/material";
 import type { User } from "@supabase/supabase-js";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useState } from "react";
 import {
 	BrowserRouter,
 	Navigate,
@@ -228,7 +229,11 @@ export function AuthenticatedApp({
 				/>
 				<Route
 					path="/tools/reimbursement/review"
-					element={<FinanceReviewRoute />}
+					element={
+						<RequirePermission permission="finance.review">
+							<ReimbursementReviewPage />
+						</RequirePermission>
+					}
 				/>
 				<Route
 					path="/engagement-certificate"
@@ -241,15 +246,27 @@ export function AuthenticatedApp({
 				<Route path="/contracts" element={<ContractFormPage />} />
 				<Route
 					path="/contracts/templates"
-					element={<ContractTemplatesPage />}
+					element={
+						<RequirePermission permission="contracts.admin">
+							<ContractTemplatesPage />
+						</RequirePermission>
+					}
 				/>
 				<Route
 					path="/contracts/submissions"
-					element={<ContractSubmissionsPage />}
+					element={
+						<RequirePermission permission="contracts.admin">
+							<ContractSubmissionsPage />
+						</RequirePermission>
+					}
 				/>
 				<Route
 					path="/contracts/submissions/:id"
-					element={<ContractSubmissionDetailPage />}
+					element={
+						<RequirePermission permission="contracts.admin">
+							<ContractSubmissionDetailPage />
+						</RequirePermission>
+					}
 				/>
 				<Route
 					path="/admin"
@@ -286,20 +303,26 @@ function RouteAccessLoading(): JSX.Element {
 	);
 }
 
-// Finance Review is gated by the finance.review permission (admins inherit it).
-// The server enforces this on every endpoint; this guard mirrors it so an
-// unauthorized user who navigates here directly is redirected instead of
-// shown an empty shell.
-function FinanceReviewRoute(): JSX.Element {
+// Client-side route guard that mirrors the server's permission checks: a user
+// who navigates directly to a gated route without the required permission is
+// redirected home instead of being shown an empty shell that only errors once
+// its API calls 403. Admins inherit every permission, so they pass through.
+function RequirePermission({
+	permission,
+	children,
+}: {
+	permission: Permission;
+	children: ReactElement;
+}): ReactElement {
 	const { permissions, isLoading } = useToolAccess();
 
 	if (isLoading) {
 		return <RouteAccessLoading />;
 	}
 
-	if (!permissions.includes("finance.review")) {
+	if (!permissions.includes(permission)) {
 		return <Navigate to="/" replace />;
 	}
 
-	return <ReimbursementReviewPage />;
+	return children;
 }
