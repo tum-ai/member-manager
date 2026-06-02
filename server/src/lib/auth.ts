@@ -62,7 +62,7 @@ export async function checkReimbursementReviewer(
 	return checkDepartmentPermission(userId, "finance.review");
 }
 
-export async function checkLegalFinanceRole(userId: string): Promise<boolean> {
+export async function checkContractsAdmin(userId: string): Promise<boolean> {
 	return checkDepartmentPermission(userId, "contracts.admin");
 }
 

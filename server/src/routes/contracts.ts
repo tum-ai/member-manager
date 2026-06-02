@@ -1,10 +1,10 @@
 import { randomBytes } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { checkLegalFinanceRole } from "../lib/auth.js";
+import { checkContractsAdmin } from "../lib/auth.js";
 import { DatabaseError } from "../lib/errors.js";
 import { getSupabase } from "../lib/supabase.js";
-import { authenticate, requireLegalFinance } from "../middleware/auth.js";
+import { authenticate, requireContractsAdmin } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
 // =========================================================================
@@ -291,7 +291,8 @@ async function fetchTemplateWithChildren(templateId: string) {
 
 export async function contractRoutes(server: FastifyInstance) {
 	// ---------------------------------------------------------------------
-	// Templates: list/get for any authenticated user; mutate for L&F only.
+	// Templates: list/get for any authenticated user; mutate for
+	// contracts admins only.
 	// ---------------------------------------------------------------------
 
 	server.get(
@@ -299,12 +300,12 @@ export async function contractRoutes(server: FastifyInstance) {
 		{ preHandler: authenticate },
 		async (request, _reply) => {
 			const user = (request as AuthenticatedRequest).user;
-			const isLF = await checkLegalFinanceRole(user.id);
+			const isContractsAdmin = await checkContractsAdmin(user.id);
 			let query = getSupabase()
 				.from("contract_templates")
 				.select("*")
 				.order("name", { ascending: true });
-			if (!isLF) query = query.eq("is_active", true);
+			if (!isContractsAdmin) query = query.eq("is_active", true);
 			const { data, error } = await query;
 
 			if (error) {
@@ -336,7 +337,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.post(
 		"/contracts/templates",
-		{ preHandler: [authenticate, requireLegalFinance] },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, _reply) => {
 			const body = TemplateBodySchema.parse(request.body);
 			const { data, error } = await getSupabase()
@@ -354,7 +355,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.patch<{ Params: { id: string } }>(
 		"/contracts/templates/:id",
-		{ preHandler: [authenticate, requireLegalFinance] },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
 			const body = TemplateBodySchema.partial().parse(request.body);
 			const { data, error } = await getSupabase()
@@ -376,7 +377,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.delete<{ Params: { id: string } }>(
 		"/contracts/templates/:id",
-		{ preHandler: [authenticate, requireLegalFinance] },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
 			const { count, error } = await getSupabase()
 				.from("contract_templates")
@@ -399,12 +400,12 @@ export async function contractRoutes(server: FastifyInstance) {
 	);
 
 	// ---------------------------------------------------------------------
-	// Variables (nested under template) — L&F only.
+	// Variables (nested under template) — contracts admins only.
 	// ---------------------------------------------------------------------
 
 	server.post<{ Params: { id: string } }>(
 		"/contracts/templates/:id/variables",
-		{ preHandler: [authenticate, requireLegalFinance] },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, _reply) => {
 			const body = VariableBodySchema.parse(request.body);
 			const { data, error } = await getSupabase()
@@ -422,7 +423,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.patch<{ Params: { id: string; variableId: string } }>(
 		"/contracts/templates/:id/variables/:variableId",
-		{ preHandler: [authenticate, requireLegalFinance] },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
 			const body = VariableBodySchema.partial().parse(request.body);
 			const { data, error } = await getSupabase()
@@ -445,7 +446,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.delete<{ Params: { id: string; variableId: string } }>(
 		"/contracts/templates/:id/variables/:variableId",
-		{ preHandler: [authenticate, requireLegalFinance] },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
 			const { error } = await getSupabase()
 				.from("contract_template_variables")
@@ -461,12 +462,12 @@ export async function contractRoutes(server: FastifyInstance) {
 	);
 
 	// ---------------------------------------------------------------------
-	// Conditional blocks (nested under template) — L&F only.
+	// Conditional blocks (nested under template) — contracts admins only.
 	// ---------------------------------------------------------------------
 
 	server.post<{ Params: { id: string } }>(
 		"/contracts/templates/:id/blocks",
-		{ preHandler: [authenticate, requireLegalFinance] },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, _reply) => {
 			const body = ConditionalBlockBodySchema.parse(request.body);
 			const { data, error } = await getSupabase()
@@ -484,7 +485,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.patch<{ Params: { id: string; blockId: string } }>(
 		"/contracts/templates/:id/blocks/:blockId",
-		{ preHandler: [authenticate, requireLegalFinance] },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
 			const body = ConditionalBlockBodySchema.partial().parse(request.body);
 			const { data, error } = await getSupabase()
@@ -507,7 +508,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.delete<{ Params: { id: string; blockId: string } }>(
 		"/contracts/templates/:id/blocks/:blockId",
-		{ preHandler: [authenticate, requireLegalFinance] },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
 			const { error } = await getSupabase()
 				.from("contract_conditional_blocks")
@@ -523,8 +524,8 @@ export async function contractRoutes(server: FastifyInstance) {
 	);
 
 	// ---------------------------------------------------------------------
-	// Submissions: list/own for users, list-all for L&F, create for anyone,
-	// patch (review/approve/sign-link) for L&F.
+	// Submissions: list/own for users, list-all for contracts admins, create
+	// for anyone, patch (review/approve/sign-link) for contracts admins.
 	// ---------------------------------------------------------------------
 
 	server.get(
@@ -532,14 +533,14 @@ export async function contractRoutes(server: FastifyInstance) {
 		{ preHandler: authenticate },
 		async (request, _reply) => {
 			const user = (request as AuthenticatedRequest).user;
-			const isLF = await checkLegalFinanceRole(user.id);
+			const isContractsAdmin = await checkContractsAdmin(user.id);
 			let query = getSupabase()
 				.from("contract_submissions")
 				.select(
 					"id, template_id, submitter_user_id, status, submitted_at, signed_at, created_at, updated_at, signature_token_expires_at",
 				)
 				.order("created_at", { ascending: false });
-			if (!isLF) query = query.eq("submitter_user_id", user.id);
+			if (!isContractsAdmin) query = query.eq("submitter_user_id", user.id);
 			const { data, error } = await query;
 			if (error) {
 				request.log.error(
@@ -569,8 +570,8 @@ export async function contractRoutes(server: FastifyInstance) {
 				request.log.error({ err: error }, "Failed to fetch submission");
 				throw createContractDatabaseError(error);
 			}
-			const isLF = await checkLegalFinanceRole(user.id);
-			if (!isLF && data.submitter_user_id !== user.id) {
+			const isContractsAdmin = await checkContractsAdmin(user.id);
+			if (!isContractsAdmin && data.submitter_user_id !== user.id) {
 				return reply.status(403).send({ error: "Forbidden" });
 			}
 			return data;
@@ -625,7 +626,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.patch<{ Params: { id: string } }>(
 		"/contracts/submissions/:id",
-		{ preHandler: [authenticate, requireLegalFinance] },
+		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const body = SubmissionPatchSchema.parse(request.body);

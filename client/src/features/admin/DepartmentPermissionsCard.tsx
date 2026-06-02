@@ -20,7 +20,7 @@ import {
 	Tooltip,
 	Typography,
 } from "@mui/material";
-import { type ReactElement, useMemo, useState } from "react";
+import { type ReactElement, useEffect, useState } from "react";
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useDepartmentPermissions } from "../../hooks/useDepartmentPermissions";
@@ -45,21 +45,16 @@ export default function DepartmentPermissionsCard(): ReactElement {
 		useDepartmentPermissions();
 	const { showToast } = useToast();
 
+	const baseline = serializeAssignments(assignments);
+
 	// Reseed the editable draft whenever the saved assignments change (initial
-	// load or after a successful save), keyed on a stable serialization so we
-	// don't clobber in-progress edits on unrelated re-renders. Using React's
-	// render-time reset pattern instead of an effect avoids a render loop while
-	// the query is still resolving (assignments is a fresh {} each render then).
-	const baseline = useMemo(
-		() => serializeAssignments(assignments),
-		[assignments],
-	);
+	// load or after a successful save). Keyed on and rebuilt from the canonical
+	// `baseline` string rather than the object identity, so a refetch that
+	// returns equivalent data with a fresh reference doesn't clobber edits.
 	const [draft, setDraft] = useState<DepartmentPermissionMap>(assignments);
-	const [seededBaseline, setSeededBaseline] = useState(baseline);
-	if (baseline !== seededBaseline) {
-		setSeededBaseline(baseline);
-		setDraft(assignments);
-	}
+	useEffect(() => {
+		setDraft(JSON.parse(baseline) as DepartmentPermissionMap);
+	}, [baseline]);
 
 	const isDirty = serializeAssignments(draft) !== baseline;
 
