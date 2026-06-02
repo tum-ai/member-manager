@@ -115,10 +115,9 @@ describe("ToolsPage", () => {
 
 		renderToolsPage();
 
-		expect(screen.getByRole("link", { name: "Create Contract" })).toHaveAttribute(
-			"href",
-			"/contracts",
-		);
+		expect(
+			screen.getByRole("link", { name: "Create Contract" }),
+		).toHaveAttribute("href", "/contracts");
 		expect(
 			screen.getByRole("link", { name: "Contract Submissions" }),
 		).toHaveAttribute("href", "/contracts/submissions");
