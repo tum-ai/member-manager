@@ -77,6 +77,7 @@ import {
 	hasPrivacyAgreement,
 	sortAdminMembers,
 } from "./adminUtils";
+import DepartmentPermissionsCard from "./DepartmentPermissionsCard";
 
 const initialFilters: AdminFilters = {
 	search: "",
@@ -578,6 +579,8 @@ export default function AdminDatabaseView() {
 				isReviewingChangeRequest={isReviewingChangeRequest}
 				isReviewingCertificateRequest={isReviewingCertificateRequest}
 			/>
+
+			<DepartmentPermissionsCard />
 
 			<GlassCard sx={{ mb: 3 }}>
 				<CardContent sx={{ p: 3 }}>

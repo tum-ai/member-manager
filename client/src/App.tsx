@@ -1,3 +1,4 @@
+import type { Permission } from "@member-manager/shared";
 import {
 	Box,
 	CircularProgress,
@@ -7,7 +8,7 @@ import {
 } from "@mui/material";
 import type { User } from "@supabase/supabase-js";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useEffect, useMemo, useState } from "react";
+import { type ReactElement, useEffect, useMemo, useState } from "react";
 import {
 	BrowserRouter,
 	Navigate,
@@ -31,6 +32,7 @@ import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
 import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
 import ToolsPage from "./features/tools/ToolsPage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
+import { useToolAccess } from "./hooks/useToolAccess";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
 import {
@@ -220,14 +222,18 @@ export function AuthenticatedApp({
 				<Route path="/" element={<ProfilePage user={user} />} />
 				<Route path="/profile" element={<Navigate to="/" replace />} />
 				<Route path="/members" element={<MemberList />} />
-				<Route path="/tools" element={<ToolsPage user={user} />} />
+				<Route path="/tools" element={<ToolsPage />} />
 				<Route
 					path="/tools/reimbursement"
 					element={<ReimbursementPage user={user} />}
 				/>
 				<Route
 					path="/tools/reimbursement/review"
-					element={<ReimbursementReviewPage />}
+					element={
+						<RequirePermission permission="finance.review">
+							<ReimbursementReviewPage />
+						</RequirePermission>
+					}
 				/>
 				<Route
 					path="/engagement-certificate"
@@ -240,21 +246,33 @@ export function AuthenticatedApp({
 				<Route path="/contracts" element={<ContractFormPage />} />
 				<Route
 					path="/contracts/templates"
-					element={<ContractTemplatesPage />}
+					element={
+						<RequirePermission permission="contracts.admin">
+							<ContractTemplatesPage />
+						</RequirePermission>
+					}
 				/>
 				<Route
 					path="/contracts/submissions"
-					element={<ContractSubmissionsPage />}
+					element={
+						<RequirePermission permission="contracts.admin">
+							<ContractSubmissionsPage />
+						</RequirePermission>
+					}
 				/>
 				<Route
 					path="/contracts/submissions/:id"
-					element={<ContractSubmissionDetailPage />}
+					element={
+						<RequirePermission permission="contracts.admin">
+							<ContractSubmissionDetailPage />
+						</RequirePermission>
+					}
 				/>
 				<Route
 					path="/admin"
 					element={
 						isLoadingAdminRole ? (
-							<AdminRouteLoading />
+							<RouteAccessLoading />
 						) : isAdmin ? (
 							<AdminDatabaseView />
 						) : (
@@ -268,7 +286,7 @@ export function AuthenticatedApp({
 	);
 }
 
-function AdminRouteLoading(): JSX.Element {
+function RouteAccessLoading(): JSX.Element {
 	return (
 		<Box
 			sx={{
@@ -280,7 +298,31 @@ function AdminRouteLoading(): JSX.Element {
 			}}
 		>
 			<CircularProgress size={24} />
-			<Typography color="text.secondary">Loading admin access...</Typography>
+			<Typography color="text.secondary">Checking access...</Typography>
 		</Box>
 	);
+}
+
+// Client-side route guard that mirrors the server's permission checks: a user
+// who navigates directly to a gated route without the required permission is
+// redirected home instead of being shown an empty shell that only errors once
+// its API calls 403. Admins inherit every permission, so they pass through.
+function RequirePermission({
+	permission,
+	children,
+}: {
+	permission: Permission;
+	children: ReactElement;
+}): ReactElement {
+	const { permissions, isLoading } = useToolAccess();
+
+	if (isLoading) {
+		return <RouteAccessLoading />;
+	}
+
+	if (!permissions.includes(permission)) {
+		return <Navigate to="/" replace />;
+	}
+
+	return children;
 }

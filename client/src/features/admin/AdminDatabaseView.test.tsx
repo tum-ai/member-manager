@@ -113,6 +113,15 @@ vi.mock("../../contexts/ToastContext", () => ({
 	}),
 }));
 
+vi.mock("../../hooks/useDepartmentPermissions", () => ({
+	useDepartmentPermissions: () => ({
+		assignments: {},
+		isLoading: false,
+		saveAssignmentsAsync: vi.fn(),
+		isSaving: false,
+	}),
+}));
+
 function renderAdminView() {
 	return render(
 		<ThemeProvider theme={getAppTheme("light")}>
@@ -129,12 +138,13 @@ describe("AdminDatabaseView", () => {
 		await user.click(
 			screen.getByRole("button", { name: /edit member alice example/i }),
 		);
-		await user.click(screen.getByLabelText(/role/i));
+		const dialog = within(screen.getByRole("dialog"));
+		await user.click(dialog.getByLabelText(/role/i));
 		await user.click(await screen.findByRole("option", { name: "President" }));
-		await user.click(screen.getByLabelText(/board member/i));
-		await user.click(screen.getByLabelText(/status/i));
+		await user.click(dialog.getByLabelText(/board member/i));
+		await user.click(dialog.getByLabelText(/status/i));
 		await user.click(await screen.findByRole("option", { name: "Inactive" }));
-		await user.click(screen.getByLabelText(/access/i));
+		await user.click(dialog.getByLabelText(/access/i));
 		await user.click(await screen.findByRole("option", { name: "Admin" }));
 		await user.click(
 			screen.getByRole("button", { name: /save member changes/i }),
@@ -163,7 +173,9 @@ describe("AdminDatabaseView", () => {
 		await user.click(
 			screen.getByRole("button", { name: /edit member alice example/i }),
 		);
-		await user.click(screen.getByLabelText(/department/i));
+		await user.click(
+			within(screen.getByRole("dialog")).getByLabelText(/department/i),
+		);
 		await user.click(await screen.findByRole("option", { name: "None" }));
 
 		expect(
@@ -221,7 +233,9 @@ describe("AdminDatabaseView", () => {
 		await user.click(
 			screen.getByRole("button", { name: /edit member alice example/i }),
 		);
-		await user.click(screen.getByLabelText(/department/i));
+		await user.click(
+			within(screen.getByRole("dialog")).getByLabelText(/department/i),
+		);
 
 		expect(
 			screen.queryByRole("option", { name: "Board" }),

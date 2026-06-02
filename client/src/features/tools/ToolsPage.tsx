@@ -16,12 +16,10 @@ import {
 	useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import type { User } from "@supabase/supabase-js";
 import type React from "react";
 import { Link as RouterLink } from "react-router-dom";
 import GlassCard from "../../components/ui/GlassCard";
-import { useIsAdmin } from "../../hooks/useIsAdmin";
-import { useMemberData } from "../../hooks/useMemberData";
+import { useToolAccess } from "../../hooks/useToolAccess";
 import { TOOL_CONTENT_MAX_WIDTH } from "./ToolPageShell";
 
 interface ToolDefinition {
@@ -96,39 +94,12 @@ const baseToolGroups: ToolGroup[] = [
 	},
 ];
 
-interface ToolsPageProps {
-	user: User;
-}
-
-function canUseFinanceReview(
-	member:
-		| {
-				active?: boolean | null;
-				member_status?: string | null;
-				department?: string | null;
-		  }
-		| null
-		| undefined,
-	isAdmin: boolean,
-): boolean {
-	if (isAdmin) {
-		return true;
-	}
-
-	const status =
-		member?.member_status || (member?.active ? "active" : "inactive");
-	return status === "active" && member?.department === "Legal & Finance";
-}
-
-export default function ToolsPage({
-	user,
-}: ToolsPageProps): React.ReactElement {
-	const { member } = useMemberData(user.id);
-	const { isAdmin } = useIsAdmin(user.id);
-	const showFinanceReview = canUseFinanceReview(member, isAdmin);
-	// Contract admin tools (submissions list + templates editor) share the
-	// same role as Finance Review — Legal & Finance department or admin.
-	const showContractAdminTools = showFinanceReview;
+export default function ToolsPage(): React.ReactElement {
+	const { permissions } = useToolAccess();
+	const showFinanceReview = permissions.includes("finance.review");
+	// Contract admin tools (submissions list + templates editor) are gated by a
+	// separate permission so a department could be granted one without the other.
+	const showContractAdminTools = permissions.includes("contracts.admin");
 	const toolGroups = baseToolGroups
 		.map((group) => ({
 			...group,

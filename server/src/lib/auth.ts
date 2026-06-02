@@ -1,3 +1,5 @@
+import { isActiveMember, type Permission } from "@member-manager/shared";
+import { fetchDepartmentPermissions } from "./departmentPermissions.js";
 import { ForbiddenError, isNotFoundError } from "./errors.js";
 import { getSupabase } from "./supabase.js";
 
@@ -15,8 +17,13 @@ export async function checkAdminRole(userId: string): Promise<boolean> {
 	return roleData?.role === "admin";
 }
 
-export async function checkReimbursementReviewer(
+// Department-scoped RBAC: admins are superusers; otherwise the member must be
+// active and their department must grant the permission. The department→
+// permission mapping lives in the `department_permissions` table, edited by
+// admins through the admin UI.
+export async function checkDepartmentPermission(
 	userId: string,
+	permission: Permission,
 ): Promise<boolean> {
 	if (await checkAdminRole(userId)) {
 		return true;
@@ -40,17 +47,23 @@ export async function checkReimbursementReviewer(
 		member_status?: string | null;
 		active?: boolean | null;
 	};
-	const memberStatus =
-		member.member_status ?? (member.active ? "active" : "inactive");
 
-	return member.department === "Legal & Finance" && memberStatus === "active";
+	if (!isActiveMember(member) || !member.department) {
+		return false;
+	}
+
+	const granted = await fetchDepartmentPermissions(member.department);
+	return granted.includes(permission);
 }
 
-// Legal & Finance department members (plus admins) own the contract
-// generator. Reuses the same predicate as the reimbursement reviewer check
-// because both gate on the same role/department combination.
-export async function checkLegalFinanceRole(userId: string): Promise<boolean> {
-	return checkReimbursementReviewer(userId);
+export async function checkReimbursementReviewer(
+	userId: string,
+): Promise<boolean> {
+	return checkDepartmentPermission(userId, "finance.review");
+}
+
+export async function checkContractsAdmin(userId: string): Promise<boolean> {
+	return checkDepartmentPermission(userId, "contracts.admin");
 }
 
 export async function ensureOwnerOrAdmin(
