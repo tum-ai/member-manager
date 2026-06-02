@@ -10,6 +10,8 @@ The current product is the private member portal:
 - authenticated users land on `My Profile`
 - `All Members` is a secondary authenticated directory view
 - SEPA, privacy, data privacy notice, and admin workflows stay internal
+- contract generation covers PnS draft creation, Legal & Finance review,
+  partner comments/signature, board signature, and final PDF generation
 - sensitive fields are encrypted server-side before storage
 
 The public network explorer and graph are not part of the current implementation yet. That work is tracked in [ROADMAP.md](./ROADMAP.md).
@@ -29,6 +31,7 @@ More reading:
 - [docs/repo-structure.md](./docs/repo-structure.md) — full directory breakdown
 - [docs/development.md](./docs/development.md) — env precedence, dev modes, Slack OIDC, DNS quirks, testing, common failure modes
 - [docs/deployment.md](./docs/deployment.md) — Vercel env vars, Supabase dashboard config, Slack prod config, `FIELD_ENCRYPTION_KEY` warning
+- [docs/contracts.md](./docs/contracts.md) — contract generator workflow, seeded templates, statuses, and production migration notes
 
 ## Current App Flow
 
@@ -37,6 +40,8 @@ Authenticated routes:
 - `/`: My Profile
 - `/members`: authenticated member directory
 - `/engagement-certificate`: certificate flow; each engagement records department, weekly hours, responsibilities, plus optional team-lead or board/executive special role
+- `/contracts`: create contract drafts from active templates
+- `/contracts/submissions`: Legal & Finance review queue for generated contracts
 - `/profile`: legacy alias redirected to `/`
 
 Data visibility:

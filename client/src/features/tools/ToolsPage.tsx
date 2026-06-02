@@ -77,14 +77,14 @@ const baseToolGroups: ToolGroup[] = [
 				Icon: DescriptionIcon,
 			},
 			{
-				title: "Contract Submissions (L&F)",
+				title: "Contract Submissions",
 				description:
 					"Review submitted contracts, approve them, and generate signing links for partners.",
 				href: "/contracts/submissions",
 				Icon: FactCheckIcon,
 			},
 			{
-				title: "Manage Templates (L&F)",
+				title: "Manage Templates",
 				description:
 					"Maintain contract templates, variables, and conditional blocks.",
 				href: "/contracts/templates",
@@ -107,10 +107,7 @@ export default function ToolsPage(): React.ReactElement {
 				if (tool.href === "/tools/reimbursement/review") {
 					return showFinanceReview;
 				}
-				if (
-					tool.href === "/contracts/submissions" ||
-					tool.href === "/contracts/templates"
-				) {
+				if (tool.href.startsWith("/contracts")) {
 					return showContractAdminTools;
 				}
 				return true;

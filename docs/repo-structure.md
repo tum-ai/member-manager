@@ -127,6 +127,7 @@ docs/
 │   └── source/              # Vendored TUM.ai brand assets and extracted reference files
 ├── member-cv-download.md    # Bulk-download member CVs from a Tally submissions export
 ├── member-cvs.md            # CV versioning, storage, consent, and Partner Portal export contract
+├── contracts.md             # contract generator workflow, templates, and deployment notes
 └── repo-structure.md        # This document
 ```
 

@@ -11,10 +11,12 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import ContractDocumentPreview from "./ContractDocumentPreview";
 import SignaturePad from "./SignaturePad";
 import {
 	fetchPublicSignPayload,
 	type PublicSignPayload,
+	postPublicComment,
 	postPublicSignature,
 } from "./useContracts";
 
@@ -25,9 +27,11 @@ export default function ContractSignPage(): JSX.Element {
 	const [loading, setLoading] = useState(true);
 	const [signatureData, setSignatureData] = useState<string | null>(null);
 	const [signerName, setSignerName] = useState("");
+	const [comment, setComment] = useState("");
 	const [submitting, setSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState<string | null>(null);
 	const [submitted, setSubmitted] = useState(false);
+	const [commentSubmitted, setCommentSubmitted] = useState(false);
 
 	useEffect(() => {
 		if (!token) return;
@@ -58,6 +62,20 @@ export default function ContractSignPage(): JSX.Element {
 		}
 	}
 
+	async function handleCommentSubmit() {
+		if (!token || !comment.trim()) return;
+		setSubmitting(true);
+		setSubmitError(null);
+		try {
+			await postPublicComment(token, { comment: comment.trim() });
+			setCommentSubmitted(true);
+		} catch (error) {
+			setSubmitError((error as Error).message);
+		} finally {
+			setSubmitting(false);
+		}
+	}
+
 	return (
 		<Container maxWidth="md" sx={{ py: 6 }}>
 			<Typography variant="h4" gutterBottom>
@@ -73,18 +91,14 @@ export default function ContractSignPage(): JSX.Element {
 					Thank you - the contract has been signed. A copy will be sent by
 					email.
 				</Alert>
+			) : commentSubmitted ? (
+				<Alert severity="success">
+					Thank you - your comments have been sent to TUM.ai.
+				</Alert>
 			) : payload ? (
 				<Stack spacing={3}>
-					<Paper sx={{ p: 3, maxHeight: 400, overflow: "auto" }}>
-						<Typography
-							sx={{
-								whiteSpace: "pre-wrap",
-								fontFamily: "monospace",
-								fontSize: 13,
-							}}
-						>
-							{payload.contract_text}
-						</Typography>
+					<Paper sx={{ p: 3 }}>
+						<ContractDocumentPreview pages={payload.pages} />
 					</Paper>
 					<Paper sx={{ p: 3 }}>
 						<Stack spacing={2}>
@@ -109,6 +123,25 @@ export default function ContractSignPage(): JSX.Element {
 								onClick={handleSubmit}
 							>
 								Sign
+							</Button>
+						</Stack>
+					</Paper>
+					<Paper sx={{ p: 3 }}>
+						<Stack spacing={2}>
+							<TextField
+								label="Comments instead of signature"
+								value={comment}
+								onChange={(event) => setComment(event.target.value)}
+								multiline
+								minRows={3}
+								fullWidth
+							/>
+							<Button
+								variant="outlined"
+								disabled={!comment.trim() || submitting}
+								onClick={handleCommentSubmit}
+							>
+								Send Comments
 							</Button>
 						</Stack>
 					</Paper>

@@ -243,7 +243,14 @@ export function AuthenticatedApp({
 					path="/tools/engagement-certificate"
 					element={<EngagementCertificatePage user={user} />}
 				/>
-				<Route path="/contracts" element={<ContractFormPage />} />
+				<Route
+					path="/contracts"
+					element={
+						<RequirePermission permission="contracts.admin">
+							<ContractFormPage />
+						</RequirePermission>
+					}
+				/>
 				<Route
 					path="/contracts/templates"
 					element={

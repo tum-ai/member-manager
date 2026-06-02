@@ -66,6 +66,41 @@ export async function checkContractsAdmin(userId: string): Promise<boolean> {
 	return checkDepartmentPermission(userId, "contracts.admin");
 }
 
+export async function checkBoardRole(userId: string): Promise<boolean> {
+	if (await checkAdminRole(userId)) {
+		return true;
+	}
+
+	const { data, error } = await getSupabase()
+		.from("members")
+		.select("member_role, board_role, member_status, active")
+		.eq("user_id", userId)
+		.single();
+
+	if (error) {
+		if (isNotFoundError(error)) {
+			return false;
+		}
+		throw error;
+	}
+
+	const member = data as {
+		member_role?: string | null;
+		board_role?: string | null;
+		member_status?: string | null;
+		active?: boolean | null;
+	};
+	const memberStatus =
+		member.member_status ?? (member.active ? "active" : "inactive");
+
+	return (
+		memberStatus === "active" &&
+		(member.board_role === "Board Member" ||
+			member.member_role === "President" ||
+			member.member_role === "Vice-President")
+	);
+}
+
 export async function ensureOwnerOrAdmin(
 	userId: string,
 	targetId: string,

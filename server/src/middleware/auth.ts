@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import {
 	checkAdminRole,
+	checkBoardRole,
 	checkContractsAdmin,
 	checkReimbursementReviewer,
 } from "../lib/auth.js";
@@ -73,6 +74,27 @@ export async function requireContractsAdmin(
 		request.log.error(
 			{ err: error, userId: user?.id },
 			"Failed to check contracts admin permission",
+		);
+		return reply.status(500).send({ error: "Internal Server Error" });
+	}
+}
+
+export async function requireBoardMember(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const user = (request as AuthenticatedRequest).user;
+
+	try {
+		const allowed = await checkBoardRole(user.id);
+
+		if (!allowed) {
+			return reply.status(403).send({ error: "Board access required" });
+		}
+	} catch (error) {
+		request.log.error(
+			{ err: error, userId: user?.id },
+			"Failed to check board role",
 		);
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}

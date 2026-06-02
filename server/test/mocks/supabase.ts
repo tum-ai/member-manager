@@ -47,6 +47,11 @@ interface MockData {
 	reimbursements: Array<Record<string, unknown>>;
 	member_cvs: Array<Record<string, unknown>>;
 	department_permissions: Array<Record<string, unknown>>;
+	contract_templates: Array<Record<string, unknown>>;
+	contract_template_variables: Array<Record<string, unknown>>;
+	contract_conditional_blocks: Array<Record<string, unknown>>;
+	contract_submissions: Array<Record<string, unknown>>;
+	contract_document_versions: Array<Record<string, unknown>>;
 }
 
 // In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
@@ -153,6 +158,76 @@ export const mockDatabase: MockData = {
 			permissions: ["finance.review", "contracts.admin"],
 			updated_at: "2024-01-01T00:00:00Z",
 			updated_by: MOCK_ADMIN_ID,
+		},
+		{
+			department: "Partners & Sponsors",
+			permissions: ["contracts.admin"],
+			updated_at: "2026-06-02T00:00:00Z",
+			updated_by: MOCK_ADMIN_ID,
+		},
+	],
+	contract_templates: [
+		{
+			id: "11111111-1111-4111-8111-111111111111",
+			name: "Test Contract",
+			description: null,
+			contract_text: "Hello {{partner_name}}",
+			is_active: true,
+			created_at: "2026-05-27T12:00:00Z",
+			updated_at: "2026-05-27T12:00:00Z",
+		},
+	],
+	contract_template_variables: [
+		{
+			id: "22222222-2222-4222-8222-222222222222",
+			template_id: "11111111-1111-4111-8111-111111111111",
+			variable_name: "partner_name",
+			label: "Partner Name",
+			data_type: "TEXT",
+			help_text: null,
+			options: null,
+			is_required: true,
+			is_multiselect: false,
+			show_if_variable: null,
+			show_if_value: null,
+			sort_order: 0,
+			created_at: "2026-05-27T12:00:00Z",
+			updated_at: "2026-05-27T12:00:00Z",
+		},
+	],
+	contract_conditional_blocks: [],
+	contract_document_versions: [],
+	contract_submissions: [
+		{
+			id: "33333333-3333-4333-8333-333333333333",
+			template_id: "11111111-1111-4111-8111-111111111111",
+			submitter_user_id: MOCK_USER_ID,
+			form_data: { partner_name: "Acme" },
+			generated_contract_text: "Hello Acme",
+			admin_edited_text: null,
+			status: "legal_review",
+			notes: null,
+			feedback_message: null,
+			signature_token: null,
+			signature_token_expires_at: null,
+			signature_data: null,
+			signer_name: null,
+			signed_at: null,
+			admin_signature_data: null,
+			admin_signer_name: null,
+			admin_signed_at: null,
+			sent_to_partner_at: null,
+			partner_comment: null,
+			partner_commented_at: null,
+			final_pdf_token: null,
+			final_pdf_sent_at: null,
+			completed_at: null,
+			active_document_version_id: null,
+			sent_document_version_id: null,
+			final_document_version_id: null,
+			submitted_at: "2026-05-27T12:00:00Z",
+			created_at: "2026-05-27T12:00:00Z",
+			updated_at: "2026-05-27T12:00:00Z",
 		},
 	],
 	reimbursements: [
@@ -440,7 +515,12 @@ function createQueryBuilder(table: string): QueryBuilder {
 						table === "member_change_requests" ||
 						table === "engagement_certificate_requests" ||
 						table === "reimbursements" ||
-						table === "member_cvs") &&
+						table === "member_cvs" ||
+						table === "contract_templates" ||
+						table === "contract_template_variables" ||
+						table === "contract_conditional_blocks" ||
+						table === "contract_submissions" ||
+						table === "contract_document_versions") &&
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {
@@ -804,6 +884,76 @@ export function resetMockDatabase(): void {
 			permissions: ["finance.review", "contracts.admin"],
 			updated_at: "2024-01-01T00:00:00Z",
 			updated_by: MOCK_ADMIN_ID,
+		},
+		{
+			department: "Partners & Sponsors",
+			permissions: ["contracts.admin"],
+			updated_at: "2026-06-02T00:00:00Z",
+			updated_by: MOCK_ADMIN_ID,
+		},
+	];
+	mockDatabase.contract_templates = [
+		{
+			id: "11111111-1111-4111-8111-111111111111",
+			name: "Test Contract",
+			description: null,
+			contract_text: "Hello {{partner_name}}",
+			is_active: true,
+			created_at: "2026-05-27T12:00:00Z",
+			updated_at: "2026-05-27T12:00:00Z",
+		},
+	];
+	mockDatabase.contract_template_variables = [
+		{
+			id: "22222222-2222-4222-8222-222222222222",
+			template_id: "11111111-1111-4111-8111-111111111111",
+			variable_name: "partner_name",
+			label: "Partner Name",
+			data_type: "TEXT",
+			help_text: null,
+			options: null,
+			is_required: true,
+			is_multiselect: false,
+			show_if_variable: null,
+			show_if_value: null,
+			sort_order: 0,
+			created_at: "2026-05-27T12:00:00Z",
+			updated_at: "2026-05-27T12:00:00Z",
+		},
+	];
+	mockDatabase.contract_conditional_blocks = [];
+	mockDatabase.contract_document_versions = [];
+	mockDatabase.contract_submissions = [
+		{
+			id: "33333333-3333-4333-8333-333333333333",
+			template_id: "11111111-1111-4111-8111-111111111111",
+			submitter_user_id: MOCK_USER_ID,
+			form_data: { partner_name: "Acme" },
+			generated_contract_text: "Hello Acme",
+			admin_edited_text: null,
+			status: "legal_review",
+			notes: null,
+			feedback_message: null,
+			signature_token: null,
+			signature_token_expires_at: null,
+			signature_data: null,
+			signer_name: null,
+			signed_at: null,
+			admin_signature_data: null,
+			admin_signer_name: null,
+			admin_signed_at: null,
+			sent_to_partner_at: null,
+			partner_comment: null,
+			partner_commented_at: null,
+			final_pdf_token: null,
+			final_pdf_sent_at: null,
+			completed_at: null,
+			active_document_version_id: null,
+			sent_document_version_id: null,
+			final_document_version_id: null,
+			submitted_at: "2026-05-27T12:00:00Z",
+			created_at: "2026-05-27T12:00:00Z",
+			updated_at: "2026-05-27T12:00:00Z",
 		},
 	];
 	mockStorage.clear();
