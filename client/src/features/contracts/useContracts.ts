@@ -92,6 +92,14 @@ export interface ContractSubmission {
 	partner_email_sent_at: string | null;
 	partner_email_recipient: string | null;
 	partner_email_error: string | null;
+	signature_provider: "in_app" | "opensign";
+	opensign_document_id: string | null;
+	opensign_status: string | null;
+	opensign_sent_at: string | null;
+	opensign_completed_at: string | null;
+	opensign_file_url: string | null;
+	opensign_certificate_url: string | null;
+	opensign_error: string | null;
 	final_pdf_token: string | null;
 	final_pdf_sent_at: string | null;
 	completed_at: string | null;
@@ -328,6 +336,7 @@ export function useUpdateContractSubmission(id: string) {
 			generate_signature_token?: boolean;
 			send_to_partner?: boolean;
 			send_partner_email?: boolean;
+			send_opensign?: boolean;
 			partner_email_subject?: string | null;
 			partner_email_message?: string | null;
 			signature_token_ttl_hours?: number;

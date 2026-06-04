@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { enrichContractFormData } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
@@ -7,6 +7,7 @@ import {
 	sendContractPartnerEmail,
 } from "../lib/contractEmails.js";
 import { DatabaseError } from "../lib/errors.js";
+import { isOpenSignConfigured, sendOpenSignDocument } from "../lib/openSign.js";
 import { createTextPdf } from "../lib/simplePdf.js";
 import { getSupabase } from "../lib/supabase.js";
 import {
@@ -121,6 +122,7 @@ const SubmissionPatchSchema = z
 		generate_signature_token: z.boolean().optional(),
 		send_to_partner: z.boolean().optional(),
 		send_partner_email: z.boolean().optional(),
+		send_opensign: z.boolean().optional(),
 		partner_email_subject: z.string().trim().max(300).nullable().optional(),
 		partner_email_message: z.string().trim().max(5000).nullable().optional(),
 		signature_token_ttl_hours: z.number().int().min(1).max(720).optional(),
@@ -133,7 +135,8 @@ const SubmissionPatchSchema = z
 			value.feedback_message !== undefined ||
 			value.generate_signature_token === true ||
 			value.send_to_partner === true ||
-			value.send_partner_email === true,
+			value.send_partner_email === true ||
+			value.send_opensign === true,
 		{ message: "No-op patch" },
 	);
 
@@ -145,6 +148,17 @@ const SignBodySchema = z.object({
 const CommentBodySchema = z.object({
 	comment: z.string().trim().min(1).max(5000),
 });
+
+const OpenSignWebhookSchema = z
+	.object({
+		event: z.string().trim().max(100).optional(),
+		type: z.string().trim().max(100).optional(),
+		objectId: z.string().trim().max(200).optional(),
+		file: z.string().trim().max(4000).optional(),
+		certificate: z.string().trim().max(4000).optional(),
+		certificateUrl: z.string().trim().max(4000).optional(),
+	})
+	.passthrough();
 
 // =========================================================================
 // Contract text renderer (ported & simplified from contract-generator)
@@ -405,6 +419,35 @@ function getPartnerCompanyNameFromSubmission(
 			: {};
 	const raw = formData.partner_company_name;
 	return typeof raw === "string" ? raw.trim() : "";
+}
+
+function verifyOpenSignWebhookSignature(
+	body: unknown,
+	signature: unknown,
+): boolean {
+	const secret = process.env.OPENSIGN_WEBHOOK_SECRET?.trim();
+	if (!secret) return false;
+	if (typeof signature !== "string" || !signature.trim()) return false;
+	const expected = createHmac("sha256", secret)
+		.update(JSON.stringify(body))
+		.digest("hex");
+	const received = signature.trim();
+	const expectedBuffer = Buffer.from(expected, "hex");
+	const receivedBuffer = Buffer.from(received, "hex");
+	if (expectedBuffer.length !== receivedBuffer.length) return false;
+	return timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+function isOpenSignCompletedEvent(event: string): boolean {
+	return ["completed", "document_completed", "complete"].includes(
+		event.toLowerCase(),
+	);
+}
+
+function isOpenSignFailureEvent(event: string): boolean {
+	return ["declined", "revoked", "expired", "voided"].includes(
+		event.toLowerCase(),
+	);
 }
 
 function buildFinalPdfText(submission: Record<string, unknown>): string {
@@ -896,7 +939,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, template_id, submitter_user_id, status, submitted_at, signed_at, admin_signed_at, final_pdf_token, final_pdf_sent_at, partner_email_sent_at, partner_email_recipient, partner_email_error, created_at, updated_at, signature_token, signature_token_expires_at",
+					"id, template_id, submitter_user_id, status, submitted_at, signed_at, admin_signed_at, final_pdf_token, final_pdf_sent_at, partner_email_sent_at, partner_email_recipient, partner_email_error, signature_provider, opensign_document_id, opensign_status, opensign_sent_at, opensign_completed_at, opensign_file_url, opensign_certificate_url, opensign_error, created_at, updated_at, signature_token, signature_token_expires_at",
 				)
 				.order("created_at", { ascending: false });
 			if (error) {
@@ -1076,12 +1119,18 @@ export async function contractRoutes(server: FastifyInstance) {
 			const user = (request as AuthenticatedRequest).user;
 			const body = SubmissionPatchSchema.parse(request.body);
 			const shouldSendToPartner =
-				body.send_to_partner === true || body.send_partner_email === true;
+				body.send_to_partner === true ||
+				body.send_partner_email === true ||
+				body.send_opensign === true;
+			const usesExternalDelivery =
+				body.send_partner_email === true || body.send_opensign === true;
 			const needsCurrent =
 				body.admin_edited_text !== undefined ||
 				body.generate_signature_token === true ||
 				shouldSendToPartner;
 			let current: Record<string, unknown> | null = null;
+			let sentTextForExternalDelivery: string | null = null;
+			let sentToPartnerUpdate: Record<string, unknown> | null = null;
 
 			if (needsCurrent) {
 				const { data, error } = await getSupabase()
@@ -1135,15 +1184,39 @@ export async function contractRoutes(server: FastifyInstance) {
 						});
 					}
 				}
+				if (body.send_opensign === true) {
+					const partnerEmail = getPartnerEmailFromSubmission(current ?? {});
+					if (!partnerEmail) {
+						return reply.status(400).send({
+							error:
+								"Partner contact email is required before sending with OpenSign",
+						});
+					}
+					if (!isOpenSignConfigured()) {
+						return reply.status(503).send({
+							error:
+								"OpenSign sending is not configured. Set OPENSIGN_API_TOKEN.",
+						});
+					}
+				}
 				const ttlHours = body.signature_token_ttl_hours ?? 24 * 30;
 				update.signature_token = generateSignatureToken();
 				update.signature_token_expires_at = new Date(
 					Date.now() + ttlHours * 60 * 60 * 1000,
 				).toISOString();
-				update.status = "sent_to_partner";
-				update.sent_to_partner_at = new Date().toISOString();
+				sentToPartnerUpdate = {
+					status: "sent_to_partner",
+					sent_to_partner_at: new Date().toISOString(),
+				};
+				if (!usesExternalDelivery) {
+					Object.assign(update, sentToPartnerUpdate);
+				}
 				if (body.send_partner_email === true) {
 					update.partner_email_error = null;
+				}
+				if (body.send_opensign === true) {
+					update.signature_provider = "opensign";
+					update.opensign_error = null;
 				}
 			}
 
@@ -1156,6 +1229,9 @@ export async function contractRoutes(server: FastifyInstance) {
 					body.admin_edited_text !== null
 						? body.admin_edited_text
 						: textFromSubmission({ ...current, ...update });
+				if (shouldSendToPartner) {
+					sentTextForExternalDelivery = versionText;
+				}
 				const version = await createDocumentVersion({
 					submissionId: request.params.id,
 					source: shouldSendToPartner ? "sent_to_partner" : "legal_review",
@@ -1204,6 +1280,7 @@ export async function contractRoutes(server: FastifyInstance) {
 					const { data: emailed, error: emailUpdateError } = await getSupabase()
 						.from("contract_submissions")
 						.update({
+							...(sentToPartnerUpdate ?? {}),
 							partner_email_sent_at: new Date().toISOString(),
 							partner_email_recipient: recipient,
 							partner_email_error: null,
@@ -1234,9 +1311,135 @@ export async function contractRoutes(server: FastifyInstance) {
 					return reply.status(502).send({ error: message });
 				}
 			}
+			if (body.send_opensign === true) {
+				const submission = data as Record<string, unknown>;
+				const recipient = getPartnerEmailFromSubmission(submission);
+				const partnerCompany =
+					getPartnerCompanyNameFromSubmission(submission) || "Partner";
+				const documentText =
+					sentTextForExternalDelivery ?? textFromSubmission(submission);
+				try {
+					const openSignDocument = await sendOpenSignDocument({
+						name: `TUM.ai Contract - ${partnerCompany}`,
+						pdf: createTextPdf(documentText),
+						signer: {
+							name: partnerCompany,
+							email: recipient,
+						},
+						note: "Please review and sign this TUM.ai contract in OpenSign.",
+						redirectUrl: `${getAppBaseUrl(request)}/contracts`,
+					});
+					const { data: openSigned, error: openSignUpdateError } =
+						await getSupabase()
+							.from("contract_submissions")
+							.update({
+								...(sentToPartnerUpdate ?? {}),
+								opensign_document_id: openSignDocument.documentId,
+								opensign_status: openSignDocument.status ?? "sent",
+								opensign_sent_at: new Date().toISOString(),
+								opensign_file_url: openSignDocument.fileUrl,
+								opensign_error: null,
+								updated_at: new Date().toISOString(),
+							})
+							.eq("id", request.params.id)
+							.select("*")
+							.single();
+					if (openSignUpdateError) throw openSignUpdateError;
+					return openSigned;
+				} catch (openSignError) {
+					const message =
+						openSignError instanceof Error
+							? openSignError.message
+							: "Failed to send contract with OpenSign";
+					await getSupabase()
+						.from("contract_submissions")
+						.update({
+							opensign_error: message,
+							updated_at: new Date().toISOString(),
+						})
+						.eq("id", request.params.id);
+					request.log.error(
+						{ err: openSignError },
+						"Failed to send OpenSign contract",
+					);
+					return reply.status(502).send({ error: message });
+				}
+			}
 			return data;
 		},
 	);
+
+	server.post("/webhooks/opensign", async (request, reply) => {
+		if (
+			!verifyOpenSignWebhookSignature(
+				request.body,
+				request.headers["x-webhook-signature"],
+			)
+		) {
+			return reply.status(401).send({ error: "Invalid webhook signature" });
+		}
+
+		const body = OpenSignWebhookSchema.parse(request.body);
+		if (!body.objectId) {
+			return reply.status(400).send({ error: "Missing OpenSign document id" });
+		}
+
+		const event = body.event ?? "unknown";
+		const nowIso = new Date().toISOString();
+		const { data: current, error: currentError } = await getSupabase()
+			.from("contract_submissions")
+			.select("id, status")
+			.eq("opensign_document_id", body.objectId)
+			.maybeSingle();
+		if (currentError) {
+			request.log.error(
+				{ err: currentError },
+				"Failed to fetch OpenSign webhook submission",
+			);
+			throw createContractDatabaseError(currentError);
+		}
+		if (!current) {
+			request.log.warn(
+				{ openSignDocumentId: body.objectId, event },
+				"OpenSign webhook did not match a contract submission",
+			);
+			return { ok: true };
+		}
+
+		const update: Record<string, unknown> = {
+			opensign_status: event,
+			opensign_file_url: body.file ?? null,
+			opensign_certificate_url: body.certificateUrl ?? body.certificate ?? null,
+			opensign_webhook_last_event: event,
+			opensign_webhook_received_at: nowIso,
+			updated_at: nowIso,
+		};
+
+		const canApplyOpenSignStatus = current.status === "sent_to_partner";
+		if (canApplyOpenSignStatus && isOpenSignCompletedEvent(event)) {
+			update.status = "partner_signed";
+			update.signed_at = nowIso;
+			update.signer_name = "OpenSign";
+			update.opensign_completed_at = nowIso;
+			update.opensign_error = null;
+		} else if (canApplyOpenSignStatus && isOpenSignFailureEvent(event)) {
+			update.status = "partner_comments";
+			update.opensign_error = `OpenSign document ${event}`;
+		}
+
+		const { error } = await getSupabase()
+			.from("contract_submissions")
+			.update(update)
+			.eq("id", current.id)
+			.select("id, status, opensign_status")
+			.maybeSingle();
+		if (error) {
+			request.log.error({ err: error }, "Failed to process OpenSign webhook");
+			throw createContractDatabaseError(error);
+		}
+
+		return { ok: true };
+	});
 
 	// ---------------------------------------------------------------------
 	// Public signing endpoints (no auth). Verified by signature_token only.

@@ -1,5 +1,6 @@
 import "../setup.js";
 import assert from "node:assert";
+import { createHmac } from "node:crypto";
 import { after, before, describe, test } from "node:test";
 import { enrichContractFormData } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
@@ -307,6 +308,392 @@ describe("Contract Routes", async () => {
 		} finally {
 			restoreEnv("RESEND_API_KEY", originalResendKey);
 			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
+		}
+	});
+
+	test("does not mark a submission sent when partner email delivery fails", async () => {
+		resetDatabase();
+		const originalFetch = globalThis.fetch;
+		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
+		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
+		globalThis.fetch = (async () =>
+			new Response("provider unavailable", { status: 500 })) as typeof fetch;
+
+		try {
+			const submission = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(submission);
+			submission.form_data = {
+				partner_company_name: "Partner GmbH",
+				partner_contact_email: "partner@example.com",
+			};
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					admin_edited_text: "Approved contract text",
+					send_partner_email: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 502);
+			const updated = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(updated);
+			assert.strictEqual(updated.status, "legal_review");
+			assert.strictEqual(updated.sent_to_partner_at, null);
+			assert.match(
+				String(updated.partner_email_error),
+				/Failed to send contract email/,
+			);
+		} finally {
+			globalThis.fetch = originalFetch;
+			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
+		}
+	});
+
+	test("sends a reviewed contract with OpenSign", async () => {
+		resetDatabase();
+		const originalFetch = globalThis.fetch;
+		const originalOpenSignToken = process.env.OPENSIGN_API_TOKEN;
+		const originalOpenSignBaseUrl = process.env.OPENSIGN_BASE_URL;
+		const originalBaseUrl = process.env.APP_BASE_URL;
+		const sentBodies: Array<Record<string, unknown>> = [];
+		process.env.OPENSIGN_API_TOKEN = "test-opensign-token";
+		process.env.OPENSIGN_BASE_URL = "https://opensign.test/api/v1.2";
+		process.env.APP_BASE_URL = "https://member-manager.test";
+		globalThis.fetch = (async (url, init) => {
+			assert.strictEqual(
+				String(url),
+				"https://opensign.test/api/v1.2/createdocument",
+			);
+			assert.strictEqual(
+				(init?.headers as Record<string, string>)["x-api-token"],
+				"test-opensign-token",
+			);
+			sentBodies.push(JSON.parse(String(init?.body)));
+			return new Response(
+				JSON.stringify({
+					objectId: "opensign-doc-123",
+					status: "sent",
+					file: "https://opensign.test/file.pdf",
+				}),
+				{ status: 200 },
+			);
+		}) as typeof fetch;
+
+		try {
+			const submission = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(submission);
+			submission.form_data = {
+				partner_company_name: "Partner GmbH",
+				partner_contact_email: "partner@example.com",
+			};
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					admin_edited_text: "Approved contract text",
+					send_opensign: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.status, "sent_to_partner");
+			assert.strictEqual(data.signature_provider, "opensign");
+			assert.strictEqual(data.opensign_document_id, "opensign-doc-123");
+			assert.strictEqual(data.opensign_status, "sent");
+			assert.strictEqual(
+				data.opensign_file_url,
+				"https://opensign.test/file.pdf",
+			);
+			assert.ok(data.opensign_sent_at);
+			assert.match(data.signature_token, /^[a-f0-9]{64}$/);
+			assert.strictEqual(sentBodies.length, 1);
+			assert.strictEqual(sentBodies[0].name, "TUM.ai Contract - Partner GmbH");
+			assert.match(
+				String(sentBodies[0].file),
+				/^data:application\/pdf;base64,/,
+			);
+			assert.strictEqual(sentBodies[0].send_email, true);
+			assert.strictEqual(
+				sentBodies[0].redirect_url,
+				"https://member-manager.test/contracts",
+			);
+			const signer = (
+				sentBodies[0].signers as Array<Record<string, unknown>>
+			)[0];
+			assert.strictEqual(signer.email, "partner@example.com");
+			assert.strictEqual(signer.name, "Partner GmbH");
+			assert.ok(Array.isArray(signer.widgets));
+		} finally {
+			globalThis.fetch = originalFetch;
+			restoreEnv("OPENSIGN_API_TOKEN", originalOpenSignToken);
+			restoreEnv("OPENSIGN_BASE_URL", originalOpenSignBaseUrl);
+			restoreEnv("APP_BASE_URL", originalBaseUrl);
+		}
+	});
+
+	test("does not mark a submission sent when OpenSign delivery fails", async () => {
+		resetDatabase();
+		const originalFetch = globalThis.fetch;
+		const originalOpenSignToken = process.env.OPENSIGN_API_TOKEN;
+		const originalOpenSignBaseUrl = process.env.OPENSIGN_BASE_URL;
+		process.env.OPENSIGN_API_TOKEN = "test-opensign-token";
+		process.env.OPENSIGN_BASE_URL = "https://opensign.test/api/v1.2";
+		globalThis.fetch = (async () =>
+			new Response(JSON.stringify({ message: "OpenSign unavailable" }), {
+				status: 502,
+			})) as typeof fetch;
+
+		try {
+			const submission = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(submission);
+			submission.form_data = {
+				partner_company_name: "Partner GmbH",
+				partner_contact_email: "partner@example.com",
+			};
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					admin_edited_text: "Approved contract text",
+					send_opensign: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 502);
+			assert.match(JSON.parse(response.payload).error, /OpenSign unavailable/);
+			const updated = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(updated);
+			assert.strictEqual(updated.status, "legal_review");
+			assert.strictEqual(updated.sent_to_partner_at, null);
+			assert.strictEqual(updated.opensign_document_id, null);
+			assert.strictEqual(updated.opensign_error, "OpenSign unavailable");
+		} finally {
+			globalThis.fetch = originalFetch;
+			restoreEnv("OPENSIGN_API_TOKEN", originalOpenSignToken);
+			restoreEnv("OPENSIGN_BASE_URL", originalOpenSignBaseUrl);
+		}
+	});
+
+	test("rejects OpenSign sending when the provider is not configured", async () => {
+		resetDatabase();
+		const originalOpenSignToken = process.env.OPENSIGN_API_TOKEN;
+		delete process.env.OPENSIGN_API_TOKEN;
+
+		try {
+			const submission = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(submission);
+			submission.form_data = {
+				partner_company_name: "Partner GmbH",
+				partner_contact_email: "partner@example.com",
+			};
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					admin_edited_text: "Approved contract text",
+					send_opensign: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 503);
+			assert.match(JSON.parse(response.payload).error, /OpenSign sending/);
+		} finally {
+			restoreEnv("OPENSIGN_API_TOKEN", originalOpenSignToken);
+		}
+	});
+
+	test("rejects OpenSign webhooks when the webhook secret is not configured", async () => {
+		resetDatabase();
+		const originalWebhookSecret = process.env.OPENSIGN_WEBHOOK_SECRET;
+		delete process.env.OPENSIGN_WEBHOOK_SECRET;
+
+		try {
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/webhooks/opensign",
+				headers: {
+					"content-type": "application/json",
+					"x-webhook-signature": "anything",
+				},
+				payload: JSON.stringify({
+					event: "completed",
+					objectId: "opensign-doc-123",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 401);
+		} finally {
+			restoreEnv("OPENSIGN_WEBHOOK_SECRET", originalWebhookSecret);
+		}
+	});
+
+	test("processes an OpenSign completion webhook", async () => {
+		resetDatabase();
+		const originalWebhookSecret = process.env.OPENSIGN_WEBHOOK_SECRET;
+		const webhookSecret = "test-webhook-secret";
+		process.env.OPENSIGN_WEBHOOK_SECRET = webhookSecret;
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.status = "sent_to_partner";
+		submission.signature_provider = "opensign";
+		submission.opensign_document_id = "opensign-doc-123";
+		submission.opensign_status = "sent";
+
+		try {
+			const payload = {
+				event: "completed",
+				type: "request-sign",
+				objectId: "opensign-doc-123",
+				file: "https://opensign.test/signed.pdf",
+				certificateUrl: "https://opensign.test/certificate.pdf",
+			};
+			const signature = createHmac("sha256", webhookSecret)
+				.update(JSON.stringify(payload))
+				.digest("hex");
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/webhooks/opensign",
+				headers: {
+					"content-type": "application/json",
+					"x-webhook-signature": signature,
+				},
+				payload: JSON.stringify(payload),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updated = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(updated);
+			assert.strictEqual(updated.status, "partner_signed");
+			assert.strictEqual(updated.opensign_status, "completed");
+			assert.strictEqual(
+				updated.opensign_file_url,
+				"https://opensign.test/signed.pdf",
+			);
+			assert.strictEqual(
+				updated.opensign_certificate_url,
+				"https://opensign.test/certificate.pdf",
+			);
+			assert.ok(updated.signed_at);
+			assert.ok(updated.opensign_completed_at);
+		} finally {
+			restoreEnv("OPENSIGN_WEBHOOK_SECRET", originalWebhookSecret);
+		}
+	});
+
+	test("does not regress completed submissions from late OpenSign webhooks", async () => {
+		resetDatabase();
+		const originalWebhookSecret = process.env.OPENSIGN_WEBHOOK_SECRET;
+		const webhookSecret = "test-webhook-secret";
+		process.env.OPENSIGN_WEBHOOK_SECRET = webhookSecret;
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.status = "completed";
+		submission.signature_provider = "opensign";
+		submission.opensign_document_id = "opensign-doc-123";
+		submission.opensign_status = "sent";
+		submission.signed_at = "2026-05-28T12:00:00Z";
+		submission.opensign_error = null;
+
+		try {
+			const payload = {
+				event: "declined",
+				type: "request-sign",
+				objectId: "opensign-doc-123",
+			};
+			const signature = createHmac("sha256", webhookSecret)
+				.update(JSON.stringify(payload))
+				.digest("hex");
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/webhooks/opensign",
+				headers: {
+					"content-type": "application/json",
+					"x-webhook-signature": signature,
+				},
+				payload: JSON.stringify(payload),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updated = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(updated);
+			assert.strictEqual(updated.status, "completed");
+			assert.strictEqual(updated.signed_at, "2026-05-28T12:00:00Z");
+			assert.strictEqual(updated.opensign_status, "declined");
+			assert.strictEqual(updated.opensign_error, null);
+		} finally {
+			restoreEnv("OPENSIGN_WEBHOOK_SECRET", originalWebhookSecret);
+		}
+	});
+
+	test("rejects OpenSign webhooks with invalid signatures", async () => {
+		resetDatabase();
+		const originalWebhookSecret = process.env.OPENSIGN_WEBHOOK_SECRET;
+		process.env.OPENSIGN_WEBHOOK_SECRET = "test-webhook-secret";
+
+		try {
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/webhooks/opensign",
+				headers: {
+					"content-type": "application/json",
+					"x-webhook-signature": "bad-signature",
+				},
+				payload: JSON.stringify({
+					event: "completed",
+					objectId: "opensign-doc-123",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 401);
+		} finally {
+			restoreEnv("OPENSIGN_WEBHOOK_SECRET", originalWebhookSecret);
 		}
 	});
 

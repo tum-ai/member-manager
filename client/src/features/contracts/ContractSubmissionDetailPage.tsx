@@ -191,6 +191,19 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 							Send Email to Partner
 						</Button>
 						<Button
+							variant="contained"
+							disabled={busy}
+							onClick={() =>
+								updateMutation.mutate({
+									admin_edited_text: editedText,
+									notes,
+									send_opensign: true,
+								})
+							}
+						>
+							Send with OpenSign
+						</Button>
+						<Button
 							variant="outlined"
 							color="warning"
 							disabled={busy}
@@ -263,6 +276,26 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					{submission.partner_email_error ? (
 						<Alert severity="warning" sx={{ mt: 2 }}>
 							Last email error: {submission.partner_email_error}
+						</Alert>
+					) : null}
+					{submission.opensign_sent_at ? (
+						<Alert severity="info" sx={{ mt: 2 }}>
+							OpenSign document {submission.opensign_document_id} sent at{" "}
+							{new Date(submission.opensign_sent_at).toLocaleString()}
+							{submission.opensign_status
+								? ` (${submission.opensign_status})`
+								: ""}
+						</Alert>
+					) : null}
+					{submission.opensign_completed_at ? (
+						<Alert severity="success" sx={{ mt: 2 }}>
+							OpenSign completed at{" "}
+							{new Date(submission.opensign_completed_at).toLocaleString()}
+						</Alert>
+					) : null}
+					{submission.opensign_error ? (
+						<Alert severity="warning" sx={{ mt: 2 }}>
+							Last OpenSign error: {submission.opensign_error}
 						</Alert>
 					) : null}
 					{finalPdfUrl ? (

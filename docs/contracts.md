@@ -90,3 +90,38 @@ Partner signing-link emails use Resend when `RESEND_API_KEY`,
 is preferred for link generation; if it is absent, the request origin is used.
 Email delivery metadata is stored on the submission so Legal & Finance can see
 the last recipient, sent timestamp, or delivery error.
+
+## OpenSign
+
+OpenSign is supported as the external partner signature provider while Member
+Manager remains the place where Legal & Finance renders, reviews, and edits the
+contract. Sending with OpenSign generates the reviewed PDF from the current
+Member Manager text, asks hosted OpenSign to email the partner, and still
+creates the in-app signing token as a fallback.
+
+Required server configuration:
+
+```env
+OPENSIGN_API_TOKEN=...
+OPENSIGN_BASE_URL=https://eu-app.opensignlabs.com/api/v1.2
+OPENSIGN_WEBHOOK_SECRET=...
+```
+
+`OPENSIGN_API_TOKEN` comes from the hosted OpenSign account. `OPENSIGN_BASE_URL`
+can be changed if the account is not on the EU host. `OPENSIGN_WEBHOOK_SECRET`
+must match the secret configured in OpenSign for the webhook that points to:
+
+```text
+https://<member-manager-host>/api/webhooks/opensign
+```
+
+The webhook marks the submission as `partner_signed` once OpenSign reports a
+completed document and stores the signed file/certificate URLs when OpenSign
+sends them. If webhooks are not enabled in the OpenSign plan yet, Legal &
+Finance can still send via OpenSign, but completion will need manual follow-up
+or the in-app fallback signature link.
+
+OpenSign signature field positions are configurable with
+`OPENSIGN_WIDGETS_JSON`. Leave it empty for the default first-page signature and
+date widgets; set it to the JSON widget array exported/tested from OpenSign if
+Legal needs exact placement for the final contract template.
