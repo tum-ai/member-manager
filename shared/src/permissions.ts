@@ -24,7 +24,7 @@ export const PERMISSION_DETAILS: Record<
 	"contracts.admin": {
 		label: "Contract Administration",
 		description:
-			"Review and approve submitted contracts, manage templates, and generate partner signing links.",
+			"Review and approve submitted contracts, manage templates, and send partner signing links.",
 	},
 };
 

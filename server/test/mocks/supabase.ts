@@ -52,6 +52,7 @@ interface MockData {
 	contract_conditional_blocks: Array<Record<string, unknown>>;
 	contract_submissions: Array<Record<string, unknown>>;
 	contract_document_versions: Array<Record<string, unknown>>;
+	contract_partner_comments: Array<Record<string, unknown>>;
 }
 
 // In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
@@ -197,6 +198,7 @@ export const mockDatabase: MockData = {
 	],
 	contract_conditional_blocks: [],
 	contract_document_versions: [],
+	contract_partner_comments: [],
 	contract_submissions: [
 		{
 			id: "33333333-3333-4333-8333-333333333333",
@@ -217,6 +219,9 @@ export const mockDatabase: MockData = {
 			admin_signer_name: null,
 			admin_signed_at: null,
 			sent_to_partner_at: null,
+			partner_email_sent_at: null,
+			partner_email_recipient: null,
+			partner_email_error: null,
 			partner_comment: null,
 			partner_commented_at: null,
 			final_pdf_token: null,
@@ -520,7 +525,8 @@ function createQueryBuilder(table: string): QueryBuilder {
 						table === "contract_template_variables" ||
 						table === "contract_conditional_blocks" ||
 						table === "contract_submissions" ||
-						table === "contract_document_versions") &&
+						table === "contract_document_versions" ||
+						table === "contract_partner_comments") &&
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {
@@ -923,6 +929,7 @@ export function resetMockDatabase(): void {
 	];
 	mockDatabase.contract_conditional_blocks = [];
 	mockDatabase.contract_document_versions = [];
+	mockDatabase.contract_partner_comments = [];
 	mockDatabase.contract_submissions = [
 		{
 			id: "33333333-3333-4333-8333-333333333333",

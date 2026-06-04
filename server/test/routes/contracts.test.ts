@@ -1,6 +1,7 @@
 import "../setup.js";
 import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
+import { enrichContractFormData } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import {
 	authHeaders,
@@ -14,6 +15,14 @@ import { mockDatabase } from "../mocks/supabase.js";
 
 const TEMPLATE_ID = "11111111-1111-4111-8111-111111111111";
 const SUBMISSION_ID = "33333333-3333-4333-8333-333333333333";
+
+function restoreEnv(name: string, value: string | undefined): void {
+	if (value === undefined) {
+		delete process.env[name];
+		return;
+	}
+	process.env[name] = value;
+}
 
 function moveRegularUserToPartnersAndSponsors(): void {
 	const member = mockDatabase.members.find(
@@ -34,6 +43,34 @@ describe("Contract Routes", async () => {
 
 	after(async () => {
 		await closeTestApp();
+	});
+
+	test("enriches selected a-la-carte add-ons", () => {
+		const data = enrichContractFormData({
+			sponsoring_package: "long_term_bronze",
+			selected_addons: [
+				"long_term_extra_linkedin_post",
+				"long_term_workshop_slot",
+				"ehl_workshop_slot",
+			],
+		});
+
+		assert.strictEqual(
+			data.addon_terms,
+			"- Extra LinkedIn Post: 750 EUR\n- Workshop Slot: 2.300 EUR",
+		);
+		assert.strictEqual(data.addon_total_amount_eur, 3050);
+		assert.strictEqual(data.total_amount_eur, 9050);
+		assert.strictEqual(data.total_amount_label, "9.050 EUR");
+	});
+
+	test("preserves legacy free-text add-on terms without selected add-ons", () => {
+		const data = enrichContractFormData({
+			sponsoring_package: "ehl_bronze",
+			addon_terms: "Dinner powered by Partner.",
+		});
+
+		assert.strictEqual(data.addon_terms, "Dinner powered by Partner.");
 	});
 
 	test("creates an authenticated submission with rendered contract text", async () => {
@@ -90,6 +127,39 @@ describe("Contract Routes", async () => {
 		assert.match(data.html, /Hello Preview GmbH/);
 	});
 
+	test("renders selected add-ons into contract previews", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+		const template = mockDatabase.contract_templates.find(
+			(row) => row.id === TEMPLATE_ID,
+		);
+		assert.ok(template);
+		template.contract_text =
+			"{{package_label}}\n\n{{package_benefits}}\n\n{{addon_terms}}\n\nTotal: {{total_amount_label}}";
+
+		const response = await app.inject({
+			method: "POST",
+			url: `/api/contracts/templates/${TEMPLATE_ID}/preview`,
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				form_data: {
+					sponsoring_package: "ehl_gold",
+					selected_addons: ["ehl_ceremony_job_posting", "ehl_workshop_slot"],
+				},
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const data = JSON.parse(response.payload);
+		assert.match(data.text, /EHL Hackathon Pass - Gold/);
+		assert.match(data.text, /- Job Posting in Ceremony: 700 EUR/);
+		assert.match(data.text, /- Workshop Slot: 1.000 EUR/);
+		assert.match(data.text, /Total: 10.700 EUR/);
+	});
+
 	test("rejects contract tool access for members without the contract permission", async () => {
 		resetDatabase();
 
@@ -140,6 +210,106 @@ describe("Contract Routes", async () => {
 		);
 	});
 
+	test("emails a reviewed contract to the partner", async () => {
+		resetDatabase();
+		const originalFetch = globalThis.fetch;
+		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
+		const originalBaseUrl = process.env.APP_BASE_URL;
+		const sentBodies: Array<Record<string, unknown>> = [];
+		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
+		process.env.APP_BASE_URL = "https://member-manager.test";
+		globalThis.fetch = (async (_url, init) => {
+			sentBodies.push(JSON.parse(String(init?.body)));
+			return new Response(JSON.stringify({ id: "email-123" }), {
+				status: 200,
+			});
+		}) as typeof fetch;
+
+		try {
+			const submission = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(submission);
+			submission.form_data = {
+				partner_company_name: "Partner GmbH",
+				partner_contact_email: "partner@example.com",
+			};
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					admin_edited_text: "Approved contract text",
+					send_partner_email: true,
+					partner_email_subject: "Please sign",
+					partner_email_message: "Review the contract.",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.status, "sent_to_partner");
+			assert.strictEqual(data.partner_email_recipient, "partner@example.com");
+			assert.ok(data.partner_email_sent_at);
+			assert.strictEqual(sentBodies.length, 1);
+			assert.strictEqual(sentBodies[0].to, "partner@example.com");
+			assert.strictEqual(sentBodies[0].subject, "Please sign");
+			assert.match(
+				String(sentBodies[0].text),
+				/https:\/\/member-manager\.test\/contracts\/sign\/[a-f0-9]{64}/,
+			);
+		} finally {
+			globalThis.fetch = originalFetch;
+			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
+			restoreEnv("APP_BASE_URL", originalBaseUrl);
+		}
+	});
+
+	test("rejects partner email sending when the provider is not configured", async () => {
+		resetDatabase();
+		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
+		delete process.env.RESEND_API_KEY;
+		delete process.env.CONTRACT_EMAIL_FROM;
+
+		try {
+			const submission = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(submission);
+			submission.form_data = {
+				partner_company_name: "Partner GmbH",
+				partner_contact_email: "partner@example.com",
+			};
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					admin_edited_text: "Approved contract text",
+					send_partner_email: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 503);
+			assert.match(JSON.parse(response.payload).error, /not configured/);
+		} finally {
+			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
+		}
+	});
+
 	test("records partner comments and returns the submission to review", async () => {
 		resetDatabase();
 		const submission = mockDatabase.contract_submissions.find(
@@ -163,12 +333,118 @@ describe("Contract Routes", async () => {
 		const data = JSON.parse(response.payload);
 		assert.strictEqual(data.status, "partner_comments");
 		assert.strictEqual(data.partner_comment, "Please adjust the scope.");
+		assert.strictEqual(mockDatabase.contract_partner_comments.length, 1);
+		assert.strictEqual(
+			mockDatabase.contract_partner_comments[0].submission_id,
+			SUBMISSION_ID,
+		);
+		assert.strictEqual(
+			mockDatabase.contract_partner_comments[0].author_type,
+			"partner",
+		);
+		assert.strictEqual(
+			mockDatabase.contract_partner_comments[0].comment,
+			"Please adjust the scope.",
+		);
 
 		const updated = mockDatabase.contract_submissions.find(
 			(row) => row.id === SUBMISSION_ID,
 		);
 		assert.ok(updated);
 		assert.strictEqual(updated.signature_token, null);
+	});
+
+	test("allows internal replies and returns ordered comment history", async () => {
+		resetDatabase();
+		mockDatabase.contract_partner_comments.push({
+			id: "comment-partner",
+			submission_id: SUBMISSION_ID,
+			author_type: "partner",
+			author_name: "Partner GmbH",
+			author_email: "partner@example.com",
+			comment: "Can we use a different billing date?",
+			document_version_id: null,
+			created_at: "2026-05-28T10:00:00Z",
+		});
+
+		const createResponse = await app.inject({
+			method: "POST",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}/comments`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				comment: "Yes, I updated the contract accordingly.",
+			}),
+		});
+
+		assert.strictEqual(createResponse.statusCode, 200);
+		const created = JSON.parse(createResponse.payload);
+		assert.strictEqual(created.author_type, "internal");
+		assert.strictEqual(created.author_email, "admin@test.com");
+
+		const listResponse = await app.inject({
+			method: "GET",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}/comments`,
+			headers: authHeaders(testTokens.admin),
+		});
+
+		assert.strictEqual(listResponse.statusCode, 200);
+		const comments = JSON.parse(listResponse.payload);
+		assert.strictEqual(comments.length, 2);
+		assert.strictEqual(
+			comments[0].comment,
+			"Can we use a different billing date?",
+		);
+		assert.strictEqual(
+			comments[1].comment,
+			"Yes, I updated the contract accordingly.",
+		);
+	});
+
+	test("includes comment history in the public signing payload", async () => {
+		resetDatabase();
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.status = "sent_to_partner";
+		submission.signature_token = "history-token";
+		submission.signature_token_expires_at = "2099-01-01T00:00:00Z";
+		mockDatabase.contract_partner_comments.push(
+			{
+				id: "comment-1",
+				submission_id: SUBMISSION_ID,
+				author_type: "partner",
+				author_name: "Partner GmbH",
+				author_email: "partner@example.com",
+				comment: "Initial partner comment.",
+				document_version_id: null,
+				created_at: "2026-05-28T10:00:00Z",
+			},
+			{
+				id: "comment-2",
+				submission_id: SUBMISSION_ID,
+				author_type: "internal",
+				author_name: "admin@test.com",
+				author_email: "admin@test.com",
+				comment: "Internal reply.",
+				document_version_id: null,
+				created_at: "2026-05-28T11:00:00Z",
+			},
+		);
+
+		const response = await app.inject({
+			method: "GET",
+			url: "/api/contracts/sign/history-token",
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const data = JSON.parse(response.payload);
+		assert.strictEqual(data.comments.length, 2);
+		assert.strictEqual(data.comments[0].comment, "Initial partner comment.");
+		assert.strictEqual(data.comments[1].author_type, "internal");
 	});
 
 	test("records a partner signature and clears the one-time token", async () => {
