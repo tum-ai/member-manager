@@ -61,6 +61,15 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 
 > Preview deploys get their own domain (`*.vercel.app`). The client now redirects OAuth back to `window.location.origin`, so previews return to the preview deployment automatically. For that to work, Supabase must allow the preview hostname pattern in its Redirect URLs list.
 
+### Sanity draft staging
+
+The repo does not currently fetch from Sanity, but the recommended future shape is
+documented in [docs/sanity-staging.md](./sanity-staging.md). In short: use a
+Vercel Preview/staging deployment with a server-only Sanity read token and the
+`drafts` perspective, while production keeps using the `published` perspective.
+Do not create a separate Sanity dataset just to preview in-progress production
+drafts.
+
 ### 2. Supabase dashboard
 
 **Authentication → URL Configuration:**

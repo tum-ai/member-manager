@@ -32,6 +32,7 @@ More reading:
 - [docs/development.md](./docs/development.md) — env precedence, dev modes, Slack OIDC, DNS quirks, testing, common failure modes
 - [docs/deployment.md](./docs/deployment.md) — Vercel env vars, Supabase dashboard config, Slack prod config, `FIELD_ENCRYPTION_KEY` warning
 - [docs/contracts.md](./docs/contracts.md) — contract generator workflow, seeded templates, statuses, and production migration notes
+- [docs/sanity-staging.md](./docs/sanity-staging.md) — recommended Sanity draft-preview staging shape once CMS-backed pages are added
 
 ## Current App Flow
 
