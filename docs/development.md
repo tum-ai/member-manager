@@ -176,7 +176,7 @@ Run `pnpm gate` manually before PRs, deploys, or risky changes. CI runs the full
 ## Schema migrations
 
 - Local: add SQL files to `supabase/migrations/` (timestamp-prefixed), then `pnpm supabase:reset` to re-apply the full chain against a fresh DB.
-- Prod: apply migrations to the hosted production project with `supabase db push` against the linked project. Double-check the linked project ref before pushing. Do **not** hand-edit tables in Studio — migrations are append-only history and must round-trip.
+- Prod: merge migrations to `main`; GitHub Actions applies them to the hosted production project with `supabase db push` before asserting migration parity. Do **not** hand-edit tables in Studio — migrations are append-only history and must round-trip.
 
 ## Sensitive-data fields
 

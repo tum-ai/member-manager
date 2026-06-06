@@ -2,7 +2,7 @@
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
-const ANSI_PATTERN = /\u001B\[[0-?]*[ -/]*[@-~]/g;
+const ANSI_PATTERN = new RegExp(String.raw`\x1B\[[0-?]*[ -/]*[@-~]`, "g");
 const MIGRATION_ID_PATTERN = /^\d{14}$/;
 
 export function parseSupabaseMigrationList(output) {
@@ -76,6 +76,17 @@ export function formatMigrationDrift(drift) {
 	return lines.join("\n");
 }
 
+export function getBlockingMigrationDrift(
+	drift,
+	{ allowPendingProduction = false } = {},
+) {
+	return {
+		missingRemote: allowPendingProduction ? [] : drift.missingRemote,
+		missingLocal: drift.missingLocal,
+		mismatchedRows: drift.mismatchedRows,
+	};
+}
+
 function hasMigrationDrift(drift) {
 	return (
 		drift.missingRemote.length > 0 ||
@@ -84,7 +95,15 @@ function hasMigrationDrift(drift) {
 	);
 }
 
-export function checkSupabaseMigrations() {
+function formatMigrationDriftAction(drift) {
+	if (drift.missingLocal.length > 0 || drift.mismatchedRows.length > 0) {
+		return "Production migration history does not match this checkout. Restore the missing migration files or repair the linked project's migration history before deploying.";
+	}
+
+	return "Run `supabase db push` against the production project before deploying app code that depends on these migrations.";
+}
+
+export function checkSupabaseMigrations(options = {}) {
 	let output;
 	try {
 		output = execFileSync("supabase", ["migration", "list", "--linked"], {
@@ -106,9 +125,10 @@ export function checkSupabaseMigrations() {
 	}
 
 	const drift = parseSupabaseMigrationList(output);
-	if (hasMigrationDrift(drift)) {
+	const blockingDrift = getBlockingMigrationDrift(drift, options);
+	if (hasMigrationDrift(blockingDrift)) {
 		throw new Error(
-			`${formatMigrationDrift(drift)}\n\nRun \`supabase db push\` against the production project before deploying app code that depends on these migrations.`,
+			`${formatMigrationDrift(blockingDrift)}\n\n${formatMigrationDriftAction(blockingDrift)}`,
 		);
 	}
 
@@ -117,8 +137,23 @@ export function checkSupabaseMigrations() {
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
 	try {
-		checkSupabaseMigrations();
-		console.log("Linked Supabase migrations match this checkout.");
+		const allowPendingProduction = process.argv.includes(
+			"--allow-pending-production",
+		);
+		const drift = checkSupabaseMigrations({ allowPendingProduction });
+		if (allowPendingProduction && drift.missingRemote.length > 0) {
+			console.warn(
+				[
+					"Pending local migrations have not been applied to the linked Supabase project yet:",
+					...drift.missingRemote.map((id) => `  - ${id}`),
+					"",
+					"`supabase db push` will apply them during the production release job.",
+				].join("\n"),
+			);
+			console.log("Linked Supabase migrations have no blocking drift.");
+		} else {
+			console.log("Linked Supabase migrations match this checkout.");
+		}
 	} catch (error) {
 		console.error(error instanceof Error ? error.message : String(error));
 		process.exitCode = 1;

@@ -95,14 +95,19 @@ Both can coexist. Preview deployments do **not** need their own Slack redirect U
 
 ### 4. Database migrations
 
-Migrations in `supabase/migrations/` only apply locally via `pnpm supabase:reset`. For the hosted project:
+Migrations in `supabase/migrations/` apply locally via `pnpm supabase:reset`. For the hosted project, the `Production Supabase Migrations` GitHub Actions job runs on pushes to `main`, applies unapplied migrations with `supabase db push`, and then asserts migration parity.
 
-```bash
-supabase link --project-ref <project-ref>   # one-time
-supabase db push                            # applies any un-applied migrations
-```
+If local and hosted schemas drift, `/api/members` and friends will 500 in prod with DB errors. Keep schema changes in migrations and do not hand-edit production tables in Supabase Studio.
 
-If local and hosted schemas drift, `/api/members` and friends will 500 in prod with DB errors. Keep them in sync.
+### 5. Vercel deployment checks
+
+Vercel auto-deploys GitHub pushes: PRs become preview deployments, and pushes to `main` become production deployments. To keep production from going live before migrations finish, configure a Vercel Deployment Check:
+
+1. In Vercel, open this project's **Settings -> Build and Deployment -> Deployment Checks**.
+2. Add a **GitHub** check for the GitHub Actions check named `Production Supabase Migrations`.
+3. Keep automatic production aliasing enabled.
+
+With that check selected, Vercel may still build the production deployment immediately after the `main` push, but it will not assign it to the production domain until `Production Supabase Migrations` passes.
 
 ## The `FIELD_ENCRYPTION_KEY` warning
 
@@ -115,13 +120,15 @@ This secret encrypts sensitive member and SEPA fields before they hit Supabase. 
 
 ## Deploying
 
-Push to `main`. Vercel runs:
+Push to `main`. GitHub Actions applies pending Supabase migrations in the `Production Supabase Migrations` job, while Vercel runs:
 
 ```bash
 pnpm install
 pnpm build        # builds client/dist AND server/dist
 # then deploys client/dist as static + api/[...path].ts as a Node function
 ```
+
+The Vercel Deployment Check above is required for correct production ordering. Keep app and schema changes backward compatible anyway; preview deployments still use their own Vercel URLs and may run before production migrations have landed.
 
 For a dry run of the prod request path locally:
 
