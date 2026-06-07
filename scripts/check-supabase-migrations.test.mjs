@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
 	formatMigrationDrift,
+	getBlockingMigrationDrift,
 	parseSupabaseMigrationList,
 } from "./check-supabase-migrations.mjs";
 
@@ -63,5 +64,41 @@ describe("formatMigrationDrift", () => {
 		assert.match(message, /20260429090000/);
 		assert.match(message, /Remote migrations missing/);
 		assert.match(message, /20260430090000/);
+	});
+});
+
+describe("getBlockingMigrationDrift", () => {
+	test("allows local migrations that are pending production", () => {
+		const blockingDrift = getBlockingMigrationDrift(
+			{
+				missingRemote: ["20260429090000"],
+				missingLocal: [],
+				mismatchedRows: [],
+			},
+			{ allowPendingProduction: true },
+		);
+
+		assert.deepEqual(blockingDrift, {
+			missingRemote: [],
+			missingLocal: [],
+			mismatchedRows: [],
+		});
+	});
+
+	test("still blocks remote migrations that are missing locally", () => {
+		const blockingDrift = getBlockingMigrationDrift(
+			{
+				missingRemote: ["20260429090000"],
+				missingLocal: ["20260430090000"],
+				mismatchedRows: [],
+			},
+			{ allowPendingProduction: true },
+		);
+
+		assert.deepEqual(blockingDrift, {
+			missingRemote: [],
+			missingLocal: ["20260430090000"],
+			mismatchedRows: [],
+		});
 	});
 });

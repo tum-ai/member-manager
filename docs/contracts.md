@@ -62,11 +62,10 @@ Legacy review statuses such as `submitted`, `in_review`, `approved`, `rejected`,
 
 ## Production
 
-Deployments that include contract workflow code require all contract migrations to be pushed to the linked Supabase project first:
+Deployments that include contract workflow code require all contract migrations to land in `supabase/migrations/`. GitHub Actions applies pending production migrations on pushes to `main` and then checks migration parity. To inspect the linked project manually:
 
 ```bash
 pnpm supabase:migrations:check
-supabase db push
 ```
 
 The app uses the server-side service-role Supabase client for public signing, board signing, and final PDF generation. Partner signing links and final PDF links are token-based and do not require partner authentication. The current product generates the final PDF link; Legal & Finance shares that link with the partner.
