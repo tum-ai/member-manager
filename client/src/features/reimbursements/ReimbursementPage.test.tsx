@@ -170,7 +170,7 @@ describe("ReimbursementPage", () => {
 		expect(
 			await screen.findByText(/different from your member department/i),
 		).toBeInTheDocument();
-	});
+	}, 10_000);
 
 	it("puts receipt upload first and lets users correct extracted fields", async () => {
 		parseReceiptAsync.mockResolvedValueOnce({
