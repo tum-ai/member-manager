@@ -844,9 +844,11 @@ describe("Contract Routes", async () => {
 		assert.strictEqual(data.comments[0].comment, "Initial partner comment.");
 		assert.strictEqual(data.comments[1].author_type, "internal");
 		assert.strictEqual(data.comments[1].author_name, "TUM.ai");
+		assert.strictEqual(data.comments[0].id, undefined);
 		assert.strictEqual(data.comments[0].author_email, undefined);
 		assert.strictEqual(data.comments[0].submission_id, undefined);
 		assert.strictEqual(data.comments[0].document_version_id, undefined);
+		assert.strictEqual(data.comments[1].id, undefined);
 		assert.strictEqual(data.comments[1].author_email, undefined);
 		assert.strictEqual(data.comments[1].submission_id, undefined);
 		assert.strictEqual(data.comments[1].document_version_id, undefined);
@@ -879,6 +881,7 @@ describe("Contract Routes", async () => {
 		assert.strictEqual(data.comments[0].comment, "Legacy partner feedback.");
 		assert.strictEqual(data.comments[0].author_type, "partner");
 		assert.strictEqual(data.comments[0].author_name, "Legacy Partner GmbH");
+		assert.strictEqual(data.comments[0].id, undefined);
 		assert.strictEqual(data.comments[0].author_email, undefined);
 		assert.strictEqual(data.comments[0].submission_id, undefined);
 		assert.strictEqual(data.comments[0].document_version_id, undefined);

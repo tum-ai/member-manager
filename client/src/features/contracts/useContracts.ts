@@ -123,7 +123,6 @@ export interface ContractPartnerComment {
 }
 
 export interface PublicContractPartnerComment {
-	id: string;
 	author_type: "partner" | "internal";
 	author_name: string | null;
 	comment: string;

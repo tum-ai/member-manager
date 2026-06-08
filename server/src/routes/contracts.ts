@@ -631,7 +631,6 @@ function sanitizePublicComment(
 	comment: Record<string, unknown>,
 ): Record<string, unknown> {
 	return {
-		id: typeof comment.id === "string" ? comment.id : "",
 		author_type:
 			comment.author_type === "internal" || comment.author_type === "partner"
 				? comment.author_type
@@ -659,7 +658,6 @@ function legacyPartnerCommentForPublicHistory(
 			: "";
 	if (!comment) return null;
 	return sanitizePublicComment({
-		id: `legacy-partner-comment-${String(submission.id)}`,
 		author_type: "partner",
 		author_name: getPartnerCompanyNameFromSubmission(submission) || "Partner",
 		comment,

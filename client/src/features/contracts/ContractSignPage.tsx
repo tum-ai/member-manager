@@ -108,7 +108,9 @@ export default function ContractSignPage(): JSX.Element {
 							</Typography>
 							<Stack spacing={2}>
 								{payload.comments.map((item, index) => (
-									<Box key={item.id}>
+									<Box
+										key={`${item.created_at}-${item.author_type}-${item.author_name ?? ""}-${item.comment}`}
+									>
 										{index > 0 ? <Divider sx={{ mb: 2 }} /> : null}
 										<Typography variant="caption" color="text.secondary">
 											{item.author_type === "partner"
