@@ -55,6 +55,7 @@ interface MockData {
 	contract_partner_comments: Array<Record<string, unknown>>;
 	tumai_days: Array<Record<string, unknown>>;
 	tumai_day_responses: Array<Record<string, unknown>>;
+	contract_partner_comments: Array<Record<string, unknown>>;
 }
 
 // In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
@@ -553,7 +554,8 @@ function createQueryBuilder(table: string): QueryBuilder {
 						table === "contract_document_versions" ||
 						table === "contract_partner_comments" ||
 						table === "tumai_days" ||
-						table === "tumai_day_responses") &&
+						table === "tumai_day_responses" ||
+						table === "contract_partner_comments") &&
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {
