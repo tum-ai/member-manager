@@ -3,6 +3,7 @@ import {
 	Box,
 	Button,
 	CircularProgress,
+	Divider,
 	Paper,
 	Stack,
 	TextField,
@@ -16,7 +17,9 @@ import SignaturePad from "./SignaturePad";
 import {
 	useBoardSignContractSubmission,
 	useContractSubmission,
+	useContractSubmissionComments,
 	useContractSubmissionPreview,
+	useCreateContractSubmissionComment,
 	useFinalizeContractSubmission,
 	useUpdateContractSubmission,
 } from "./useContracts";
@@ -27,13 +30,18 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const updateMutation = useUpdateContractSubmission(id ?? "");
 	const boardSignMutation = useBoardSignContractSubmission(id ?? "");
 	const finalizeMutation = useFinalizeContractSubmission(id ?? "");
+	const commentsQuery = useContractSubmissionComments(id);
+	const createCommentMutation = useCreateContractSubmissionComment(id ?? "");
 
 	const [editedText, setEditedText] = useState("");
 	const [notes, setNotes] = useState("");
+	const [internalComment, setInternalComment] = useState("");
 	const [boardSignatureData, setBoardSignatureData] = useState<string | null>(
 		null,
 	);
 	const [boardSignerName, setBoardSignerName] = useState("");
+	const [partnerEmailSubject, setPartnerEmailSubject] = useState("");
+	const [partnerEmailMessage, setPartnerEmailMessage] = useState("");
 	const previewQuery = useContractSubmissionPreview(id, editedText);
 
 	useEffect(() => {
@@ -43,6 +51,14 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 				data.admin_edited_text ?? data.generated_contract_text ?? "",
 			);
 			setNotes(data.notes ?? "");
+			const partnerCompany =
+				typeof data.form_data.partner_company_name === "string"
+					? data.form_data.partner_company_name
+					: "your team";
+			setPartnerEmailSubject(`TUM.ai contract for ${partnerCompany}`);
+			setPartnerEmailMessage(
+				"Please review and sign the contract using the secure link below.",
+			);
 		}
 	}, [submissionQuery.data]);
 
@@ -63,9 +79,15 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const busy =
 		updateMutation.isPending ||
 		boardSignMutation.isPending ||
-		finalizeMutation.isPending;
+		finalizeMutation.isPending ||
+		createCommentMutation.isPending;
 	const actionError =
-		updateMutation.error ?? boardSignMutation.error ?? finalizeMutation.error;
+		updateMutation.error ??
+		boardSignMutation.error ??
+		finalizeMutation.error ??
+		createCommentMutation.error;
+	const comments = commentsQuery.data ?? [];
+	const hasLegacyComment = submission.partner_comment && comments.length === 0;
 
 	return (
 		<ToolPageShell
@@ -89,17 +111,6 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 						{JSON.stringify(submission.form_data, null, 2)}
 					</Box>
 				</Paper>
-
-				{submission.partner_comment ? (
-					<Paper sx={{ p: 3 }}>
-						<Typography variant="subtitle1" gutterBottom>
-							Partner Comments
-						</Typography>
-						<Typography sx={{ whiteSpace: "pre-wrap" }}>
-							{submission.partner_comment}
-						</Typography>
-					</Paper>
-				) : null}
 
 				<Paper sx={{ p: 3 }}>
 					<Typography variant="subtitle1" gutterBottom>
@@ -165,6 +176,34 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 							Send to Partner
 						</Button>
 						<Button
+							variant="contained"
+							disabled={busy}
+							onClick={() =>
+								updateMutation.mutate({
+									admin_edited_text: editedText,
+									notes,
+									send_partner_email: true,
+									partner_email_subject: partnerEmailSubject,
+									partner_email_message: partnerEmailMessage,
+								})
+							}
+						>
+							Send Email to Partner
+						</Button>
+						<Button
+							variant="contained"
+							disabled={busy}
+							onClick={() =>
+								updateMutation.mutate({
+									admin_edited_text: editedText,
+									notes,
+									send_opensign: true,
+								})
+							}
+						>
+							Send with OpenSign
+						</Button>
+						<Button
 							variant="outlined"
 							color="warning"
 							disabled={busy}
@@ -198,6 +237,23 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								: "Action failed"}
 						</Alert>
 					) : null}
+					<Stack spacing={2} sx={{ mt: 2 }}>
+						<TextField
+							label="Partner email subject"
+							value={partnerEmailSubject}
+							onChange={(event) => setPartnerEmailSubject(event.target.value)}
+							fullWidth
+							size="small"
+						/>
+						<TextField
+							label="Partner email message"
+							value={partnerEmailMessage}
+							onChange={(event) => setPartnerEmailMessage(event.target.value)}
+							fullWidth
+							multiline
+							minRows={2}
+						/>
+					</Stack>
 					{signUrl ? (
 						<Box sx={{ mt: 2 }}>
 							<Typography variant="caption" color="text.secondary">
@@ -210,6 +266,37 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								InputProps={{ readOnly: true }}
 							/>
 						</Box>
+					) : null}
+					{submission.partner_email_sent_at ? (
+						<Alert severity="success" sx={{ mt: 2 }}>
+							Email sent to {submission.partner_email_recipient} at{" "}
+							{new Date(submission.partner_email_sent_at).toLocaleString()}
+						</Alert>
+					) : null}
+					{submission.partner_email_error ? (
+						<Alert severity="warning" sx={{ mt: 2 }}>
+							Last email error: {submission.partner_email_error}
+						</Alert>
+					) : null}
+					{submission.opensign_sent_at ? (
+						<Alert severity="info" sx={{ mt: 2 }}>
+							OpenSign document {submission.opensign_document_id} sent at{" "}
+							{new Date(submission.opensign_sent_at).toLocaleString()}
+							{submission.opensign_status
+								? ` (${submission.opensign_status})`
+								: ""}
+						</Alert>
+					) : null}
+					{submission.opensign_completed_at ? (
+						<Alert severity="success" sx={{ mt: 2 }}>
+							OpenSign completed at{" "}
+							{new Date(submission.opensign_completed_at).toLocaleString()}
+						</Alert>
+					) : null}
+					{submission.opensign_error ? (
+						<Alert severity="warning" sx={{ mt: 2 }}>
+							Last OpenSign error: {submission.opensign_error}
+						</Alert>
 					) : null}
 					{finalPdfUrl ? (
 						<Box sx={{ mt: 2 }}>
@@ -224,6 +311,74 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 							/>
 						</Box>
 					) : null}
+				</Paper>
+
+				<Paper sx={{ p: 3 }}>
+					<Typography variant="subtitle1" gutterBottom>
+						Comment History
+					</Typography>
+					{commentsQuery.isLoading ? (
+						<CircularProgress size={20} />
+					) : commentsQuery.error ? (
+						<Alert severity="error">
+							{(commentsQuery.error as Error).message}
+						</Alert>
+					) : comments.length > 0 || hasLegacyComment ? (
+						<Stack spacing={2}>
+							{comments.map((item, index) => (
+								<Box key={item.id}>
+									{index > 0 ? <Divider sx={{ mb: 2 }} /> : null}
+									<Typography variant="caption" color="text.secondary">
+										{item.author_type === "partner"
+											? (item.author_name ?? "Partner")
+											: (item.author_name ?? "TUM.ai")}{" "}
+										- {new Date(item.created_at).toLocaleString()}
+									</Typography>
+									<Typography sx={{ whiteSpace: "pre-wrap" }}>
+										{item.comment}
+									</Typography>
+								</Box>
+							))}
+							{hasLegacyComment ? (
+								<Box>
+									<Typography variant="caption" color="text.secondary">
+										Partner
+									</Typography>
+									<Typography sx={{ whiteSpace: "pre-wrap" }}>
+										{submission.partner_comment}
+									</Typography>
+								</Box>
+							) : null}
+						</Stack>
+					) : (
+						<Typography color="text.secondary">
+							No partner comments yet.
+						</Typography>
+					)}
+					<Stack spacing={2} sx={{ mt: 2 }}>
+						<TextField
+							label="Internal reply"
+							value={internalComment}
+							onChange={(event) => setInternalComment(event.target.value)}
+							multiline
+							minRows={3}
+							fullWidth
+						/>
+						<Box>
+							<Button
+								variant="outlined"
+								disabled={!internalComment.trim() || busy}
+								onClick={() =>
+									createCommentMutation.mutate(
+										{ comment: internalComment.trim() },
+										{ onSuccess: () => setInternalComment("") },
+									)
+								}
+							>
+								Add Internal Reply
+							</Button>
+						</Box>
+					</Stack>
 				</Paper>
 
 				{submission.status === "partner_signed" ? (

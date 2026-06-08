@@ -89,6 +89,17 @@ export interface ContractSubmission {
 	partner_comment: string | null;
 	partner_commented_at: string | null;
 	sent_to_partner_at: string | null;
+	partner_email_sent_at: string | null;
+	partner_email_recipient: string | null;
+	partner_email_error: string | null;
+	signature_provider: "in_app" | "opensign";
+	opensign_document_id: string | null;
+	opensign_status: string | null;
+	opensign_sent_at: string | null;
+	opensign_completed_at: string | null;
+	opensign_file_url: string | null;
+	opensign_certificate_url: string | null;
+	opensign_error: string | null;
 	final_pdf_token: string | null;
 	final_pdf_sent_at: string | null;
 	completed_at: string | null;
@@ -100,11 +111,30 @@ export interface ContractSubmission {
 	updated_at: string;
 }
 
+export interface ContractPartnerComment {
+	id: string;
+	submission_id: string;
+	author_type: "partner" | "internal";
+	author_name: string | null;
+	author_email: string | null;
+	comment: string;
+	document_version_id: string | null;
+	created_at: string;
+}
+
+export interface PublicContractPartnerComment {
+	author_type: "partner" | "internal";
+	author_name: string | null;
+	comment: string;
+	created_at: string;
+}
+
 export interface PublicSignPayload {
 	contract_text: string;
 	html: string;
 	pages: string[];
 	status: ContractSubmissionStatus;
+	comments: PublicContractPartnerComment[];
 }
 
 const TEMPLATES_QUERY_KEY = ["contract-templates"] as const;
@@ -312,6 +342,10 @@ export function useUpdateContractSubmission(id: string) {
 			feedback_message?: string | null;
 			generate_signature_token?: boolean;
 			send_to_partner?: boolean;
+			send_partner_email?: boolean;
+			send_opensign?: boolean;
+			partner_email_subject?: string | null;
+			partner_email_message?: string | null;
 			signature_token_ttl_hours?: number;
 		}) =>
 			apiClient<ContractSubmission>(`/api/contracts/submissions/${id}`, {
@@ -320,6 +354,35 @@ export function useUpdateContractSubmission(id: string) {
 			}),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: SUBMISSIONS_QUERY_KEY });
+			qc.invalidateQueries({ queryKey: ["contract-submission", id] });
+		},
+	});
+}
+
+export function useContractSubmissionComments(id: string | undefined) {
+	return useQuery({
+		queryKey: ["contract-submission-comments", id],
+		enabled: Boolean(id),
+		queryFn: () =>
+			apiClient<ContractPartnerComment[]>(
+				`/api/contracts/submissions/${id}/comments`,
+			),
+	});
+}
+
+export function useCreateContractSubmissionComment(id: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (body: { comment: string }) =>
+			apiClient<ContractPartnerComment>(
+				`/api/contracts/submissions/${id}/comments`,
+				{
+					method: "POST",
+					body: JSON.stringify(body),
+				},
+			),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["contract-submission-comments", id] });
 			qc.invalidateQueries({ queryKey: ["contract-submission", id] });
 		},
 	});

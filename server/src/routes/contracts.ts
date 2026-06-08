@@ -1,8 +1,13 @@
-import { randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { enrichContractFormData } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
+import {
+	isContractEmailConfigured,
+	sendContractPartnerEmail,
+} from "../lib/contractEmails.js";
 import { DatabaseError } from "../lib/errors.js";
+import { isOpenSignConfigured, sendOpenSignDocument } from "../lib/openSign.js";
 import { createTextPdf } from "../lib/simplePdf.js";
 import { getSupabase } from "../lib/supabase.js";
 import {
@@ -116,6 +121,10 @@ const SubmissionPatchSchema = z
 		feedback_message: z.string().max(5000).nullable().optional(),
 		generate_signature_token: z.boolean().optional(),
 		send_to_partner: z.boolean().optional(),
+		send_partner_email: z.boolean().optional(),
+		send_opensign: z.boolean().optional(),
+		partner_email_subject: z.string().trim().max(300).nullable().optional(),
+		partner_email_message: z.string().trim().max(5000).nullable().optional(),
 		signature_token_ttl_hours: z.number().int().min(1).max(720).optional(),
 	})
 	.refine(
@@ -125,7 +134,9 @@ const SubmissionPatchSchema = z
 			value.notes !== undefined ||
 			value.feedback_message !== undefined ||
 			value.generate_signature_token === true ||
-			value.send_to_partner === true,
+			value.send_to_partner === true ||
+			value.send_partner_email === true ||
+			value.send_opensign === true,
 		{ message: "No-op patch" },
 	);
 
@@ -137,6 +148,17 @@ const SignBodySchema = z.object({
 const CommentBodySchema = z.object({
 	comment: z.string().trim().min(1).max(5000),
 });
+
+const OpenSignWebhookSchema = z
+	.object({
+		event: z.string().trim().max(100).optional(),
+		type: z.string().trim().max(100).optional(),
+		objectId: z.string().trim().max(200).optional(),
+		file: z.string().trim().max(4000).optional(),
+		certificate: z.string().trim().max(4000).optional(),
+		certificateUrl: z.string().trim().max(4000).optional(),
+	})
+	.passthrough();
 
 // =========================================================================
 // Contract text renderer (ported & simplified from contract-generator)
@@ -368,6 +390,66 @@ function generateSignatureToken(): string {
 	return randomBytes(32).toString("hex");
 }
 
+function getAppBaseUrl(request: { headers: Record<string, unknown> }): string {
+	const configured = process.env.APP_BASE_URL?.trim();
+	if (configured) return configured.replace(/\/+$/, "");
+	const origin =
+		typeof request.headers.origin === "string" ? request.headers.origin : "";
+	if (origin) return origin.replace(/\/+$/, "");
+	return "http://localhost:5173";
+}
+
+function getPartnerEmailFromSubmission(
+	submission: Record<string, unknown>,
+): string {
+	const formData =
+		typeof submission.form_data === "object" && submission.form_data !== null
+			? (submission.form_data as Record<string, unknown>)
+			: {};
+	const raw = formData.partner_contact_email;
+	return typeof raw === "string" ? raw.trim() : "";
+}
+
+function getPartnerCompanyNameFromSubmission(
+	submission: Record<string, unknown>,
+): string {
+	const formData =
+		typeof submission.form_data === "object" && submission.form_data !== null
+			? (submission.form_data as Record<string, unknown>)
+			: {};
+	const raw = formData.partner_company_name;
+	return typeof raw === "string" ? raw.trim() : "";
+}
+
+function verifyOpenSignWebhookSignature(
+	body: unknown,
+	signature: unknown,
+): boolean {
+	const secret = process.env.OPENSIGN_WEBHOOK_SECRET?.trim();
+	if (!secret) return false;
+	if (typeof signature !== "string" || !signature.trim()) return false;
+	const expected = createHmac("sha256", secret)
+		.update(JSON.stringify(body))
+		.digest("hex");
+	const received = signature.trim();
+	const expectedBuffer = Buffer.from(expected, "hex");
+	const receivedBuffer = Buffer.from(received, "hex");
+	if (expectedBuffer.length !== receivedBuffer.length) return false;
+	return timingSafeEqual(expectedBuffer, receivedBuffer);
+}
+
+function isOpenSignCompletedEvent(event: string): boolean {
+	return ["completed", "document_completed", "complete"].includes(
+		event.toLowerCase(),
+	);
+}
+
+function isOpenSignFailureEvent(event: string): boolean {
+	return ["declined", "revoked", "expired", "voided"].includes(
+		event.toLowerCase(),
+	);
+}
+
 function buildFinalPdfText(submission: Record<string, unknown>): string {
 	const contractText =
 		typeof submission.admin_edited_text === "string" &&
@@ -529,6 +611,110 @@ async function fetchDocumentVersion(
 		.maybeSingle();
 	if (error) throw error;
 	return (data as Record<string, unknown> | null) ?? null;
+}
+
+async function fetchSubmissionComments(
+	submissionId: string,
+): Promise<Array<Record<string, unknown>>> {
+	const { data, error } = await getSupabase()
+		.from("contract_partner_comments")
+		.select(
+			"id, submission_id, author_type, author_name, author_email, comment, document_version_id, created_at",
+		)
+		.eq("submission_id", submissionId)
+		.order("created_at", { ascending: true });
+	if (error) throw error;
+	return (data ?? []) as Array<Record<string, unknown>>;
+}
+
+function sanitizePublicComment(
+	comment: Record<string, unknown>,
+): Record<string, unknown> {
+	return {
+		author_type:
+			comment.author_type === "internal" || comment.author_type === "partner"
+				? comment.author_type
+				: "partner",
+		author_name:
+			comment.author_type === "internal"
+				? "TUM.ai"
+				: typeof comment.author_name === "string" && comment.author_name.trim()
+					? comment.author_name
+					: "Partner",
+		comment: typeof comment.comment === "string" ? comment.comment : "",
+		created_at:
+			typeof comment.created_at === "string" && comment.created_at
+				? comment.created_at
+				: new Date(0).toISOString(),
+	};
+}
+
+function legacyPartnerCommentForPublicHistory(
+	submission: Record<string, unknown>,
+): Record<string, unknown> | null {
+	const comment =
+		typeof submission.partner_comment === "string"
+			? submission.partner_comment.trim()
+			: "";
+	if (!comment) return null;
+	return sanitizePublicComment({
+		author_type: "partner",
+		author_name: getPartnerCompanyNameFromSubmission(submission) || "Partner",
+		comment,
+		created_at:
+			typeof submission.partner_commented_at === "string"
+				? submission.partner_commented_at
+				: typeof submission.updated_at === "string"
+					? submission.updated_at
+					: typeof submission.submitted_at === "string"
+						? submission.submitted_at
+						: new Date(0).toISOString(),
+	});
+}
+
+function buildPublicCommentHistory(
+	submission: Record<string, unknown>,
+	comments: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+	const publicComments = comments.map(sanitizePublicComment);
+	const legacyComment = legacyPartnerCommentForPublicHistory(submission);
+	if (
+		legacyComment &&
+		!publicComments.some(
+			(comment) =>
+				comment.author_type === "partner" &&
+				comment.comment === legacyComment.comment,
+		)
+	) {
+		publicComments.unshift(legacyComment);
+	}
+	return publicComments;
+}
+
+async function createSubmissionComment(args: {
+	submissionId: string;
+	authorType: "partner" | "internal";
+	authorName?: string | null;
+	authorEmail?: string | null;
+	comment: string;
+	documentVersionId?: string | null;
+	createdBy?: string | null;
+}): Promise<Record<string, unknown>> {
+	const { data, error } = await getSupabase()
+		.from("contract_partner_comments")
+		.insert({
+			submission_id: args.submissionId,
+			author_type: args.authorType,
+			author_name: args.authorName ?? null,
+			author_email: args.authorEmail ?? null,
+			comment: args.comment,
+			document_version_id: args.documentVersionId ?? null,
+			created_by: args.createdBy ?? null,
+		})
+		.select("*")
+		.single();
+	if (error) throw error;
+	return data as Record<string, unknown>;
 }
 
 function textFromSubmission(submission: Record<string, unknown>): string {
@@ -817,7 +1003,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, template_id, submitter_user_id, status, submitted_at, signed_at, admin_signed_at, final_pdf_token, final_pdf_sent_at, created_at, updated_at, signature_token, signature_token_expires_at",
+					"id, template_id, submitter_user_id, status, submitted_at, signed_at, admin_signed_at, final_pdf_token, final_pdf_sent_at, partner_email_sent_at, partner_email_recipient, partner_email_error, signature_provider, opensign_document_id, opensign_status, opensign_sent_at, opensign_completed_at, opensign_file_url, opensign_certificate_url, opensign_error, created_at, updated_at, signature_token, signature_token_expires_at",
 				)
 				.order("created_at", { ascending: false });
 			if (error) {
@@ -862,6 +1048,58 @@ export async function contractRoutes(server: FastifyInstance) {
 				html: pages.map((page) => `<section>${page}</section>`).join(""),
 				pages,
 			};
+		},
+	);
+
+	server.get<{ Params: { id: string } }>(
+		"/contracts/submissions/:id/comments",
+		{ preHandler: [authenticate, requireContractsAdmin] },
+		async (request, _reply) => {
+			try {
+				return await fetchSubmissionComments(request.params.id);
+			} catch (error) {
+				request.log.error({ err: error }, "Failed to fetch contract comments");
+				throw createContractDatabaseError(error);
+			}
+		},
+	);
+
+	server.post<{ Params: { id: string } }>(
+		"/contracts/submissions/:id/comments",
+		{ preHandler: [authenticate, requireContractsAdmin] },
+		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
+			const body = CommentBodySchema.parse(request.body);
+			const { data: submission, error: fetchError } = await getSupabase()
+				.from("contract_submissions")
+				.select("id, active_document_version_id")
+				.eq("id", request.params.id)
+				.maybeSingle();
+			if (fetchError) {
+				request.log.error({ err: fetchError }, "Failed to load submission");
+				throw createContractDatabaseError(fetchError);
+			}
+			if (!submission) {
+				return reply.status(404).send({ error: "Submission not found" });
+			}
+
+			try {
+				return await createSubmissionComment({
+					submissionId: request.params.id,
+					authorType: "internal",
+					authorName: user.email ?? null,
+					authorEmail: user.email ?? null,
+					comment: body.comment,
+					documentVersionId:
+						typeof submission.active_document_version_id === "string"
+							? submission.active_document_version_id
+							: null,
+					createdBy: user.id,
+				});
+			} catch (error) {
+				request.log.error({ err: error }, "Failed to create internal comment");
+				throw createContractDatabaseError(error);
+			}
 		},
 	);
 
@@ -944,11 +1182,19 @@ export async function contractRoutes(server: FastifyInstance) {
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const body = SubmissionPatchSchema.parse(request.body);
+			const shouldSendToPartner =
+				body.send_to_partner === true ||
+				body.send_partner_email === true ||
+				body.send_opensign === true;
+			const usesExternalDelivery =
+				body.send_partner_email === true || body.send_opensign === true;
 			const needsCurrent =
 				body.admin_edited_text !== undefined ||
 				body.generate_signature_token === true ||
-				body.send_to_partner === true;
+				shouldSendToPartner;
 			let current: Record<string, unknown> | null = null;
+			let sentTextForExternalDelivery: string | null = null;
+			let sentToPartnerUpdate: Record<string, unknown> | null = null;
 
 			if (needsCurrent) {
 				const { data, error } = await getSupabase()
@@ -974,10 +1220,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			if (body.notes !== undefined) update.notes = body.notes;
 			if (body.feedback_message !== undefined)
 				update.feedback_message = body.feedback_message;
-			if (
-				body.generate_signature_token === true ||
-				body.send_to_partner === true
-			) {
+			if (body.generate_signature_token === true || shouldSendToPartner) {
 				if (
 					![
 						"legal_review",
@@ -990,28 +1233,72 @@ export async function contractRoutes(server: FastifyInstance) {
 						error: "Submission is not ready to send to the partner",
 					});
 				}
+				if (body.send_partner_email === true) {
+					const partnerEmail = getPartnerEmailFromSubmission(current ?? {});
+					if (!partnerEmail) {
+						return reply.status(400).send({
+							error:
+								"Partner contact email is required before sending an email",
+						});
+					}
+					if (!isContractEmailConfigured()) {
+						return reply.status(503).send({
+							error:
+								"Contract email sending is not configured. Set RESEND_API_KEY and CONTRACT_EMAIL_FROM.",
+						});
+					}
+				}
+				if (body.send_opensign === true) {
+					const partnerEmail = getPartnerEmailFromSubmission(current ?? {});
+					if (!partnerEmail) {
+						return reply.status(400).send({
+							error:
+								"Partner contact email is required before sending with OpenSign",
+						});
+					}
+					if (!isOpenSignConfigured()) {
+						return reply.status(503).send({
+							error:
+								"OpenSign sending is not configured. Set OPENSIGN_API_TOKEN.",
+						});
+					}
+				}
 				const ttlHours = body.signature_token_ttl_hours ?? 24 * 30;
 				update.signature_token = generateSignatureToken();
 				update.signature_token_expires_at = new Date(
 					Date.now() + ttlHours * 60 * 60 * 1000,
 				).toISOString();
-				update.status = "sent_to_partner";
-				update.sent_to_partner_at = new Date().toISOString();
+				sentToPartnerUpdate = {
+					status: "sent_to_partner",
+					sent_to_partner_at: new Date().toISOString(),
+				};
+				if (!usesExternalDelivery) {
+					Object.assign(update, sentToPartnerUpdate);
+				}
+				if (body.send_partner_email === true) {
+					update.partner_email_error = null;
+				}
+				if (body.send_opensign === true) {
+					update.signature_provider = "opensign";
+					update.opensign_error = null;
+				}
 			}
 
 			if (
 				current &&
-				(body.admin_edited_text !== undefined || body.send_to_partner === true)
+				(body.admin_edited_text !== undefined || shouldSendToPartner)
 			) {
 				const versionText =
 					body.admin_edited_text !== undefined &&
 					body.admin_edited_text !== null
 						? body.admin_edited_text
 						: textFromSubmission({ ...current, ...update });
+				if (shouldSendToPartner) {
+					sentTextForExternalDelivery = versionText;
+				}
 				const version = await createDocumentVersion({
 					submissionId: request.params.id,
-					source:
-						body.send_to_partner === true ? "sent_to_partner" : "legal_review",
+					source: shouldSendToPartner ? "sent_to_partner" : "legal_review",
 					text: versionText,
 					formData:
 						typeof current.form_data === "object" && current.form_data !== null
@@ -1020,7 +1307,7 @@ export async function contractRoutes(server: FastifyInstance) {
 					createdBy: user.id,
 				});
 				update.active_document_version_id = version.id;
-				if (body.send_to_partner === true) {
+				if (shouldSendToPartner) {
 					update.sent_document_version_id = version.id;
 				}
 			}
@@ -1038,9 +1325,186 @@ export async function contractRoutes(server: FastifyInstance) {
 				request.log.error({ err: error }, "Failed to update submission");
 				throw createContractDatabaseError(error);
 			}
+			if (body.send_partner_email === true) {
+				const submission = data as Record<string, unknown>;
+				const recipient = getPartnerEmailFromSubmission(submission);
+				const signingToken =
+					typeof submission.signature_token === "string"
+						? submission.signature_token
+						: "";
+				try {
+					await sendContractPartnerEmail({
+						to: recipient,
+						partnerCompanyName:
+							getPartnerCompanyNameFromSubmission(submission) || "Partner",
+						signingUrl: `${getAppBaseUrl(request)}/contracts/sign/${signingToken}`,
+						subject: body.partner_email_subject,
+						customMessage: body.partner_email_message,
+					});
+					const { data: emailed, error: emailUpdateError } = await getSupabase()
+						.from("contract_submissions")
+						.update({
+							...(sentToPartnerUpdate ?? {}),
+							partner_email_sent_at: new Date().toISOString(),
+							partner_email_recipient: recipient,
+							partner_email_error: null,
+							updated_at: new Date().toISOString(),
+						})
+						.eq("id", request.params.id)
+						.select("*")
+						.single();
+					if (emailUpdateError) throw emailUpdateError;
+					return emailed;
+				} catch (emailError) {
+					const message =
+						emailError instanceof Error
+							? emailError.message
+							: "Failed to send partner email";
+					await getSupabase()
+						.from("contract_submissions")
+						.update({
+							partner_email_recipient: recipient,
+							partner_email_error: message,
+							updated_at: new Date().toISOString(),
+						})
+						.eq("id", request.params.id);
+					request.log.error(
+						{ err: emailError },
+						"Failed to send partner contract email",
+					);
+					return reply.status(502).send({ error: message });
+				}
+			}
+			if (body.send_opensign === true) {
+				const submission = data as Record<string, unknown>;
+				const recipient = getPartnerEmailFromSubmission(submission);
+				const partnerCompany =
+					getPartnerCompanyNameFromSubmission(submission) || "Partner";
+				const documentText =
+					sentTextForExternalDelivery ?? textFromSubmission(submission);
+				try {
+					const openSignDocument = await sendOpenSignDocument({
+						name: `TUM.ai Contract - ${partnerCompany}`,
+						pdf: createTextPdf(documentText),
+						signer: {
+							name: partnerCompany,
+							email: recipient,
+						},
+						note: "Please review and sign this TUM.ai contract in OpenSign.",
+						redirectUrl: `${getAppBaseUrl(request)}/contracts`,
+					});
+					const { data: openSigned, error: openSignUpdateError } =
+						await getSupabase()
+							.from("contract_submissions")
+							.update({
+								...(sentToPartnerUpdate ?? {}),
+								opensign_document_id: openSignDocument.documentId,
+								opensign_status: openSignDocument.status ?? "sent",
+								opensign_sent_at: new Date().toISOString(),
+								opensign_file_url: openSignDocument.fileUrl,
+								opensign_error: null,
+								updated_at: new Date().toISOString(),
+							})
+							.eq("id", request.params.id)
+							.select("*")
+							.single();
+					if (openSignUpdateError) throw openSignUpdateError;
+					return openSigned;
+				} catch (openSignError) {
+					const message =
+						openSignError instanceof Error
+							? openSignError.message
+							: "Failed to send contract with OpenSign";
+					await getSupabase()
+						.from("contract_submissions")
+						.update({
+							opensign_error: message,
+							updated_at: new Date().toISOString(),
+						})
+						.eq("id", request.params.id);
+					request.log.error(
+						{ err: openSignError },
+						"Failed to send OpenSign contract",
+					);
+					return reply.status(502).send({ error: message });
+				}
+			}
 			return data;
 		},
 	);
+
+	server.post("/webhooks/opensign", async (request, reply) => {
+		if (
+			!verifyOpenSignWebhookSignature(
+				request.body,
+				request.headers["x-webhook-signature"],
+			)
+		) {
+			return reply.status(401).send({ error: "Invalid webhook signature" });
+		}
+
+		const body = OpenSignWebhookSchema.parse(request.body);
+		if (!body.objectId) {
+			return reply.status(400).send({ error: "Missing OpenSign document id" });
+		}
+
+		const event = body.event ?? "unknown";
+		const nowIso = new Date().toISOString();
+		const { data: current, error: currentError } = await getSupabase()
+			.from("contract_submissions")
+			.select("id, status")
+			.eq("opensign_document_id", body.objectId)
+			.maybeSingle();
+		if (currentError) {
+			request.log.error(
+				{ err: currentError },
+				"Failed to fetch OpenSign webhook submission",
+			);
+			throw createContractDatabaseError(currentError);
+		}
+		if (!current) {
+			request.log.warn(
+				{ openSignDocumentId: body.objectId, event },
+				"OpenSign webhook did not match a contract submission",
+			);
+			return { ok: true };
+		}
+
+		const update: Record<string, unknown> = {
+			opensign_status: event,
+			opensign_webhook_last_event: event,
+			opensign_webhook_received_at: nowIso,
+			updated_at: nowIso,
+		};
+		if (body.file) update.opensign_file_url = body.file;
+		const certificateUrl = body.certificateUrl ?? body.certificate;
+		if (certificateUrl) update.opensign_certificate_url = certificateUrl;
+
+		const canApplyOpenSignStatus = current.status === "sent_to_partner";
+		if (canApplyOpenSignStatus && isOpenSignCompletedEvent(event)) {
+			update.status = "partner_signed";
+			update.signed_at = nowIso;
+			update.signer_name = "OpenSign";
+			update.opensign_completed_at = nowIso;
+			update.opensign_error = null;
+		} else if (canApplyOpenSignStatus && isOpenSignFailureEvent(event)) {
+			update.status = "partner_comments";
+			update.opensign_error = `OpenSign document ${event}`;
+		}
+
+		const { error } = await getSupabase()
+			.from("contract_submissions")
+			.update(update)
+			.eq("id", current.id)
+			.select("id, status, opensign_status")
+			.maybeSingle();
+		if (error) {
+			request.log.error({ err: error }, "Failed to process OpenSign webhook");
+			throw createContractDatabaseError(error);
+		}
+
+		return { ok: true };
+	});
 
 	// ---------------------------------------------------------------------
 	// Public signing endpoints (no auth). Verified by signature_token only.
@@ -1052,7 +1516,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, admin_edited_text, generated_contract_text, sent_document_version_id, signature_token_expires_at, signed_at",
+					"id, status, admin_edited_text, generated_contract_text, sent_document_version_id, signature_token_expires_at, signed_at, partner_comment, partner_commented_at, form_data, submitted_at, updated_at",
 				)
 				.eq("signature_token", request.params.token)
 				.maybeSingle();
@@ -1081,11 +1545,12 @@ export async function contractRoutes(server: FastifyInstance) {
 				typeof sentVersion?.rendered_text === "string"
 					? sentVersion.rendered_text
 					: textFromSubmission(data as Record<string, unknown>);
-			const pages =
-				typeof sentVersion?.rendered_html === "string" &&
-				sentVersion.rendered_html.trim()
-					? splitDocumentPages(contractText).map(textToHtml)
-					: splitDocumentPages(contractText).map(textToHtml);
+			const pages = splitDocumentPages(contractText).map(textToHtml);
+			const comments = await fetchSubmissionComments(String(data.id));
+			const publicComments = buildPublicCommentHistory(
+				data as Record<string, unknown>,
+				comments,
+			);
 
 			return {
 				contract_text: contractText,
@@ -1095,6 +1560,7 @@ export async function contractRoutes(server: FastifyInstance) {
 						: pages.map((page) => `<section>${page}</section>`).join(""),
 				pages,
 				status: data.status,
+				comments: publicComments,
 			};
 		},
 	);
@@ -1106,7 +1572,9 @@ export async function contractRoutes(server: FastifyInstance) {
 
 			const { data: submission, error: fetchError } = await getSupabase()
 				.from("contract_submissions")
-				.select("id, status, signature_token_expires_at, signed_at")
+				.select(
+					"id, status, signature_token_expires_at, signed_at, sent_document_version_id, form_data",
+				)
 				.eq("signature_token", request.params.token)
 				.maybeSingle();
 
@@ -1133,6 +1601,27 @@ export async function contractRoutes(server: FastifyInstance) {
 			}
 
 			const nowIso = new Date().toISOString();
+			try {
+				await createSubmissionComment({
+					submissionId: String(submission.id),
+					authorType: "partner",
+					authorName:
+						getPartnerCompanyNameFromSubmission(
+							submission as Record<string, unknown>,
+						) || "Partner",
+					authorEmail: getPartnerEmailFromSubmission(
+						submission as Record<string, unknown>,
+					),
+					comment: body.comment,
+					documentVersionId:
+						typeof submission.sent_document_version_id === "string"
+							? submission.sent_document_version_id
+							: null,
+				});
+			} catch (error) {
+				request.log.error({ err: error }, "Failed to create partner comment");
+				throw createContractDatabaseError(error);
+			}
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.update({

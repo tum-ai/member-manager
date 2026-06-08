@@ -4,6 +4,7 @@ import {
 	Button,
 	CircularProgress,
 	Container,
+	Divider,
 	Paper,
 	Stack,
 	TextField,
@@ -100,6 +101,31 @@ export default function ContractSignPage(): JSX.Element {
 					<Paper sx={{ p: 3 }}>
 						<ContractDocumentPreview pages={payload.pages} />
 					</Paper>
+					{payload.comments.length > 0 ? (
+						<Paper sx={{ p: 3 }}>
+							<Typography variant="subtitle1" gutterBottom>
+								Comments
+							</Typography>
+							<Stack spacing={2}>
+								{payload.comments.map((item, index) => (
+									<Box
+										key={`${item.created_at}-${item.author_type}-${item.author_name ?? ""}-${item.comment}`}
+									>
+										{index > 0 ? <Divider sx={{ mb: 2 }} /> : null}
+										<Typography variant="caption" color="text.secondary">
+											{item.author_type === "partner"
+												? (item.author_name ?? "Partner")
+												: (item.author_name ?? "TUM.ai")}{" "}
+											- {new Date(item.created_at).toLocaleString()}
+										</Typography>
+										<Typography sx={{ whiteSpace: "pre-wrap" }}>
+											{item.comment}
+										</Typography>
+									</Box>
+								))}
+							</Stack>
+						</Paper>
+					) : null}
 					<Paper sx={{ p: 3 }}>
 						<Stack spacing={2}>
 							<TextField

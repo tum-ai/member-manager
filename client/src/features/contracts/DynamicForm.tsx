@@ -1,4 +1,4 @@
-import { CONTRACT_PACKAGES } from "@member-manager/shared";
+import { CONTRACT_ADDONS, CONTRACT_PACKAGES } from "@member-manager/shared";
 import {
 	Box,
 	Checkbox,
@@ -55,7 +55,9 @@ function parseOptions(raw: unknown): string[] {
 }
 
 function formatOptionLabel(option: string): string {
-	return CONTRACT_PACKAGES[option]?.label ?? option;
+	return (
+		CONTRACT_PACKAGES[option]?.label ?? CONTRACT_ADDONS[option]?.label ?? option
+	);
 }
 
 function fieldFor(
@@ -149,6 +151,11 @@ function fieldFor(
 						label={variable.label}
 						multiple={multiple}
 						value={currentValue as string | string[]}
+						renderValue={(selected) =>
+							Array.isArray(selected)
+								? selected.map(formatOptionLabel).join(", ")
+								: formatOptionLabel(String(selected))
+						}
 						onChange={(event) =>
 							setValue(
 								multiple
