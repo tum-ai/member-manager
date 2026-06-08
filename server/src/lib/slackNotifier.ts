@@ -220,7 +220,7 @@ export async function getSlackUserEmailById(
 	return response.user?.profile?.email ?? null;
 }
 
-async function lookupSlackUserIdByEmail(email: string): Promise<string | null> {
+export async function lookupSlackUserIdByEmail(email: string): Promise<string | null> {
 	if (!process.env.SLACK_BOT_TOKEN) {
 		return null;
 	}
@@ -290,10 +290,10 @@ async function postSlackMessage(
 	}
 }
 
-async function postDirectMessage(
+export async function postDirectMessage(
 	userId: string,
 	text: string,
-	blocks?: SlackBlock[],
+	blocks?: Record<string, unknown>[],
 ): Promise<void> {
 	const channel = await openDirectMessageChannel(userId);
 	await postSlackMessage(channel, text, blocks);

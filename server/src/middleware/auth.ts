@@ -2,6 +2,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import {
 	checkAdminRole,
 	checkBoardRole,
+	checkCommunityOrAdmin,
 	checkContractsAdmin,
 	checkReimbursementReviewer,
 } from "../lib/auth.js";
@@ -118,6 +119,29 @@ export async function requireReimbursementReviewer(
 		request.log.error(
 			{ err: error, userId: user?.id },
 			"Failed to check reimbursement reviewer role",
+		);
+		return reply.status(500).send({ error: "Internal Server Error" });
+	}
+}
+
+export async function requireCommunityOrAdmin(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const user = (request as AuthenticatedRequest).user;
+
+	try {
+		const allowed = await checkCommunityOrAdmin(user.id);
+
+		if (!allowed) {
+			return reply
+				.status(403)
+				.send({ error: "Unauthorized: Community or Admin access required" });
+		}
+	} catch (error) {
+		request.log.error(
+			{ err: error, userId: user?.id },
+			"Failed to check community or admin role",
 		);
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}

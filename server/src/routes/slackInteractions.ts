@@ -8,6 +8,7 @@ import {
 } from "../lib/buchhaltungsbutler.js";
 import { fetchWithTimeout } from "../lib/fetchWithTimeout.js";
 import { getSlackUserEmailById } from "../lib/slackNotifier.js";
+import { getSupabase } from "../lib/supabase.js";
 import {
 	approveReimbursementRequest,
 	ReimbursementWorkflowError,
@@ -22,6 +23,14 @@ interface SlackInteractionPayload {
 	user?: { id?: string };
 	response_url?: string;
 	actions?: Array<{ action_id?: string; value?: string }>;
+	trigger_id?: string;
+	view?: {
+		callback_id?: string;
+		private_metadata?: string;
+		state?: {
+			values?: Record<string, Record<string, { value?: string }>>;
+		};
+	};
 }
 
 function getHeaderValue(value: string | string[] | undefined): string {
@@ -43,6 +52,7 @@ function verifySlackSignature(
 ): boolean {
 	const signingSecret = process.env.SLACK_SIGNING_SECRET?.trim();
 	if (!signingSecret) {
+		request.log.warn("SLACK_SIGNING_SECRET is not set or empty");
 		return false;
 	}
 
@@ -53,12 +63,18 @@ function verifySlackSignature(
 	const timestampSeconds = Number.parseInt(timestamp, 10);
 
 	if (!timestampSeconds || !signature) {
+		request.log.warn(
+			{ timestamp, signature },
+			"Slack signature verification failed: missing timestamp or signature headers",
+		);
 		return false;
 	}
-	if (
-		Math.abs(Date.now() / 1000 - timestampSeconds) >
-		SLACK_MAX_REQUEST_AGE_SECONDS
-	) {
+	const timeDiff = Math.abs(Date.now() / 1000 - timestampSeconds);
+	if (timeDiff > SLACK_MAX_REQUEST_AGE_SECONDS) {
+		request.log.warn(
+			{ timeDiff, timestampSeconds, now: Date.now() / 1000 },
+			"Slack signature verification failed: timestamp is too old",
+		);
 		return false;
 	}
 
@@ -70,7 +86,19 @@ function verifySlackSignature(
 		.update(baseString)
 		.digest("hex")}`;
 
-	return safeCompare(expected, signature);
+	const matches = safeCompare(expected, signature);
+	if (!matches) {
+		request.log.warn(
+			{
+				expectedSignature: expected,
+				receivedSignature: signature,
+				baseStringLength: baseString.length,
+				secretLength: signingSecret.length,
+			},
+			"Slack signature verification failed: signature mismatch",
+		);
+	}
+	return matches;
 }
 
 function parseSlackPayload(rawBody: string): SlackInteractionPayload {
@@ -223,6 +251,44 @@ function queueSlackReimbursementAction({
 	});
 }
 
+async function resolveUserFromSlackId(slackUserId: string): Promise<string> {
+	const email = await getSlackUserEmailById(slackUserId);
+	const userId = email ? await getAuthUserIdByEmail(email) : null;
+
+	if (!userId) {
+		throw new Error("Slack user is not linked to Member Manager");
+	}
+	return userId;
+}
+
+async function slackApiPost(
+	path: string,
+	payload: Record<string, unknown>,
+): Promise<void> {
+	const token = process.env.SLACK_BOT_TOKEN;
+	if (!token) {
+		throw new Error("SLACK_BOT_TOKEN is not configured");
+	}
+
+	const response = await fetchWithTimeout(`https://slack.com/api${path}`, {
+		method: "POST",
+		headers: {
+			Authorization: `Bearer ${token}`,
+			"content-type": "application/json; charset=utf-8",
+		},
+		body: JSON.stringify(payload),
+	});
+
+	if (!response.ok) {
+		throw new Error(`Slack API ${path} failed with ${response.status}`);
+	}
+
+	const json = (await response.json()) as { ok?: boolean; error?: string };
+	if (!json.ok) {
+		throw new Error(`Slack API error for ${path}: ${json.error}`);
+	}
+}
+
 export async function slackInteractionRoutes(server: FastifyInstance) {
 	server.addContentTypeParser(
 		"application/x-www-form-urlencoded",
@@ -243,10 +309,203 @@ export async function slackInteractionRoutes(server: FastifyInstance) {
 			return reply.status(400).send({ error: "Invalid Slack payload" });
 		}
 
+		const slackUserId = payload.user?.id ?? "";
+
+		// Handle View Submissions (Modals)
+		if (payload.type === "view_submission") {
+			const callbackId = payload.view?.callback_id ?? "";
+			if (callbackId === "tumai_day_rsvp_reason_modal") {
+				const rawMetadata = payload.view?.private_metadata;
+				const privateMetadata = rawMetadata
+					? (JSON.parse(rawMetadata) as {
+							tumai_day_id: string;
+							response_url: string;
+						})
+					: null;
+
+				if (!privateMetadata || !slackUserId) {
+					return reply.status(400).send({ error: "Missing metadata" });
+				}
+
+				// Look up entered reason
+				const reason =
+					payload.view?.state?.values?.reason_block?.reason_input?.value ??
+					null;
+
+				setImmediate(() => {
+					void (async () => {
+						try {
+							const userId = await resolveUserFromSlackId(slackUserId);
+							await getSupabase()
+								.from("tumai_day_responses")
+								.upsert(
+									{
+										tumai_day_id: privateMetadata.tumai_day_id,
+										user_id: userId,
+										status: "no",
+										reason: reason || null,
+										updated_at: new Date().toISOString(),
+									},
+									{ onConflict: "tumai_day_id,user_id" },
+								);
+
+							const confirmationText = reason
+								? `Thank you! You RSVP'd: *No* (Reason: ${reason}).`
+								: "Thank you! You RSVP'd: *No*.";
+
+							await postSlackDelayedResponse(
+								privateMetadata.response_url,
+								confirmationText,
+							);
+						} catch (error) {
+							request.log.error(
+								error,
+								"Failed to save TUM.ai Day No response from modal",
+							);
+							try {
+								await postSlackDelayedResponse(
+									privateMetadata.response_url,
+									`RSVP failed: ${error instanceof Error ? error.message : "unknown error"}`,
+								);
+							} catch (err) {
+								request.log.error(
+									err,
+									"Failed to send error notification back to Slack",
+								);
+							}
+						}
+					})();
+				});
+
+				return reply.status(200).send({});
+			}
+		}
+
+		// Handle Interactive Components (Buttons)
 		const action = payload.actions?.[0];
 		const actionId = action?.action_id ?? "";
 		const requestId = action?.value ?? "";
-		const slackUserId = payload.user?.id ?? "";
+
+		if (actionId === "tumai_day_rsvp_yes") {
+			if (!requestId || !slackUserId) {
+				return sendSlackMessage(reply, "Slack action payload is missing data.");
+			}
+
+			setImmediate(() => {
+				void (async () => {
+					try {
+						const userId = await resolveUserFromSlackId(slackUserId);
+						await getSupabase().from("tumai_day_responses").upsert(
+							{
+								tumai_day_id: requestId,
+								user_id: userId,
+								status: "yes",
+								reason: null,
+								updated_at: new Date().toISOString(),
+							},
+							{ onConflict: "tumai_day_id,user_id" },
+						);
+
+						await postSlackDelayedResponse(
+							payload.response_url,
+							"Thank you! You RSVP'd: *Yes*.",
+						);
+					} catch (error) {
+						request.log.error(error, "Failed to save TUM.ai Day Yes response");
+						try {
+							await postSlackDelayedResponse(
+								payload.response_url,
+								`RSVP failed: ${error instanceof Error ? error.message : "unknown error"}`,
+							);
+						} catch (err) {
+							request.log.error(
+								err,
+								"Failed to send error notification back to Slack",
+							);
+						}
+					}
+				})();
+			});
+
+			return sendSlackMessage(reply, "Processing RSVP...");
+		}
+
+		if (actionId === "tumai_day_rsvp_no") {
+			if (!requestId || !slackUserId) {
+				return sendSlackMessage(reply, "Slack action payload is missing data.");
+			}
+
+			setImmediate(() => {
+				void (async () => {
+					try {
+						await slackApiPost("/views.open", {
+							trigger_id: payload.trigger_id,
+							view: {
+								type: "modal",
+								callback_id: "tumai_day_rsvp_reason_modal",
+								private_metadata: JSON.stringify({
+									tumai_day_id: requestId,
+									response_url: payload.response_url,
+								}),
+								title: {
+									type: "plain_text",
+									text: "RSVP: No",
+								},
+								submit: {
+									type: "plain_text",
+									text: "Submit",
+								},
+								close: {
+									type: "plain_text",
+									text: "Cancel",
+								},
+								blocks: [
+									{
+										type: "section",
+										text: {
+											type: "mrkdwn",
+											text: "Please let us know why you won't be able to make it (optional):",
+										},
+									},
+									{
+										type: "input",
+										block_id: "reason_block",
+										optional: true,
+										element: {
+											type: "plain_text_input",
+											action_id: "reason_input",
+											placeholder: {
+												type: "plain_text",
+												text: "e.g., prior engagement, exams, out of town...",
+											},
+										},
+										label: {
+											type: "plain_text",
+											text: "Reason",
+										},
+									},
+								],
+							},
+						});
+					} catch (error) {
+						request.log.error(error, "Failed to open Slack modal");
+						try {
+							await postSlackDelayedResponse(
+								payload.response_url,
+								`Failed to open RSVP modal: ${error instanceof Error ? error.message : "unknown error"}`,
+							);
+						} catch (err) {
+							request.log.error(
+								err,
+								"Failed to send error notification back to Slack",
+							);
+						}
+					}
+				})();
+			});
+
+			return sendSlackMessage(reply, "Opening modal...");
+		}
 
 		if (
 			actionId !== "reimbursement_approve" &&

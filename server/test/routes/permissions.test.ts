@@ -39,6 +39,7 @@ describe("Permission Routes", async () => {
 			assert.deepStrictEqual([...data.permissions].sort(), [
 				"contracts.admin",
 				"finance.review",
+				"tumai_days.manage",
 			]);
 		});
 
