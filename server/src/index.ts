@@ -1,4 +1,5 @@
 import { buildApp } from "./app.js";
+import { startTumaiDaysScheduler } from "./lib/tumaiDaysScheduler.js";
 
 const start = async () => {
 	try {
@@ -6,6 +7,9 @@ const start = async () => {
 		const PORT = Number(process.env.PORT) || 8787;
 		await server.listen({ port: PORT, host: "0.0.0.0" });
 		console.log(`Server listening on http://localhost:${PORT}`);
+
+		// Start background scheduler
+		startTumaiDaysScheduler(server.log);
 	} catch (err) {
 		console.error(err);
 		process.exit(1);

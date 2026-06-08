@@ -8,7 +8,11 @@
 // admins. This module is the framework-free catalog of assignable permissions
 // shared by client and server.
 
-export const PERMISSIONS = ["finance.review", "contracts.admin"] as const;
+export const PERMISSIONS = [
+	"finance.review",
+	"contracts.admin",
+	"tumai_days.manage",
+] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
 // Human-readable metadata for rendering the admin permission matrix.
@@ -25,6 +29,11 @@ export const PERMISSION_DETAILS: Record<
 		label: "Contract Administration",
 		description:
 			"Review and approve submitted contracts, manage templates, and send partner signing links.",
+	},
+	"tumai_days.manage": {
+		label: "TUM.ai Days Management",
+		description:
+			"Create and schedule TUM.ai Day agendas, and audit RSVP votes and reasoning.",
 	},
 };
 

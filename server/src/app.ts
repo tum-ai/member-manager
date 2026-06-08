@@ -16,6 +16,7 @@ import { reimbursementRoutes } from "./routes/reimbursements.js";
 import { researchProjectRoutes } from "./routes/researchProjects.js";
 import { sepaRoutes } from "./routes/sepa.js";
 import { slackInteractionRoutes } from "./routes/slackInteractions.js";
+import { tumaiDaysRoutes } from "./routes/tumaiDays.js";
 
 const API_BODY_LIMIT_BYTES = 20 * 1024 * 1024;
 
@@ -93,6 +94,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(jobRoutes);
 			await api.register(reimbursementRoutes);
 			await api.register(researchProjectRoutes);
+			await api.register(tumaiDaysRoutes);
 		},
 		{ prefix: "/api" },
 	);
