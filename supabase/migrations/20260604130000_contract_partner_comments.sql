@@ -55,4 +55,30 @@ create policy "Contracts admins manage partner comments"
 grant select, insert on table "public"."contract_partner_comments" to "authenticated";
 grant all on table "public"."contract_partner_comments" to "service_role";
 
+insert into "public"."contract_partner_comments" (
+    "submission_id",
+    "author_type",
+    "author_name",
+    "author_email",
+    "comment",
+    "created_at"
+)
+select
+    cs."id",
+    'partner',
+    coalesce(nullif(cs."form_data"->>'partner_company_name', ''), 'Partner'),
+    nullif(cs."form_data"->>'partner_contact_email', ''),
+    cs."partner_comment",
+    coalesce(cs."partner_commented_at", cs."updated_at", cs."submitted_at", now())
+from "public"."contract_submissions" cs
+where cs."partner_comment" is not null
+  and btrim(cs."partner_comment") <> ''
+  and not exists (
+      select 1
+      from "public"."contract_partner_comments" cpc
+      where cpc."submission_id" = cs."id"
+        and cpc."author_type" = 'partner'
+        and cpc."comment" = cs."partner_comment"
+  );
+
 commit;

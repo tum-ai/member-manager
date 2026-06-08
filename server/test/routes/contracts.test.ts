@@ -637,6 +637,9 @@ describe("Contract Routes", async () => {
 		submission.opensign_status = "sent";
 		submission.signed_at = "2026-05-28T12:00:00Z";
 		submission.opensign_error = null;
+		submission.opensign_file_url = "https://opensign.test/signed.pdf";
+		submission.opensign_certificate_url =
+			"https://opensign.test/certificate.pdf";
 
 		try {
 			const payload = {
@@ -667,6 +670,14 @@ describe("Contract Routes", async () => {
 			assert.strictEqual(updated.signed_at, "2026-05-28T12:00:00Z");
 			assert.strictEqual(updated.opensign_status, "declined");
 			assert.strictEqual(updated.opensign_error, null);
+			assert.strictEqual(
+				updated.opensign_file_url,
+				"https://opensign.test/signed.pdf",
+			);
+			assert.strictEqual(
+				updated.opensign_certificate_url,
+				"https://opensign.test/certificate.pdf",
+			);
 		} finally {
 			restoreEnv("OPENSIGN_WEBHOOK_SECRET", originalWebhookSecret);
 		}
@@ -832,6 +843,45 @@ describe("Contract Routes", async () => {
 		assert.strictEqual(data.comments.length, 2);
 		assert.strictEqual(data.comments[0].comment, "Initial partner comment.");
 		assert.strictEqual(data.comments[1].author_type, "internal");
+		assert.strictEqual(data.comments[1].author_name, "TUM.ai");
+		assert.strictEqual(data.comments[0].author_email, undefined);
+		assert.strictEqual(data.comments[0].submission_id, undefined);
+		assert.strictEqual(data.comments[0].document_version_id, undefined);
+		assert.strictEqual(data.comments[1].author_email, undefined);
+		assert.strictEqual(data.comments[1].submission_id, undefined);
+		assert.strictEqual(data.comments[1].document_version_id, undefined);
+	});
+
+	test("includes legacy partner comments in the public signing payload", async () => {
+		resetDatabase();
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.status = "sent_to_partner";
+		submission.signature_token = "legacy-history-token";
+		submission.signature_token_expires_at = "2099-01-01T00:00:00Z";
+		submission.partner_comment = "Legacy partner feedback.";
+		submission.partner_commented_at = "2026-05-28T09:00:00Z";
+		submission.form_data = {
+			partner_company_name: "Legacy Partner GmbH",
+			partner_contact_email: "legacy-partner@example.com",
+		};
+
+		const response = await app.inject({
+			method: "GET",
+			url: "/api/contracts/sign/legacy-history-token",
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const data = JSON.parse(response.payload);
+		assert.strictEqual(data.comments.length, 1);
+		assert.strictEqual(data.comments[0].comment, "Legacy partner feedback.");
+		assert.strictEqual(data.comments[0].author_type, "partner");
+		assert.strictEqual(data.comments[0].author_name, "Legacy Partner GmbH");
+		assert.strictEqual(data.comments[0].author_email, undefined);
+		assert.strictEqual(data.comments[0].submission_id, undefined);
+		assert.strictEqual(data.comments[0].document_version_id, undefined);
 	});
 
 	test("records a partner signature and clears the one-time token", async () => {

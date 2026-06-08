@@ -627,6 +627,72 @@ async function fetchSubmissionComments(
 	return (data ?? []) as Array<Record<string, unknown>>;
 }
 
+function sanitizePublicComment(
+	comment: Record<string, unknown>,
+): Record<string, unknown> {
+	return {
+		id: typeof comment.id === "string" ? comment.id : "",
+		author_type:
+			comment.author_type === "internal" || comment.author_type === "partner"
+				? comment.author_type
+				: "partner",
+		author_name:
+			comment.author_type === "internal"
+				? "TUM.ai"
+				: typeof comment.author_name === "string" && comment.author_name.trim()
+					? comment.author_name
+					: "Partner",
+		comment: typeof comment.comment === "string" ? comment.comment : "",
+		created_at:
+			typeof comment.created_at === "string" && comment.created_at
+				? comment.created_at
+				: new Date(0).toISOString(),
+	};
+}
+
+function legacyPartnerCommentForPublicHistory(
+	submission: Record<string, unknown>,
+): Record<string, unknown> | null {
+	const comment =
+		typeof submission.partner_comment === "string"
+			? submission.partner_comment.trim()
+			: "";
+	if (!comment) return null;
+	return sanitizePublicComment({
+		id: `legacy-partner-comment-${String(submission.id)}`,
+		author_type: "partner",
+		author_name: getPartnerCompanyNameFromSubmission(submission) || "Partner",
+		comment,
+		created_at:
+			typeof submission.partner_commented_at === "string"
+				? submission.partner_commented_at
+				: typeof submission.updated_at === "string"
+					? submission.updated_at
+					: typeof submission.submitted_at === "string"
+						? submission.submitted_at
+						: new Date(0).toISOString(),
+	});
+}
+
+function buildPublicCommentHistory(
+	submission: Record<string, unknown>,
+	comments: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+	const publicComments = comments.map(sanitizePublicComment);
+	const legacyComment = legacyPartnerCommentForPublicHistory(submission);
+	if (
+		legacyComment &&
+		!publicComments.some(
+			(comment) =>
+				comment.author_type === "partner" &&
+				comment.comment === legacyComment.comment,
+		)
+	) {
+		publicComments.unshift(legacyComment);
+	}
+	return publicComments;
+}
+
 async function createSubmissionComment(args: {
 	submissionId: string;
 	authorType: "partner" | "internal";
@@ -1408,12 +1474,13 @@ export async function contractRoutes(server: FastifyInstance) {
 
 		const update: Record<string, unknown> = {
 			opensign_status: event,
-			opensign_file_url: body.file ?? null,
-			opensign_certificate_url: body.certificateUrl ?? body.certificate ?? null,
 			opensign_webhook_last_event: event,
 			opensign_webhook_received_at: nowIso,
 			updated_at: nowIso,
 		};
+		if (body.file) update.opensign_file_url = body.file;
+		const certificateUrl = body.certificateUrl ?? body.certificate;
+		if (certificateUrl) update.opensign_certificate_url = certificateUrl;
 
 		const canApplyOpenSignStatus = current.status === "sent_to_partner";
 		if (canApplyOpenSignStatus && isOpenSignCompletedEvent(event)) {
@@ -1451,7 +1518,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, admin_edited_text, generated_contract_text, sent_document_version_id, signature_token_expires_at, signed_at",
+					"id, status, admin_edited_text, generated_contract_text, sent_document_version_id, signature_token_expires_at, signed_at, partner_comment, partner_commented_at, form_data, submitted_at, updated_at",
 				)
 				.eq("signature_token", request.params.token)
 				.maybeSingle();
@@ -1482,6 +1549,10 @@ export async function contractRoutes(server: FastifyInstance) {
 					: textFromSubmission(data as Record<string, unknown>);
 			const pages = splitDocumentPages(contractText).map(textToHtml);
 			const comments = await fetchSubmissionComments(String(data.id));
+			const publicComments = buildPublicCommentHistory(
+				data as Record<string, unknown>,
+				comments,
+			);
 
 			return {
 				contract_text: contractText,
@@ -1491,7 +1562,7 @@ export async function contractRoutes(server: FastifyInstance) {
 						: pages.map((page) => `<section>${page}</section>`).join(""),
 				pages,
 				status: data.status,
-				comments,
+				comments: publicComments,
 			};
 		},
 	);

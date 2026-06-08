@@ -122,12 +122,20 @@ export interface ContractPartnerComment {
 	created_at: string;
 }
 
+export interface PublicContractPartnerComment {
+	id: string;
+	author_type: "partner" | "internal";
+	author_name: string | null;
+	comment: string;
+	created_at: string;
+}
+
 export interface PublicSignPayload {
 	contract_text: string;
 	html: string;
 	pages: string[];
 	status: ContractSubmissionStatus;
-	comments: ContractPartnerComment[];
+	comments: PublicContractPartnerComment[];
 }
 
 const TEMPLATES_QUERY_KEY = ["contract-templates"] as const;
