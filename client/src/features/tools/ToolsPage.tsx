@@ -6,6 +6,7 @@ import {
 	RuleFolder as RuleFolderIcon,
 	WorkOutline as WorkOutlineIcon,
 	WorkspacePremium as WorkspacePremiumIcon,
+	People as PeopleIcon,
 } from "@mui/icons-material";
 import {
 	Box,
@@ -100,6 +101,18 @@ const baseToolGroups: ToolGroup[] = [
 			},
 		],
 	},
+	{
+		title: "Community",
+		tools: [
+			{
+				title: "TUM.ai Days RSVP",
+				description:
+					"Create, schedule, and audit RSVPs for the quarterly TUM.ai Days community events.",
+				href: "/tools/tumai-days",
+				Icon: PeopleIcon,
+			},
+		],
+	},
 ];
 
 export default function ToolsPage(): React.ReactElement {
@@ -108,6 +121,7 @@ export default function ToolsPage(): React.ReactElement {
 	// Contract admin tools (submissions list + templates editor) are gated by a
 	// separate permission so a department could be granted one without the other.
 	const showContractAdminTools = permissions.includes("contracts.admin");
+	const showTumaiDaysTools = permissions.includes("tumai_days.manage");
 	const toolGroups = baseToolGroups
 		.map((group) => ({
 			...group,
@@ -117,6 +131,9 @@ export default function ToolsPage(): React.ReactElement {
 				}
 				if (tool.href.startsWith("/contracts")) {
 					return showContractAdminTools;
+				}
+				if (tool.href === "/tools/tumai-days") {
+					return showTumaiDaysTools;
 				}
 				return true;
 			}),

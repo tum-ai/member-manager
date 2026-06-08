@@ -32,6 +32,7 @@ import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
 import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
 import ToolsPage from "./features/tools/ToolsPage";
+import TumaiDaysPage from "./features/tools/TumaiDaysPage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import { useToolAccess } from "./hooks/useToolAccess";
 import { queryClient } from "./lib/queryClient";
@@ -233,6 +234,14 @@ export function AuthenticatedApp({
 					element={
 						<RequirePermission permission="finance.review">
 							<ReimbursementReviewPage />
+						</RequirePermission>
+					}
+				/>
+				<Route
+					path="/tools/tumai-days"
+					element={
+						<RequirePermission permission="tumai_days.manage">
+							<TumaiDaysPage />
 						</RequirePermission>
 					}
 				/>

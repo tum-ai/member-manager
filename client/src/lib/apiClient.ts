@@ -40,6 +40,10 @@ export async function apiClient<T = any>(
 	});
 
 	if (!response.ok) {
+		if (response.status === 401) {
+			// Clear local session if backend rejected the token as invalid/stale
+			await supabase.auth.signOut();
+		}
 		throw new Error(await readJsonErrorMessage(response));
 	}
 
