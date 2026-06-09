@@ -489,7 +489,7 @@ export default function TumaiDaysPage(): ReactElement {
 																{isSent ? (
 																	<Chip
 																		size="small"
-																		label={`Sent ${formatDate(event.sent_at!)}`}
+																		label={`Sent ${formatDate(event.sent_at as string)}`}
 																		color="success"
 																		variant="outlined"
 																		sx={{ fontSize: "0.65rem", height: 18 }}
@@ -714,7 +714,7 @@ export default function TumaiDaysPage(): ReactElement {
 											<Select
 												value={statusFilter}
 												label="Response Status"
-												onChange={(e) => setStatusFilter(e.target.value as any)}
+												onChange={(e) => setStatusFilter(e.target.value as "all" | "yes" | "no" | "pending")}
 											>
 												<MenuItem value="all">All responses</MenuItem>
 												<MenuItem value="yes">Attending (Yes)</MenuItem>

@@ -2,11 +2,11 @@ import {
 	ArrowForward as ArrowForwardIcon,
 	Description as DescriptionIcon,
 	FactCheck as FactCheckIcon,
+	People as PeopleIcon,
 	ReceiptLong as ReceiptLongIcon,
 	RuleFolder as RuleFolderIcon,
 	WorkOutline as WorkOutlineIcon,
 	WorkspacePremium as WorkspacePremiumIcon,
-	People as PeopleIcon,
 } from "@mui/icons-material";
 import {
 	Box,

@@ -6,7 +6,7 @@ import {
 } from "./slackNotifier.js";
 import { getSupabase } from "./supabase.js";
 
-export async function sendPendingTumaiDayMessages(log?: any): Promise<number> {
+export async function sendPendingTumaiDayMessages(log?: unknown): Promise<number> {
 	const logger = log ?? console;
 	const now = new Date().toISOString();
 
@@ -132,7 +132,7 @@ export async function sendPendingTumaiDayMessages(log?: any): Promise<number> {
 
 				// Build Block Kit message
 				const givenName = member.given_name || "Member";
-				const blocks: any[] = [];
+				const blocks: unknown[] = [];
 
 				if (isFallbackMode) {
 					blocks.push({
