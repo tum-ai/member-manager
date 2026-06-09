@@ -714,7 +714,11 @@ export default function TumaiDaysPage(): ReactElement {
 											<Select
 												value={statusFilter}
 												label="Response Status"
-												onChange={(e) => setStatusFilter(e.target.value as "all" | "yes" | "no" | "pending")}
+												onChange={(e) =>
+													setStatusFilter(
+														e.target.value as "all" | "yes" | "no" | "pending",
+													)
+												}
 											>
 												<MenuItem value="all">All responses</MenuItem>
 												<MenuItem value="yes">Attending (Yes)</MenuItem>

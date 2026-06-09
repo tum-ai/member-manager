@@ -6,7 +6,9 @@ import {
 } from "./slackNotifier.js";
 import { getSupabase } from "./supabase.js";
 
-export async function sendPendingTumaiDayMessages(log?: unknown): Promise<number> {
+export async function sendPendingTumaiDayMessages(
+	log?: unknown,
+): Promise<number> {
 	const logger = log ?? console;
 	const now = new Date().toISOString();
 

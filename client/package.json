@@ -11,10 +11,10 @@
 		"lint:apply": "biome check . --write"
 	},
 	"dependencies": {
-		"@member-manager/shared": "workspace:*",
 		"@emotion/react": "^11.14.0",
 		"@emotion/styled": "^11.14.1",
 		"@hookform/resolvers": "^5.4.0",
+		"@member-manager/shared": "workspace:*",
 		"@mui/icons-material": "^7.3.11",
 		"@mui/material": "^7.3.11",
 		"@supabase/supabase-js": "^2.107.0",
@@ -29,6 +29,7 @@
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
+		"@biomejs/biome": "^2.4.16",
 		"@testing-library/jest-dom": "^6.9.1",
 		"@testing-library/react": "^16.3.2",
 		"@testing-library/user-event": "^14.6.1",
