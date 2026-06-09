@@ -64,6 +64,7 @@ import {
 	requiresDepartmentForMemberRole,
 	resolveDepartmentForMemberRole,
 } from "../../lib/memberMetadata";
+import { getResearchProjectSelectValue } from "../../lib/researchProjects";
 import {
 	ACTIVE_FILTER_OPTIONS,
 	type AdminFilters,
@@ -501,6 +502,10 @@ export default function AdminDatabaseView() {
 		const status = project.status?.trim().toLowerCase();
 		return !status || ["ongoing", "active", "in progress"].includes(status);
 	});
+	const editResearchProjectSelectValue = getResearchProjectSelectValue(
+		editResearchProjectId,
+		researchProjectOptions,
+	);
 	const isEditLinkedinUrlInvalid = Boolean(
 		editLinkedinUrl.trim() && !isLinkedinProfileUrl(editLinkedinUrl),
 	);
@@ -1198,7 +1203,7 @@ export default function AdminDatabaseView() {
 							<TextField
 								select
 								label="Research project"
-								value={editResearchProjectId}
+								value={editResearchProjectSelectValue}
 								onChange={(event) =>
 									setEditResearchProjectId(event.target.value)
 								}

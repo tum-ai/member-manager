@@ -41,6 +41,10 @@ vi.mock("./features/tools/ToolsPage", () => ({
 	default: () => <div>Tools route</div>,
 }));
 
+vi.mock("./features/jobs/JobPostingsPage", () => ({
+	default: () => <div>Jobs route</div>,
+}));
+
 vi.mock("./features/reimbursements/ReimbursementPage", () => ({
 	default: () => <div>Reimbursement route</div>,
 }));
@@ -169,5 +173,11 @@ describe("AuthenticatedApp permission-gated routes", () => {
 
 		expect(screen.getByText("Profile route")).toBeInTheDocument();
 		expect(screen.queryByText("Finance review route")).not.toBeInTheDocument();
+	});
+
+	it("renders the member jobs route without extra permissions", () => {
+		renderAuthenticatedApp("/tools/jobs");
+
+		expect(screen.getByText("Jobs route")).toBeInTheDocument();
 	});
 });

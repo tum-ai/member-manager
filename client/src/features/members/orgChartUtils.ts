@@ -1,5 +1,6 @@
 import { BOARD_MEMBER_ROLE } from "../../lib/constants";
 import { getOperationalDepartment } from "../../lib/memberMetadata";
+import { getResearchProjectReferences } from "../../lib/researchProjects";
 import type { InnovationProject, Member, ResearchProject } from "../../types";
 
 export interface OrgChartDepartmentGroup {
@@ -241,8 +242,9 @@ export function buildOrgChart(
 		}
 		const group = createResearchProjectGroup(project);
 		researchGroups.set(project.id, group);
-		researchGroupsByReference.set(normalize(project.id), group);
-		researchGroupsByReference.set(normalize(title), group);
+		for (const reference of getResearchProjectReferences(project)) {
+			researchGroupsByReference.set(normalize(reference), group);
+		}
 	}
 
 	for (const project of innovationProjects) {

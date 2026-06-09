@@ -49,6 +49,7 @@ import {
 	serializeEducationEntries,
 } from "../../lib/memberMetadata";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
+import { getResearchProjectSelectValue } from "../../lib/researchProjects";
 import {
 	type LinkedinSchema,
 	linkedinSchema,
@@ -383,6 +384,10 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		const status = project.status?.trim().toLowerCase();
 		return !status || ["ongoing", "active", "in progress"].includes(status);
 	});
+	const researchProjectSelectValue = getResearchProjectSelectValue(
+		memberForm.watch("research_project_id"),
+		researchProjectOptions,
+	);
 	const isResearchDepartmentSelected =
 		effectiveProfileDepartment === "Research";
 
@@ -840,7 +845,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											<TextField
 												select
 												label="Research project"
-												value={memberForm.watch("research_project_id") || ""}
+												value={researchProjectSelectValue}
 												onChange={(event) =>
 													memberForm.setValue(
 														"research_project_id",

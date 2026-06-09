@@ -54,15 +54,36 @@ const innovationProjects = [
 	},
 ] as const;
 
+const OptionalTextSchema = z
+	.string()
+	.nullish()
+	.transform((value) => value ?? "");
+
+const OptionalSlugSchema = z
+	.union([
+		z.string(),
+		z
+			.object({ current: z.string().optional() })
+			.transform((slug) => slug.current),
+	])
+	.nullish()
+	.transform((value) => value ?? "");
+
 const ResearchProjectSchema = z
 	.object({
-		id: z.string(),
-		title: z.string(),
-		description: z.string().optional().default(""),
-		image: z.string().optional().default(""),
-		publication: z.string().optional().default(""),
-		status: z.string().optional().default("Unknown"),
-		keywords: z.string().optional().default(""),
+		id: OptionalTextSchema,
+		_id: OptionalTextSchema,
+		title: OptionalTextSchema,
+		name: OptionalTextSchema,
+		description: OptionalTextSchema,
+		desc: OptionalTextSchema,
+		slug: OptionalSlugSchema,
+		memberManagerId: OptionalTextSchema,
+		member_manager_id: OptionalTextSchema,
+		image: OptionalTextSchema,
+		publication: OptionalTextSchema,
+		status: OptionalTextSchema,
+		keywords: OptionalTextSchema,
 	})
 	.passthrough();
 
@@ -71,6 +92,30 @@ function getResearchProjectsUrl(): string {
 		process.env.WEBSITE_RESEARCH_API_URL?.trim() ||
 		DEFAULT_RESEARCH_PROJECTS_URL
 	);
+}
+
+function slugifyResearchProjectTitle(title: string): string {
+	return title
+		.trim()
+		.toLowerCase()
+		.normalize("NFKD")
+		.replace(/[\u0300-\u036f]/g, "")
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-+|-+$/g, "");
+}
+
+function uniqueTextValues(values: Array<string | undefined>): string[] {
+	const seen = new Set<string>();
+	const result: string[] = [];
+	for (const value of values) {
+		const trimmed = value?.trim();
+		if (!trimmed) continue;
+		const key = trimmed.toLowerCase();
+		if (seen.has(key)) continue;
+		seen.add(key);
+		result.push(trimmed);
+	}
+	return result;
 }
 
 export async function researchProjectRoutes(server: FastifyInstance) {
@@ -100,17 +145,40 @@ export async function researchProjectRoutes(server: FastifyInstance) {
 				}
 
 				const payload = await response.json();
-				const projects = z.array(ResearchProjectSchema).parse(payload);
+				const projectPayload =
+					typeof payload === "object" &&
+					payload !== null &&
+					"data" in payload &&
+					Array.isArray(payload.data)
+						? payload.data
+						: payload;
+				const projects = z.array(ResearchProjectSchema).parse(projectPayload);
 
-				return projects.map((project) => ({
-					id: project.id,
-					title: project.title.trim(),
-					description: project.description.trim(),
-					image: project.image.trim(),
-					publication: project.publication.trim(),
-					status: project.status.trim(),
-					keywords: project.keywords.trim(),
-				}));
+				return projects.map((project, index) => {
+					const title = (project.title || project.name).trim();
+					const stableTitleId =
+						slugifyResearchProjectTitle(title) || `untitled-${index + 1}`;
+
+					return {
+						id: (project.id || project._id || stableTitleId).trim(),
+						title: title || "Untitled",
+						description: (project.description || project.desc).trim(),
+						image: project.image.trim(),
+						publication: project.publication.trim(),
+						status: project.status.trim(),
+						keywords: project.keywords.trim(),
+						aliases: uniqueTextValues([
+							project.id,
+							project._id,
+							project.slug,
+							project.memberManagerId,
+							project.member_manager_id,
+							project.title,
+							project.name,
+							stableTitleId,
+						]),
+					};
+				});
 			} catch (error) {
 				if (error instanceof DatabaseError) {
 					throw error;

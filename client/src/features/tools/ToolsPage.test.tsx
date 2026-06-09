@@ -50,6 +50,15 @@ describe("ToolsPage", () => {
 		).toHaveAttribute("href", "/tools/engagement-certificate");
 	});
 
+	it("renders the job board link with the correct href", () => {
+		renderToolsPage();
+
+		expect(screen.getByRole("link", { name: "Job Board" })).toHaveAttribute(
+			"href",
+			"/tools/jobs",
+		);
+	});
+
 	it("groups tools by use case without the old member tools badge", () => {
 		renderToolsPage();
 
@@ -73,6 +82,9 @@ describe("ToolsPage", () => {
 			within(generalGroup).getByRole("link", {
 				name: "Engagement Certificate",
 			}),
+		).toBeInTheDocument();
+		expect(
+			within(generalGroup).getByRole("link", { name: "Job Board" }),
 		).toBeInTheDocument();
 	});
 

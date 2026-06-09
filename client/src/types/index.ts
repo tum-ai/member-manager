@@ -38,6 +38,7 @@ export interface ResearchProject {
 	publication?: string;
 	status?: string;
 	keywords?: string;
+	aliases?: string[];
 }
 
 export interface InnovationProject {
