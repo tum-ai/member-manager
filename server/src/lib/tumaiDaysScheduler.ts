@@ -6,8 +6,14 @@ import {
 } from "./slackNotifier.js";
 import { getSupabase } from "./supabase.js";
 
+interface Logger {
+	info: (...args: unknown[]) => void;
+	warn: (...args: unknown[]) => void;
+	error: (...args: unknown[]) => void;
+}
+
 export async function sendPendingTumaiDayMessages(
-	log?: unknown,
+	log?: Logger,
 ): Promise<number> {
 	const logger = log ?? console;
 	const now = new Date().toISOString();
@@ -134,7 +140,7 @@ export async function sendPendingTumaiDayMessages(
 
 				// Build Block Kit message
 				const givenName = member.given_name || "Member";
-				const blocks: unknown[] = [];
+				const blocks: Array<Record<string, unknown>> = [];
 
 				if (isFallbackMode) {
 					blocks.push({
