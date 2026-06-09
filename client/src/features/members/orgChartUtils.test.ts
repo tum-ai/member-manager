@@ -200,4 +200,36 @@ describe("buildOrgChart", () => {
 			],
 		});
 	});
+
+	it("matches research members by Sanity aliases", () => {
+		const chart = buildOrgChart(
+			[
+				buildMember({
+					user_id: "research-member",
+					given_name: "Riley",
+					surname: "Research",
+					department: "Research",
+					member_role: "Member",
+					research_project_id: "ibm-almaden-sycophancy-in-lms",
+				}),
+			],
+			[
+				{
+					id: "N4SbQ8230skgGtiVXbeqGg",
+					title: "IBM Almaden: Sycophancy in LMs",
+					description: "Current Sanity project",
+					status: "ongoing",
+					aliases: ["N4SbQ8230skgGtiVXbeqGg", "ibm-almaden-sycophancy-in-lms"],
+				},
+			],
+		);
+
+		expect(chart.researchProjects).toHaveLength(1);
+		expect(chart.researchProjects[0]).toMatchObject({
+			id: "N4SbQ8230skgGtiVXbeqGg",
+			title: "IBM Almaden: Sycophancy in LMs",
+			description: "Current Sanity project",
+			members: [expect.objectContaining({ given_name: "Riley" })],
+		});
+	});
 });

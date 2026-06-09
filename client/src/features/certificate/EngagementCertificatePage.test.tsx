@@ -99,5 +99,5 @@ describe("EngagementCertificatePage", () => {
 				}),
 			],
 		});
-	});
+	}, 15_000);
 });

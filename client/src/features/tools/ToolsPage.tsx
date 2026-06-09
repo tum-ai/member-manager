@@ -4,6 +4,7 @@ import {
 	FactCheck as FactCheckIcon,
 	ReceiptLong as ReceiptLongIcon,
 	RuleFolder as RuleFolderIcon,
+	WorkOutline as WorkOutlineIcon,
 	WorkspacePremium as WorkspacePremiumIcon,
 } from "@mui/icons-material";
 import {
@@ -44,6 +45,13 @@ const baseToolGroups: ToolGroup[] = [
 					"Request an official certificate for your TUM.ai engagement after admin review.",
 				href: "/tools/engagement-certificate",
 				Icon: WorkspacePremiumIcon,
+			},
+			{
+				title: "Job Board",
+				description:
+					"Browse approved partner opportunities shared with active TUM.ai members.",
+				href: "/tools/jobs",
+				Icon: WorkOutlineIcon,
 			},
 		],
 	},
