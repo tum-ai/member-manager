@@ -144,6 +144,43 @@ describe("Research Project Routes", async () => {
 		]);
 	});
 
+	test("accepts omitted optional fields from Sanity", async () => {
+		globalThis.fetch = async () =>
+			new Response(
+				JSON.stringify([
+					{
+						_id: "sanity-project-with-minimal-fields",
+						title: "Minimal Sanity Project",
+					},
+				]),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+
+		const response = await app.inject({
+			method: "GET",
+			url: "/api/research-projects",
+			headers: authHeaders(testTokens.user),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.deepStrictEqual(JSON.parse(response.payload), [
+			{
+				id: "sanity-project-with-minimal-fields",
+				title: "Minimal Sanity Project",
+				description: "",
+				image: "",
+				publication: "",
+				status: "",
+				keywords: "",
+				aliases: [
+					"sanity-project-with-minimal-fields",
+					"Minimal Sanity Project",
+					"minimal-sanity-project",
+				],
+			},
+		]);
+	});
+
 	test("returns innovation projects mirrored from the website data", async () => {
 		const response = await app.inject({
 			method: "GET",

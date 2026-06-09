@@ -57,7 +57,9 @@ const innovationProjects = [
 const OptionalTextSchema = z
 	.string()
 	.nullish()
-	.transform((value) => value ?? "");
+	.transform((value) => value ?? "")
+	.optional()
+	.default("");
 
 const OptionalSlugSchema = z
 	.union([
@@ -67,7 +69,9 @@ const OptionalSlugSchema = z
 			.transform((slug) => slug.current),
 	])
 	.nullish()
-	.transform((value) => value ?? "");
+	.transform((value) => value ?? "")
+	.optional()
+	.default("");
 
 const ResearchProjectSchema = z
 	.object({
