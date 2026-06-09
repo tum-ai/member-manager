@@ -55,7 +55,6 @@ interface MockData {
 	contract_partner_comments: Array<Record<string, unknown>>;
 	tumai_days: Array<Record<string, unknown>>;
 	tumai_day_responses: Array<Record<string, unknown>>;
-	contract_partner_comments: Array<Record<string, unknown>>;
 }
 
 // In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
@@ -402,7 +401,12 @@ function createQueryBuilder(table: string): QueryBuilder {
 		for (const filter of state.lteFilters) {
 			tableData = tableData.filter((row) => {
 				const val = row[filter.column];
-				if (val === undefined || val === null || filter.value === undefined || filter.value === null) {
+				if (
+					val === undefined ||
+					val === null ||
+					filter.value === undefined ||
+					filter.value === null
+				) {
 					return false;
 				}
 				return String(val) <= String(filter.value);
@@ -554,8 +558,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 						table === "contract_document_versions" ||
 						table === "contract_partner_comments" ||
 						table === "tumai_days" ||
-						table === "tumai_day_responses" ||
-						table === "contract_partner_comments") &&
+						table === "tumai_day_responses") &&
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {

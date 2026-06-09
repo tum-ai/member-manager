@@ -220,7 +220,9 @@ export async function getSlackUserEmailById(
 	return response.user?.profile?.email ?? null;
 }
 
-export async function lookupSlackUserIdByEmail(email: string): Promise<string | null> {
+export async function lookupSlackUserIdByEmail(
+	email: string,
+): Promise<string | null> {
 	if (!process.env.SLACK_BOT_TOKEN) {
 		return null;
 	}

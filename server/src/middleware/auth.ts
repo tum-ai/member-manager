@@ -163,4 +163,3 @@ export async function requireCronOrCommunityOrAdmin(
 
 	await requireCommunityOrAdmin(request, reply);
 }
-

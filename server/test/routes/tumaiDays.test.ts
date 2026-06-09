@@ -8,9 +8,7 @@ import {
 	getTestApp,
 	resetDatabase,
 	testTokens,
-	testUserIds,
 } from "../helpers.js";
-import { mockDatabase } from "../mocks/supabase.js";
 
 describe("TUM.ai Days Routes", async () => {
 	let app: FastifyInstance;
@@ -68,7 +66,7 @@ describe("TUM.ai Days Routes", async () => {
 
 	test("allows creating, updating, and deleting TUM.ai Days as Admin", async () => {
 		const scheduledAt = new Date(Date.now() + 60000).toISOString();
-		
+
 		// 1. Create event
 		const createRes = await app.inject({
 			method: "POST",

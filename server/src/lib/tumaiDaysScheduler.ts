@@ -215,4 +215,3 @@ export async function sendPendingTumaiDayMessages(log?: any): Promise<number> {
 
 	return totalSent;
 }
-

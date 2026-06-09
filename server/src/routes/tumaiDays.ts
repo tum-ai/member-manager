@@ -4,8 +4,12 @@ import { z } from "zod";
 import { getAuthProfiles } from "../lib/authEmails.js";
 import { DatabaseError } from "../lib/errors.js";
 import { getSupabase } from "../lib/supabase.js";
-import { authenticate, requireCommunityOrAdmin, requireCronOrCommunityOrAdmin } from "../middleware/auth.js";
 import { sendPendingTumaiDayMessages } from "../lib/tumaiDaysScheduler.js";
+import {
+	authenticate,
+	requireCommunityOrAdmin,
+	requireCronOrCommunityOrAdmin,
+} from "../middleware/auth.js";
 
 const CreateEventSchema = z.object({
 	agenda: z.string().min(1),
@@ -86,8 +90,10 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 
 			try {
 				const updates: Record<string, unknown> = {};
-				if (parsed.data.agenda !== undefined) updates.agenda = parsed.data.agenda;
-				if (parsed.data.scheduledAt !== undefined) updates.scheduled_at = parsed.data.scheduledAt;
+				if (parsed.data.agenda !== undefined)
+					updates.agenda = parsed.data.agenda;
+				if (parsed.data.scheduledAt !== undefined)
+					updates.scheduled_at = parsed.data.scheduledAt;
 
 				// If scheduledAt is modified, we allow resetting sent_at to null so it can be re-sent if they reschedule
 				if (parsed.data.scheduledAt !== undefined) {
@@ -150,7 +156,9 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 				// 2. Fetch all members
 				const { data: members, error: membersError } = await getSupabase()
 					.from("members")
-					.select("user_id, given_name, surname, active, member_status, department");
+					.select(
+						"user_id, given_name, surname, active, member_status, department",
+					);
 
 				if (membersError) throw membersError;
 
@@ -166,7 +174,7 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 
 				if (responsesError) throw responsesError;
 
-				const responseMap = new Map<string, typeof responses[number]>();
+				const responseMap = new Map<string, (typeof responses)[number]>();
 				for (const res of responses ?? []) {
 					responseMap.set(res.user_id, res);
 				}
@@ -200,7 +208,10 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 
 				return { event, stats, responses: auditList };
 			} catch (error) {
-				request.log.error(error, `Failed to load responses for TUM.ai Day ${id}`);
+				request.log.error(
+					error,
+					`Failed to load responses for TUM.ai Day ${id}`,
+				);
 				throw new DatabaseError();
 			}
 		},
