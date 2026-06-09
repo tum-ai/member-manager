@@ -142,6 +142,20 @@ describe("TUM.ai Days Routes", async () => {
 		assert.strictEqual(typeof payload.sentCount, "number");
 	});
 
+	test("allows Vercel Cron GET requests with cron secret Bearer token", async () => {
+		const res = await app.inject({
+			method: "GET",
+			url: "/api/tum-ai-days/send-pending",
+			headers: {
+				authorization: "Bearer test-cron-secret-123",
+			},
+		});
+		assert.strictEqual(res.statusCode, 200);
+		const payload = JSON.parse(res.payload);
+		assert.strictEqual(payload.status, "success");
+		assert.strictEqual(typeof payload.sentCount, "number");
+	});
+
 	test("rejects checking scheduler for pending messages with invalid cron secret or missing auth", async () => {
 		// Invalid cron secret
 		const resInvalid = await app.inject({

@@ -217,11 +217,13 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 		},
 	);
 
-	// Manual trigger or Vercel Cron trigger to send pending messages (also returns how many were sent)
-	server.post(
-		"/tum-ai-days/send-pending",
-		{ preHandler: [requireCronOrCommunityOrAdmin] },
-		async (request) => {
+	// Manual trigger or Vercel Cron trigger to send pending messages (also returns how many were sent).
+	// Vercel Cron invokes the path with a GET request, so the route must accept both methods.
+	server.route({
+		method: ["GET", "POST"],
+		url: "/tum-ai-days/send-pending",
+		preHandler: [requireCronOrCommunityOrAdmin],
+		handler: async (request) => {
 			try {
 				const sentCount = await sendPendingTumaiDayMessages(request.log);
 				return { status: "success", sentCount };
@@ -230,5 +232,5 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 		},
-	);
+	});
 }

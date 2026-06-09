@@ -332,50 +332,47 @@ export async function slackInteractionRoutes(server: FastifyInstance) {
 					payload.view?.state?.values?.reason_block?.reason_input?.value ??
 					null;
 
-				setImmediate(() => {
-					void (async () => {
-						try {
-							const userId = await resolveUserFromSlackId(slackUserId);
-							await getSupabase()
-								.from("tumai_day_responses")
-								.upsert(
-									{
-										tumai_day_id: privateMetadata.tumai_day_id,
-										user_id: userId,
-										status: "no",
-										reason: reason || null,
-										updated_at: new Date().toISOString(),
-									},
-									{ onConflict: "tumai_day_id,user_id" },
-								);
+				try {
+					const userId = await resolveUserFromSlackId(slackUserId);
+					const { error } = await getSupabase()
+						.from("tumai_day_responses")
+						.upsert(
+							{
+								tumai_day_id: privateMetadata.tumai_day_id,
+								user_id: userId,
+								status: "no",
+								reason: reason || null,
+								updated_at: new Date().toISOString(),
+							},
+							{ onConflict: "tumai_day_id,user_id" },
+						);
+					if (error) throw error;
 
-							const confirmationText = reason
-								? `Thank you! You RSVP'd: *No* (Reason: ${reason}).`
-								: "Thank you! You RSVP'd: *No*.";
+					const confirmationText = reason
+						? `Thank you! You RSVP'd: *No* (Reason: ${reason}).`
+						: "Thank you! You RSVP'd: *No*.";
 
-							await postSlackDelayedResponse(
-								privateMetadata.response_url,
-								confirmationText,
-							);
-						} catch (error) {
-							request.log.error(
-								error,
-								"Failed to save TUM.ai Day No response from modal",
-							);
-							try {
-								await postSlackDelayedResponse(
-									privateMetadata.response_url,
-									`RSVP failed: ${error instanceof Error ? error.message : "unknown error"}`,
-								);
-							} catch (err) {
-								request.log.error(
-									err,
-									"Failed to send error notification back to Slack",
-								);
-							}
-						}
-					})();
-				});
+					await postSlackDelayedResponse(
+						privateMetadata.response_url,
+						confirmationText,
+					);
+				} catch (error) {
+					request.log.error(
+						error,
+						"Failed to save TUM.ai Day No response from modal",
+					);
+					try {
+						await postSlackDelayedResponse(
+							privateMetadata.response_url,
+							`RSVP failed: ${error instanceof Error ? error.message : "unknown error"}`,
+						);
+					} catch (err) {
+						request.log.error(
+							err,
+							"Failed to send error notification back to Slack",
+						);
+					}
+				}
 
 				return reply.status(200).send({});
 			}
@@ -391,43 +388,44 @@ export async function slackInteractionRoutes(server: FastifyInstance) {
 				return sendSlackMessage(reply, "Slack action payload is missing data.");
 			}
 
-			setImmediate(() => {
-				void (async () => {
-					try {
-						const userId = await resolveUserFromSlackId(slackUserId);
-						await getSupabase().from("tumai_day_responses").upsert(
-							{
-								tumai_day_id: requestId,
-								user_id: userId,
-								status: "yes",
-								reason: null,
-								updated_at: new Date().toISOString(),
-							},
-							{ onConflict: "tumai_day_id,user_id" },
-						);
+			// Handled inline (not after the reply): on serverless the function can
+			// be frozen once the response is sent, so the write must finish first.
+			try {
+				const userId = await resolveUserFromSlackId(slackUserId);
+				const { error } = await getSupabase()
+					.from("tumai_day_responses")
+					.upsert(
+						{
+							tumai_day_id: requestId,
+							user_id: userId,
+							status: "yes",
+							reason: null,
+							updated_at: new Date().toISOString(),
+						},
+						{ onConflict: "tumai_day_id,user_id" },
+					);
+				if (error) throw error;
 
-						await postSlackDelayedResponse(
-							payload.response_url,
-							"Thank you! You RSVP'd: *Yes*.",
-						);
-					} catch (error) {
-						request.log.error(error, "Failed to save TUM.ai Day Yes response");
-						try {
-							await postSlackDelayedResponse(
-								payload.response_url,
-								`RSVP failed: ${error instanceof Error ? error.message : "unknown error"}`,
-							);
-						} catch (err) {
-							request.log.error(
-								err,
-								"Failed to send error notification back to Slack",
-							);
-						}
-					}
-				})();
-			});
+				await postSlackDelayedResponse(
+					payload.response_url,
+					"Thank you! You RSVP'd: *Yes*.",
+				);
+			} catch (error) {
+				request.log.error(error, "Failed to save TUM.ai Day Yes response");
+				try {
+					await postSlackDelayedResponse(
+						payload.response_url,
+						`RSVP failed: ${error instanceof Error ? error.message : "unknown error"}`,
+					);
+				} catch (err) {
+					request.log.error(
+						err,
+						"Failed to send error notification back to Slack",
+					);
+				}
+			}
 
-			return sendSlackMessage(reply, "Processing RSVP...");
+			return reply.status(200).send();
 		}
 
 		if (actionId === "tumai_day_rsvp_no") {
@@ -435,76 +433,74 @@ export async function slackInteractionRoutes(server: FastifyInstance) {
 				return sendSlackMessage(reply, "Slack action payload is missing data.");
 			}
 
-			setImmediate(() => {
-				void (async () => {
-					try {
-						await slackApiPost("/views.open", {
-							trigger_id: payload.trigger_id,
-							view: {
-								type: "modal",
-								callback_id: "tumai_day_rsvp_reason_modal",
-								private_metadata: JSON.stringify({
-									tumai_day_id: requestId,
-									response_url: payload.response_url,
-								}),
-								title: {
-									type: "plain_text",
-									text: "RSVP: No",
+			// Opened inline: the trigger_id expires 3 seconds after the click, and
+			// on serverless the function can be frozen once the response is sent.
+			try {
+				await slackApiPost("/views.open", {
+					trigger_id: payload.trigger_id,
+					view: {
+						type: "modal",
+						callback_id: "tumai_day_rsvp_reason_modal",
+						private_metadata: JSON.stringify({
+							tumai_day_id: requestId,
+							response_url: payload.response_url,
+						}),
+						title: {
+							type: "plain_text",
+							text: "RSVP: No",
+						},
+						submit: {
+							type: "plain_text",
+							text: "Submit",
+						},
+						close: {
+							type: "plain_text",
+							text: "Cancel",
+						},
+						blocks: [
+							{
+								type: "section",
+								text: {
+									type: "mrkdwn",
+									text: "Please let us know why you won't be able to make it (optional):",
 								},
-								submit: {
-									type: "plain_text",
-									text: "Submit",
-								},
-								close: {
-									type: "plain_text",
-									text: "Cancel",
-								},
-								blocks: [
-									{
-										type: "section",
-										text: {
-											type: "mrkdwn",
-											text: "Please let us know why you won't be able to make it (optional):",
-										},
-									},
-									{
-										type: "input",
-										block_id: "reason_block",
-										optional: true,
-										element: {
-											type: "plain_text_input",
-											action_id: "reason_input",
-											placeholder: {
-												type: "plain_text",
-												text: "e.g., prior engagement, exams, out of town...",
-											},
-										},
-										label: {
-											type: "plain_text",
-											text: "Reason",
-										},
-									},
-								],
 							},
-						});
-					} catch (error) {
-						request.log.error(error, "Failed to open Slack modal");
-						try {
-							await postSlackDelayedResponse(
-								payload.response_url,
-								`Failed to open RSVP modal: ${error instanceof Error ? error.message : "unknown error"}`,
-							);
-						} catch (err) {
-							request.log.error(
-								err,
-								"Failed to send error notification back to Slack",
-							);
-						}
-					}
-				})();
-			});
+							{
+								type: "input",
+								block_id: "reason_block",
+								optional: true,
+								element: {
+									type: "plain_text_input",
+									action_id: "reason_input",
+									placeholder: {
+										type: "plain_text",
+										text: "e.g., prior engagement, exams, out of town...",
+									},
+								},
+								label: {
+									type: "plain_text",
+									text: "Reason",
+								},
+							},
+						],
+					},
+				});
+			} catch (error) {
+				request.log.error(error, "Failed to open Slack modal");
+				try {
+					await postSlackDelayedResponse(
+						payload.response_url,
+						`Failed to open RSVP modal: ${error instanceof Error ? error.message : "unknown error"}`,
+					);
+				} catch (err) {
+					request.log.error(
+						err,
+						"Failed to send error notification back to Slack",
+					);
+				}
+			}
 
-			return sendSlackMessage(reply, "Opening modal...");
+			return reply.status(200).send();
 		}
 
 		if (

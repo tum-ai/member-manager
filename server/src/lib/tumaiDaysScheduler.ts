@@ -50,7 +50,7 @@ export async function sendPendingTumaiDayMessages(
 
 	// Filter active members
 	let activeMembers = (members ?? []).filter(isActiveMember);
-	let activeUserIds = activeMembers.map((m) => m.user_id);
+	const activeUserIds = activeMembers.map((m) => m.user_id);
 
 	if (activeUserIds.length === 0) {
 		logger.warn("No active members found to send RSVP message to");
@@ -60,67 +60,54 @@ export async function sendPendingTumaiDayMessages(
 	// 3. Resolve active member emails
 	const emailMap = await getAuthEmails(activeUserIds);
 
-	// Target filter (e.g. from Victor's list).
-	// If either the env var RSVP_TARGET_EMAILS is set (comma-separated) or you define emails in the array below,
-	// the RSVP scheduler will only send to those people.
-	// Otherwise, it falls back to only sending to you (with a safety warning).
-	const hardcodedTargetEmails: string[] = [
-		// Add emails here to restrict sends directly in the code (e.g., "victor@example.com")
-	];
-
-	const envTargetEmails = process.env.RSVP_TARGET_EMAILS
-		? process.env.RSVP_TARGET_EMAILS.split(",")
-				.map((e) => e.trim().toLowerCase())
-				.filter(Boolean)
-		: [];
-
-	let targetEmails = [
-		...hardcodedTargetEmails.map((e) => e.trim().toLowerCase()),
-		...envTargetEmails,
-	];
-	let isFallbackMode = false;
+	// Recipients are restricted to a configured list: TEST_RSVP_EMAIL (a single
+	// test recipient) takes precedence over RSVP_TARGET_EMAILS (comma-separated).
+	// With neither set, nothing is sent and events stay pending until configured.
+	const testEmail = process.env.TEST_RSVP_EMAIL?.trim().toLowerCase();
+	const envTargetEmails = (process.env.RSVP_TARGET_EMAILS ?? "")
+		.split(",")
+		.map((e) => e.trim().toLowerCase())
+		.filter(Boolean);
+	const targetEmails = testEmail ? [testEmail] : envTargetEmails;
 
 	if (targetEmails.length === 0) {
-		const fallbackEmail = (
-			process.env.TEST_RSVP_EMAIL || "ketatasayf4@gmail.com"
-		)
-			.trim()
-			.toLowerCase();
-		targetEmails = [fallbackEmail];
-		isFallbackMode = true;
+		logger.warn(
+			"Neither RSVP_TARGET_EMAILS nor TEST_RSVP_EMAIL is configured; leaving pending TUM.ai Day events unsent",
+		);
+		return 0;
 	}
 
-	// FOR TESTING: Filter to only a specific test email if process.env.TEST_RSVP_EMAIL is set
-	const testEmail = process.env.TEST_RSVP_EMAIL;
-	if (testEmail) {
-		activeMembers = activeMembers.filter((member) => {
-			const email = emailMap.get(member.user_id);
-			return email?.trim().toLowerCase() === testEmail.trim().toLowerCase();
-		});
-		activeUserIds = activeMembers.map((m) => m.user_id);
-		logger.info(
-			`[TEST MODE] Restricting RSVP messages to only "${testEmail}". Target member count: ${activeMembers.length}`,
-		);
-	} else {
-		activeMembers = activeMembers.filter((member) => {
-			const email = emailMap.get(member.user_id)?.trim().toLowerCase();
-			return email && targetEmails.includes(email);
-		});
-		activeUserIds = activeMembers.map((m) => m.user_id);
-		if (isFallbackMode) {
-			logger.warn(
-				`[SAFETY TRIGGER] No target email list provided. Fallback mode activated: sending ONLY to fallback email "${targetEmails[0]}"`,
-			);
-		} else {
-			logger.info(
-				`Restricting RSVP messages to ${activeMembers.length} target member(s) from the target list.`,
-			);
-		}
-	}
+	activeMembers = activeMembers.filter((member) => {
+		const email = emailMap.get(member.user_id)?.trim().toLowerCase();
+		return email && targetEmails.includes(email);
+	});
+	logger.info(
+		testEmail
+			? `[TEST MODE] Restricting RSVP messages to only "${testEmail}". Target member count: ${activeMembers.length}`
+			: `Restricting RSVP messages to ${activeMembers.length} target member(s) from the target list.`,
+	);
 
 	let totalSent = 0;
 
 	for (const event of pendingEvents) {
+		// Claim the event (set sent_at) before sending so an overlapping cron run
+		// or a retry after a mid-loop crash cannot DM the same members twice.
+		const { data: claimed, error: claimError } = await getSupabase()
+			.from("tumai_days")
+			.update({ sent_at: new Date().toISOString() })
+			.eq("id", event.id)
+			.is("sent_at", null)
+			.select();
+
+		if (claimError) {
+			logger.error(claimError, `Failed to claim event ${event.id} for sending`);
+			continue;
+		}
+		if (!claimed || claimed.length === 0) {
+			logger.info(`Event ${event.id} was already claimed by another run`);
+			continue;
+		}
+
 		logger.info(`Sending RSVP message for TUM.ai Day event ${event.id}`);
 
 		for (const member of activeMembers) {
@@ -141,16 +128,6 @@ export async function sendPendingTumaiDayMessages(
 				// Build Block Kit message
 				const givenName = member.given_name || "Member";
 				const blocks: Array<Record<string, unknown>> = [];
-
-				if (isFallbackMode) {
-					blocks.push({
-						type: "section",
-						text: {
-							type: "mrkdwn",
-							text: `⚠️ *SAFETY WARNING:* The target email list was empty. This message was sent *only* to you as a fallback and was NOT sent to the rest of the community.`,
-						},
-					});
-				}
 
 				blocks.push(
 					{
@@ -208,16 +185,6 @@ export async function sendPendingTumaiDayMessages(
 					`Failed to send TUM.ai Day Slack message to ${email}`,
 				);
 			}
-		}
-
-		// 4. Mark the event as sent in the DB
-		const { error: updateError } = await getSupabase()
-			.from("tumai_days")
-			.update({ sent_at: new Date().toISOString() })
-			.eq("id", event.id);
-
-		if (updateError) {
-			logger.error(updateError, `Failed to mark event ${event.id} as sent`);
 		}
 	}
 
