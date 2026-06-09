@@ -14,12 +14,16 @@ import { mockDatabase } from "../mocks/supabase.js";
 
 describe("TUM.ai Days Routes", async () => {
 	let app: FastifyInstance;
+	let originalCronSecret: string | undefined;
 
 	before(async () => {
+		originalCronSecret = process.env.CRON_SECRET;
+		process.env.CRON_SECRET = "test-cron-secret-123";
 		app = await getTestApp();
 	});
 
 	after(async () => {
+		process.env.CRON_SECRET = originalCronSecret;
 		await closeTestApp();
 	});
 
@@ -114,7 +118,7 @@ describe("TUM.ai Days Routes", async () => {
 		assert.strictEqual(deleteRes.statusCode, 204);
 	});
 
-	test("allows checking scheduler for pending messages", async () => {
+	test("allows checking scheduler for pending messages with admin token", async () => {
 		const res = await app.inject({
 			method: "POST",
 			url: "/api/tum-ai-days/send-pending",
@@ -124,5 +128,38 @@ describe("TUM.ai Days Routes", async () => {
 		const payload = JSON.parse(res.payload);
 		assert.strictEqual(payload.status, "success");
 		assert.strictEqual(typeof payload.sentCount, "number");
+	});
+
+	test("allows checking scheduler for pending messages with cron secret Bearer token", async () => {
+		const res = await app.inject({
+			method: "POST",
+			url: "/api/tum-ai-days/send-pending",
+			headers: {
+				authorization: "Bearer test-cron-secret-123",
+			},
+		});
+		assert.strictEqual(res.statusCode, 200);
+		const payload = JSON.parse(res.payload);
+		assert.strictEqual(payload.status, "success");
+		assert.strictEqual(typeof payload.sentCount, "number");
+	});
+
+	test("rejects checking scheduler for pending messages with invalid cron secret or missing auth", async () => {
+		// Invalid cron secret
+		const resInvalid = await app.inject({
+			method: "POST",
+			url: "/api/tum-ai-days/send-pending",
+			headers: {
+				authorization: "Bearer invalid-cron-secret",
+			},
+		});
+		assert.strictEqual(resInvalid.statusCode, 401);
+
+		// Missing token / no headers
+		const resMissing = await app.inject({
+			method: "POST",
+			url: "/api/tum-ai-days/send-pending",
+		});
+		assert.strictEqual(resMissing.statusCode, 401);
 	});
 });

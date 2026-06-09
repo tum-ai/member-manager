@@ -216,25 +216,3 @@ export async function sendPendingTumaiDayMessages(log?: any): Promise<number> {
 	return totalSent;
 }
 
-let checkIntervalId: NodeJS.Timeout | null = null;
-
-export function startTumaiDaysScheduler(log?: any, intervalMs = 30000): void {
-	if (checkIntervalId) return;
-
-	const logger = log ?? console;
-	logger.info("Starting TUM.ai Days scheduler...");
-
-	// Run initially, then on interval
-	void sendPendingTumaiDayMessages(logger);
-
-	checkIntervalId = setInterval(() => {
-		void sendPendingTumaiDayMessages(logger);
-	}, intervalMs);
-}
-
-export function stopTumaiDaysScheduler(): void {
-	if (checkIntervalId) {
-		clearInterval(checkIntervalId);
-		checkIntervalId = null;
-	}
-}

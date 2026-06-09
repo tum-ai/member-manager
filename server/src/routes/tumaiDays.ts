@@ -4,7 +4,7 @@ import { z } from "zod";
 import { getAuthProfiles } from "../lib/authEmails.js";
 import { DatabaseError } from "../lib/errors.js";
 import { getSupabase } from "../lib/supabase.js";
-import { authenticate, requireCommunityOrAdmin } from "../middleware/auth.js";
+import { authenticate, requireCommunityOrAdmin, requireCronOrCommunityOrAdmin } from "../middleware/auth.js";
 import { sendPendingTumaiDayMessages } from "../lib/tumaiDaysScheduler.js";
 
 const CreateEventSchema = z.object({
@@ -206,10 +206,10 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 		},
 	);
 
-	// Manual trigger to send pending messages (also returns how many were sent)
+	// Manual trigger or Vercel Cron trigger to send pending messages (also returns how many were sent)
 	server.post(
 		"/tum-ai-days/send-pending",
-		{ preHandler: [authenticate, requireCommunityOrAdmin] },
+		{ preHandler: [requireCronOrCommunityOrAdmin] },
 		async (request) => {
 			try {
 				const sentCount = await sendPendingTumaiDayMessages(request.log);

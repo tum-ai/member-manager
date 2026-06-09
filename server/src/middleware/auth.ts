@@ -146,3 +146,21 @@ export async function requireCommunityOrAdmin(
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}
 }
+
+export async function requireCronOrCommunityOrAdmin(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const authHeader = request.headers.authorization;
+	const cronSecret = process.env.CRON_SECRET;
+
+	if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+		return;
+	}
+
+	await authenticate(request, reply);
+	if (reply.sent) return;
+
+	await requireCommunityOrAdmin(request, reply);
+}
+
