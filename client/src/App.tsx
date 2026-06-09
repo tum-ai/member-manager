@@ -211,8 +211,7 @@ export function AuthenticatedApp({
 }: AuthenticatedAppProps): JSX.Element {
 	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
 	const { permissions } = useToolAccess();
-	const hasContractsAccess =
-		isAdmin || permissions.includes("contracts.admin");
+	const hasContractsAccess = isAdmin || permissions.includes("contracts.admin");
 
 	return (
 		<MainLayout
