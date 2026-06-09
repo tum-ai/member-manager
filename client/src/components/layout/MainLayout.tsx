@@ -27,6 +27,7 @@ interface MainLayoutProps {
 	colorMode: AppColorMode;
 	user: User | null;
 	isAdmin?: boolean;
+	hasContractsAccess?: boolean;
 	onLogout: () => void;
 	onToggleColorMode: () => void;
 }
@@ -36,6 +37,7 @@ export default function MainLayout({
 	colorMode,
 	user,
 	isAdmin = false,
+	hasContractsAccess = false,
 	onLogout,
 	onToggleColorMode,
 }: MainLayoutProps) {
@@ -48,9 +50,11 @@ export default function MainLayout({
 			? "/members"
 			: location.pathname === "/admin"
 				? "/admin"
-				: location.pathname === "/" || location.pathname === "/profile"
-					? "/"
-					: "";
+				: location.pathname.startsWith("/contracts")
+					? "/contracts"
+					: location.pathname === "/" || location.pathname === "/profile"
+						? "/"
+						: "";
 
 	const handleNavigationChange = (event: SelectChangeEvent<string>) => {
 		const nextPath = event.target.value;
@@ -208,7 +212,9 @@ export default function MainLayout({
 								</MenuItem>
 								<MenuItem value="/">My Profile</MenuItem>
 								<MenuItem value="/members">All Members</MenuItem>
-								<MenuItem value="/contracts">Contracts</MenuItem>
+								{hasContractsAccess && (
+									<MenuItem value="/contracts">Contracts</MenuItem>
+								)}
 								{isAdmin && <MenuItem value="/admin">Admin</MenuItem>}
 							</Select>
 						</FormControl>
