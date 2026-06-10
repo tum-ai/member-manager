@@ -210,11 +210,14 @@ export function AuthenticatedApp({
 	onToggleColorMode,
 }: AuthenticatedAppProps): JSX.Element {
 	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
+	const { permissions } = useToolAccess();
+	const hasContractsAccess = isAdmin || permissions.includes("contracts.admin");
 
 	return (
 		<MainLayout
 			user={user}
 			isAdmin={isAdmin || isLoadingAdminRole}
+			hasContractsAccess={hasContractsAccess}
 			onLogout={onLogout}
 			colorMode={colorMode}
 			onToggleColorMode={onToggleColorMode}
