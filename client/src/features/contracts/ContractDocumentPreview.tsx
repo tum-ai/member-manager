@@ -1,5 +1,8 @@
 import { Box, CircularProgress, Stack, Typography } from "@mui/material";
 
+const PAGE_WIDTH = 595;
+const PAGE_HEIGHT = 842;
+
 interface ContractDocumentPreviewProps {
 	pages?: string[];
 	loading?: boolean;
@@ -15,7 +18,7 @@ export default function ContractDocumentPreview({
 	emptyLabel = "No preview available",
 	maxHeight = { xs: "70vh", lg: "calc(100vh - 220px)" },
 	minHeight = 320,
-	pageMaxWidth = 760,
+	pageMaxWidth = PAGE_WIDTH,
 }: ContractDocumentPreviewProps): JSX.Element {
 	if (loading) {
 		return (
@@ -57,7 +60,11 @@ export default function ContractDocumentPreview({
 				p: { xs: 1, sm: 1.5 },
 			}}
 		>
-			<Stack spacing={2} alignItems="center">
+			<Stack
+				spacing={2}
+				alignItems="center"
+				sx={{ minWidth: PAGE_WIDTH, width: "fit-content", mx: "auto" }}
+			>
 				{visiblePages.map((page) => (
 					<Box
 						// biome-ignore lint/security/noDangerouslySetInnerHtml: HTML is generated server-side from escaped contract text.
@@ -65,45 +72,58 @@ export default function ContractDocumentPreview({
 						data-contract-page
 						key={page}
 						sx={{
-							aspectRatio: "210 / 297",
 							bgcolor: "#fff",
 							boxShadow:
 								"0 18px 42px rgba(13, 2, 20, 0.14), 0 2px 8px rgba(13, 2, 20, 0.08)",
 							color: "#0d0214",
-							fontFamily: 'Georgia, "Times New Roman", Times, serif',
-							fontSize: { xs: "7px", sm: "9px", md: "11px", xl: "12px" },
-							lineHeight: 1.48,
+							fontFamily: 'Arial, "Helvetica Neue", Helvetica, sans-serif',
+							fontSize: "11px",
+							height: PAGE_HEIGHT,
+							lineHeight: 1.5,
 							maxWidth: pageMaxWidth,
-							minWidth: 0,
+							minWidth: PAGE_WIDTH,
 							overflow: "hidden",
-							p: { xs: "9% 8%", sm: "8.5% 8%" },
-							width: "100%",
+							p: "11.9% 11.9% 9.5%",
+							width: PAGE_WIDTH,
 							"& h1": {
-								fontSize: "1.55em",
+								fontSize: "20px",
 								fontWeight: 700,
 								letterSpacing: 0,
-								lineHeight: 1.18,
-								margin: "0 0 1.4em",
+								lineHeight: 1.27,
+								margin: "0 0 12pt",
 								textAlign: "center",
 							},
 							"& h2": {
-								fontSize: "1.06em",
+								fontSize: "11px",
 								fontWeight: 700,
 								letterSpacing: 0,
-								lineHeight: 1.35,
-								margin: "1.15em 0 0.45em",
+								lineHeight: 1.5,
+								margin: "12pt 0 0",
 							},
 							"& p": {
-								margin: "0 0 0.78em",
+								margin: "0 0 12pt",
 								textAlign: "justify",
 							},
 							"& ul": {
-								margin: "0 0 0.8em 1.2em",
+								margin: "0 0 12pt 0",
 								padding: 0,
 							},
 							"& li": {
-								marginBottom: "0.2em",
-								paddingLeft: "0.2em",
+								marginBottom: "0",
+								marginLeft: "0.55cm",
+								paddingLeft: "0.15cm",
+								textAlign: "justify",
+							},
+							"& .list-continuation": {
+								lineHeight: "17px",
+								margin: "0 0 0 0.55cm",
+								paddingLeft: "0.15cm",
+								textAlign: "justify",
+							},
+							"& .blank-line": {
+								height: "17px",
+								lineHeight: "17px",
+								margin: 0,
 							},
 						}}
 					/>

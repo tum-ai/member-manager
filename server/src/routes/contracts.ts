@@ -298,13 +298,90 @@ function escapeHtml(value: string): string {
 		.replace(/'/g, "&#39;");
 }
 
-function estimateParagraphLines(paragraph: string): number {
-	const lineCount = paragraph.split("\n").length;
-	const wrappedCount = Math.ceil(paragraph.length / 92);
-	return Math.max(lineCount, wrappedCount, 1) + 1;
+const PREVIEW_MAX_CHARS_PER_LINE = 76;
+const PREVIEW_MAX_LINES_PER_PAGE = 39;
+
+type PreviewLineKind = "title" | "heading" | "paragraph" | "list" | "blank";
+
+interface PreviewLine {
+	kind: PreviewLineKind;
+	text: string;
+	itemStart?: boolean;
 }
 
-function splitDocumentPages(text: string): string[] {
+function wrapPreviewLine(line: string): string[] {
+	const words = line.split(/\s+/).filter(Boolean);
+	if (words.length === 0) return [""];
+	const lines: string[] = [];
+	let current = "";
+
+	for (const word of words) {
+		const next = current ? `${current} ${word}` : word;
+		if (next.length > PREVIEW_MAX_CHARS_PER_LINE && current) {
+			lines.push(current);
+			current = word;
+		} else {
+			current = next;
+		}
+	}
+
+	if (current) lines.push(current);
+	return lines;
+}
+
+function isTitleParagraph(paragraph: string): boolean {
+	return /^SPONSORINGVERTRAG$|^KOOPERATIONSVERTRAG$/i.test(paragraph.trim());
+}
+
+function isHeadingParagraph(paragraph: string): boolean {
+	const trimmed = paragraph.trim();
+	return /^§\s*\d+\s+/.test(trimmed) || /^[A-ZÄÖÜ][^\n]{1,70}$/.test(trimmed);
+}
+
+function isListParagraph(lines: string[]): boolean {
+	return lines.length > 1 && lines.every((line) => /^[-•]/.test(line));
+}
+
+function paragraphToPreviewLines(paragraph: string): PreviewLine[] {
+	const trimmed = paragraph.trim();
+	if (!trimmed) return [];
+	if (isTitleParagraph(trimmed)) {
+		return wrapPreviewLine(trimmed).map((line) => ({
+			kind: "title",
+			text: line,
+		}));
+	}
+	if (isHeadingParagraph(trimmed)) {
+		return wrapPreviewLine(trimmed).map((line) => ({
+			kind: "heading",
+			text: line,
+		}));
+	}
+
+	const lines = paragraph
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean);
+	if (isListParagraph(lines)) {
+		return lines.flatMap((line) =>
+			wrapPreviewLine(line.replace(/^[-•]\s*/, "")).map(
+				(wrappedLine, index) => ({
+					kind: "list",
+					text: wrappedLine,
+					itemStart: index === 0,
+				}),
+			),
+		);
+	}
+	return lines.flatMap((line) =>
+		wrapPreviewLine(line).map((wrappedLine) => ({
+			kind: "paragraph",
+			text: wrappedLine,
+		})),
+	);
+}
+
+function buildPreviewLines(text: string): PreviewLine[] {
 	const paragraphs = text
 		.replace(/\r\n/g, "\n")
 		.replace(/\r/g, "\n")
@@ -312,60 +389,90 @@ function splitDocumentPages(text: string): string[] {
 		.map((paragraph) => paragraph.trim())
 		.filter(Boolean);
 
-	const pages: string[] = [];
-	let current: string[] = [];
-	let lineBudget = 0;
-	const maxLines = 48;
-
-	for (const paragraph of paragraphs) {
-		const estimatedLines = estimateParagraphLines(paragraph);
-		if (current.length > 0 && lineBudget + estimatedLines > maxLines) {
-			pages.push(current.join("\n\n"));
-			current = [];
-			lineBudget = 0;
+	const previewLines: PreviewLine[] = [];
+	for (const paragraph of paragraphs.length > 0 ? paragraphs : [""]) {
+		if (previewLines.length > 0) {
+			previewLines.push({ kind: "blank", text: "" });
 		}
-		current.push(paragraph);
-		lineBudget += estimatedLines;
+		previewLines.push(...paragraphToPreviewLines(paragraph));
 	}
+	return previewLines;
+}
 
+function renderTextGroup(tag: "h1" | "h2" | "p", lines: PreviewLine[]): string {
+	return `<${tag}>${lines.map((line) => escapeHtml(line.text)).join("<br>")}</${tag}>`;
+}
+
+function renderListGroup(lines: PreviewLine[]): string {
+	const html: string[] = [];
+	let items: string[] = [];
+	let current: string[] = [];
+	const flushItems = () => {
+		if (items.length > 0) {
+			html.push(`<ul>${items.join("")}</ul>`);
+			items = [];
+		}
+	};
+
+	for (const line of lines) {
+		if (!line.itemStart && items.length === 0 && current.length === 0) {
+			html.push(
+				`<div class="list-continuation">${escapeHtml(line.text)}</div>`,
+			);
+			continue;
+		}
+		if (line.itemStart && current.length > 0) {
+			items.push(`<li>${current.map(escapeHtml).join("<br>")}</li>`);
+			current = [];
+		}
+		current.push(line.text);
+	}
 	if (current.length > 0) {
-		pages.push(current.join("\n\n"));
+		items.push(`<li>${current.map(escapeHtml).join("<br>")}</li>`);
 	}
+	flushItems();
+	return html.join("");
+}
 
+function renderBlankLine(): string {
+	return '<div class="blank-line">&nbsp;</div>';
+}
+
+function pageLinesToHtml(lines: PreviewLine[]): string {
+	const html: string[] = [];
+	let i = 0;
+	while (i < lines.length) {
+		const line = lines[i];
+		if (line.kind === "blank") {
+			html.push(renderBlankLine());
+			i++;
+			continue;
+		}
+		const group: PreviewLine[] = [];
+		while (i < lines.length && lines[i].kind === line.kind) {
+			group.push(lines[i]);
+			i++;
+		}
+		if (line.kind === "title") {
+			html.push(renderTextGroup("h1", group));
+		} else if (line.kind === "heading") {
+			html.push(renderTextGroup("h2", group));
+		} else if (line.kind === "list") {
+			html.push(renderListGroup(group));
+		} else {
+			html.push(renderTextGroup("p", group));
+		}
+	}
+	return html.join("");
+}
+
+function renderDocumentPages(text: string): string[] {
+	const lines = buildPreviewLines(text);
+	const pages: string[] = [];
+	for (let i = 0; i < lines.length; i += PREVIEW_MAX_LINES_PER_PAGE) {
+		pages.push(pageLinesToHtml(lines.slice(i, i + PREVIEW_MAX_LINES_PER_PAGE)));
+	}
 	return pages.length > 0 ? pages : [""];
-}
-
-function paragraphToHtml(paragraph: string): string {
-	const trimmed = paragraph.trim();
-	if (!trimmed) return "";
-	if (/^SPONSORINGVERTRAG$|^KOOPERATIONSVERTRAG$/i.test(trimmed)) {
-		return `<h1>${escapeHtml(trimmed)}</h1>`;
-	}
-	if (/^§\s*\d+\s+/.test(trimmed) || /^[A-ZÄÖÜ][^\n]{1,70}$/.test(trimmed)) {
-		return `<h2>${escapeHtml(trimmed)}</h2>`;
-	}
-
-	const lines = trimmed
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean);
-	const isList = lines.length > 1 && lines.every((line) => /^[-•]/.test(line));
-	if (isList) {
-		const items = lines
-			.map((line) => `<li>${escapeHtml(line.replace(/^[-•]\s*/, ""))}</li>`)
-			.join("");
-		return `<ul>${items}</ul>`;
-	}
-
-	return `<p>${lines.map(escapeHtml).join("<br>")}</p>`;
-}
-
-function textToHtml(text: string): string {
-	return text
-		.split(/\n{2,}/)
-		.map(paragraphToHtml)
-		.filter(Boolean)
-		.join("");
 }
 
 function renderContractDocument(
@@ -374,7 +481,7 @@ function renderContractDocument(
 	blocks: ConditionalBlockRow[],
 ): RenderedContractDocument {
 	const text = renderContractText(contractText, formData, blocks);
-	const pages = splitDocumentPages(text).map(textToHtml);
+	const pages = renderDocumentPages(text);
 	return {
 		text,
 		html: pages.map((page) => `<section>${page}</section>`).join(""),
@@ -582,7 +689,7 @@ async function createDocumentVersion(args: {
 			)
 		: 0;
 	const nextVersion = latestVersion + 1;
-	const pages = splitDocumentPages(args.text).map(textToHtml);
+	const pages = renderDocumentPages(args.text);
 	const { data, error } = await supabase
 		.from("contract_document_versions")
 		.insert({
@@ -1042,7 +1149,7 @@ export async function contractRoutes(server: FastifyInstance) {
 		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, _reply) => {
 			const body = TextPreviewBodySchema.parse(request.body);
-			const pages = splitDocumentPages(body.contract_text).map(textToHtml);
+			const pages = renderDocumentPages(body.contract_text);
 			return {
 				text: body.contract_text,
 				html: pages.map((page) => `<section>${page}</section>`).join(""),
@@ -1545,7 +1652,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				typeof sentVersion?.rendered_text === "string"
 					? sentVersion.rendered_text
 					: textFromSubmission(data as Record<string, unknown>);
-			const pages = splitDocumentPages(contractText).map(textToHtml);
+			const pages = renderDocumentPages(contractText);
 			const comments = await fetchSubmissionComments(String(data.id));
 			const publicComments = buildPublicCommentHistory(
 				data as Record<string, unknown>,

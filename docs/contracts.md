@@ -44,6 +44,10 @@ Preview rendering now happens on the server via `POST /api/contracts/templates/:
 
 Legal review uses the same page renderer for edited text via `POST /api/contracts/submissions/:id/preview`.
 
+The document renderer mirrors the source Word templates' baseline page style:
+A4 pages, approximately 2.5 cm side/top margins, 11 pt Arial-like body text,
+1.5 line spacing, justified paragraphs, and centered contract titles.
+
 Submissions keep immutable rendered snapshots in `contract_document_versions`:
 
 - draft/generated version when the submission is created
