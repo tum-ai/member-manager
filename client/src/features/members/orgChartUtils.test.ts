@@ -232,4 +232,27 @@ describe("buildOrgChart", () => {
 			members: [expect.objectContaining({ given_name: "Riley" })],
 		});
 	});
+
+	it("does not surface unresolved internal research references as titles", () => {
+		const chart = buildOrgChart([
+			buildMember({
+				user_id: "research-member",
+				given_name: "Riley",
+				surname: "Research",
+				department: "Research",
+				member_role: "Member",
+				research_project_id: "29b7306b-fd62-805d-8e47-fbe49a5443d4",
+			}),
+		]);
+
+		expect(chart.researchProjects).toHaveLength(1);
+		expect(chart.researchProjects[0]).toMatchObject({
+			id: "custom:29b7306b-fd62-805d-8e47-fbe49a5443d4",
+			title: "Unmatched Research Project",
+			members: [expect.objectContaining({ given_name: "Riley" })],
+		});
+		expect(chart.researchProjects[0]?.title).not.toContain(
+			"29b7306b-fd62-805d-8e47-fbe49a5443d4",
+		);
+	});
 });

@@ -176,6 +176,41 @@ describe("OrgChartView", () => {
 		expect(screen.queryByText("Alpha Research")).not.toBeInTheDocument();
 	});
 
+	it("does not render unresolved internal research references as card titles", async () => {
+		const user = userEvent.setup();
+		render(
+			<ThemeProvider theme={getAppTheme("light")}>
+				<OrgChartView
+					members={[
+						buildMember({
+							user_id: "department-lead",
+							given_name: "Taylor",
+							surname: "Lead",
+							department: "Software Development",
+							member_role: "Team Lead",
+						}),
+						buildMember({
+							user_id: "research-member",
+							given_name: "Riley",
+							surname: "Research",
+							department: "Research",
+							member_role: "Member",
+							research_project_id: "29b7306b-fd62-805d-8e47-fbe49a5443d4",
+						}),
+					]}
+				/>
+			</ThemeProvider>,
+		);
+
+		await user.click(screen.getByRole("button", { name: /^research$/i }));
+
+		expect(screen.getByText("Unmatched Research Project")).toBeInTheDocument();
+		expect(
+			screen.queryByText("29b7306b-fd62-805d-8e47-fbe49a5443d4"),
+		).not.toBeInTheDocument();
+		expect(screen.getByText("Riley Research")).toBeInTheDocument();
+	});
+
 	it("shows innovation projects below departments and expands details on click", async () => {
 		const user = userEvent.setup();
 		const innovationProjects: InnovationProject[] = [
