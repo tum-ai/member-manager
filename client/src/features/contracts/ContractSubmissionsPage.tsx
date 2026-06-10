@@ -12,8 +12,10 @@ import {
 	TableRow,
 	TextField,
 } from "@mui/material";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import { useIsAdmin } from "../../hooks/useIsAdmin";
+import { supabase } from "../../lib/supabaseClient";
 import ToolPageShell from "../tools/ToolPageShell";
 import {
 	type ContractSubmissionStatus,
@@ -61,9 +63,21 @@ const STATUS_COLOR: Record<
 
 export default function ContractSubmissionsPage(): JSX.Element {
 	const submissionsQuery = useContractSubmissions();
+	const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+	const { isAdmin } = useIsAdmin(currentUserId ?? undefined);
 	const [statusFilter, setStatusFilter] = useState<
 		ContractSubmissionStatus | "all"
 	>("all");
+
+	useEffect(() => {
+		let cancelled = false;
+		supabase.auth.getSession().then(({ data: { session } }) => {
+			if (!cancelled) setCurrentUserId(session?.user.id ?? null);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const filtered = useMemo(() => {
 		const all = submissionsQuery.data ?? [];
@@ -121,7 +135,15 @@ export default function ContractSubmissionsPage(): JSX.Element {
 							{filtered.map((submission) => (
 								<TableRow key={submission.id} hover>
 									<TableCell>
-										<RouterLink to={`/contracts/submissions/${submission.id}`}>
+										<RouterLink
+											to={
+												submission.status === "draft" &&
+												(submission.submitter_user_id === currentUserId ||
+													isAdmin)
+													? `/contracts/drafts/${submission.id}`
+													: `/contracts/submissions/${submission.id}`
+											}
+										>
 											{submission.id.slice(0, 8)}…
 										</RouterLink>
 									</TableCell>

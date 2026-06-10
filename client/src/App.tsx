@@ -257,6 +257,14 @@ export function AuthenticatedApp({
 					}
 				/>
 				<Route
+					path="/contracts/drafts/:draftId"
+					element={
+						<RequirePermission permission="contracts.admin">
+							<ContractFormPage />
+						</RequirePermission>
+					}
+				/>
+				<Route
 					path="/contracts/templates"
 					element={
 						<RequirePermission permission="contracts.admin">
