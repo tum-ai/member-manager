@@ -81,6 +81,18 @@ export async function sendPendingTumaiDayMessages(
 		const email = emailMap.get(member.user_id)?.trim().toLowerCase();
 		return email && targetEmails.includes(email);
 	});
+
+	// Bail out before claiming any event (which sets sent_at) when the configured
+	// target list resolves to no active member. Otherwise the events would be
+	// marked sent without a single DM going out, and no future cron run would
+	// ever pick them up again.
+	if (activeMembers.length === 0) {
+		logger.warn(
+			"No active members matched the configured RSVP target list; leaving pending TUM.ai Day events unsent",
+		);
+		return 0;
+	}
+
 	logger.info(
 		testEmail
 			? `[TEST MODE] Restricting RSVP messages to only "${testEmail}". Target member count: ${activeMembers.length}`

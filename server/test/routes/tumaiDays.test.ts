@@ -9,6 +9,7 @@ import {
 	resetDatabase,
 	testTokens,
 } from "../helpers.js";
+import { MOCK_ADMIN_ID, mockDatabase } from "../mocks/supabase.js";
 
 describe("TUM.ai Days Routes", async () => {
 	let app: FastifyInstance;
@@ -44,8 +45,9 @@ describe("TUM.ai Days Routes", async () => {
 		assert.strictEqual(resPost.statusCode, 401);
 	});
 
-	test("requires admin or community role for GET /api/tum-ai-days", async () => {
-		// Non-admin / Non-community user gets 403
+	test("requires admin or tumai_days.manage permission for GET /api/tum-ai-days", async () => {
+		// A member whose department grants no permission gets 403. The mock user
+		// is in "Software Development", which has no tumai_days.manage grant.
 		const resUser = await app.inject({
 			method: "GET",
 			url: "/api/tum-ai-days",
@@ -61,6 +63,27 @@ describe("TUM.ai Days Routes", async () => {
 		});
 		assert.strictEqual(resAdmin.statusCode, 200);
 		const payload = JSON.parse(resAdmin.payload);
+		assert.ok(Array.isArray(payload.events));
+	});
+
+	test("grants access to a non-admin whose department has tumai_days.manage", async () => {
+		// Grant the permission to the mock user's department (Software Development,
+		// not Community) to prove access is resolved through department_permissions
+		// and not hardcoded to a single department.
+		mockDatabase.department_permissions.push({
+			department: "Software Development",
+			permissions: ["tumai_days.manage"],
+			updated_at: "2026-01-01T00:00:00Z",
+			updated_by: MOCK_ADMIN_ID,
+		});
+
+		const res = await app.inject({
+			method: "GET",
+			url: "/api/tum-ai-days",
+			headers: authHeaders(testTokens.user),
+		});
+		assert.strictEqual(res.statusCode, 200);
+		const payload = JSON.parse(res.payload);
 		assert.ok(Array.isArray(payload.events));
 	});
 

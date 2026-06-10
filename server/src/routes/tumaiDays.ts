@@ -7,8 +7,8 @@ import { getSupabase } from "../lib/supabase.js";
 import { sendPendingTumaiDayMessages } from "../lib/tumaiDaysScheduler.js";
 import {
 	authenticate,
-	requireCommunityOrAdmin,
-	requireCronOrCommunityOrAdmin,
+	requireCronOrTumaiDaysManager,
+	requireTumaiDaysManager,
 } from "../middleware/auth.js";
 
 const CreateEventSchema = z.object({
@@ -25,7 +25,7 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 	// List all TUM.ai Days
 	server.get(
 		"/tum-ai-days",
-		{ preHandler: [authenticate, requireCommunityOrAdmin] },
+		{ preHandler: [authenticate, requireTumaiDaysManager] },
 		async (request) => {
 			try {
 				const { data, error } = await getSupabase()
@@ -45,7 +45,7 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 	// Create/Schedule a new TUM.ai Day
 	server.post(
 		"/tum-ai-days",
-		{ preHandler: [authenticate, requireCommunityOrAdmin] },
+		{ preHandler: [authenticate, requireTumaiDaysManager] },
 		async (request, reply) => {
 			const parsed = CreateEventSchema.safeParse(request.body);
 			if (!parsed.success) {
@@ -77,7 +77,7 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 	// Update/Reschedule a TUM.ai Day
 	server.put(
 		"/tum-ai-days/:id",
-		{ preHandler: [authenticate, requireCommunityOrAdmin] },
+		{ preHandler: [authenticate, requireTumaiDaysManager] },
 		async (request, reply) => {
 			const { id } = request.params as { id: string };
 			const parsed = UpdateEventSchema.safeParse(request.body);
@@ -119,7 +119,7 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 	// Delete a TUM.ai Day
 	server.delete(
 		"/tum-ai-days/:id",
-		{ preHandler: [authenticate, requireCommunityOrAdmin] },
+		{ preHandler: [authenticate, requireTumaiDaysManager] },
 		async (request, reply) => {
 			const { id } = request.params as { id: string };
 			try {
@@ -140,7 +140,7 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 	// Audit RSVP responses for a specific event
 	server.get(
 		"/tum-ai-days/:id/responses",
-		{ preHandler: [authenticate, requireCommunityOrAdmin] },
+		{ preHandler: [authenticate, requireTumaiDaysManager] },
 		async (request) => {
 			const { id } = request.params as { id: string };
 			try {
@@ -222,7 +222,7 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 	server.route({
 		method: ["GET", "POST"],
 		url: "/tum-ai-days/send-pending",
-		preHandler: [requireCronOrCommunityOrAdmin],
+		preHandler: [requireCronOrTumaiDaysManager],
 		handler: async (request) => {
 			try {
 				const sentCount = await sendPendingTumaiDayMessages(request.log);

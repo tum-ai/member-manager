@@ -29,8 +29,12 @@ create table if not exists "public"."tumai_day_responses" (
 alter table "public"."tumai_days" enable row level security;
 alter table "public"."tumai_day_responses" enable row level security;
 
--- Helper security definer function to check if caller is admin or active community department member
-create or replace function public.is_community_or_admin()
+-- Helper security definer function to check if caller is admin or an active
+-- member of a department granted the `tumai_days.manage` permission. The
+-- department→permission mapping lives in department_permissions (admin-managed),
+-- so this stays consistent when admins reassign the permission rather than
+-- hardcoding a single department.
+create or replace function public.is_tumai_days_manager()
 returns boolean
 security definer
 stable
@@ -43,8 +47,12 @@ begin
       where ur.user_id = auth.uid() and ur.role = 'admin'
     ) or
     exists (
-      select 1 from public.members m
-      where m.user_id = auth.uid() and m.department = 'Community' and m.active = true
+      select 1
+      from public.members m
+      join public.department_permissions dp on dp.department = m.department
+      where m.user_id = auth.uid()
+        and m.active = true
+        and dp.permissions ? 'tumai_days.manage'
     )
   );
 end;
@@ -59,24 +67,24 @@ create policy "Authenticated read tumai_days"
     to authenticated
     using (true);
 
-drop policy if exists "Admins/Community manage tumai_days" on "public"."tumai_days";
-create policy "Admins/Community manage tumai_days"
+drop policy if exists "TUM.ai Days managers manage tumai_days" on "public"."tumai_days";
+create policy "TUM.ai Days managers manage tumai_days"
     on "public"."tumai_days"
     as permissive
     for all
     to authenticated
-    using (public.is_community_or_admin())
-    with check (public.is_community_or_admin());
+    using (public.is_tumai_days_manager())
+    with check (public.is_tumai_days_manager());
 
 -- RLS policies for tumai_day_responses
-drop policy if exists "Admins/Community read/manage all responses" on "public"."tumai_day_responses";
-create policy "Admins/Community read/manage all responses"
+drop policy if exists "TUM.ai Days managers read/manage all responses" on "public"."tumai_day_responses";
+create policy "TUM.ai Days managers read/manage all responses"
     on "public"."tumai_day_responses"
     as permissive
     for all
     to authenticated
-    using (public.is_community_or_admin())
-    with check (public.is_community_or_admin());
+    using (public.is_tumai_days_manager())
+    with check (public.is_tumai_days_manager());
 
 drop policy if exists "Members manage own responses" on "public"."tumai_day_responses";
 create policy "Members manage own responses"

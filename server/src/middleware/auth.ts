@@ -2,9 +2,9 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 import {
 	checkAdminRole,
 	checkBoardRole,
-	checkCommunityOrAdmin,
 	checkContractsAdmin,
 	checkReimbursementReviewer,
+	checkTumaiDaysManager,
 } from "../lib/auth.js";
 import { getSupabase } from "../lib/supabase.js";
 import type { AuthenticatedRequest } from "../types/index.js";
@@ -124,30 +124,30 @@ export async function requireReimbursementReviewer(
 	}
 }
 
-export async function requireCommunityOrAdmin(
+export async function requireTumaiDaysManager(
 	request: FastifyRequest,
 	reply: FastifyReply,
 ) {
 	const user = (request as AuthenticatedRequest).user;
 
 	try {
-		const allowed = await checkCommunityOrAdmin(user.id);
+		const allowed = await checkTumaiDaysManager(user.id);
 
 		if (!allowed) {
-			return reply
-				.status(403)
-				.send({ error: "Unauthorized: Community or Admin access required" });
+			return reply.status(403).send({
+				error: "Unauthorized: TUM.ai Days management access required",
+			});
 		}
 	} catch (error) {
 		request.log.error(
 			{ err: error, userId: user?.id },
-			"Failed to check community or admin role",
+			"Failed to check TUM.ai Days manager role",
 		);
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}
 }
 
-export async function requireCronOrCommunityOrAdmin(
+export async function requireCronOrTumaiDaysManager(
 	request: FastifyRequest,
 	reply: FastifyReply,
 ) {
@@ -161,5 +161,5 @@ export async function requireCronOrCommunityOrAdmin(
 	await authenticate(request, reply);
 	if (reply.sent) return;
 
-	await requireCommunityOrAdmin(request, reply);
+	await requireTumaiDaysManager(request, reply);
 }
