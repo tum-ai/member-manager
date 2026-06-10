@@ -362,6 +362,115 @@ describe("Contract Routes", async () => {
 		}
 	});
 
+	test("emails the submitter when clarification is requested", async () => {
+		resetDatabase();
+		const originalFetch = globalThis.fetch;
+		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
+		const originalBaseUrl = process.env.APP_BASE_URL;
+		const sentBodies: Array<Record<string, unknown>> = [];
+		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
+		process.env.APP_BASE_URL = "https://member-manager.test";
+		globalThis.fetch = (async (_url, init) => {
+			sentBodies.push(JSON.parse(String(init?.body)));
+			return new Response(JSON.stringify({ id: "email-456" }), {
+				status: 200,
+			});
+		}) as typeof fetch;
+
+		try {
+			const submission = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(submission);
+			submission.form_data = {
+				partner_company_name: "Partner GmbH",
+				partner_contact_email: "partner@example.com",
+			};
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					status: "inquiry",
+					notes: "Internal note",
+					feedback_message: "Please add the billing address.",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.status, "inquiry");
+			assert.strictEqual(
+				data.feedback_message,
+				"Please add the billing address.",
+			);
+			assert.strictEqual(data.clarification_email_recipient, "user@test.com");
+			assert.ok(data.clarification_email_sent_at);
+			assert.strictEqual(data.clarification_email_error, null);
+			assert.strictEqual(sentBodies.length, 1);
+			assert.strictEqual(sentBodies[0].to, "user@test.com");
+			assert.match(String(sentBodies[0].subject), /Partner GmbH/);
+			assert.match(
+				String(sentBodies[0].text),
+				/Please add the billing address\./,
+			);
+			assert.match(
+				String(sentBodies[0].text),
+				/https:\/\/member-manager\.test\/contracts\/submissions\/33333333-3333-4333-8333-333333333333/,
+			);
+		} finally {
+			globalThis.fetch = originalFetch;
+			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
+			restoreEnv("APP_BASE_URL", originalBaseUrl);
+		}
+	});
+
+	test("stores clarification email errors for reviewers", async () => {
+		resetDatabase();
+		const originalFetch = globalThis.fetch;
+		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
+		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
+		globalThis.fetch = (async () =>
+			new Response("provider unavailable", { status: 500 })) as typeof fetch;
+
+		try {
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					status: "inquiry",
+					feedback_message: "Please confirm the package.",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.status, "inquiry");
+			assert.strictEqual(data.clarification_email_sent_at, null);
+			assert.match(
+				String(data.clarification_email_error),
+				/Failed to send contract clarification email/,
+			);
+		} finally {
+			globalThis.fetch = originalFetch;
+			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
+		}
+	});
+
 	test("sends a reviewed contract with OpenSign", async () => {
 		resetDatabase();
 		const originalFetch = globalThis.fetch;

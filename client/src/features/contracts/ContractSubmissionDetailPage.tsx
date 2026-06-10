@@ -35,6 +35,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 
 	const [editedText, setEditedText] = useState("");
 	const [notes, setNotes] = useState("");
+	const [clarificationMessage, setClarificationMessage] = useState("");
 	const [internalComment, setInternalComment] = useState("");
 	const [boardSignatureData, setBoardSignatureData] = useState<string | null>(
 		null,
@@ -51,6 +52,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 				data.admin_edited_text ?? data.generated_contract_text ?? "",
 			);
 			setNotes(data.notes ?? "");
+			setClarificationMessage(data.feedback_message ?? "");
 			const partnerCompany =
 				typeof data.form_data.partner_company_name === "string"
 					? data.form_data.partner_company_name
@@ -211,6 +213,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								updateMutation.mutate({
 									status: "inquiry",
 									notes,
+									feedback_message: clarificationMessage.trim() || null,
 								})
 							}
 						>
@@ -238,6 +241,14 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 						</Alert>
 					) : null}
 					<Stack spacing={2} sx={{ mt: 2 }}>
+						<TextField
+							label="Clarification message"
+							value={clarificationMessage}
+							onChange={(event) => setClarificationMessage(event.target.value)}
+							fullWidth
+							multiline
+							minRows={2}
+						/>
 						<TextField
 							label="Partner email subject"
 							value={partnerEmailSubject}
@@ -276,6 +287,20 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					{submission.partner_email_error ? (
 						<Alert severity="warning" sx={{ mt: 2 }}>
 							Last email error: {submission.partner_email_error}
+						</Alert>
+					) : null}
+					{submission.clarification_email_sent_at ? (
+						<Alert severity="success" sx={{ mt: 2 }}>
+							Clarification email sent to{" "}
+							{submission.clarification_email_recipient} at{" "}
+							{new Date(
+								submission.clarification_email_sent_at,
+							).toLocaleString()}
+						</Alert>
+					) : null}
+					{submission.clarification_email_error ? (
+						<Alert severity="warning" sx={{ mt: 2 }}>
+							Clarification email error: {submission.clarification_email_error}
 						</Alert>
 					) : null}
 					{submission.opensign_sent_at ? (

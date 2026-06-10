@@ -6,6 +6,13 @@ interface ContractPartnerEmailPayload {
 	subject?: string | null;
 }
 
+interface ContractClarificationEmailPayload {
+	to: string;
+	partnerCompanyName?: string | null;
+	submissionUrl: string;
+	message?: string | null;
+}
+
 function requiredEnv(name: string): string {
 	const value = process.env[name]?.trim();
 	if (!value) {
@@ -77,6 +84,61 @@ export async function sendContractPartnerEmail(
 		const detail = await response.text().catch(() => "");
 		throw new Error(
 			`Failed to send contract email (${response.status}): ${
+				detail || response.statusText
+			}`,
+		);
+	}
+}
+
+export async function sendContractClarificationEmail(
+	payload: ContractClarificationEmailPayload,
+): Promise<void> {
+	const apiKey = requiredEnv("RESEND_API_KEY");
+	const from = requiredEnv("CONTRACT_EMAIL_FROM");
+	const partnerName = payload.partnerCompanyName?.trim() || "the partner";
+	const message =
+		payload.message?.trim() ||
+		"Please review the contract draft and provide the requested clarification.";
+	const subject = `Clarification requested for ${partnerName}`;
+	const text = [
+		"Hi,",
+		"",
+		`A clarification was requested for the contract with ${partnerName}.`,
+		"",
+		message,
+		"",
+		payload.submissionUrl,
+		"",
+		"Best regards",
+		"TUM.ai",
+	].join("\n");
+	const html = [
+		"<p>Hi,</p>",
+		`<p>A clarification was requested for the contract with ${escapeHtml(partnerName)}.</p>`,
+		`<p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`,
+		`<p><a href="${escapeHtml(payload.submissionUrl)}">Open contract submission</a></p>`,
+		"<p>Best regards<br>TUM.ai</p>",
+	].join("");
+
+	const response = await fetch("https://api.resend.com/emails", {
+		method: "POST",
+		headers: {
+			authorization: `Bearer ${apiKey}`,
+			"content-type": "application/json",
+		},
+		body: JSON.stringify({
+			from,
+			to: payload.to,
+			subject,
+			text,
+			html,
+		}),
+	});
+
+	if (!response.ok) {
+		const detail = await response.text().catch(() => "");
+		throw new Error(
+			`Failed to send contract clarification email (${response.status}): ${
 				detail || response.statusText
 			}`,
 		);
