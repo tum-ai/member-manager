@@ -15,6 +15,7 @@ import ToolPageShell from "../tools/ToolPageShell";
 import ContractDocumentPreview from "./ContractDocumentPreview";
 import SignaturePad from "./SignaturePad";
 import {
+	downloadContractSubmissionPdf,
 	useBoardSignContractSubmission,
 	useContractSubmission,
 	useContractSubmissionComments,
@@ -42,6 +43,8 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const [boardSignerName, setBoardSignerName] = useState("");
 	const [partnerEmailSubject, setPartnerEmailSubject] = useState("");
 	const [partnerEmailMessage, setPartnerEmailMessage] = useState("");
+	const [downloadError, setDownloadError] = useState<string | null>(null);
+	const [downloading, setDownloading] = useState(false);
 	const previewQuery = useContractSubmissionPreview(id, editedText);
 
 	useEffect(() => {
@@ -152,6 +155,26 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					<Stack direction="row" spacing={1} flexWrap="wrap">
 						<Button
 							variant="outlined"
+							disabled={busy || downloading}
+							onClick={async () => {
+								if (!id) return;
+								setDownloadError(null);
+								setDownloading(true);
+								try {
+									await downloadContractSubmissionPdf(id);
+								} catch (error) {
+									setDownloadError(
+										error instanceof Error ? error.message : "Download failed",
+									);
+								} finally {
+									setDownloading(false);
+								}
+							}}
+						>
+							{downloading ? "Downloading..." : "Download PDF"}
+						</Button>
+						<Button
+							variant="outlined"
 							disabled={busy}
 							onClick={() =>
 								updateMutation.mutate({
@@ -237,6 +260,11 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								: "Action failed"}
 						</Alert>
 					) : null}
+					{downloadError ? (
+						<Alert severity="error" sx={{ mt: 2 }}>
+							{downloadError}
+						</Alert>
+					) : null}
 					<Stack spacing={2} sx={{ mt: 2 }}>
 						<TextField
 							label="Partner email subject"
@@ -309,6 +337,19 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								size="small"
 								InputProps={{ readOnly: true }}
 							/>
+							<Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+								<Button component="a" href={finalPdfUrl} target="_blank">
+									Open Final PDF
+								</Button>
+								<Button
+									component="a"
+									href={`${finalPdfUrl}?download=1`}
+									target="_blank"
+									variant="outlined"
+								>
+									Download Final PDF
+								</Button>
+							</Stack>
 						</Box>
 					) : null}
 				</Paper>

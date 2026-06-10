@@ -1,6 +1,6 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { enrichContractFormData } from "@member-manager/shared";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
 import {
 	isContractEmailConfigured,
@@ -111,6 +111,10 @@ const PreviewBodySchema = z.object({
 
 const TextPreviewBodySchema = z.object({
 	contract_text: z.string().max(250_000),
+});
+
+const PdfDownloadQuerySchema = z.object({
+	download: z.string().optional(),
 });
 
 const SubmissionPatchSchema = z
@@ -479,6 +483,32 @@ function buildFinalPdfText(submission: Record<string, unknown>): string {
 		`Partner: ${partnerName || "-"}${partnerSignedAt ? ` (${partnerSignedAt})` : ""}`,
 		`TUM.ai / Board: ${boardName || "-"}${boardSignedAt ? ` (${boardSignedAt})` : ""}`,
 	].join("\n");
+}
+
+async function getPdfTextForSubmission(
+	submission: Record<string, unknown>,
+): Promise<string> {
+	const versionId =
+		submission.status === "completed"
+			? submission.final_document_version_id
+			: (submission.active_document_version_id ??
+				submission.sent_document_version_id);
+	const version = await fetchDocumentVersion(versionId);
+	if (typeof version?.rendered_text === "string") return version.rendered_text;
+	if (submission.status === "completed") return buildFinalPdfText(submission);
+	return textFromSubmission(submission);
+}
+
+function sendPdf(
+	reply: FastifyReply,
+	pdf: Buffer,
+	filename: string,
+	disposition: "attachment" | "inline",
+) {
+	return reply
+		.header("Content-Type", "application/pdf")
+		.header("Content-Disposition", `${disposition}; filename="${filename}"`)
+		.send(pdf);
 }
 
 function buildSignedDocumentText(
@@ -1061,6 +1091,35 @@ export async function contractRoutes(server: FastifyInstance) {
 				request.log.error({ err: error }, "Failed to fetch contract comments");
 				throw createContractDatabaseError(error);
 			}
+		},
+	);
+
+	server.get<{ Params: { id: string } }>(
+		"/contracts/submissions/:id/pdf",
+		{ preHandler: [authenticate, requireContractsAdmin] },
+		async (request, reply) => {
+			const { data, error } = await getSupabase()
+				.from("contract_submissions")
+				.select("*")
+				.eq("id", request.params.id)
+				.single();
+			if (error) {
+				if ((error as { code?: string }).code === "PGRST116") {
+					return reply.status(404).send({ error: "Submission not found" });
+				}
+				request.log.error({ err: error }, "Failed to fetch submission PDF");
+				throw createContractDatabaseError(error);
+			}
+
+			const text = await getPdfTextForSubmission(
+				data as Record<string, unknown>,
+			);
+			return sendPdf(
+				reply,
+				createTextPdf(text),
+				`contract-${request.params.id}.pdf`,
+				"attachment",
+			);
 		},
 	);
 
@@ -1809,9 +1868,10 @@ export async function contractRoutes(server: FastifyInstance) {
 		},
 	);
 
-	server.get<{ Params: { token: string } }>(
+	server.get<{ Params: { token: string }; Querystring: { download?: string } }>(
 		"/contracts/final/:token/pdf",
 		async (request, reply) => {
+			const query = PdfDownloadQuerySchema.parse(request.query);
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
@@ -1836,13 +1896,12 @@ export async function contractRoutes(server: FastifyInstance) {
 					? finalVersion.rendered_text
 					: buildFinalPdfText(data);
 			const pdf = createTextPdf(finalText);
-			return reply
-				.header("Content-Type", "application/pdf")
-				.header(
-					"Content-Disposition",
-					`inline; filename="contract-${data.id}.pdf"`,
-				)
-				.send(pdf);
+			return sendPdf(
+				reply,
+				pdf,
+				`contract-${data.id}.pdf`,
+				query.download === "1" ? "attachment" : "inline",
+			);
 		},
 	);
 }
