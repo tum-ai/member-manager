@@ -353,6 +353,24 @@ export function useCreateContractSubmission() {
 	});
 }
 
+export function useUpdateContractDraft(id: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (body: {
+			form_data: Record<string, unknown>;
+			status?: "draft" | "submitted";
+		}) =>
+			apiClient<ContractSubmission>(`/api/contracts/submissions/${id}/draft`, {
+				method: "PATCH",
+				body: JSON.stringify(body),
+			}),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: SUBMISSIONS_QUERY_KEY });
+			qc.invalidateQueries({ queryKey: ["contract-submission", id] });
+		},
+	});
+}
+
 export function useUpdateContractSubmission(id: string) {
 	const qc = useQueryClient();
 	return useMutation({

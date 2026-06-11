@@ -105,6 +105,131 @@ describe("Contract Routes", async () => {
 		);
 	});
 
+	test("lets the draft creator update and submit a draft", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+
+		const createResponse = await app.inject({
+			method: "POST",
+			url: "/api/contracts/submissions",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				template_id: TEMPLATE_ID,
+				form_data: { partner_name: "First GmbH" },
+				status: "draft",
+			}),
+		});
+		assert.strictEqual(createResponse.statusCode, 200);
+		const draft = JSON.parse(createResponse.payload);
+		assert.strictEqual(draft.status, "draft");
+
+		const saveResponse = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${draft.id}/draft`,
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				form_data: { partner_name: "Updated GmbH" },
+				status: "draft",
+			}),
+		});
+		assert.strictEqual(saveResponse.statusCode, 200);
+		const saved = JSON.parse(saveResponse.payload);
+		assert.strictEqual(saved.status, "draft");
+		assert.strictEqual(saved.generated_contract_text, "Hello Updated GmbH");
+		assert.strictEqual(saved.form_data.partner_name, "Updated GmbH");
+
+		const submitResponse = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${draft.id}/draft`,
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				form_data: { partner_name: "Submitted GmbH" },
+				status: "submitted",
+			}),
+		});
+		assert.strictEqual(submitResponse.statusCode, 200);
+		const submitted = JSON.parse(submitResponse.payload);
+		assert.strictEqual(submitted.status, "legal_review");
+		assert.strictEqual(
+			submitted.generated_contract_text,
+			"Hello Submitted GmbH",
+		);
+		assert.ok(submitted.active_document_version_id);
+	});
+
+	test("rejects draft edits from another non-admin creator", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+		mockDatabase.members.push({
+			user_id: testUserIds.otherUser,
+			given_name: "Other",
+			surname: "Creator",
+			active: true,
+			member_status: "active",
+			department: "Partners & Sponsors",
+			member_role: "Member",
+		});
+
+		const createResponse = await app.inject({
+			method: "POST",
+			url: "/api/contracts/submissions",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				template_id: TEMPLATE_ID,
+				form_data: { partner_name: "Owner GmbH" },
+				status: "draft",
+			}),
+		});
+		assert.strictEqual(createResponse.statusCode, 200);
+		const draft = JSON.parse(createResponse.payload);
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${draft.id}/draft`,
+			headers: {
+				...authHeaders(testTokens.otherUser),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				form_data: { partner_name: "Blocked GmbH" },
+				status: "draft",
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 403);
+	});
+
+	test("rejects draft edits after submission leaves draft status", async () => {
+		resetDatabase();
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}/draft`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				form_data: { partner_name: "Too Late GmbH" },
+				status: "draft",
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 409);
+	});
+
 	test("renders a PDF-style preview through the server renderer", async () => {
 		resetDatabase();
 		moveRegularUserToPartnersAndSponsors();

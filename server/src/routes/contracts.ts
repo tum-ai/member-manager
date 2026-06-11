@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { enrichContractFormData } from "@member-manager/shared";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
+import { checkAdminRole } from "../lib/auth.js";
 import { getAuthEmail } from "../lib/authEmails.js";
 import {
 	isContractEmailConfigured,
@@ -105,6 +106,11 @@ const SubmissionBodySchema = z.object({
 	template_id: z.string().uuid(),
 	form_data: z.record(z.string(), z.unknown()),
 	status: z.enum(["draft", "submitted"]).optional().default("submitted"),
+});
+
+const DraftSubmissionPatchSchema = z.object({
+	form_data: z.record(z.string(), z.unknown()),
+	status: z.enum(["draft", "submitted"]).optional().default("draft"),
 });
 
 const PreviewBodySchema = z.object({
@@ -732,6 +738,19 @@ async function fetchTemplateWithChildren(templateId: string) {
 	};
 }
 
+async function renderTemplateDocument(
+	templateId: string,
+	formData: Record<string, unknown>,
+): Promise<RenderedContractDocument | null> {
+	const { template, blocks } = await fetchTemplateWithChildren(templateId);
+	if (!template) return null;
+	return renderContractDocument(
+		(template as { contract_text: string }).contract_text,
+		formData,
+		blocks,
+	);
+}
+
 async function createDocumentVersion(args: {
 	submissionId: string;
 	source: string;
@@ -900,6 +919,14 @@ function textFromSubmission(submission: Record<string, unknown>): string {
 	return typeof submission.generated_contract_text === "string"
 		? submission.generated_contract_text
 		: "";
+}
+
+async function canEditDraftSubmission(
+	userId: string,
+	submission: Record<string, unknown>,
+): Promise<boolean> {
+	if (submission.submitter_user_id === userId) return true;
+	return checkAdminRole(userId);
 }
 
 // =========================================================================
@@ -1375,6 +1402,86 @@ export async function contractRoutes(server: FastifyInstance) {
 				);
 				throw createContractDatabaseError(error);
 			}
+		},
+	);
+
+	server.patch<{ Params: { id: string } }>(
+		"/contracts/submissions/:id/draft",
+		{ preHandler: [authenticate, requireContractsAdmin] },
+		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
+			const body = DraftSubmissionPatchSchema.parse(request.body);
+			const { data: current, error: currentError } = await getSupabase()
+				.from("contract_submissions")
+				.select("*")
+				.eq("id", request.params.id)
+				.single();
+
+			if (currentError || !current) {
+				return reply.status(404).send({ error: "Submission not found" });
+			}
+			if (current.status !== "draft") {
+				return reply
+					.status(409)
+					.send({ error: "Only draft submissions can be edited here" });
+			}
+			if (!(await canEditDraftSubmission(user.id, current))) {
+				return reply
+					.status(403)
+					.send({ error: "Only the draft creator can edit this draft" });
+			}
+
+			const formData = enrichContractFormData(body.form_data);
+			let rendered: RenderedContractDocument | null = null;
+			try {
+				rendered = await renderTemplateDocument(
+					String(current.template_id),
+					formData,
+				);
+				if (!rendered) {
+					return reply.status(404).send({ error: "Template not found" });
+				}
+			} catch (error) {
+				request.log.error({ err: error }, "Failed to render draft contract");
+				throw createContractDatabaseError(error);
+			}
+
+			const nowIso = new Date().toISOString();
+			const nextStatus = body.status === "submitted" ? "legal_review" : "draft";
+			const version = await createDocumentVersion({
+				submissionId: request.params.id,
+				source: nextStatus === "draft" ? "draft" : "generated",
+				text: rendered.text,
+				formData,
+				createdBy: user.id,
+			});
+			const { data, error } = await getSupabase()
+				.from("contract_submissions")
+				.update({
+					form_data: formData,
+					generated_contract_text: rendered.text,
+					admin_edited_text: null,
+					status: nextStatus,
+					active_document_version_id: version.id,
+					submitted_at:
+						nextStatus === "legal_review" ? nowIso : current.submitted_at,
+					updated_at: nowIso,
+				})
+				.eq("id", request.params.id)
+				.eq("status", "draft")
+				.select("*")
+				.single();
+			if (error) {
+				if ((error as { code?: string }).code === "PGRST116") {
+					return reply
+						.status(409)
+						.send({ error: "Draft was already submitted or changed" });
+				}
+				request.log.error({ err: error }, "Failed to update draft submission");
+				throw createContractDatabaseError(error);
+			}
+
+			return data;
 		},
 	);
 

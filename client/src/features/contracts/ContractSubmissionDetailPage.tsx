@@ -10,7 +10,8 @@ import {
 	Typography,
 } from "@mui/material";
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link as RouterLink, useParams } from "react-router-dom";
+import { useCurrentUserIsAdmin } from "../../hooks/useCurrentUserIsAdmin";
 import ToolPageShell from "../tools/ToolPageShell";
 import ContractDocumentPreview from "./ContractDocumentPreview";
 import SignaturePad from "./SignaturePad";
@@ -46,6 +47,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const [partnerEmailMessage, setPartnerEmailMessage] = useState("");
 	const [downloadError, setDownloadError] = useState<string | null>(null);
 	const [downloading, setDownloading] = useState(false);
+	const { currentUserId, isAdmin } = useCurrentUserIsAdmin();
 	const previewQuery = useContractSubmissionPreview(id, editedText);
 
 	useEffect(() => {
@@ -93,6 +95,9 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 		createCommentMutation.error;
 	const comments = commentsQuery.data ?? [];
 	const hasLegacyComment = submission.partner_comment && comments.length === 0;
+	const canEditDraft =
+		submission.status === "draft" &&
+		(submission.submitter_user_id === currentUserId || isAdmin);
 
 	return (
 		<ToolPageShell
@@ -155,6 +160,15 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 						Actions
 					</Typography>
 					<Stack direction="row" spacing={1} flexWrap="wrap">
+						{canEditDraft ? (
+							<Button
+								component={RouterLink}
+								to={`/contracts/drafts/${submission.id}`}
+								variant="contained"
+							>
+								Edit Draft
+							</Button>
+						) : null}
 						<Button
 							variant="outlined"
 							disabled={busy || downloading}
