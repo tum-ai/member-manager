@@ -65,19 +65,33 @@ function runCli() {
 		);
 	}
 
-	const child = spawn("supabase", ["start"], {
-		cwd: repoRoot,
-		stdio: "inherit",
-		env: { ...process.env, ...loaded },
-	});
+	function spawnProcess(command, args) {
+		const child = spawn(command, args, {
+			cwd: repoRoot,
+			stdio: "inherit",
+			env: { ...process.env, ...loaded },
+		});
 
-	child.on("exit", (code, signal) => {
-		if (signal) {
-			process.kill(process.pid, signal);
-			return;
-		}
-		process.exit(code ?? 0);
-	});
+		child.on("error", (err) => {
+			if (err && err.code === "ENOENT" && command === "supabase") {
+				console.log("Global `supabase` CLI not found. Trying via `npx`...");
+				spawnProcess("npx", ["supabase", "start"]);
+				return;
+			}
+			console.error(`Failed to spawn ${command}:`, err);
+			process.exit(1);
+		});
+
+		child.on("exit", (code, signal) => {
+			if (signal) {
+				process.kill(process.pid, signal);
+				return;
+			}
+			process.exit(code ?? 0);
+		});
+	}
+
+	spawnProcess("supabase", ["start"]);
 }
 
 const invokedDirectly =

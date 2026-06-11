@@ -4,6 +4,7 @@ import {
 	checkBoardRole,
 	checkContractsAdmin,
 	checkReimbursementReviewer,
+	checkTumaiDaysManager,
 } from "../lib/auth.js";
 import { getSupabase } from "../lib/supabase.js";
 import type { AuthenticatedRequest } from "../types/index.js";
@@ -121,4 +122,44 @@ export async function requireReimbursementReviewer(
 		);
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}
+}
+
+export async function requireTumaiDaysManager(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const user = (request as AuthenticatedRequest).user;
+
+	try {
+		const allowed = await checkTumaiDaysManager(user.id);
+
+		if (!allowed) {
+			return reply.status(403).send({
+				error: "Unauthorized: TUM.ai Days management access required",
+			});
+		}
+	} catch (error) {
+		request.log.error(
+			{ err: error, userId: user?.id },
+			"Failed to check TUM.ai Days manager role",
+		);
+		return reply.status(500).send({ error: "Internal Server Error" });
+	}
+}
+
+export async function requireCronOrTumaiDaysManager(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const authHeader = request.headers.authorization;
+	const cronSecret = process.env.CRON_SECRET;
+
+	if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+		return;
+	}
+
+	await authenticate(request, reply);
+	if (reply.sent) return;
+
+	await requireTumaiDaysManager(request, reply);
 }

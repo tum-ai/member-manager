@@ -10,5 +10,12 @@
       "source": "/:path((?!api/).*)",
       "destination": "/"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/tum-ai-days/send-pending",
+      "schedule": "*/10 * * * *"
+    }
   ]
 }
+

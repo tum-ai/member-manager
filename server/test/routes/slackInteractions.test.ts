@@ -8,7 +8,7 @@ import {
 	setReimbursementStatusSlackNotifier,
 } from "../../src/lib/slackNotifier.js";
 import { closeTestApp, getTestApp, resetDatabase } from "../helpers.js";
-import { mockDatabase } from "../mocks/supabase.js";
+import { MOCK_ADMIN_ID, mockDatabase } from "../mocks/supabase.js";
 
 const PDF_BASE64 = "JVBERi0xLjQ=";
 
@@ -257,5 +257,124 @@ describe("Slack interaction routes", async () => {
 			assert.strictEqual(request?.bb_receipt_id_by_customer, "654");
 			assert.match(delayedMessages.at(-1) ?? "", /synced/);
 		});
+	});
+
+	test("saves a TUM.ai Day Yes RSVP before responding to Slack", async () => {
+		resetDatabase();
+		process.env.SLACK_SIGNING_SECRET = "test-secret";
+		process.env.SLACK_BOT_TOKEN = "xoxb-test";
+
+		const delayedMessages: string[] = [];
+		globalThis.fetch = (async (input, init) => {
+			const url = String(input);
+			if (url === "https://hooks.slack.test/response") {
+				delayedMessages.push(
+					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
+				);
+				return new Response("ok", { status: 200 });
+			}
+
+			assert.strictEqual(url, "https://slack.com/api/users.info");
+			return new Response(
+				JSON.stringify({
+					ok: true,
+					user: { profile: { email: "admin@test.com" } },
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		}) as typeof fetch;
+
+		const signed = signedSlackPayload(
+			{
+				type: "block_actions",
+				user: { id: "UADMIN" },
+				response_url: "https://hooks.slack.test/response",
+				actions: [
+					{
+						action_id: "tumai_day_rsvp_yes",
+						value: "tumai-day-1",
+					},
+				],
+			},
+			"test-secret",
+		);
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/slack/interactions",
+			headers: signed.headers,
+			payload: signed.body,
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		// The upsert happens inline, so the row must exist as soon as Slack gets the response.
+		const row = mockDatabase.tumai_day_responses.find(
+			(r) => r.tumai_day_id === "tumai-day-1",
+		);
+		assert.strictEqual(row?.user_id, MOCK_ADMIN_ID);
+		assert.strictEqual(row?.status, "yes");
+		assert.match(delayedMessages.at(-1) ?? "", /Yes/);
+	});
+
+	test("saves a TUM.ai Day No RSVP with reason from the modal submission", async () => {
+		resetDatabase();
+		process.env.SLACK_SIGNING_SECRET = "test-secret";
+		process.env.SLACK_BOT_TOKEN = "xoxb-test";
+
+		const delayedMessages: string[] = [];
+		globalThis.fetch = (async (input, init) => {
+			const url = String(input);
+			if (url === "https://hooks.slack.test/response") {
+				delayedMessages.push(
+					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
+				);
+				return new Response("ok", { status: 200 });
+			}
+
+			assert.strictEqual(url, "https://slack.com/api/users.info");
+			return new Response(
+				JSON.stringify({
+					ok: true,
+					user: { profile: { email: "admin@test.com" } },
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		}) as typeof fetch;
+
+		const signed = signedSlackPayload(
+			{
+				type: "view_submission",
+				user: { id: "UADMIN" },
+				view: {
+					callback_id: "tumai_day_rsvp_reason_modal",
+					private_metadata: JSON.stringify({
+						tumai_day_id: "tumai-day-1",
+						response_url: "https://hooks.slack.test/response",
+					}),
+					state: {
+						values: {
+							reason_block: { reason_input: { value: "exams" } },
+						},
+					},
+				},
+			},
+			"test-secret",
+		);
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/slack/interactions",
+			headers: signed.headers,
+			payload: signed.body,
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const row = mockDatabase.tumai_day_responses.find(
+			(r) => r.tumai_day_id === "tumai-day-1",
+		);
+		assert.strictEqual(row?.user_id, MOCK_ADMIN_ID);
+		assert.strictEqual(row?.status, "no");
+		assert.strictEqual(row?.reason, "exams");
+		assert.match(delayedMessages.at(-1) ?? "", /No/);
 	});
 });

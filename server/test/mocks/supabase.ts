@@ -53,6 +53,8 @@ interface MockData {
 	contract_submissions: Array<Record<string, unknown>>;
 	contract_document_versions: Array<Record<string, unknown>>;
 	contract_partner_comments: Array<Record<string, unknown>>;
+	tumai_days: Array<Record<string, unknown>>;
+	tumai_day_responses: Array<Record<string, unknown>>;
 }
 
 // In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
@@ -310,6 +312,8 @@ export const mockDatabase: MockData = {
 			updated_at: "2026-04-13T10:00:00Z",
 		},
 	],
+	tumai_days: [],
+	tumai_day_responses: [],
 };
 
 type QueryResult = Promise<{
@@ -328,6 +332,7 @@ interface QueryBuilder {
 	) => QueryBuilder;
 	delete: () => QueryBuilder;
 	eq: (column: string, value: unknown) => QueryBuilder;
+	lte: (column: string, value: unknown) => QueryBuilder;
 	is: (column: string, value: unknown) => QueryBuilder;
 	in: (column: string, values: unknown[]) => QueryBuilder;
 	or: (query: string) => QueryBuilder;
@@ -343,6 +348,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 		selectedColumns: "*",
 		forcedError: null as unknown,
 		filters: [] as Array<{ column: string; value: unknown }>,
+		lteFilters: [] as Array<{ column: string; value: unknown }>,
 		isFilters: [] as Array<{ column: string; value: unknown }>,
 		inFilters: [] as Array<{ column: string; values: unknown[] }>,
 		limitCount: undefined as number | undefined,
@@ -389,11 +395,25 @@ function createQueryBuilder(table: string): QueryBuilder {
 			});
 		}
 
-		// Apply EQ filters
 		for (const filter of state.filters) {
 			tableData = tableData.filter(
 				(row) => row[filter.column] === filter.value,
 			);
+		}
+
+		for (const filter of state.lteFilters) {
+			tableData = tableData.filter((row) => {
+				const val = row[filter.column];
+				if (
+					val === undefined ||
+					val === null ||
+					filter.value === undefined ||
+					filter.value === null
+				) {
+					return false;
+				}
+				return String(val) <= String(filter.value);
+			});
 		}
 
 		for (const filter of state.inFilters) {
@@ -539,7 +559,9 @@ function createQueryBuilder(table: string): QueryBuilder {
 						table === "contract_conditional_blocks" ||
 						table === "contract_submissions" ||
 						table === "contract_document_versions" ||
-						table === "contract_partner_comments") &&
+						table === "contract_partner_comments" ||
+						table === "tumai_days" ||
+						table === "tumai_day_responses") &&
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {
@@ -607,6 +629,11 @@ function createQueryBuilder(table: string): QueryBuilder {
 
 		eq: (column: string, value: unknown) => {
 			state.filters.push({ column, value });
+			return proxyBuilder;
+		},
+
+		lte: (column: string, value: unknown) => {
+			state.lteFilters.push({ column, value });
 			return proxyBuilder;
 		},
 
@@ -1055,4 +1082,6 @@ export function resetMockDatabase(): void {
 			updated_at: "2026-04-13T10:00:00Z",
 		},
 	];
+	mockDatabase.tumai_days = [];
+	mockDatabase.tumai_day_responses = [];
 }

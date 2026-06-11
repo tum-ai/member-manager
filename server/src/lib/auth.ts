@@ -66,6 +66,13 @@ export async function checkContractsAdmin(userId: string): Promise<boolean> {
 	return checkDepartmentPermission(userId, "contracts.admin");
 }
 
+// Gates the TUM.ai Days tools. Resolved through department_permissions rather
+// than a hardcoded department so that admins reassigning the
+// `tumai_days.manage` permission stays consistent with the RLS policy.
+export async function checkTumaiDaysManager(userId: string): Promise<boolean> {
+	return checkDepartmentPermission(userId, "tumai_days.manage");
+}
+
 export async function checkBoardRole(userId: string): Promise<boolean> {
 	if (await checkAdminRole(userId)) {
 		return true;
