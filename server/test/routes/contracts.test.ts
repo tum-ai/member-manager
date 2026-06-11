@@ -128,6 +128,102 @@ describe("Contract Routes", async () => {
 		assert.match(data.html, /Hello Preview GmbH/);
 	});
 
+	test("splits long preview paragraphs across pages", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+		const template = mockDatabase.contract_templates.find(
+			(row) => row.id === TEMPLATE_ID,
+		);
+		assert.ok(template);
+		template.contract_text = Array.from(
+			{ length: 420 },
+			(_, index) => `word${index}`,
+		).join(" ");
+
+		const response = await app.inject({
+			method: "POST",
+			url: `/api/contracts/templates/${TEMPLATE_ID}/preview`,
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				form_data: {},
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const data = JSON.parse(response.payload);
+		assert.ok(data.pages.length > 1);
+	});
+
+	test("keeps wrapped preview list items as lists", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+		const template = mockDatabase.contract_templates.find(
+			(row) => row.id === TEMPLATE_ID,
+		);
+		assert.ok(template);
+		template.contract_text = [
+			"- First list item with enough words to wrap across multiple preview lines while staying one list item",
+			"- Second list item",
+		].join("\n");
+
+		const response = await app.inject({
+			method: "POST",
+			url: `/api/contracts/templates/${TEMPLATE_ID}/preview`,
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				form_data: {},
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const data = JSON.parse(response.payload);
+		assert.match(data.html, /<ul>/);
+		assert.match(data.html, /<li>First list item/);
+		assert.match(data.html, /Second list item<\/li>/);
+	});
+
+	test("keeps list continuations and blank lines across preview pages", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+		const template = mockDatabase.contract_templates.find(
+			(row) => row.id === TEMPLATE_ID,
+		);
+		assert.ok(template);
+		template.contract_text = [
+			"Opening paragraph.",
+			Array.from({ length: 360 }, (_, index) => `word${index}`).join(" "),
+			[
+				`- ${Array.from({ length: 420 }, (_, index) => `itemword${index}`).join(
+					" ",
+				)}`,
+				"- Second item",
+			].join("\n"),
+		].join("\n\n");
+
+		const response = await app.inject({
+			method: "POST",
+			url: `/api/contracts/templates/${TEMPLATE_ID}/preview`,
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				form_data: {},
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const data = JSON.parse(response.payload);
+		assert.match(data.html, /class="blank-line"/);
+		assert.match(data.html, /class="list-continuation"/);
+	});
+
 	test("renders selected add-ons into contract previews", async () => {
 		resetDatabase();
 		moveRegularUserToPartnersAndSponsors();

@@ -181,7 +181,6 @@ export default function ContractFormPage(): JSX.Element {
 										lg: "calc(100vh - 170px)",
 									}}
 									minHeight={{ xs: 520, lg: "calc(100vh - 170px)" }}
-									pageMaxWidth={{ xs: "100%", lg: 1040, xl: 1120 }}
 								/>
 							</Paper>
 						</Box>
