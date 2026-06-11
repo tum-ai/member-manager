@@ -11,8 +11,7 @@ import {
 } from "@mui/material";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { useIsAdmin } from "../../hooks/useIsAdmin";
-import { supabase } from "../../lib/supabaseClient";
+import { useCurrentUserIsAdmin } from "../../hooks/useCurrentUserIsAdmin";
 import ToolPageShell from "../tools/ToolPageShell";
 import ContractDocumentPreview from "./ContractDocumentPreview";
 import DynamicForm, { isVisible } from "./DynamicForm";
@@ -31,11 +30,12 @@ export default function ContractFormPage(): JSX.Element {
 	const isEditingDraft = Boolean(draftId);
 	const templatesQuery = useContractTemplates();
 	const draftQuery = useContractSubmission(draftId);
-	const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 	const initializedDraftId = useRef<string | null>(null);
-	const { isAdmin, isLoading: isLoadingAdmin } = useIsAdmin(
-		currentUserId ?? undefined,
-	);
+	const {
+		currentUserId,
+		isAdmin,
+		isLoading: isLoadingAdmin,
+	} = useCurrentUserIsAdmin();
 	const activeTemplates = useMemo(
 		() => (templatesQuery.data ?? []).filter((template) => template.is_active),
 		[templatesQuery.data],
@@ -59,16 +59,6 @@ export default function ContractFormPage(): JSX.Element {
 		setSelectedId(draft.template_id);
 		setFormData(draft.form_data ?? {});
 	}, [draftQuery.data, isEditingDraft]);
-
-	useEffect(() => {
-		let cancelled = false;
-		supabase.auth.getSession().then(({ data: { session } }) => {
-			if (!cancelled) setCurrentUserId(session?.user.id ?? null);
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
 
 	const detailQuery = useContractTemplate(selectedId || undefined);
 	const [formData, setFormData] = useState<Record<string, unknown>>({});

@@ -11,8 +11,7 @@ import {
 } from "@mui/material";
 import { useEffect, useState } from "react";
 import { Link as RouterLink, useParams } from "react-router-dom";
-import { useIsAdmin } from "../../hooks/useIsAdmin";
-import { supabase } from "../../lib/supabaseClient";
+import { useCurrentUserIsAdmin } from "../../hooks/useCurrentUserIsAdmin";
 import ToolPageShell from "../tools/ToolPageShell";
 import ContractDocumentPreview from "./ContractDocumentPreview";
 import SignaturePad from "./SignaturePad";
@@ -48,8 +47,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const [partnerEmailMessage, setPartnerEmailMessage] = useState("");
 	const [downloadError, setDownloadError] = useState<string | null>(null);
 	const [downloading, setDownloading] = useState(false);
-	const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-	const { isAdmin } = useIsAdmin(currentUserId ?? undefined);
+	const { currentUserId, isAdmin } = useCurrentUserIsAdmin();
 	const previewQuery = useContractSubmissionPreview(id, editedText);
 
 	useEffect(() => {
@@ -70,16 +68,6 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 			);
 		}
 	}, [submissionQuery.data]);
-
-	useEffect(() => {
-		let cancelled = false;
-		supabase.auth.getSession().then(({ data: { session } }) => {
-			if (!cancelled) setCurrentUserId(session?.user.id ?? null);
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
 
 	if (submissionQuery.isLoading) return <CircularProgress />;
 	if (submissionQuery.error)
