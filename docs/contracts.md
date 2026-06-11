@@ -75,6 +75,11 @@ Contract submissions use these workflow statuses:
 
 Legacy review statuses such as `submitted`, `in_review`, `approved`, `rejected`, `inquiry`, and `signed` remain accepted for existing rows and review tooling.
 
+When Legal & Finance uses **Request Clarification**, the submission status is
+set to `inquiry`. If contract email sending is configured, Member Manager emails
+the original internal submitter with the clarification message and a link back
+to the submission.
+
 ## Production
 
 Deployments that include contract workflow code require all contract migrations to land in `supabase/migrations/`. GitHub Actions applies pending production migrations on pushes to `main` and then checks migration parity. To inspect the linked project manually:

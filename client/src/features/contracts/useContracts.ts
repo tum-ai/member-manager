@@ -92,6 +92,9 @@ export interface ContractSubmission {
 	partner_email_sent_at: string | null;
 	partner_email_recipient: string | null;
 	partner_email_error: string | null;
+	clarification_email_sent_at: string | null;
+	clarification_email_recipient: string | null;
+	clarification_email_error: string | null;
 	signature_provider: "in_app" | "opensign";
 	opensign_document_id: string | null;
 	opensign_status: string | null;

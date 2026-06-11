@@ -2,8 +2,10 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { enrichContractFormData } from "@member-manager/shared";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
+import { getAuthEmail } from "../lib/authEmails.js";
 import {
 	isContractEmailConfigured,
+	sendContractClarificationEmail,
 	sendContractPartnerEmail,
 } from "../lib/contractEmails.js";
 import { DatabaseError } from "../lib/errors.js";
@@ -423,6 +425,40 @@ function getPartnerCompanyNameFromSubmission(
 			: {};
 	const raw = formData.partner_company_name;
 	return typeof raw === "string" ? raw.trim() : "";
+}
+
+async function notifySubmitterOfClarification(args: {
+	submission: Record<string, unknown>;
+	message?: string | null;
+	submissionUrl: string;
+}): Promise<{ recipient: string | null; error: string | null }> {
+	if (!isContractEmailConfigured()) {
+		return {
+			recipient: null,
+			error:
+				"Contract email sending is not configured. Set RESEND_API_KEY and CONTRACT_EMAIL_FROM.",
+		};
+	}
+	const submitterUserId =
+		typeof args.submission.submitter_user_id === "string"
+			? args.submission.submitter_user_id
+			: "";
+	if (!submitterUserId) {
+		return { recipient: null, error: "Submission submitter is missing." };
+	}
+
+	const submitterEmail = await getAuthEmail(submitterUserId);
+	if (!submitterEmail) {
+		return { recipient: null, error: "Submission submitter email not found." };
+	}
+
+	await sendContractClarificationEmail({
+		to: submitterEmail,
+		partnerCompanyName: getPartnerCompanyNameFromSubmission(args.submission),
+		message: args.message,
+		submissionUrl: args.submissionUrl,
+	});
+	return { recipient: submitterEmail, error: null };
 }
 
 function verifyOpenSignWebhookSignature(
@@ -1033,7 +1069,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, template_id, submitter_user_id, status, submitted_at, signed_at, admin_signed_at, final_pdf_token, final_pdf_sent_at, partner_email_sent_at, partner_email_recipient, partner_email_error, signature_provider, opensign_document_id, opensign_status, opensign_sent_at, opensign_completed_at, opensign_file_url, opensign_certificate_url, opensign_error, created_at, updated_at, signature_token, signature_token_expires_at",
+					"id, template_id, submitter_user_id, status, submitted_at, signed_at, admin_signed_at, final_pdf_token, final_pdf_sent_at, partner_email_sent_at, partner_email_recipient, partner_email_error, clarification_email_sent_at, clarification_email_recipient, clarification_email_error, signature_provider, opensign_document_id, opensign_status, opensign_sent_at, opensign_completed_at, opensign_file_url, opensign_certificate_url, opensign_error, created_at, updated_at, signature_token, signature_token_expires_at",
 				)
 				.order("created_at", { ascending: false });
 			if (error) {
@@ -1249,6 +1285,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				body.send_partner_email === true || body.send_opensign === true;
 			const needsCurrent =
 				body.admin_edited_text !== undefined ||
+				body.status === "inquiry" ||
 				body.generate_signature_token === true ||
 				shouldSendToPartner;
 			let current: Record<string, unknown> | null = null;
@@ -1487,6 +1524,55 @@ export async function contractRoutes(server: FastifyInstance) {
 					);
 					return reply.status(502).send({ error: message });
 				}
+			}
+			if (body.status === "inquiry") {
+				let clarificationEmailUpdate: Record<string, unknown>;
+				try {
+					const result = await notifySubmitterOfClarification({
+						submission: data as Record<string, unknown>,
+						message: body.feedback_message ?? body.notes ?? null,
+						submissionUrl: `${getAppBaseUrl(request)}/contracts/submissions/${request.params.id}`,
+					});
+					clarificationEmailUpdate = {
+						clarification_email_recipient: result.recipient,
+						clarification_email_sent_at: result.error
+							? null
+							: new Date().toISOString(),
+						clarification_email_error: result.error,
+					};
+				} catch (notificationError) {
+					const message =
+						notificationError instanceof Error
+							? notificationError.message
+							: "Failed to send clarification notification";
+					request.log.error(
+						{ err: notificationError, submissionId: request.params.id },
+						"Failed to notify contract submitter about clarification request",
+					);
+					clarificationEmailUpdate = {
+						clarification_email_recipient: null,
+						clarification_email_sent_at: null,
+						clarification_email_error: message,
+					};
+				}
+				const { data: notified, error: notificationUpdateError } =
+					await getSupabase()
+						.from("contract_submissions")
+						.update({
+							...clarificationEmailUpdate,
+							updated_at: new Date().toISOString(),
+						})
+						.eq("id", request.params.id)
+						.select("*")
+						.single();
+				if (notificationUpdateError) {
+					request.log.error(
+						{ err: notificationUpdateError, submissionId: request.params.id },
+						"Failed to store contract clarification notification status",
+					);
+					throw createContractDatabaseError(notificationUpdateError);
+				}
+				return notified;
 			}
 			return data;
 		},
