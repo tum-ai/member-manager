@@ -50,3 +50,31 @@ export async function apiClient<T = any>(
 
 	return response.json();
 }
+
+export async function apiBlob(
+	endpoint: string,
+	options: RequestInit = {},
+): Promise<Blob> {
+	if (import.meta.env.PROD && !isSecurePageContext()) {
+		throw new Error("The app must be served over HTTPS in production");
+	}
+
+	const {
+		data: { session },
+	} = await supabase.auth.getSession();
+	const token = session?.access_token;
+
+	const response = await fetch(endpoint, {
+		...options,
+		headers: {
+			...(token ? { Authorization: `Bearer ${token}` } : {}),
+			...options.headers,
+		},
+	});
+
+	if (!response.ok) {
+		throw new Error(await readJsonErrorMessage(response));
+	}
+
+	return response.blob();
+}

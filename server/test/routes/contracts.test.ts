@@ -211,6 +211,24 @@ describe("Contract Routes", async () => {
 		);
 	});
 
+	test("downloads the current submission as a PDF", async () => {
+		resetDatabase();
+
+		const response = await app.inject({
+			method: "GET",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}/pdf`,
+			headers: authHeaders(testTokens.admin),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(response.headers["content-type"], "application/pdf");
+		assert.match(
+			String(response.headers["content-disposition"]),
+			/^attachment; filename="contract-/,
+		);
+		assert.match(response.payload.slice(0, 8), /^%PDF-1/);
+	});
+
 	test("emails a reviewed contract to the partner", async () => {
 		resetDatabase();
 		const originalFetch = globalThis.fetch;
@@ -968,6 +986,20 @@ describe("Contract Routes", async () => {
 
 		assert.strictEqual(pdfResponse.statusCode, 200);
 		assert.strictEqual(pdfResponse.headers["content-type"], "application/pdf");
+		assert.match(
+			String(pdfResponse.headers["content-disposition"]),
+			/^inline; filename="contract-/,
+		);
 		assert.match(pdfResponse.payload.slice(0, 8), /^%PDF-1/);
+
+		const downloadResponse = await app.inject({
+			method: "GET",
+			url: `/api/contracts/final/${finalData.final_pdf_token}/pdf?download=1`,
+		});
+		assert.strictEqual(downloadResponse.statusCode, 200);
+		assert.match(
+			String(downloadResponse.headers["content-disposition"]),
+			/^attachment; filename="contract-/,
+		);
 	});
 });

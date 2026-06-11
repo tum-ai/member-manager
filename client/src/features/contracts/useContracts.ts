@@ -1,6 +1,6 @@
 import type { ContractWorkflowStatus } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../../lib/apiClient";
+import { apiBlob, apiClient } from "../../lib/apiClient";
 
 export type ContractVariableDataType =
 	| "TEXT"
@@ -139,6 +139,24 @@ export interface PublicSignPayload {
 
 const TEMPLATES_QUERY_KEY = ["contract-templates"] as const;
 const SUBMISSIONS_QUERY_KEY = ["contract-submissions"] as const;
+
+function saveBlob(blob: Blob, filename: string): void {
+	const url = window.URL.createObjectURL(blob);
+	const link = document.createElement("a");
+	link.href = url;
+	link.download = filename;
+	document.body.appendChild(link);
+	link.click();
+	link.remove();
+	window.URL.revokeObjectURL(url);
+}
+
+export async function downloadContractSubmissionPdf(
+	submissionId: string,
+): Promise<void> {
+	const blob = await apiBlob(`/api/contracts/submissions/${submissionId}/pdf`);
+	saveBlob(blob, `contract-${submissionId}.pdf`);
+}
 
 export function useContractTemplates() {
 	return useQuery({
