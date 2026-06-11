@@ -102,6 +102,51 @@ describe("Research Project Routes", async () => {
 		]);
 	});
 
+	test("preserves aliases exposed by the website API", async () => {
+		globalThis.fetch = async () =>
+			new Response(
+				JSON.stringify([
+					{
+						id: "N4SbQ8230skgGtiVXbeqeg",
+						title: "IBM Almaden: Reinforcement Learning for Tool calling",
+						description: "Current Sanity project",
+						status: "ongoing",
+						image: "",
+						publication: "",
+						keywords: "",
+						aliases: ["legacy-tool-calling-project"],
+					},
+				]),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+
+		const response = await app.inject({
+			method: "GET",
+			url: "/api/research-projects",
+			headers: authHeaders(testTokens.user),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.deepStrictEqual(JSON.parse(response.payload), [
+			{
+				id: "N4SbQ8230skgGtiVXbeqeg",
+				title: "IBM Almaden: Reinforcement Learning for Tool calling",
+				description: "Current Sanity project",
+				image: "",
+				publication: "",
+				status: "ongoing",
+				keywords: "",
+				aliases: [
+					"N4SbQ8230skgGtiVXbeqeg",
+					"legacy-tool-calling-project",
+					"2ca7306b-fd62-8052-948f-fbdb2bf6754d",
+					"IBM Almaden: Reinforcement Learning for Tool calling",
+					"ibm-almaden-reinforcement-learning-for-tool-calling",
+				],
+			},
+		]);
+	});
+
 	test("accepts null optional fields from Sanity", async () => {
 		globalThis.fetch = async () =>
 			new Response(

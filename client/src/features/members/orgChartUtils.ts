@@ -1,6 +1,9 @@
 import { BOARD_MEMBER_ROLE } from "../../lib/constants";
 import { getOperationalDepartment } from "../../lib/memberMetadata";
-import { getResearchProjectReferences } from "../../lib/researchProjects";
+import {
+	getResearchProjectFallbackTitle,
+	getResearchProjectReferences,
+} from "../../lib/researchProjects";
 import type { InnovationProject, Member, ResearchProject } from "../../types";
 
 export interface OrgChartDepartmentGroup {
@@ -166,7 +169,9 @@ function getResearchGroupForMember(
 	const fallbackId = reference
 		? `custom:${normalize(reference)}`
 		: "unassigned";
-	const fallbackTitle = reference || "Unassigned Research";
+	const fallbackTitle = reference
+		? getResearchProjectFallbackTitle(reference)
+		: "Unassigned Research";
 	const fallbackGroup =
 		researchGroups.get(fallbackId) ??
 		createResearchProjectGroup({

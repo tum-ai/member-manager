@@ -73,6 +73,22 @@ const OptionalSlugSchema = z
 	.optional()
 	.default("");
 
+const OptionalTextArraySchema = z
+	.array(z.string())
+	.nullish()
+	.transform((value) => value ?? [])
+	.optional()
+	.default([]);
+
+const legacyResearchProjectAliasesBySlug: Record<string, string[]> = {
+	"helmholtz-zentrum-cell-embeddings-dendrite-segmentation": [
+		"29b7306b-fd62-805d-8e47-fbe49a5443d4",
+	],
+	"ibm-almaden-reinforcement-learning-for-tool-calling": [
+		"2ca7306b-fd62-8052-948f-fbdb2bf6754d",
+	],
+};
+
 const ResearchProjectSchema = z
 	.object({
 		id: OptionalTextSchema,
@@ -84,6 +100,7 @@ const ResearchProjectSchema = z
 		slug: OptionalSlugSchema,
 		memberManagerId: OptionalTextSchema,
 		member_manager_id: OptionalTextSchema,
+		aliases: OptionalTextArraySchema,
 		image: OptionalTextSchema,
 		publication: OptionalTextSchema,
 		status: OptionalTextSchema,
@@ -177,6 +194,8 @@ export async function researchProjectRoutes(server: FastifyInstance) {
 							project.slug,
 							project.memberManagerId,
 							project.member_manager_id,
+							...project.aliases,
+							...(legacyResearchProjectAliasesBySlug[stableTitleId] ?? []),
 							project.title,
 							project.name,
 							stableTitleId,
