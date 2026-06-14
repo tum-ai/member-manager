@@ -13,13 +13,15 @@
 		"start": "node dist/index.js",
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write",
-		"test": "tsx --test test/**/*.test.ts"
+		"typecheck": "tsc --noEmit",
+		"test": "tsx --test test/**/*.test.ts",
+		"test:coverage": "c8 --reporter=text-summary --reporter=lcov --reporter=json-summary --src=src --check-coverage --lines=70 --functions=70 --branches=50 --statements=70 tsx --test test/**/*.test.ts"
 	},
 	"dependencies": {
-		"@member-manager/shared": "workspace:*",
 		"@fastify/cors": "^11.2.0",
 		"@fastify/helmet": "^13.0.2",
 		"@fastify/rate-limit": "^10.3.0",
+		"@member-manager/shared": "workspace:*",
 		"@supabase/supabase-js": "^2.108.1",
 		"dotenv": "^16.6.1",
 		"fastify": "^5.8.5",
@@ -30,6 +32,7 @@
 	},
 	"devDependencies": {
 		"@types/node": "^24.13.2",
+		"c8": "^11.0.0",
 		"cross-env": "^10.1.0",
 		"tsx": "^4.22.4",
 		"typescript": "^5.9.3"

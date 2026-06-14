@@ -614,7 +614,7 @@ export default function TumaiDaysPage(): ReactElement {
 
 									{/* Stats Row */}
 									<Grid container spacing={2} sx={{ mb: 3 }}>
-										<Grid item xs={6} sm={3}>
+										<Grid size={{ xs: 6, sm: 3 }}>
 											<Paper
 												sx={{
 													p: 2,
@@ -631,7 +631,7 @@ export default function TumaiDaysPage(): ReactElement {
 												</Typography>
 											</Paper>
 										</Grid>
-										<Grid item xs={6} sm={3}>
+										<Grid size={{ xs: 6, sm: 3 }}>
 											<Paper
 												sx={{
 													p: 2,
@@ -652,7 +652,7 @@ export default function TumaiDaysPage(): ReactElement {
 												</Typography>
 											</Paper>
 										</Grid>
-										<Grid item xs={6} sm={3}>
+										<Grid size={{ xs: 6, sm: 3 }}>
 											<Paper
 												sx={{
 													p: 2,
@@ -673,7 +673,7 @@ export default function TumaiDaysPage(): ReactElement {
 												</Typography>
 											</Paper>
 										</Grid>
-										<Grid item xs={6} sm={3}>
+										<Grid size={{ xs: 6, sm: 3 }}>
 											<Paper
 												sx={{
 													p: 2,

@@ -1,12 +1,14 @@
 import { alpha, Card, type CardProps, styled } from "@mui/material";
 
-interface GlassCardProps extends CardProps {
-	variant?: "default" | "elevated" | "interactive";
+type GlassVariant = "default" | "elevated" | "interactive";
+
+interface GlassCardProps extends Omit<CardProps, "variant"> {
+	variant?: GlassVariant;
 }
 
 const StyledCard = styled(Card, {
-	shouldForwardProp: (prop) => prop !== "variant",
-})<GlassCardProps>(({ theme, variant = "default" }) => ({
+	shouldForwardProp: (prop) => prop !== "glassVariant",
+})<{ glassVariant?: GlassVariant }>(({ theme, glassVariant = "default" }) => ({
 	background:
 		theme.palette.mode === "light"
 			? "linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 248, 252, 1) 100%)"
@@ -20,7 +22,7 @@ const StyledCard = styled(Card, {
 			: "0 18px 42px rgba(6, 4, 14, 0.2)",
 	transition: "all 300ms cubic-bezier(0.4, 0, 0.2, 1)",
 
-	...(variant === "elevated" && {
+	...(glassVariant === "elevated" && {
 		background:
 			theme.palette.mode === "light"
 				? "linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(250, 248, 252, 1) 100%)"
@@ -31,7 +33,7 @@ const StyledCard = styled(Card, {
 				: "0 22px 48px rgba(6, 4, 14, 0.24)",
 	}),
 
-	...(variant === "interactive" && {
+	...(glassVariant === "interactive" && {
 		cursor: "pointer",
 		"&:hover": {
 			transform: "translateY(-4px)",
@@ -52,7 +54,7 @@ export default function GlassCard({
 	...props
 }: GlassCardProps) {
 	return (
-		<StyledCard variant={variant} {...props}>
+		<StyledCard glassVariant={variant} {...props}>
 			{children}
 		</StyledCard>
 	);

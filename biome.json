@@ -15,7 +15,25 @@
 	"linter": {
 		"enabled": true,
 		"rules": {
-			"recommended": true
+			"recommended": true,
+			"complexity": {
+				"noUselessUndefinedInitialization": "error",
+				"useDateNow": "error"
+			},
+			"style": {
+				"noNonNullAssertion": "error",
+				"noUselessElse": "error",
+				"noYodaExpression": "error",
+				"useCollapsedElseIf": "error",
+				"useForOf": "error",
+				"useShorthandAssign": "error",
+				"useShorthandFunctionType": "error",
+				"useThrowNewError": "error",
+				"useThrowOnlyError": "error"
+			},
+			"suspicious": {
+				"noConstEnum": "error"
+			}
 		}
 	},
 	"javascript": {

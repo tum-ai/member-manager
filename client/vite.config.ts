@@ -30,6 +30,19 @@ export default defineConfig(({ mode }) => {
 				VITE_SUPABASE_URL: "https://test.supabase.co",
 				VITE_SUPABASE_ANON_KEY: "test-anon-key",
 			},
+			coverage: {
+				provider: "v8",
+				reporter: ["text-summary", "json-summary", "lcov"],
+				// Ratcheting floor: thresholds sit just below the measured baseline so
+				// coverage can only regress slightly before CI fails. Raise these
+				// (never lower) as coverage improves. See docs/development.md.
+				thresholds: {
+					statements: 54,
+					branches: 55,
+					functions: 56,
+					lines: 56,
+				},
+			},
 		},
 	};
 });
