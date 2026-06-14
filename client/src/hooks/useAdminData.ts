@@ -49,6 +49,7 @@ export interface EngagementCertificateRequest {
 
 export interface JobPostingRequest {
 	id: string;
+	source?: "member_manager" | "partner_portal";
 	user_id: string;
 	status: "pending" | "approved" | "rejected";
 	title: string;
@@ -325,6 +326,21 @@ export function useAdminData() {
 		},
 	});
 
+	const removeJobRequestMutation = useMutation({
+		mutationFn: async (requestId: string) => {
+			await apiClient(`/api/admin/job-requests/${requestId}`, {
+				method: "DELETE",
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["admin-job-requests"],
+			});
+			queryClient.invalidateQueries({ queryKey: ["job-requests"] });
+			queryClient.invalidateQueries({ queryKey: ["partner-jobs"] });
+		},
+	});
+
 	return {
 		members,
 		totalMembers,
@@ -348,6 +364,7 @@ export function useAdminData() {
 		reviewChangeRequestAsync: reviewChangeRequestMutation.mutateAsync,
 		reviewCertificateRequestAsync: reviewCertificateRequestMutation.mutateAsync,
 		reviewJobRequestAsync: reviewJobRequestMutation.mutateAsync,
+		removeJobRequestAsync: removeJobRequestMutation.mutateAsync,
 		isSavingMember:
 			updateDepartmentMutation.isPending ||
 			updateRoleMutation.isPending ||
@@ -357,5 +374,6 @@ export function useAdminData() {
 		isReviewingChangeRequest: reviewChangeRequestMutation.isPending,
 		isReviewingCertificateRequest: reviewCertificateRequestMutation.isPending,
 		isReviewingJobRequest: reviewJobRequestMutation.isPending,
+		isRemovingJobRequest: removeJobRequestMutation.isPending,
 	};
 }

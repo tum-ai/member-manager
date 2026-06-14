@@ -91,7 +91,10 @@ test("buildServerEnv wires server vars and uses fallback encryption key", () => 
 		/^CORS_ORIGIN=http:\/\/localhost:5173,http:\/\/127\.0\.0\.1:5173$/m,
 	);
 	assert.match(env, /^ENABLE_LOCAL_ADMIN_BOOTSTRAP=true$/m);
-	assert.match(env, /^LOCAL_ADMIN_EMAILS=admin@example\.com,user@example\.com$/m);
+	assert.match(
+		env,
+		/^LOCAL_ADMIN_EMAILS=admin@example\.com,user@example\.com$/m,
+	);
 });
 
 test("buildServerEnv reuses an existing FIELD_ENCRYPTION_KEY when provided", () => {
@@ -149,6 +152,39 @@ test("buildServerEnv preserves optional local server secrets", () => {
 		env,
 		/^WEBSITE_RESEARCH_API_URL=http:\/\/localhost:3000\/api\/research$/m,
 	);
+});
+
+test("buildServerEnv wires sibling Partner Portal jobs API config", () => {
+	const env = buildServerEnv({
+		apiUrl: "http://127.0.0.1:54321",
+		serviceRoleKey: "service-abc",
+		partnerPortalJobsApiToken: "local-mm-token",
+	});
+
+	assert.match(
+		env,
+		/^PARTNER_PORTAL_JOBS_API_URL=http:\/\/localhost:3000\/api\/public\/v1\/jobs$/m,
+	);
+	assert.match(env, /^PARTNER_PORTAL_JOBS_API_TOKEN=local-mm-token$/m);
+});
+
+test("buildServerEnv preserves existing Partner Portal jobs API config", () => {
+	const env = buildServerEnv({
+		apiUrl: "http://127.0.0.1:54321",
+		serviceRoleKey: "service-abc",
+		existingEnv: [
+			"PARTNER_PORTAL_JOBS_API_URL=https://portal.example/api/public/v1/jobs",
+			"PARTNER_PORTAL_JOBS_API_TOKEN=existing-token",
+		].join("\n"),
+		partnerPortalJobsApiToken: "detected-token",
+	});
+
+	assert.match(
+		env,
+		/^PARTNER_PORTAL_JOBS_API_URL=https:\/\/portal\.example\/api\/public\/v1\/jobs$/m,
+	);
+	assert.match(env, /^PARTNER_PORTAL_JOBS_API_TOKEN=existing-token$/m);
+	assert.doesNotMatch(env, /detected-token/);
 });
 
 test("writeEnvFiles writes client and server .env.local and is idempotent", () => {

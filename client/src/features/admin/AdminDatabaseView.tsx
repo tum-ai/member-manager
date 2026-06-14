@@ -137,10 +137,12 @@ export default function AdminDatabaseView() {
 		reviewChangeRequestAsync,
 		reviewCertificateRequestAsync,
 		reviewJobRequestAsync,
+		removeJobRequestAsync,
 		isSavingMember,
 		isReviewingChangeRequest,
 		isReviewingCertificateRequest,
 		isReviewingJobRequest,
+		isRemovingJobRequest,
 	} = useAdminData();
 
 	const [filters, setFilters] = useState<AdminFilters>(initialFilters);
@@ -434,6 +436,21 @@ export default function AdminDatabaseView() {
 		}
 	}
 
+	async function removeJobRequest(request: JobPostingRequest) {
+		const confirmed = window.confirm(
+			`Remove "${request.title}" from the job requests?`,
+		);
+		if (!confirmed) return;
+
+		try {
+			await removeJobRequestAsync(request.id);
+			showToast("Job request removed", "success");
+		} catch (err: unknown) {
+			const errorMessage = err instanceof Error ? err.message : "Unknown error";
+			showToast(`Failed to remove job request: ${errorMessage}`, "error");
+		}
+	}
+
 	function exportToExcel() {
 		const exportData = buildExportRows(filtered);
 		const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -612,10 +629,12 @@ export default function AdminDatabaseView() {
 				onReviewChangeRequest={reviewChangeRequest}
 				onReviewCertificateRequest={reviewCertificateRequest}
 				onReviewJobRequest={reviewJobRequest}
+				onRemoveJobRequest={removeJobRequest}
 				onViewCertificateRequest={setCertificateRequestBeingViewed}
 				isReviewingChangeRequest={isReviewingChangeRequest}
 				isReviewingCertificateRequest={isReviewingCertificateRequest}
 				isReviewingJobRequest={isReviewingJobRequest}
+				isRemovingJobRequest={isRemovingJobRequest}
 			/>
 
 			<DepartmentPermissionsCard />
@@ -1353,10 +1372,12 @@ interface PendingRequestPanelsProps {
 		requestId: string,
 		decision: "approved" | "rejected",
 	) => void;
+	onRemoveJobRequest: (request: JobPostingRequest) => void;
 	onViewCertificateRequest: (request: EngagementCertificateRequest) => void;
 	isReviewingChangeRequest: boolean;
 	isReviewingCertificateRequest: boolean;
 	isReviewingJobRequest: boolean;
+	isRemovingJobRequest: boolean;
 }
 
 function PendingRequestPanels({
@@ -1368,10 +1389,12 @@ function PendingRequestPanels({
 	onReviewChangeRequest,
 	onReviewCertificateRequest,
 	onReviewJobRequest,
+	onRemoveJobRequest,
 	onViewCertificateRequest,
 	isReviewingChangeRequest,
 	isReviewingCertificateRequest,
 	isReviewingJobRequest,
+	isRemovingJobRequest,
 }: PendingRequestPanelsProps): ReactElement {
 	const theme = useTheme();
 	const pendingChangeRequests = changeRequests.filter(
@@ -1555,7 +1578,11 @@ function PendingRequestPanels({
 								</Typography>
 							) : (
 								pendingJobRequests.map((request) => {
-									const memberName = getMemberDisplayName(request.user_id);
+									const isPartnerPortalRequest =
+										request.source === "partner_portal";
+									const requesterName = isPartnerPortalRequest
+										? "Partner Portal"
+										: getMemberDisplayName(request.user_id);
 									const safeExternalUrl = getSafeHttpUrl(request.external_url);
 									return (
 										<Box
@@ -1570,15 +1597,25 @@ function PendingRequestPanels({
 												direction="row"
 												spacing={1}
 												alignItems="center"
+												useFlexGap
+												flexWrap="wrap"
 												sx={{ mb: 0.5 }}
 											>
 												<WorkOutlineIcon color="primary" fontSize="small" />
 												<Typography sx={{ fontWeight: 700 }}>
 													{request.title}
 												</Typography>
+												{isPartnerPortalRequest && (
+													<Chip
+														label="Partner Portal"
+														size="small"
+														color="primary"
+														variant="outlined"
+													/>
+												)}
 											</Stack>
 											<Typography variant="body2" color="text.secondary">
-												Member: {memberName}
+												Submitted via: {requesterName}
 											</Typography>
 											<Typography variant="body2" color="text.secondary">
 												{request.organization_name} ·{" "}
@@ -1630,7 +1667,7 @@ function PendingRequestPanels({
 														onReviewJobRequest(request.id, "approved")
 													}
 													disabled={isReviewingJobRequest}
-													aria-label={`Approve job posting request for ${memberName}`}
+													aria-label={`Approve job posting request for ${requesterName}`}
 												>
 													Approve
 												</Button>
@@ -1642,9 +1679,22 @@ function PendingRequestPanels({
 														onReviewJobRequest(request.id, "rejected")
 													}
 													disabled={isReviewingJobRequest}
-													aria-label={`Reject job posting request for ${memberName}`}
+													aria-label={`Reject job posting request for ${requesterName}`}
 												>
 													Reject
+												</Button>
+												<Button
+													type="button"
+													variant="outlined"
+													color="error"
+													size="small"
+													onClick={() => onRemoveJobRequest(request)}
+													disabled={
+														isReviewingJobRequest || isRemovingJobRequest
+													}
+													aria-label={`Remove job posting request for ${requesterName}`}
+												>
+													Remove
 												</Button>
 											</Stack>
 										</Box>
