@@ -9,10 +9,12 @@ const {
 	updateMemberAsync,
 	reviewChangeRequestAsync,
 	reviewCertificateRequestAsync,
+	reviewJobRequestAsync,
 } = vi.hoisted(() => ({
 	updateMemberAsync: vi.fn(),
 	reviewChangeRequestAsync: vi.fn(),
 	reviewCertificateRequestAsync: vi.fn(),
+	reviewJobRequestAsync: vi.fn(),
 }));
 
 vi.mock("../../hooks/useResearchProjects", () => ({
@@ -96,14 +98,35 @@ vi.mock("../../hooks/useAdminData", () => ({
 				],
 			},
 		],
+		jobRequests: [
+			{
+				id: "job-request-1",
+				user_id: "member-1",
+				status: "pending",
+				title: "Founding ML Engineer",
+				organization_name: "Member Startup",
+				description_markdown:
+					"Build production AI systems with the founding team.",
+				call_to_action: "Apply now",
+				job_type: "full_time",
+				location: "Munich",
+				contact_name: "Alice Example",
+				contact_email: "alice@example.com",
+				contact_role: "Founder",
+				external_url: "https://example.com/jobs/ml",
+				expires_at: null,
+			},
+		],
 		isLoading: false,
 		error: null,
 		updateMemberAsync,
 		reviewChangeRequestAsync,
 		reviewCertificateRequestAsync,
+		reviewJobRequestAsync,
 		isSavingMember: false,
 		isReviewingChangeRequest: false,
 		isReviewingCertificateRequest: false,
+		isReviewingJobRequest: false,
 	}),
 }));
 
@@ -263,10 +286,28 @@ describe("AdminDatabaseView", () => {
 		});
 	});
 
+	it("lets admins approve a pending job posting request", async () => {
+		const user = userEvent.setup();
+		renderAdminView();
+
+		await user.click(
+			screen.getByRole("button", {
+				name: /approve job posting request for alice example/i,
+			}),
+		);
+
+		await waitFor(() => {
+			expect(reviewJobRequestAsync).toHaveBeenCalledWith({
+				requestId: "job-request-1",
+				decision: "approved",
+			});
+		});
+	});
+
 	it("shows member names and readable change diffs in request panels", () => {
 		renderAdminView();
 
-		expect(screen.getAllByText(/Member: Alice Example/i)).toHaveLength(2);
+		expect(screen.getAllByText(/Member: Alice Example/i)).toHaveLength(3);
 		expect(
 			screen.getByText(
 				/requested changes: department: software development -> venture, role: member -> team lead/i,
@@ -275,6 +316,8 @@ describe("AdminDatabaseView", () => {
 		expect(
 			screen.getByText(/Engagement Certificate Requests/i),
 		).toBeInTheDocument();
+		expect(screen.getByText(/Job Posting Requests/i)).toBeInTheDocument();
+		expect(screen.getByText(/Founding ML Engineer/i)).toBeInTheDocument();
 	});
 
 	it("lets admins inspect the engagement certificate details", async () => {
@@ -310,6 +353,7 @@ describe("AdminDatabaseView", () => {
 
 		expect(screen.queryByText(/request-1/i)).not.toBeInTheDocument();
 		expect(screen.queryByText(/certificate-1/i)).not.toBeInTheDocument();
+		expect(screen.queryByText(/job-request-1/i)).not.toBeInTheDocument();
 		expect(
 			screen.queryByRole("button", { name: /approve request-1/i }),
 		).not.toBeInTheDocument();
@@ -325,6 +369,9 @@ describe("AdminDatabaseView", () => {
 		const certificateRequestsHeading = screen.getByRole("heading", {
 			name: /engagement certificate requests/i,
 		});
+		const jobRequestsHeading = screen.getByRole("heading", {
+			name: /job posting requests/i,
+		});
 
 		expect(changeRequestsHeading.compareDocumentPosition(membersHeading)).toBe(
 			Node.DOCUMENT_POSITION_FOLLOWING,
@@ -332,5 +379,8 @@ describe("AdminDatabaseView", () => {
 		expect(
 			certificateRequestsHeading.compareDocumentPosition(membersHeading),
 		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+		expect(jobRequestsHeading.compareDocumentPosition(membersHeading)).toBe(
+			Node.DOCUMENT_POSITION_FOLLOWING,
+		);
 	});
 });
