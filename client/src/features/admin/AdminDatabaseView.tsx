@@ -1615,7 +1615,8 @@ function PendingRequestPanels({
 												)}
 											</Stack>
 											<Typography variant="body2" color="text.secondary">
-												Submitted via: {requesterName}
+												{isPartnerPortalRequest ? "Submitted via" : "Member"}:{" "}
+												{requesterName}
 											</Typography>
 											<Typography variant="body2" color="text.secondary">
 												{request.organization_name} ·{" "}
