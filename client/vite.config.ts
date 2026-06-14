@@ -26,6 +26,10 @@ export default defineConfig(({ mode }) => {
 			globals: true,
 			environment: "jsdom",
 			setupFiles: "./src/test/setup.ts",
+			// v8 coverage instrumentation slows userEvent-heavy tests; give them
+			// headroom so they don't time out on slower CI runners.
+			testTimeout: 30_000,
+			hookTimeout: 30_000,
 			env: {
 				VITE_SUPABASE_URL: "https://test.supabase.co",
 				VITE_SUPABASE_ANON_KEY: "test-anon-key",

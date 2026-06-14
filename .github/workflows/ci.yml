@@ -71,10 +71,10 @@ jobs:
         uses: actions/checkout@v6
       - name: Lint GitHub Actions workflows
         uses: raven-actions/actionlint@v2
-      - name: Audit workflows with zizmor
-        uses: zizmorcore/zizmor-action@v0.5.6
-        # Don't fail the build yet — establish a clean baseline first, then ratchet.
-        continue-on-error: true
+      - name: Audit workflows with zizmor (advisory)
+        # Advisory for now: print findings without failing the build or posting
+        # a separate check. Promote to a hard gate once the baseline is clean.
+        run: pipx run zizmor --no-progress .github/workflows || true
 
   spellcheck:
     name: Spell Check
