@@ -50,6 +50,24 @@ a {
 	text-decoration: none;
 }
 
+@layer base {
+	/*
+	 * Minimal form-control reset for shadcn/ui components. Tailwind's Preflight is
+	 * not loaded (see top of file), so native <button>/<input> chrome would
+	 * otherwise leak through. Scoped to shadcn's `data-slot` elements so it never
+	 * touches MUI's own controls; the components' utility classes live in the
+	 * utilities layer and still win over these base declarations.
+	 */
+	:is(button, input, optgroup, select, textarea)[data-slot] {
+		font: inherit;
+		letter-spacing: inherit;
+		color: inherit;
+		background-color: transparent;
+		border: 0;
+		border-radius: 0;
+	}
+}
+
 /*
  * shadcn/ui design tokens (base color: neutral). The brand accent (--primary,
  * --ring, --sidebar-primary) is set to the TUM.ai purple from src/theme/index.ts
