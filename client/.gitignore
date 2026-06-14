@@ -3,3 +3,6 @@ dist
 .env
 .env.local
 .env.*.local
+
+*storybook.log
+storybook-static
