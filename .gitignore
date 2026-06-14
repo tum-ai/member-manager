@@ -2,6 +2,7 @@
 node_modules/
 .pnp
 .pnp.js
+.pnpm-store/
 
 # Testing
 coverage/
@@ -12,6 +13,10 @@ dist/
 build/
 out/
 *.tsbuildinfo
+
+# Storybook
+storybook-static/
+*storybook.log
 
 # Environment variables
 .env
