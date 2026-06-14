@@ -47,6 +47,27 @@ export interface EngagementCertificateRequest {
 	engagements: Array<Record<string, unknown>>;
 }
 
+export interface JobPostingRequest {
+	id: string;
+	user_id: string;
+	status: "pending" | "approved" | "rejected";
+	title: string;
+	organization_name: string;
+	logo_url?: string | null;
+	description_markdown: string;
+	call_to_action?: string | null;
+	job_type: string;
+	location: string;
+	contact_name: string;
+	contact_email: string;
+	contact_role?: string | null;
+	external_url?: string | null;
+	expires_at?: string | null;
+	published_at?: string | null;
+	review_note?: string | null;
+	created_at?: string;
+}
+
 export function useAdminData() {
 	const queryClient = useQueryClient();
 
@@ -103,6 +124,13 @@ export function useAdminData() {
 				);
 			},
 		});
+
+	const { data: jobRequests, error: jobRequestsError } = useQuery({
+		queryKey: ["admin-job-requests"],
+		queryFn: async () => {
+			return await apiClient<JobPostingRequest[]>("/api/admin/job-requests");
+		},
+	});
 
 	function invalidateMemberViews() {
 		queryClient.invalidateQueries({ queryKey: ["admin-members"] });
@@ -273,17 +301,45 @@ export function useAdminData() {
 		},
 	});
 
+	const reviewJobRequestMutation = useMutation({
+		mutationFn: async ({
+			requestId,
+			decision,
+			review_note,
+		}: {
+			requestId: string;
+			decision: "approved" | "rejected";
+			review_note?: string;
+		}) => {
+			await apiClient(`/api/admin/job-requests/${requestId}`, {
+				method: "PATCH",
+				body: JSON.stringify({ decision, review_note }),
+			});
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["admin-job-requests"],
+			});
+			queryClient.invalidateQueries({ queryKey: ["job-requests"] });
+			queryClient.invalidateQueries({ queryKey: ["partner-jobs"] });
+		},
+	});
+
 	return {
 		members,
 		totalMembers,
 		changeRequests: changeRequests ?? [],
 		certificateRequests: certificateRequests ?? [],
+		jobRequests: jobRequests ?? [],
 		isLoading: membersQuery.isLoading,
 		isLoadingMoreMembers: membersQuery.isFetchingNextPage,
 		isRefreshingMembers:
 			membersQuery.isFetching && !membersQuery.isFetchingNextPage,
 		error:
-			membersQuery.error || changeRequestsError || certificateRequestsError,
+			membersQuery.error ||
+			changeRequestsError ||
+			certificateRequestsError ||
+			jobRequestsError,
 		updateDepartmentAsync: updateDepartmentMutation.mutateAsync,
 		updateRoleAsync: updateRoleMutation.mutateAsync,
 		updateStatusAsync: updateStatusMutation.mutateAsync,
@@ -291,6 +347,7 @@ export function useAdminData() {
 		updateMemberAsync: updateMemberMutation.mutateAsync,
 		reviewChangeRequestAsync: reviewChangeRequestMutation.mutateAsync,
 		reviewCertificateRequestAsync: reviewCertificateRequestMutation.mutateAsync,
+		reviewJobRequestAsync: reviewJobRequestMutation.mutateAsync,
 		isSavingMember:
 			updateDepartmentMutation.isPending ||
 			updateRoleMutation.isPending ||
@@ -299,5 +356,6 @@ export function useAdminData() {
 			updateMemberMutation.isPending,
 		isReviewingChangeRequest: reviewChangeRequestMutation.isPending,
 		isReviewingCertificateRequest: reviewCertificateRequestMutation.isPending,
+		isReviewingJobRequest: reviewJobRequestMutation.isPending,
 	};
 }

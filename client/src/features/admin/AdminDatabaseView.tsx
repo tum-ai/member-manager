@@ -3,10 +3,12 @@ import DownloadIcon from "@mui/icons-material/Download";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
 import LinkedInIcon from "@mui/icons-material/LinkedIn";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
+import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import {
 	Avatar,
 	Box,
@@ -45,6 +47,7 @@ import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import {
 	type EngagementCertificateRequest,
+	type JobPostingRequest,
 	type MemberChangeRequest,
 	useAdminData,
 } from "../../hooks/useAdminData";
@@ -109,6 +112,14 @@ const sortableColumns: Array<{
 	{ key: "active", label: "Status", width: 140 },
 ];
 
+const adminJobTypeLabels: Record<string, string> = {
+	internship: "Internship",
+	working_student: "Working student",
+	full_time: "Full-time",
+	thesis: "Thesis",
+	other: "Other",
+};
+
 export default function AdminDatabaseView() {
 	const theme = useTheme();
 	const { showToast } = useToast();
@@ -117,6 +128,7 @@ export default function AdminDatabaseView() {
 		totalMembers,
 		changeRequests,
 		certificateRequests,
+		jobRequests,
 		isLoading,
 		isLoadingMoreMembers,
 		isRefreshingMembers,
@@ -124,9 +136,11 @@ export default function AdminDatabaseView() {
 		updateMemberAsync,
 		reviewChangeRequestAsync,
 		reviewCertificateRequestAsync,
+		reviewJobRequestAsync,
 		isSavingMember,
 		isReviewingChangeRequest,
 		isReviewingCertificateRequest,
+		isReviewingJobRequest,
 	} = useAdminData();
 
 	const [filters, setFilters] = useState<AdminFilters>(initialFilters);
@@ -404,6 +418,22 @@ export default function AdminDatabaseView() {
 		}
 	}
 
+	async function reviewJobRequest(
+		requestId: string,
+		decision: "approved" | "rejected",
+	) {
+		try {
+			await reviewJobRequestAsync({
+				requestId,
+				decision,
+			});
+			showToast(`Job request ${decision}`, "success");
+		} catch (err: unknown) {
+			const errorMessage = err instanceof Error ? err.message : "Unknown error";
+			showToast(`Failed to review job request: ${errorMessage}`, "error");
+		}
+	}
+
 	function exportToExcel() {
 		const exportData = buildExportRows(filtered);
 		const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -576,13 +606,16 @@ export default function AdminDatabaseView() {
 			<PendingRequestPanels
 				changeRequests={changeRequests}
 				certificateRequests={certificateRequests}
+				jobRequests={jobRequests}
 				getMemberDisplayName={getMemberDisplayName}
 				formatRequestedChanges={formatRequestedChanges}
 				onReviewChangeRequest={reviewChangeRequest}
 				onReviewCertificateRequest={reviewCertificateRequest}
+				onReviewJobRequest={reviewJobRequest}
 				onViewCertificateRequest={setCertificateRequestBeingViewed}
 				isReviewingChangeRequest={isReviewingChangeRequest}
 				isReviewingCertificateRequest={isReviewingCertificateRequest}
+				isReviewingJobRequest={isReviewingJobRequest}
 			/>
 
 			<DepartmentPermissionsCard />
@@ -1305,6 +1338,7 @@ export default function AdminDatabaseView() {
 interface PendingRequestPanelsProps {
 	changeRequests: MemberChangeRequest[];
 	certificateRequests: EngagementCertificateRequest[];
+	jobRequests: JobPostingRequest[];
 	getMemberDisplayName: (userId: string) => string;
 	formatRequestedChanges: (request: MemberChangeRequest) => string;
 	onReviewChangeRequest: (
@@ -1315,27 +1349,38 @@ interface PendingRequestPanelsProps {
 		requestId: string,
 		decision: "approved" | "rejected",
 	) => void;
+	onReviewJobRequest: (
+		requestId: string,
+		decision: "approved" | "rejected",
+	) => void;
 	onViewCertificateRequest: (request: EngagementCertificateRequest) => void;
 	isReviewingChangeRequest: boolean;
 	isReviewingCertificateRequest: boolean;
+	isReviewingJobRequest: boolean;
 }
 
 function PendingRequestPanels({
 	changeRequests,
 	certificateRequests,
+	jobRequests,
 	getMemberDisplayName,
 	formatRequestedChanges,
 	onReviewChangeRequest,
 	onReviewCertificateRequest,
+	onReviewJobRequest,
 	onViewCertificateRequest,
 	isReviewingChangeRequest,
 	isReviewingCertificateRequest,
+	isReviewingJobRequest,
 }: PendingRequestPanelsProps): ReactElement {
 	const theme = useTheme();
 	const pendingChangeRequests = changeRequests.filter(
 		(request) => request.status === "pending",
 	);
 	const pendingCertificateRequests = certificateRequests.filter(
+		(request) => request.status === "pending",
+	);
+	const pendingJobRequests = jobRequests.filter(
 		(request) => request.status === "pending",
 	);
 	const requestBackground =
@@ -1345,7 +1390,7 @@ function PendingRequestPanels({
 
 	return (
 		<Grid container spacing={3} sx={{ mb: 3 }}>
-			<Grid size={{ xs: 12, xl: 6 }}>
+			<Grid size={{ xs: 12, xl: 4 }}>
 				<GlassCard sx={{ height: "100%" }}>
 					<CardContent sx={{ p: 3 }}>
 						<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
@@ -1421,7 +1466,7 @@ function PendingRequestPanels({
 				</GlassCard>
 			</Grid>
 
-			<Grid size={{ xs: 12, xl: 6 }}>
+			<Grid size={{ xs: 12, xl: 4 }}>
 				<GlassCard sx={{ height: "100%" }}>
 					<CardContent sx={{ p: 3 }}>
 						<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
@@ -1496,6 +1541,120 @@ function PendingRequestPanels({
 					</CardContent>
 				</GlassCard>
 			</Grid>
+
+			<Grid size={{ xs: 12, xl: 4 }}>
+				<GlassCard sx={{ height: "100%" }}>
+					<CardContent sx={{ p: 3 }}>
+						<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
+							Job Posting Requests
+						</Typography>
+						<Stack spacing={1.5}>
+							{pendingJobRequests.length === 0 ? (
+								<Typography color="text.secondary">
+									No pending job posting requests.
+								</Typography>
+							) : (
+								pendingJobRequests.map((request) => {
+									const memberName = getMemberDisplayName(request.user_id);
+									const safeExternalUrl = getSafeHttpUrl(request.external_url);
+									return (
+										<Box
+											key={request.id}
+											sx={{
+												p: 2,
+												borderRadius: 3,
+												backgroundColor: requestBackground,
+											}}
+										>
+											<Stack
+												direction="row"
+												spacing={1}
+												alignItems="center"
+												sx={{ mb: 0.5 }}
+											>
+												<WorkOutlineIcon color="primary" fontSize="small" />
+												<Typography sx={{ fontWeight: 700 }}>
+													{request.title}
+												</Typography>
+											</Stack>
+											<Typography variant="body2" color="text.secondary">
+												Member: {memberName}
+											</Typography>
+											<Typography variant="body2" color="text.secondary">
+												{request.organization_name} ·{" "}
+												{adminJobTypeLabels[request.job_type] ??
+													request.job_type}{" "}
+												· {request.location}
+											</Typography>
+											<Typography variant="body2" color="text.secondary">
+												Contact: {request.contact_name} ({request.contact_email}
+												)
+											</Typography>
+											<Typography
+												variant="body2"
+												sx={{
+													mt: 1,
+													display: "-webkit-box",
+													WebkitLineClamp: 3,
+													WebkitBoxOrient: "vertical",
+													overflow: "hidden",
+												}}
+											>
+												{request.description_markdown}
+											</Typography>
+											<Stack
+												direction="row"
+												spacing={1.5}
+												useFlexGap
+												flexWrap="wrap"
+												sx={{ mt: 2 }}
+											>
+												{safeExternalUrl && (
+													<Button
+														component="a"
+														href={safeExternalUrl}
+														target="_blank"
+														rel="noopener noreferrer"
+														variant="text"
+														size="small"
+														endIcon={<OpenInNewIcon />}
+													>
+														Open posting
+													</Button>
+												)}
+												<Button
+													type="button"
+													variant="contained"
+													size="small"
+													onClick={() =>
+														onReviewJobRequest(request.id, "approved")
+													}
+													disabled={isReviewingJobRequest}
+													aria-label={`Approve job posting request for ${memberName}`}
+												>
+													Approve
+												</Button>
+												<Button
+													type="button"
+													variant="outlined"
+													size="small"
+													onClick={() =>
+														onReviewJobRequest(request.id, "rejected")
+													}
+													disabled={isReviewingJobRequest}
+													aria-label={`Reject job posting request for ${memberName}`}
+												>
+													Reject
+												</Button>
+											</Stack>
+										</Box>
+									);
+								})
+							)}
+						</Stack>
+					</CardContent>
+				</GlassCard>
+			</Grid>
 		</Grid>
 	);
 }
@@ -1507,6 +1666,16 @@ function formatAdminValue(value: unknown): string {
 	}
 
 	return value === null || value === undefined ? "Not set" : String(value);
+}
+
+function getSafeHttpUrl(value?: string | null): string | null {
+	if (!value) return null;
+	try {
+		const url = new URL(value);
+		return url.protocol === "https:" || url.protocol === "http:" ? value : null;
+	} catch {
+		return null;
+	}
 }
 
 function formatCertificateLeadership(

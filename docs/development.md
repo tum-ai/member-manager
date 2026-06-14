@@ -35,7 +35,7 @@ The reimbursement tool can pre-fill amount, date, description, IBAN, and BIC fro
 
 If `OPENAI_API_KEY` is absent, uploads still work: the receipt stays attached and the user fills the editable fields manually.
 
-The Job Board reads approved Partner Portal jobs through the server route `GET /api/jobs`. Set `PARTNER_PORTAL_JOBS_API_URL` to the Partner Portal `/api/public/v1/jobs` endpoint and `PARTNER_PORTAL_JOBS_API_TOKEN` to the same secret configured as Partner Portal `MM_API_TOKEN`. The browser never receives this token; the route only responds to authenticated active members.
+The Job Board reads approved member-submitted jobs from Member Manager and can also merge approved Partner Portal jobs through the server route `GET /api/jobs`. Set `PARTNER_PORTAL_JOBS_API_URL` to the Partner Portal `/api/public/v1/jobs` endpoint and `PARTNER_PORTAL_JOBS_API_TOKEN` to the same secret configured as Partner Portal `MM_API_TOKEN` to enable Partner Portal jobs. If those variables are absent, the route still serves approved Member Manager job postings. The browser never receives the token; job routes only respond to authenticated active members, and member submissions stay pending until an admin approves them.
 
 `POST /api/reimbursements/process-receipt` normalizes uploaded receipt payloads before submission. PDFs are returned as raw base64; JPG/PNG images are wrapped into a single-page PDF; filenames follow `DDMMYY_Name_Identifier.pdf` with `Expense` as the no-OpenAI fallback identifier.
 

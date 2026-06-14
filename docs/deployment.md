@@ -57,8 +57,8 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `OPENSIGN_BASE_URL` | `https://eu-app.opensignlabs.com/api/v1.2` | optional override; set explicitly if the OpenSign account uses a different host |
 | `OPENSIGN_WEBHOOK_SECRET` | strong random shared secret | required for `/api/webhooks/opensign`; must match the webhook secret configured in OpenSign |
 | `OPENSIGN_WIDGETS_JSON` | JSON widget array | optional; leave unset for default signature/date placement until final template positions are verified |
-| `PARTNER_PORTAL_JOBS_API_URL` | Partner Portal `/api/public/v1/jobs` URL | required for the member job board |
-| `PARTNER_PORTAL_JOBS_API_TOKEN` | shared Member Manager jobs API token | required for the member job board; must match Partner Portal `MM_API_TOKEN` |
+| `PARTNER_PORTAL_JOBS_API_URL` | Partner Portal `/api/public/v1/jobs` URL | optional; enables Partner Portal jobs on the member job board |
+| `PARTNER_PORTAL_JOBS_API_TOKEN` | shared Member Manager jobs API token | optional with the URL; must match Partner Portal `MM_API_TOKEN` |
 | `WEBSITE_RESEARCH_API_URL` | `https://www.tum-ai.com/api/getResearch` | optional override for research-project metadata; defaults to production website API |
 
 **Client build-time** (baked into the JS bundle by `vite build`; `VITE_` prefix required):

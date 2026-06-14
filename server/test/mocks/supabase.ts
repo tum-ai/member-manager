@@ -44,6 +44,7 @@ interface MockData {
 	member_role_history: Array<Record<string, unknown>>;
 	member_change_requests: Array<Record<string, unknown>>;
 	engagement_certificate_requests: Array<Record<string, unknown>>;
+	job_posting_requests: Array<Record<string, unknown>>;
 	reimbursements: Array<Record<string, unknown>>;
 	member_cvs: Array<Record<string, unknown>>;
 	department_permissions: Array<Record<string, unknown>>;
@@ -62,6 +63,7 @@ export const mockStorage = new Map<string, Buffer>();
 
 export const mockSupabaseErrors = {
 	userRolesUpsert: null as unknown,
+	tables: {} as Record<string, unknown>,
 };
 
 export const mockDatabase: MockData = {
@@ -154,6 +156,7 @@ export const mockDatabase: MockData = {
 	member_role_history: [],
 	member_change_requests: [],
 	engagement_certificate_requests: [],
+	job_posting_requests: [],
 	member_cvs: [],
 	department_permissions: [
 		{
@@ -369,6 +372,12 @@ function createQueryBuilder(table: string): QueryBuilder {
 		if (state.forcedError) {
 			return Promise.resolve({ data: null, error: state.forcedError });
 		}
+		if (mockSupabaseErrors.tables[table]) {
+			return Promise.resolve({
+				data: null,
+				error: mockSupabaseErrors.tables[table],
+			});
+		}
 
 		let tableData: Array<Record<string, unknown>>;
 
@@ -552,6 +561,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 					(table === "member_role_history" ||
 						table === "member_change_requests" ||
 						table === "engagement_certificate_requests" ||
+						table === "job_posting_requests" ||
 						table === "reimbursements" ||
 						table === "member_cvs" ||
 						table === "contract_templates" ||
@@ -830,6 +840,7 @@ export function createMockSupabaseClient(): SupabaseClient {
 
 export function resetMockDatabase(): void {
 	mockSupabaseErrors.userRolesUpsert = null;
+	mockSupabaseErrors.tables = {};
 	mockDatabase.members = [
 		{
 			user_id: MOCK_USER_ID,
@@ -923,6 +934,7 @@ export function resetMockDatabase(): void {
 	mockDatabase.member_role_history = [];
 	mockDatabase.member_change_requests = [];
 	mockDatabase.engagement_certificate_requests = [];
+	mockDatabase.job_posting_requests = [];
 	mockDatabase.member_cvs = [];
 	mockDatabase.department_permissions = [
 		{
