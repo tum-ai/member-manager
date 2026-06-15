@@ -1,29 +1,44 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
-import DownloadIcon from "@mui/icons-material/Download";
-import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import LinkedInIcon from "@mui/icons-material/LinkedIn";
-import SaveIcon from "@mui/icons-material/Save";
-import {
-	Box,
-	Button,
-	CardContent,
-	Checkbox,
-	Chip,
-	CircularProgress,
-	FormControlLabel,
-	Grid,
-	IconButton,
-	MenuItem,
-	TextField,
-	Tooltip,
-	Typography,
-	useTheme,
-} from "@mui/material";
 import type { User } from "@supabase/supabase-js";
-import { useEffect, useState } from "react";
+import {
+	CircleAlert,
+	CircleCheck,
+	Download,
+	GraduationCap,
+	Info,
+	Landmark,
+	Link,
+	type LucideIcon,
+	Save,
+	Send,
+	UserRound,
+} from "lucide-react";
+import { useEffect, useId, useState } from "react";
 import { useForm } from "react-hook-form";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import GlassCard from "../../components/ui/GlassCard";
 import Modal from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
@@ -64,7 +79,18 @@ import PrivacyPolicy from "../legal/PrivacyPolicy";
 import SepaMandate from "../sepa/SepaMandate";
 import CvPanel from "./CvPanel";
 import EducationFields from "./EducationFields";
-import { buildSelfServiceMemberUpdatePayload } from "./profileFormUtils";
+import {
+	buildSelfServiceMemberUpdatePayload,
+	computeProfileCompleteness,
+} from "./profileFormUtils";
+
+// Radix Select forbids empty-string item values, so an empty selection is
+// represented by this sentinel and mapped back to "" at the boundary.
+const NONE_VALUE = "__none__";
+const toSelectValue = (value: string): string =>
+	value === "" ? NONE_VALUE : value;
+const fromSelectValue = (value: string): string =>
+	value === NONE_VALUE ? "" : value;
 
 interface ProfilePageProps {
 	user: User;
@@ -95,8 +121,30 @@ function extractSlackProfile(user: User): {
 	return { given_name: given, surname: family };
 }
 
+function SectionHeading({
+	icon: Icon,
+	title,
+	description,
+}: {
+	icon: LucideIcon;
+	title: string;
+	description?: string;
+}): JSX.Element {
+	return (
+		<div className="mb-6">
+			<div className="flex items-center gap-2.5">
+				<Icon className="size-5 text-brand" />
+				<h2 className="text-base font-semibold">{title}</h2>
+			</div>
+			{description && (
+				<p className="mt-1.5 text-sm text-muted-foreground">{description}</p>
+			)}
+		</div>
+	);
+}
+
 export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
-	const theme = useTheme();
+	const fieldId = useId();
 	const { showToast } = useToast();
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
@@ -112,6 +160,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const [isRequestingAlumniStatus, setIsRequestingAlumniStatus] =
 		useState(false);
 	const [changeRequestReason, setChangeRequestReason] = useState("");
+	const [activeSection, setActiveSection] = useState("personal");
 
 	const normalizeTextValue = (value?: string | null): string | null => {
 		const trimmed = value?.trim();
@@ -373,6 +422,84 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 	const isLoading = isLoadingMember || isLoadingSepa || isLoadingAdminRole;
 	const isUpdating = isUpdatingMember || isUpdatingSepa;
+
+	// Highlight the sidebar nav link for whichever section is currently in view.
+	useEffect(() => {
+		if (isLoading) return;
+		const ids = [
+			"personal",
+			"tumai",
+			"links",
+			"cv",
+			"banking",
+			...(isAdmin ? [] : ["requests"]),
+		];
+
+		let frame = 0;
+		const update = () => {
+			frame = 0;
+			// Active = the last section whose top has crossed a trigger line. Each
+			// section owns the line for a scroll range equal to its height, so even
+			// short sections become active. Near the page bottom the line slides
+			// toward the viewport bottom so short trailing sections still get a turn.
+			const viewportHeight = window.innerHeight;
+			const maxScroll = document.documentElement.scrollHeight - viewportHeight;
+			const remaining = maxScroll - window.scrollY;
+			const ratio =
+				maxScroll <= 0
+					? 1
+					: Math.min(Math.max(remaining / viewportHeight, 0), 1);
+			const baseLine = viewportHeight * 0.25;
+			const triggerLine = baseLine + (viewportHeight - baseLine) * (1 - ratio);
+
+			let current = ids[0];
+			for (const id of ids) {
+				const element = document.getElementById(id);
+				if (element && element.getBoundingClientRect().top <= triggerLine) {
+					current = id;
+				}
+			}
+			setActiveSection(current);
+		};
+		const onScroll = () => {
+			if (frame) return;
+			frame = window.requestAnimationFrame(update);
+		};
+
+		update();
+		window.addEventListener("scroll", onScroll, { passive: true });
+		window.addEventListener("resize", onScroll);
+		return () => {
+			if (frame) window.cancelAnimationFrame(frame);
+			window.removeEventListener("scroll", onScroll);
+			window.removeEventListener("resize", onScroll);
+		};
+	}, [isLoading, isAdmin]);
+
+	const handleNavClick = (
+		event: React.MouseEvent<HTMLAnchorElement>,
+		id: string,
+	) => {
+		event.preventDefault();
+		document
+			.getElementById(id)
+			?.scrollIntoView({ behavior: "smooth", block: "start" });
+	};
+
+	const navItems = [
+		{ id: "personal", label: "Personal information" },
+		{ id: "tumai", label: "TUM.ai profile" },
+		{ id: "links", label: "LinkedIn & location" },
+		{ id: "cv", label: "CV" },
+		{ id: "banking", label: "Banking & agreements" },
+		...(isAdmin ? [] : [{ id: "requests", label: "Request changes" }]),
+	];
+
+	const completeness = computeProfileCompleteness({
+		member: memberForm.watch(),
+		linkedin: linkedinForm.watch(),
+		sepa: sepaForm.watch(),
+	});
 	const latestMemberChangeRequest = memberChangeRequests[0];
 	const currentRole = memberForm.watch("member_role") || "Member";
 	const currentDepartment = memberForm.watch("department") || "";
@@ -432,438 +559,561 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 	if (isLoading) {
 		return (
-			<Box
-				sx={{
-					display: "flex",
-					justifyContent: "center",
-					alignItems: "center",
-					minHeight: "60vh",
-					gap: 2,
-				}}
-			>
-				<CircularProgress size={24} />
-				<Typography color="text.secondary">Loading profile...</Typography>
-			</Box>
+			<div className="flex min-h-[60vh] items-center justify-center gap-4">
+				<Spinner className="size-6" />
+				<p className="text-muted-foreground">Loading profile...</p>
+			</div>
 		);
 	}
 
+	const salutationId = `${fieldId}-salutation`;
+	const titleId = `${fieldId}-title`;
+	const givenNameId = `${fieldId}-given-name`;
+	const surnameId = `${fieldId}-surname`;
+	const emailId = `${fieldId}-email`;
+	const dobId = `${fieldId}-dob`;
+	const streetId = `${fieldId}-street`;
+	const numberId = `${fieldId}-number`;
+	const postalCodeId = `${fieldId}-postal-code`;
+	const cityId = `${fieldId}-city`;
+	const countryId = `${fieldId}-country`;
+	const batchId = `${fieldId}-batch`;
+	const departmentId = `${fieldId}-department`;
+	const roleId = `${fieldId}-role`;
+	const researchProjectId = `${fieldId}-research-project`;
+	const linkedinUrlId = `${fieldId}-linkedin-url`;
+	const publicLocationId = `${fieldId}-public-location`;
+	const requestedRoleId = `${fieldId}-requested-role`;
+	const requestedDepartmentId = `${fieldId}-requested-department`;
+	const alumniCheckboxId = `${fieldId}-alumni`;
+	const reasonId = `${fieldId}-reason`;
+	const ibanId = `${fieldId}-iban`;
+	const bicId = `${fieldId}-bic`;
+	const bankNameId = `${fieldId}-bank-name`;
+
+	const errors = memberForm.formState.errors;
+
+	const headerGivenName = memberForm.watch("given_name") ?? "";
+	const headerSurname = memberForm.watch("surname") ?? "";
+	const headerFullName = `${headerGivenName} ${headerSurname}`.trim();
+	const headerInitials =
+		`${headerGivenName.charAt(0)}${headerSurname.charAt(0)}`.toUpperCase() ||
+		"?";
+	const headerDepartment = memberForm.watch("department");
+	const headerRole = memberForm.watch("member_role") || "Member";
+	const headerMeta = [headerDepartment, headerRole].filter(Boolean).join(" · ");
+
 	return (
-		<Box sx={{ py: 2 }}>
-			<GlassCard variant="elevated" sx={{ mb: 4, overflow: "hidden" }}>
-				<CardContent sx={{ p: { xs: 3, md: 4 } }}>
-					<Box
-						sx={{
-							display: "flex",
-							justifyContent: "space-between",
-							alignItems: { xs: "flex-start", md: "center" },
-							flexDirection: { xs: "column", md: "row" },
-							gap: 3,
-						}}
-					>
-						<Box sx={{ maxWidth: 620 }}>
-							<Typography variant="h3" sx={{ mb: 1.25 }}>
-								Your Profile
-							</Typography>
-							<Typography variant="body1" color="text.secondary">
-								Manage your personal information and internal agreements.
-							</Typography>
-							<Box
-								sx={{
-									display: "flex",
-									flexWrap: "wrap",
-									gap: 1,
-									mt: 2.5,
-								}}
-							>
-								<Chip
-									icon={
-										isActive ? (
-											<CheckCircleOutlineIcon sx={{ fontSize: 18 }} />
-										) : (
-											<ErrorOutlineIcon sx={{ fontSize: 18 }} />
-										)
-									}
-									label={`${getMemberStatusLabel(memberForm.watch("member_status"))} Member`}
-									color={isActive ? "success" : "default"}
-									variant="outlined"
-								/>
-							</Box>
-						</Box>
-						<Box
-							sx={{
-								display: "grid",
-								gridTemplateColumns: {
-									xs: "1fr",
-									sm: "repeat(2, minmax(0, 1fr))",
-								},
-								gap: 1.5,
-								width: { xs: "100%", md: "auto" },
-								minWidth: { md: 360 },
-							}}
-						>
-							<Box
-								sx={{
-									display: "grid",
-									gap: 0.75,
-								}}
-							>
-								<Typography
-									variant="caption"
-									color="text.secondary"
-									sx={{ px: 0.5 }}
-								>
-									Department
-								</Typography>
-								<Box
-									sx={{
-										p: 2.25,
-										minHeight: 88,
-										borderRadius: 3,
-										backgroundColor:
-											theme.palette.mode === "light"
-												? "rgba(154, 100, 217, 0.06)"
-												: "rgba(24, 17, 47, 0.72)",
-										display: "flex",
-										alignItems: "center",
-										justifyContent: "center",
-										textAlign: "center",
-									}}
-								>
-									<Typography sx={{ fontWeight: 700 }}>
-										{memberForm.watch("department") || "Not set"}
-									</Typography>
-								</Box>
-							</Box>
-							<Box
-								sx={{
-									display: "grid",
-									gap: 0.75,
-								}}
-							>
-								<Typography
-									variant="caption"
-									color="text.secondary"
-									sx={{ px: 0.5 }}
-								>
-									TUM.ai role
-								</Typography>
-								<Box
-									sx={{
-										p: 2.25,
-										minHeight: 88,
-										borderRadius: 3,
-										backgroundColor:
-											theme.palette.mode === "light"
-												? "rgba(154, 100, 217, 0.06)"
-												: "rgba(24, 17, 47, 0.72)",
-										display: "flex",
-										alignItems: "center",
-										justifyContent: "center",
-										textAlign: "center",
-									}}
-								>
-									<Typography sx={{ fontWeight: 700 }}>
-										{memberForm.watch("member_role") || "Member"}
-									</Typography>
-								</Box>
-							</Box>
-							<Button
-								variant="outlined"
-								startIcon={
-									isGeneratingPdf ? (
-										<CircularProgress size={16} color="inherit" />
-									) : (
-										<DownloadIcon />
-									)
-								}
-								onClick={handleDownloadMembershipProof}
-								disabled={isGeneratingPdf || !memberData}
-								sx={{ minHeight: 52 }}
-							>
-								{isGeneratingPdf ? "Generating..." : "Proof of Membership"}
-							</Button>
-						</Box>
-					</Box>
-				</CardContent>
-			</GlassCard>
-
+		<div>
 			<form onSubmit={memberForm.handleSubmit(onSubmit)}>
-				<Grid container spacing={3}>
-					<Grid size={{ xs: 12, lg: 7 }}>
+				<div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-start">
+					<aside className="flex flex-col gap-4 self-start lg:col-span-4 lg:sticky lg:top-20">
 						<GlassCard variant="elevated">
-							<CardContent sx={{ p: 3 }}>
-								<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-									Personal Information
-								</Typography>
+							<CardContent className="p-6">
+								<div className="flex items-center gap-4">
+									<Avatar className="size-16 shrink-0 bg-muted">
+										<AvatarImage
+											src={memberData?.avatar_url || undefined}
+											alt={headerFullName || "Member avatar"}
+										/>
+										<AvatarFallback className="bg-brand/10 text-lg font-semibold text-brand">
+											{headerInitials}
+										</AvatarFallback>
+									</Avatar>
+									<div className="min-w-0">
+										<h1 className="truncate text-xl font-bold leading-tight">
+											{headerFullName || "Your Profile"}
+										</h1>
+										{headerMeta && (
+											<p className="mt-0.5 truncate text-sm text-muted-foreground">
+												{headerMeta}
+											</p>
+										)}
+									</div>
+								</div>
 
-								<Grid container spacing={2}>
-									<Grid size={{ xs: 12, sm: 4 }}>
-										<TextField
-											select
-											label="Salutation (optional)"
-											{...memberForm.register("salutation")}
-											value={memberForm.watch("salutation") || ""}
-											error={!!memberForm.formState.errors.salutation}
-											helperText={
-												memberForm.formState.errors.salutation?.message
-											}
-										>
-											<MenuItem value="">None</MenuItem>
-											<MenuItem value="Mr.">Mr.</MenuItem>
-											<MenuItem value="Ms.">Ms.</MenuItem>
-											<MenuItem value="Mx.">Mx.</MenuItem>
-										</TextField>
-									</Grid>
-									<Grid size={{ xs: 12, sm: 8 }}>
-										<TextField
-											select
-											label="Title"
-											{...memberForm.register("title")}
-											value={memberForm.watch("title")}
-										>
-											<MenuItem value="">None</MenuItem>
-											<MenuItem value="Dr.">Dr.</MenuItem>
-											<MenuItem value="Prof.">Prof.</MenuItem>
-										</TextField>
-									</Grid>
+								<Badge
+									variant={isActive ? "success" : "neutral"}
+									className="mt-4 gap-1.5 py-1"
+								>
+									{isActive ? (
+										<CircleCheck className="size-[18px]" />
+									) : (
+										<CircleAlert className="size-[18px]" />
+									)}
+									{`${getMemberStatusLabel(memberForm.watch("member_status"))} Member`}
+								</Badge>
 
-									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											label="First Name"
-											{...memberForm.register("given_name")}
-											error={!!memberForm.formState.errors.given_name}
-											helperText={
-												memberForm.formState.errors.given_name?.message
-											}
-											required
-										/>
-									</Grid>
-									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											label="Last Name"
-											{...memberForm.register("surname")}
-											error={!!memberForm.formState.errors.surname}
-											helperText={memberForm.formState.errors.surname?.message}
-											required
-										/>
-									</Grid>
+								<div className="mt-5">
+									<div className="mb-1.5 flex items-center justify-between text-sm">
+										<span className="text-muted-foreground">
+											Profile completeness
+										</span>
+										<span className="font-medium">{completeness}%</span>
+									</div>
+									<Progress value={completeness} />
+								</div>
 
-									<Grid size={{ xs: 12, sm: 8 }}>
-										<TextField
-											label="Email"
-											type="email"
-											value={memberData?.email || user.email || ""}
-											helperText="Managed by your account login"
-											disabled
-										/>
-									</Grid>
-									<Grid size={{ xs: 12, sm: 4 }}>
-										<TextField
-											label="Date of Birth"
-											type="date"
-											{...memberForm.register("date_of_birth")}
-											slotProps={{ inputLabel: { shrink: true } }}
-											error={!!memberForm.formState.errors.date_of_birth}
-											helperText={
-												memberForm.formState.errors.date_of_birth?.message
-											}
-										/>
-									</Grid>
+								<div className="my-5 border-t border-border" />
 
-									<Grid size={12}>
-										<Typography
-											variant="subtitle2"
-											color="text.secondary"
-											sx={{ mt: 1, mb: 1 }}
-										>
-											Address
-										</Typography>
-									</Grid>
-
-									<Grid size={{ xs: 12, sm: 9 }}>
-										<TextField
-											label="Street"
-											{...memberForm.register("street")}
-											error={!!memberForm.formState.errors.street}
-											helperText={memberForm.formState.errors.street?.message}
-										/>
-									</Grid>
-									<Grid size={{ xs: 12, sm: 3 }}>
-										<TextField
-											label="Number"
-											{...memberForm.register("number")}
-											error={!!memberForm.formState.errors.number}
-											helperText={memberForm.formState.errors.number?.message}
-										/>
-									</Grid>
-
-									<Grid size={{ xs: 12, sm: 4 }}>
-										<TextField
-											label="Postal Code"
-											{...memberForm.register("postal_code")}
-											error={!!memberForm.formState.errors.postal_code}
-											helperText={
-												memberForm.formState.errors.postal_code?.message
-											}
-										/>
-									</Grid>
-									<Grid size={{ xs: 12, sm: 8 }}>
-										<TextField
-											label="City"
-											{...memberForm.register("city")}
-											error={!!memberForm.formState.errors.city}
-											helperText={memberForm.formState.errors.city?.message}
-										/>
-									</Grid>
-
-									<Grid size={12}>
-										<TextField
-											label="Country"
-											{...memberForm.register("country")}
-											error={!!memberForm.formState.errors.country}
-											helperText={memberForm.formState.errors.country?.message}
-										/>
-									</Grid>
-								</Grid>
+								<Button
+									type="button"
+									variant="outline"
+									onClick={handleDownloadMembershipProof}
+									disabled={isGeneratingPdf || !memberData}
+									className="w-full"
+								>
+									{isGeneratingPdf ? (
+										<Spinner className="size-4" />
+									) : (
+										<Download className="size-4" />
+									)}
+									{isGeneratingPdf ? "Generating..." : "Proof of Membership"}
+								</Button>
 							</CardContent>
 						</GlassCard>
 
-						<GlassCard variant="elevated" sx={{ mt: 3 }}>
-							<CardContent sx={{ p: 3 }}>
-								<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-									TUM.ai Profile
-								</Typography>
-
-								<Grid container spacing={2}>
-									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											select
-											label="Batch"
-											{...memberForm.register("batch")}
-											value={memberForm.watch("batch") || ""}
-											error={!!memberForm.formState.errors.batch}
-											helperText={memberForm.formState.errors.batch?.message}
+						<GlassCard variant="elevated" className="hidden lg:block">
+							<CardContent className="p-4">
+								<p className="px-2 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+									On this page
+								</p>
+								<nav className="flex flex-col">
+									{navItems.map((item) => (
+										<a
+											key={item.id}
+											href={`#${item.id}`}
+											onClick={(event) => handleNavClick(event, item.id)}
+											className={cn(
+												"rounded-md px-2 py-1.5 text-sm transition-colors hover:bg-accent",
+												activeSection === item.id
+													? "font-medium text-brand"
+													: "text-muted-foreground",
+											)}
 										>
-											<MenuItem value="">None</MenuItem>
-											{BATCH_OPTIONS.map((batch) => (
-												<MenuItem key={batch} value={batch}>
-													{batch}
-												</MenuItem>
-											))}
-										</TextField>
-									</Grid>
-									<Grid size={{ xs: 12, sm: 6 }}>
-										{isAdmin ? (
-											<TextField
-												select
-												label="Department"
-												value={currentDepartment}
-												onChange={(event) => {
-													memberForm.setValue(
-														"department",
-														event.target.value,
-														{
-															shouldDirty: true,
-														},
-													);
-													if (event.target.value !== "Research") {
-														memberForm.setValue("research_project_id", "", {
-															shouldDirty: true,
-														});
-													}
-												}}
-											>
-												<MenuItem value="">None</MenuItem>
-												{DEPARTMENTS.map((department) => (
-													<MenuItem key={department} value={department}>
-														{department}
-													</MenuItem>
-												))}
-											</TextField>
-										) : (
-											<TextField
-												label="Department"
-												value={currentDepartment || "Not set"}
-												helperText="Departments are assigned by admins. Request a change below."
-												disabled
-											/>
-										)}
-									</Grid>
+											{item.label}
+										</a>
+									))}
+								</nav>
+							</CardContent>
+						</GlassCard>
 
-									<Grid size={{ xs: 12, sm: 6 }}>
+						<Button
+							type="submit"
+							size="lg"
+							className="hidden w-full lg:flex"
+							disabled={isUpdating}
+						>
+							{isUpdating ? (
+								<Spinner className="size-5" />
+							) : (
+								<Save className="size-4" />
+							)}
+							{isUpdating ? "Saving..." : "Save Changes"}
+						</Button>
+					</aside>
+
+					<div className="flex flex-col gap-6 lg:col-span-8">
+						<GlassCard
+							id="personal"
+							variant="elevated"
+							className="scroll-mt-20"
+						>
+							<CardContent className="p-6">
+								<SectionHeading
+									icon={UserRound}
+									title="Personal information"
+									description="Your name and contact details."
+								/>
+
+								<div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
+									<div className="grid gap-1.5 sm:col-span-4">
+										<Label htmlFor={salutationId}>Salutation (optional)</Label>
+										<Select
+											value={toSelectValue(
+												memberForm.watch("salutation") || "",
+											)}
+											onValueChange={(value) =>
+												memberForm.setValue(
+													"salutation",
+													fromSelectValue(value),
+													{ shouldDirty: true },
+												)
+											}
+										>
+											<SelectTrigger
+												id={salutationId}
+												className="w-full"
+												aria-label="Salutation (optional)"
+												aria-invalid={!!errors.salutation}
+											>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value={NONE_VALUE}>None</SelectItem>
+												<SelectItem value="Mr.">Mr.</SelectItem>
+												<SelectItem value="Ms.">Ms.</SelectItem>
+												<SelectItem value="Mx.">Mx.</SelectItem>
+											</SelectContent>
+										</Select>
+										{errors.salutation?.message && (
+											<p className="text-xs text-destructive">
+												{errors.salutation.message}
+											</p>
+										)}
+									</div>
+									<div className="grid gap-1.5 sm:col-span-8">
+										<Label htmlFor={titleId}>Title</Label>
+										<Select
+											value={toSelectValue(memberForm.watch("title") || "")}
+											onValueChange={(value) =>
+												memberForm.setValue("title", fromSelectValue(value), {
+													shouldDirty: true,
+												})
+											}
+										>
+											<SelectTrigger
+												id={titleId}
+												className="w-full"
+												aria-label="Title"
+											>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value={NONE_VALUE}>None</SelectItem>
+												<SelectItem value="Dr.">Dr.</SelectItem>
+												<SelectItem value="Prof.">Prof.</SelectItem>
+											</SelectContent>
+										</Select>
+									</div>
+
+									<div className="grid gap-1.5 sm:col-span-6">
+										<Label htmlFor={givenNameId}>First Name *</Label>
+										<Input
+											id={givenNameId}
+											{...memberForm.register("given_name")}
+											aria-invalid={!!errors.given_name}
+											required
+										/>
+										{errors.given_name?.message && (
+											<p className="text-xs text-destructive">
+												{errors.given_name.message}
+											</p>
+										)}
+									</div>
+									<div className="grid gap-1.5 sm:col-span-6">
+										<Label htmlFor={surnameId}>Last Name *</Label>
+										<Input
+											id={surnameId}
+											{...memberForm.register("surname")}
+											aria-invalid={!!errors.surname}
+											required
+										/>
+										{errors.surname?.message && (
+											<p className="text-xs text-destructive">
+												{errors.surname.message}
+											</p>
+										)}
+									</div>
+
+									<div className="grid gap-1.5 sm:col-span-8">
+										<Label htmlFor={emailId}>Email</Label>
+										<Input
+											id={emailId}
+											type="email"
+											value={memberData?.email || user.email || ""}
+											disabled
+											readOnly
+										/>
+										<p className="text-xs text-muted-foreground">
+											Managed by your account login
+										</p>
+									</div>
+									<div className="grid gap-1.5 sm:col-span-4">
+										<Label htmlFor={dobId}>Date of Birth</Label>
+										<Input
+											id={dobId}
+											type="date"
+											{...memberForm.register("date_of_birth")}
+											aria-invalid={!!errors.date_of_birth}
+										/>
+										{errors.date_of_birth?.message && (
+											<p className="text-xs text-destructive">
+												{errors.date_of_birth.message}
+											</p>
+										)}
+									</div>
+
+									<div className="sm:col-span-12">
+										<p className="mt-2 mb-2 text-sm font-medium text-muted-foreground">
+											Address
+										</p>
+									</div>
+
+									<div className="grid gap-1.5 sm:col-span-9">
+										<Label htmlFor={streetId}>Street</Label>
+										<Input
+											id={streetId}
+											{...memberForm.register("street")}
+											aria-invalid={!!errors.street}
+										/>
+										{errors.street?.message && (
+											<p className="text-xs text-destructive">
+												{errors.street.message}
+											</p>
+										)}
+									</div>
+									<div className="grid gap-1.5 sm:col-span-3">
+										<Label htmlFor={numberId}>Number</Label>
+										<Input
+											id={numberId}
+											{...memberForm.register("number")}
+											aria-invalid={!!errors.number}
+										/>
+										{errors.number?.message && (
+											<p className="text-xs text-destructive">
+												{errors.number.message}
+											</p>
+										)}
+									</div>
+
+									<div className="grid gap-1.5 sm:col-span-4">
+										<Label htmlFor={postalCodeId}>Postal Code</Label>
+										<Input
+											id={postalCodeId}
+											{...memberForm.register("postal_code")}
+											aria-invalid={!!errors.postal_code}
+										/>
+										{errors.postal_code?.message && (
+											<p className="text-xs text-destructive">
+												{errors.postal_code.message}
+											</p>
+										)}
+									</div>
+									<div className="grid gap-1.5 sm:col-span-8">
+										<Label htmlFor={cityId}>City</Label>
+										<Input
+											id={cityId}
+											{...memberForm.register("city")}
+											aria-invalid={!!errors.city}
+										/>
+										{errors.city?.message && (
+											<p className="text-xs text-destructive">
+												{errors.city.message}
+											</p>
+										)}
+									</div>
+
+									<div className="grid gap-1.5 sm:col-span-12">
+										<Label htmlFor={countryId}>Country</Label>
+										<Input
+											id={countryId}
+											{...memberForm.register("country")}
+											aria-invalid={!!errors.country}
+										/>
+										{errors.country?.message && (
+											<p className="text-xs text-destructive">
+												{errors.country.message}
+											</p>
+										)}
+									</div>
+								</div>
+							</CardContent>
+						</GlassCard>
+
+						<GlassCard id="tumai" variant="elevated" className="scroll-mt-20">
+							<CardContent className="p-6">
+								<SectionHeading
+									icon={GraduationCap}
+									title="TUM.ai profile"
+									description="Your batch, department, role, and studies."
+								/>
+
+								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+									<div className="grid gap-1.5">
+										<Label htmlFor={batchId}>Batch</Label>
+										<Select
+											value={toSelectValue(memberForm.watch("batch") || "")}
+											onValueChange={(value) =>
+												memberForm.setValue("batch", fromSelectValue(value), {
+													shouldDirty: true,
+												})
+											}
+										>
+											<SelectTrigger
+												id={batchId}
+												className="w-full"
+												aria-label="Batch"
+												aria-invalid={!!errors.batch}
+											>
+												<SelectValue />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value={NONE_VALUE}>None</SelectItem>
+												{BATCH_OPTIONS.map((batch) => (
+													<SelectItem key={batch} value={batch}>
+														{batch}
+													</SelectItem>
+												))}
+											</SelectContent>
+										</Select>
+										{errors.batch?.message && (
+											<p className="text-xs text-destructive">
+												{errors.batch.message}
+											</p>
+										)}
+									</div>
+									<div className="grid gap-1.5">
+										<Label htmlFor={departmentId}>Department</Label>
 										{isAdmin ? (
-											<TextField
-												select
-												label="Role in TUM.ai"
-												value={currentRole}
-												onChange={(event) => {
-													memberForm.setValue(
-														"member_role",
-														event.target.value,
-														{
-															shouldDirty: true,
-														},
-													);
-													const nextDepartment = resolveDepartmentForMemberRole(
-														event.target.value,
-														currentDepartment,
-													);
-													if (nextDepartment !== currentDepartment) {
-														memberForm.setValue(
-															"department",
-															nextDepartment || "",
-															{
-																shouldDirty: true,
-															},
-														);
-													}
-													if (nextDepartment !== "Research") {
+											<Select
+												value={toSelectValue(currentDepartment)}
+												onValueChange={(rawValue) => {
+													const value = fromSelectValue(rawValue);
+													memberForm.setValue("department", value, {
+														shouldDirty: true,
+													});
+													if (value !== "Research") {
 														memberForm.setValue("research_project_id", "", {
 															shouldDirty: true,
 														});
 													}
 												}}
-												helperText="Admins manage role assignments."
 											>
-												{MEMBER_ROLES.map((role) => (
-													<MenuItem key={role} value={role}>
-														{role}
-													</MenuItem>
-												))}
-											</TextField>
+												<SelectTrigger
+													id={departmentId}
+													className="w-full"
+													aria-label="Department"
+												>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value={NONE_VALUE}>None</SelectItem>
+													{DEPARTMENTS.map((department) => (
+														<SelectItem key={department} value={department}>
+															{department}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
 										) : (
-											<TextField
-												label="Role in TUM.ai"
-												value={currentRole}
-												helperText="Roles are assigned by admins"
-												disabled
-											/>
+											<>
+												<Input
+													id={departmentId}
+													value={currentDepartment || "Not set"}
+													disabled
+													readOnly
+												/>
+												<p className="text-xs text-muted-foreground">
+													Departments are assigned by admins. Request a change
+													below.
+												</p>
+											</>
 										)}
-									</Grid>
+									</div>
+
+									<div className="grid gap-1.5">
+										<Label htmlFor={roleId}>Role in TUM.ai</Label>
+										{isAdmin ? (
+											<>
+												<Select
+													value={currentRole}
+													onValueChange={(value) => {
+														memberForm.setValue("member_role", value, {
+															shouldDirty: true,
+														});
+														const nextDepartment =
+															resolveDepartmentForMemberRole(
+																value,
+																currentDepartment,
+															);
+														if (nextDepartment !== currentDepartment) {
+															memberForm.setValue(
+																"department",
+																nextDepartment || "",
+																{
+																	shouldDirty: true,
+																},
+															);
+														}
+														if (nextDepartment !== "Research") {
+															memberForm.setValue("research_project_id", "", {
+																shouldDirty: true,
+															});
+														}
+													}}
+												>
+													<SelectTrigger
+														id={roleId}
+														className="w-full"
+														aria-label="Role in TUM.ai"
+													>
+														<SelectValue />
+													</SelectTrigger>
+													<SelectContent>
+														{MEMBER_ROLES.map((role) => (
+															<SelectItem key={role} value={role}>
+																{role}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+												<p className="text-xs text-muted-foreground">
+													Admins manage role assignments.
+												</p>
+											</>
+										) : (
+											<>
+												<Input
+													id={roleId}
+													value={currentRole}
+													disabled
+													readOnly
+												/>
+												<p className="text-xs text-muted-foreground">
+													Roles are assigned by admins
+												</p>
+											</>
+										)}
+									</div>
 									{isResearchDepartmentSelected && (
-										<Grid size={{ xs: 12, sm: 6 }}>
-											<TextField
-												select
-												label="Research project"
-												value={researchProjectSelectValue}
-												onChange={(event) =>
+										<div className="grid gap-1.5">
+											<Label htmlFor={researchProjectId}>
+												Research project
+											</Label>
+											<Select
+												value={toSelectValue(researchProjectSelectValue)}
+												onValueChange={(value) =>
 													memberForm.setValue(
 														"research_project_id",
-														event.target.value,
+														fromSelectValue(value),
 														{ shouldDirty: true },
 													)
 												}
 												disabled={isLoadingResearchProjects}
-												helperText="Pick the research project you are part of."
 											>
-												<MenuItem value="">No project selected</MenuItem>
-												{researchProjectOptions.map((project) => (
-													<MenuItem key={project.id} value={project.id}>
-														{project.title}
-													</MenuItem>
-												))}
-											</TextField>
-										</Grid>
+												<SelectTrigger
+													id={researchProjectId}
+													className="w-full"
+													aria-label="Research project"
+												>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value={NONE_VALUE}>
+														No project selected
+													</SelectItem>
+													{researchProjectOptions.map((project) => (
+														<SelectItem key={project.id} value={project.id}>
+															{project.title}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<p className="text-xs text-muted-foreground">
+												Pick the research project you are part of.
+											</p>
+										</div>
 									)}
 									<EducationFields
 										degreeValue={memberForm.watch("degree")}
@@ -877,194 +1127,218 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											});
 										}}
 									/>
-								</Grid>
+								</div>
 							</CardContent>
 						</GlassCard>
 
-						{/* ── LinkedIn & Location ── */}
-						<GlassCard variant="elevated" sx={{ mt: 3 }}>
-							<CardContent sx={{ p: 3 }}>
-								<Box
-									sx={{ display: "flex", alignItems: "center", gap: 1, mb: 3 }}
-								>
-									<LinkedInIcon sx={{ color: "primary.main" }} />
-									<Typography variant="h6" sx={{ fontWeight: 500 }}>
-										LinkedIn & Location
-									</Typography>
-								</Box>
-								<Typography
-									variant="body2"
-									color="text.secondary"
-									sx={{ mb: 3 }}
-								>
-									This data is visible to other TUM.ai members.
-								</Typography>
+						<GlassCard id="links" variant="elevated" className="scroll-mt-20">
+							<CardContent className="p-6">
+								<SectionHeading
+									icon={Link}
+									title="LinkedIn & location"
+									description="This data is visible to other TUM.ai members."
+								/>
 
-								<Grid container spacing={2}>
-									<Grid size={12}>
-										<TextField
-											label="LinkedIn Profile URL"
-											placeholder="https://linkedin.com/in/your-profile"
-											{...linkedinForm.register("linkedin_profile_url")}
-											error={
-												!!linkedinForm.formState.errors.linkedin_profile_url
-											}
-											helperText={
-												linkedinForm.formState.errors.linkedin_profile_url
-													?.message
-											}
-											slotProps={{
-												input: {
-													endAdornment: isLinkedinUrlValid ? (
-														<Button
-															size="small"
-															component="a"
-															href={normalizedLinkedinUrl}
-															aria-label="View LinkedIn profile"
-															target="_blank"
-															rel="noopener noreferrer"
-															sx={{ minWidth: 0, px: 1, color: "primary.main" }}
-														>
-															<LinkedInIcon fontSize="small" />
-														</Button>
-													) : undefined,
-												},
-											}}
-										/>
-									</Grid>
+								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+									<div className="grid gap-1.5 sm:col-span-2">
+										<Label htmlFor={linkedinUrlId}>LinkedIn Profile URL</Label>
+										<div className="relative">
+											<Input
+												id={linkedinUrlId}
+												placeholder="https://linkedin.com/in/your-profile"
+												{...linkedinForm.register("linkedin_profile_url")}
+												aria-invalid={
+													!!linkedinForm.formState.errors.linkedin_profile_url
+												}
+												className={cn(isLinkedinUrlValid && "pr-10")}
+											/>
+											{isLinkedinUrlValid && (
+												<Button
+													type="button"
+													variant="ghost"
+													size="icon-sm"
+													asChild
+													className="absolute top-1/2 right-1 -translate-y-1/2 text-brand"
+												>
+													<a
+														href={normalizedLinkedinUrl}
+														aria-label="View LinkedIn profile"
+														target="_blank"
+														rel="noopener noreferrer"
+													>
+														<Link className="size-4" />
+													</a>
+												</Button>
+											)}
+										</div>
+										{linkedinForm.formState.errors.linkedin_profile_url
+											?.message && (
+											<p className="text-xs text-destructive">
+												{
+													linkedinForm.formState.errors.linkedin_profile_url
+														.message
+												}
+											</p>
+										)}
+									</div>
 
-									<Grid size={{ xs: 12, sm: 6 }}>
-										<TextField
-											label="Public location"
+									<div className="grid gap-1.5">
+										<Label htmlFor={publicLocationId}>Public location</Label>
+										<Input
+											id={publicLocationId}
 											placeholder="Munich, Germany"
 											{...linkedinForm.register("public_location")}
-											helperText="Shown on your member profile; separate from your address."
 										/>
-									</Grid>
-								</Grid>
+										<p className="text-xs text-muted-foreground">
+											Shown on your member profile; separate from your address.
+										</p>
+									</div>
+								</div>
 							</CardContent>
 						</GlassCard>
 
-						<CvPanel userId={user.id} />
+						<CvPanel userId={user.id} id="cv" className="scroll-mt-20" />
 
 						{!isAdmin && (
-							<GlassCard variant="elevated" sx={{ mt: 3 }}>
-								<CardContent sx={{ p: 3 }}>
-									<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-										Request Role, Department, or Status Changes
-									</Typography>
+							<GlassCard
+								id="requests"
+								variant="elevated"
+								className="scroll-mt-20"
+							>
+								<CardContent className="p-6">
+									<SectionHeading
+										icon={Send}
+										title="Request role, department, or status changes"
+										description="Send a request to the admin and LnF team for review."
+									/>
 
-									<Grid container spacing={2}>
-										<Grid size={12}>
-											<TextField
-												select
-												label="Requested role"
-												value={requestedRole}
-												onChange={(event) =>
-													setRequestedRole(event.target.value)
+									<div className="grid grid-cols-1 gap-4">
+										<div className="grid gap-1.5">
+											<Label htmlFor={requestedRoleId}>Requested role</Label>
+											<Select
+												value={toSelectValue(requestedRole)}
+												onValueChange={(value) =>
+													setRequestedRole(fromSelectValue(value))
 												}
 											>
-												<MenuItem value="">No change</MenuItem>
-												{MEMBER_ROLES.map((role) => (
-													<MenuItem key={role} value={role}>
-														{role}
-													</MenuItem>
-												))}
-											</TextField>
-										</Grid>
-										<Grid size={12}>
-											<TextField
-												select
-												label="Requested department"
-												value={requestedDepartment}
-												onChange={(event) =>
-													setRequestedDepartment(event.target.value)
+												<SelectTrigger
+													id={requestedRoleId}
+													className="w-full"
+													aria-label="Requested role"
+												>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value={NONE_VALUE}>No change</SelectItem>
+													{MEMBER_ROLES.map((role) => (
+														<SelectItem key={role} value={role}>
+															{role}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+										</div>
+										<div className="grid gap-1.5">
+											<Label htmlFor={requestedDepartmentId}>
+												Requested department
+											</Label>
+											<Select
+												value={toSelectValue(requestedDepartment)}
+												onValueChange={(value) =>
+													setRequestedDepartment(fromSelectValue(value))
 												}
-												helperText="Department changes are reviewed by an admin."
 											>
-												<MenuItem value="">No change</MenuItem>
-												{DEPARTMENTS.map((department) => (
-													<MenuItem key={department} value={department}>
-														{department}
-													</MenuItem>
-												))}
-											</TextField>
-										</Grid>
-										<Grid size={12}>
-											<Box
-												sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-											>
-												<FormControlLabel
-													control={
-														<Checkbox
-															checked={isRequestingAlumniStatus}
-															onChange={(event) =>
-																setIsRequestingAlumniStatus(
-																	event.target.checked,
-																)
-															}
-														/>
-													}
-													label="Request alumni status"
-												/>
-												<Tooltip title="Alumni requests are eligible after two active semesters and are reviewed by Legal & Finance.">
-													<IconButton
-														type="button"
-														size="small"
-														aria-label="Alumni status request information"
-													>
-														<InfoOutlinedIcon fontSize="small" />
-													</IconButton>
-												</Tooltip>
-											</Box>
-										</Grid>
-										<Grid size={12}>
-											<TextField
-												label="Reason"
+												<SelectTrigger
+													id={requestedDepartmentId}
+													className="w-full"
+													aria-label="Requested department"
+												>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value={NONE_VALUE}>No change</SelectItem>
+													{DEPARTMENTS.map((department) => (
+														<SelectItem key={department} value={department}>
+															{department}
+														</SelectItem>
+													))}
+												</SelectContent>
+											</Select>
+											<p className="text-xs text-muted-foreground">
+												Department changes are reviewed by an admin.
+											</p>
+										</div>
+										<div>
+											<div className="flex items-center gap-1">
+												<div className="flex items-center gap-2">
+													<Checkbox
+														id={alumniCheckboxId}
+														checked={isRequestingAlumniStatus}
+														onCheckedChange={(checked) =>
+															setIsRequestingAlumniStatus(checked === true)
+														}
+													/>
+													<Label htmlFor={alumniCheckboxId}>
+														Request alumni status
+													</Label>
+												</div>
+												<TooltipProvider>
+													<Tooltip>
+														<TooltipTrigger asChild>
+															<Button
+																type="button"
+																variant="ghost"
+																size="icon-sm"
+																aria-label="Alumni status request information"
+															>
+																<Info className="size-4" />
+															</Button>
+														</TooltipTrigger>
+														<TooltipContent>
+															Alumni requests are eligible after two active
+															semesters and are reviewed by Legal & Finance.
+														</TooltipContent>
+													</Tooltip>
+												</TooltipProvider>
+											</div>
+										</div>
+										<div className="grid gap-1.5">
+											<Label htmlFor={reasonId}>Reason</Label>
+											<Textarea
+												id={reasonId}
 												value={changeRequestReason}
 												onChange={(event) =>
 													setChangeRequestReason(event.target.value)
 												}
-												multiline
 												rows={3}
 												placeholder="Briefly explain why your role or status should change."
 											/>
-										</Grid>
-									</Grid>
+										</div>
+									</div>
 
 									{latestMemberChangeRequest && (
-										<Box
-											sx={{
-												mt: 2.5,
-												p: 2,
-												borderRadius: 2,
-												backgroundColor:
-													theme.palette.mode === "light"
-														? "rgba(154, 100, 217, 0.06)"
-														: "rgba(27, 0, 73, 0.36)",
-											}}
-										>
-											<Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+										<div className="mt-5 rounded-lg bg-brand/5 p-4">
+											<p className="mb-0.5 text-sm font-medium">
 												Latest request:{" "}
 												{latestMemberChangeRequest.status
 													.charAt(0)
 													.toUpperCase() +
 													latestMemberChangeRequest.status.slice(1)}
-											</Typography>
+											</p>
 											{latestMemberChangeRequest.reason && (
-												<Typography variant="body2" color="text.secondary">
+												<p className="text-sm text-muted-foreground">
 													Reason: {latestMemberChangeRequest.reason}
-												</Typography>
+												</p>
 											)}
-										</Box>
+										</div>
 									)}
 
 									<Button
 										type="button"
-										variant="outlined"
+										variant="outline"
 										onClick={handleSubmitMemberChangeRequest}
 										disabled={isSubmittingChangeRequest}
-										sx={{ mt: 2.5 }}
+										className="mt-5"
 									>
 										{isSubmittingChangeRequest
 											? "Submitting request..."
@@ -1073,222 +1347,198 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								</CardContent>
 							</GlassCard>
 						)}
-					</Grid>
 
-					<Grid size={{ xs: 12, lg: 5 }}>
-						<GlassCard variant="elevated">
-							<CardContent sx={{ p: 3 }}>
-								<Typography variant="h6" sx={{ mb: 3, fontWeight: 500 }}>
-									Banking & Agreements
-								</Typography>
+						<GlassCard id="banking" variant="elevated" className="scroll-mt-20">
+							<CardContent className="p-6">
+								<SectionHeading
+									icon={Landmark}
+									title="Banking & agreements"
+									description="Your SEPA details and required agreements."
+								/>
 
-								<Box sx={{ mb: 3 }}>
-									<TextField
-										label="IBAN"
-										{...sepaForm.register("iban")}
-										error={!!sepaForm.formState.errors.iban}
-										helperText={sepaForm.formState.errors.iban?.message}
-										sx={{ mb: 2, fontFamily: "monospace" }}
-										required
-									/>
-									<TextField
-										label="BIC"
-										{...sepaForm.register("bic")}
-										sx={{ mb: 2 }}
-									/>
-									<TextField
-										label="Bank Name"
-										{...sepaForm.register("bank_name")}
-										error={!!sepaForm.formState.errors.bank_name}
-										helperText={sepaForm.formState.errors.bank_name?.message}
-										required
-									/>
-								</Box>
+								<div className="mb-6 grid gap-4">
+									<div className="grid gap-1.5">
+										<Label htmlFor={ibanId}>IBAN *</Label>
+										<Input
+											id={ibanId}
+											{...sepaForm.register("iban")}
+											aria-invalid={!!sepaForm.formState.errors.iban}
+											className="font-mono"
+											required
+										/>
+										{sepaForm.formState.errors.iban?.message && (
+											<p className="text-xs text-destructive">
+												{sepaForm.formState.errors.iban.message}
+											</p>
+										)}
+									</div>
+									<div className="grid gap-1.5">
+										<Label htmlFor={bicId}>BIC</Label>
+										<Input id={bicId} {...sepaForm.register("bic")} />
+									</div>
+									<div className="grid gap-1.5">
+										<Label htmlFor={bankNameId}>Bank Name *</Label>
+										<Input
+											id={bankNameId}
+											{...sepaForm.register("bank_name")}
+											aria-invalid={!!sepaForm.formState.errors.bank_name}
+											required
+										/>
+										{sepaForm.formState.errors.bank_name?.message && (
+											<p className="text-xs text-destructive">
+												{sepaForm.formState.errors.bank_name.message}
+											</p>
+										)}
+									</div>
+								</div>
 
-								<Box
-									sx={{
-										p: 2,
-										borderRadius: 2,
-										backgroundColor:
-											theme.palette.mode === "light"
-												? "rgba(139, 92, 246, 0.04)"
-												: "rgba(255, 255, 255, 0.03)",
-										border: `1px solid ${theme.palette.divider}`,
-									}}
-								>
-									<FormControlLabel
-										control={
-											<Checkbox
-												checked={mandateAgreed}
-												onChange={(e) => {
-													if (e.target.checked) {
-														openSepaModal();
-														return;
-													}
-													sepaForm.setValue("mandate_agreed", false, {
-														shouldDirty: true,
-														shouldValidate: true,
-													});
-												}}
-											/>
-										}
-										label={
-											<Typography variant="body2">
+								<div className="space-y-3">
+									<div className="flex items-center gap-2">
+										<Checkbox
+											id={`${fieldId}-mandate`}
+											checked={mandateAgreed}
+											onCheckedChange={(checked) => {
+												if (checked === true) {
+													openSepaModal();
+													return;
+												}
+												sepaForm.setValue("mandate_agreed", false, {
+													shouldDirty: true,
+													shouldValidate: true,
+												});
+											}}
+										/>
+										<Label
+											htmlFor={`${fieldId}-mandate`}
+											className="font-normal"
+										>
+											<span className="text-sm">
 												I agree to the{" "}
-												<Box
-													component="span"
+												<button
+													type="button"
 													onClick={(e) => {
 														e.preventDefault();
 														e.stopPropagation();
 														openSepaModal();
 													}}
-													sx={{
-														color: theme.palette.primary.main,
-														cursor: "pointer",
-														"&:hover": { textDecoration: "underline" },
-													}}
+													className="cursor-pointer text-brand hover:underline"
 												>
 													SEPA mandate
-												</Box>
-											</Typography>
-										}
-										sx={{ mb: 0.5 }}
-									/>
+												</button>
+											</span>
+										</Label>
+									</div>
 									{sepaForm.formState.errors.mandate_agreed && (
-										<Typography
-											color="error"
-											variant="caption"
-											sx={{ display: "block", mb: 1 }}
-										>
+										<p className="mb-1 block text-xs text-destructive">
 											{sepaForm.formState.errors.mandate_agreed.message}
-										</Typography>
+										</p>
 									)}
 
-									<FormControlLabel
-										control={
-											<Checkbox
-												checked={privacyAgreed}
-												onChange={(e) => {
-													if (e.target.checked) {
-														openPrivacyModal();
-														return;
-													}
-													sepaForm.setValue("privacy_agreed", false, {
-														shouldDirty: true,
-														shouldValidate: true,
-													});
-												}}
-											/>
-										}
-										label={
-											<Typography variant="body2">
+									<div className="flex items-center gap-2">
+										<Checkbox
+											id={`${fieldId}-privacy`}
+											checked={privacyAgreed}
+											onCheckedChange={(checked) => {
+												if (checked === true) {
+													openPrivacyModal();
+													return;
+												}
+												sepaForm.setValue("privacy_agreed", false, {
+													shouldDirty: true,
+													shouldValidate: true,
+												});
+											}}
+										/>
+										<Label
+											htmlFor={`${fieldId}-privacy`}
+											className="font-normal"
+										>
+											<span className="text-sm">
 												I agree to the{" "}
-												<Box
-													component="span"
+												<button
+													type="button"
 													onClick={(e) => {
 														e.preventDefault();
 														e.stopPropagation();
 														openPrivacyModal();
 													}}
-													sx={{
-														color: theme.palette.primary.main,
-														cursor: "pointer",
-														"&:hover": { textDecoration: "underline" },
-													}}
+													className="cursor-pointer text-brand hover:underline"
 												>
 													Privacy Policy
-												</Box>{" "}
+												</button>{" "}
 												*
-											</Typography>
-										}
-									/>
+											</span>
+										</Label>
+									</div>
 									{sepaForm.formState.errors.privacy_agreed && (
-										<Typography
-											color="error"
-											variant="caption"
-											sx={{ display: "block", mb: 1 }}
-										>
+										<p className="mb-1 block text-xs text-destructive">
 											{sepaForm.formState.errors.privacy_agreed.message}
-										</Typography>
+										</p>
 									)}
 
-									<FormControlLabel
-										control={
-											<Checkbox
-												checked={dataPrivacyNoticeAgreed}
-												onChange={(e) => {
-													if (e.target.checked) {
-														openDataPrivacyNoticeModal();
-														return;
-													}
-													sepaForm.setValue(
-														"data_privacy_notice_agreed",
-														false,
-														{
-															shouldDirty: true,
-															shouldValidate: true,
-														},
-													);
-												}}
-											/>
-										}
-										label={
-											<Typography variant="body2">
+									<div className="flex items-center gap-2">
+										<Checkbox
+											id={`${fieldId}-data-privacy`}
+											checked={dataPrivacyNoticeAgreed}
+											onCheckedChange={(checked) => {
+												if (checked === true) {
+													openDataPrivacyNoticeModal();
+													return;
+												}
+												sepaForm.setValue("data_privacy_notice_agreed", false, {
+													shouldDirty: true,
+													shouldValidate: true,
+												});
+											}}
+										/>
+										<Label
+											htmlFor={`${fieldId}-data-privacy`}
+											className="font-normal"
+										>
+											<span className="text-sm">
 												I agree to the{" "}
-												<Box
-													component="span"
+												<button
+													type="button"
 													onClick={(e) => {
 														e.preventDefault();
 														e.stopPropagation();
 														openDataPrivacyNoticeModal();
 													}}
-													sx={{
-														color: theme.palette.primary.main,
-														cursor: "pointer",
-														"&:hover": { textDecoration: "underline" },
-													}}
+													className="cursor-pointer text-brand hover:underline"
 												>
 													Data Privacy Notice
-												</Box>{" "}
+												</button>{" "}
 												*
-											</Typography>
-										}
-									/>
+											</span>
+										</Label>
+									</div>
 									{sepaForm.formState.errors.data_privacy_notice_agreed && (
-										<Typography
-											color="error"
-											variant="caption"
-											sx={{ display: "block" }}
-										>
+										<p className="block text-xs text-destructive">
 											{
 												sepaForm.formState.errors.data_privacy_notice_agreed
 													.message
 											}
-										</Typography>
+										</p>
 									)}
-								</Box>
+								</div>
 							</CardContent>
 						</GlassCard>
 
 						<Button
 							type="submit"
-							variant="contained"
-							size="large"
-							fullWidth
+							size="lg"
+							className="w-full lg:hidden"
 							disabled={isUpdating}
-							startIcon={
-								isUpdating ? (
-									<CircularProgress size={20} color="inherit" />
-								) : (
-									<SaveIcon />
-								)
-							}
-							sx={{ mt: 3, py: 1.5 }}
 						>
+							{isUpdating ? (
+								<Spinner className="size-5" />
+							) : (
+								<Save className="size-4" />
+							)}
 							{isUpdating ? "Saving..." : "Save Changes"}
 						</Button>
-					</Grid>
-				</Grid>
+					</div>
+				</div>
 			</form>
 
 			{showSepaModal && (
@@ -1350,6 +1600,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 					/>
 				</Modal>
 			)}
-		</Box>
+		</div>
 	);
 }

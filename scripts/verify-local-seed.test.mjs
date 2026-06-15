@@ -103,3 +103,50 @@ test("seed creates user@example.com that can sign in with password", async (t) =
 	assert.ok(body.access_token, "expected access_token in response");
 	assert.equal(body.user?.email, "user@example.com");
 });
+
+async function countRows(anonKey, accessToken, table) {
+	const response = await fetch(
+		`http://127.0.0.1:54321/rest/v1/${table}?select=id`,
+		{
+			headers: {
+				apikey: anonKey,
+				Authorization: `Bearer ${accessToken}`,
+			},
+		},
+	);
+	const body = await response.json().catch(() => []);
+	return {
+		status: response.status,
+		count: Array.isArray(body) ? body.length : 0,
+	};
+}
+
+test("seed populates the feature tables (jobs, contracts, tumai days)", async (t) => {
+	if (!(await authHealth())) {
+		t.skip("local Supabase not reachable at 127.0.0.1:54321");
+		return;
+	}
+
+	const anonKey = readAnonKey();
+	if (!anonKey) {
+		t.skip("client/.env.local missing; run `pnpm setup:local` first");
+		return;
+	}
+
+	const { body } = await signIn(anonKey, "admin@example.com", "password123");
+	assert.ok(body.access_token, "expected admin access_token");
+
+	for (const table of [
+		"job_posting_requests",
+		"contract_submissions",
+		"tumai_days",
+	]) {
+		const { status, count } = await countRows(
+			anonKey,
+			body.access_token,
+			table,
+		);
+		assert.equal(status, 200, `expected 200 reading ${table}, got ${status}`);
+		assert.ok(count > 0, `expected seeded rows in ${table}, got ${count}`);
+	}
+});

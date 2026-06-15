@@ -1,26 +1,24 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import {
-	Add as AddIcon,
-	Delete as DeleteIcon,
-	Download as DownloadIcon,
-} from "@mui/icons-material";
-import {
-	Box,
-	Button,
-	Checkbox,
-	CircularProgress,
-	FormControlLabel,
-	Grid,
-	IconButton,
-	MenuItem,
-	TextField,
-	Typography,
-} from "@mui/material";
 import type { User } from "@supabase/supabase-js";
+import { Download, Plus, Trash2 } from "lucide-react";
 import { useState } from "react";
-import { useFieldArray, useForm } from "react-hook-form";
+import { Controller, useFieldArray, useForm } from "react-hook-form";
 
-import GlassCard from "../../components/ui/GlassCard";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import GlassCard from "@/components/ui/GlassCard";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+
 import { useToast } from "../../contexts/ToastContext";
 import { useEngagementCertificateRequests } from "../../hooks/useEngagementCertificateRequests";
 import { useMemberData } from "../../hooks/useMemberData";
@@ -41,6 +39,10 @@ import { generateEngagementCertificatePdf } from "./generators/engagementCertifi
 interface Props {
 	user: User;
 }
+
+// Radix SelectItem cannot use an empty string value, so we map the
+// "unselected" form state ("") to/from this sentinel.
+const NONE_VALUE = "__none__";
 
 function createDefaultEngagement(): EngagementSchema {
 	return {
@@ -151,38 +153,30 @@ export default function EngagementCertificatePage({
 
 	if (isLoading) {
 		return (
-			<Box
-				sx={{
-					display: "flex",
-					justifyContent: "center",
-					alignItems: "center",
-					minHeight: "50vh",
-					gap: 2,
-				}}
-			>
-				<CircularProgress />
-				<Typography variant="h6" color="text.secondary">
+			<div className="flex min-h-[50vh] items-center justify-center gap-2">
+				<Spinner />
+				<p className="text-lg font-semibold text-muted-foreground">
 					Loading...
-				</Typography>
-			</Box>
+				</p>
+			</div>
 		);
 	}
 
 	if (fetchError) {
 		return (
-			<Box sx={{ p: 3 }}>
-				<Typography color="error">
+			<div className="p-6">
+				<p className="text-destructive">
 					Error loading member data: {fetchError.message}
-				</Typography>
-			</Box>
+				</p>
+			</div>
 		);
 	}
 
 	if (!member) {
 		return (
-			<Box sx={{ p: 3 }}>
-				<Typography color="text.secondary">No member data found.</Typography>
-			</Box>
+			<div className="p-6">
+				<p className="text-muted-foreground">No member data found.</p>
+			</div>
 		);
 	}
 
@@ -191,11 +185,11 @@ export default function EngagementCertificatePage({
 		"active"
 	) {
 		return (
-			<Box sx={{ p: 3 }}>
-				<Typography color="text.secondary">
+			<div className="p-6">
+				<p className="text-muted-foreground">
 					This feature is only available for active members.
-				</Typography>
-			</Box>
+				</p>
+			</div>
 		);
 	}
 
@@ -206,51 +200,37 @@ export default function EngagementCertificatePage({
 			title="Engagement Certificate"
 			description="Submit engagement details for admin review."
 		>
-			<GlassCard sx={{ mb: 3 }}>
-				<Box sx={{ p: 3 }}>
-					<Typography variant="body1" sx={{ mb: 2 }}>
+			<GlassCard className="mb-6">
+				<div className="p-6">
+					<p className="mb-4">
 						Submit your engagement details for an admin review before the final
 						certificate is released. Please enter{" "}
 						<strong>accurate information</strong> for each period you were
 						actively involved.
-					</Typography>
+					</p>
 
-					<Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+					<p className="mb-4 text-sm text-muted-foreground">
 						<strong>Important:</strong> Everything you enter below will be
 						reviewed by an admin and appear in the final certificate only after
 						approval. Make sure names, dates, and responsibilities are correct
 						and complete.
-					</Typography>
+					</p>
 
 					{latestRequest && (
-						<Box
-							sx={{
-								p: 2,
-								borderRadius: 1,
-								bgcolor: "rgba(154, 100, 217, 0.08)",
-								mb: 2,
-							}}
-						>
-							<Typography variant="subtitle2" sx={{ mb: 0.5 }}>
+						<div className="mb-4 rounded-md bg-brand/10 p-4">
+							<p className="mb-0.5 text-sm font-semibold">
 								Current request status: {latestRequest.status}
-							</Typography>
+							</p>
 							{latestRequest.review_note && (
-								<Typography variant="body2" color="text.secondary">
+								<p className="text-sm text-muted-foreground">
 									Admin note: {latestRequest.review_note}
-								</Typography>
+								</p>
 							)}
-						</Box>
+						</div>
 					)}
 
-					<Box
-						sx={{
-							p: 2,
-							borderRadius: 1,
-							bgcolor: "rgba(255, 255, 255, 0.05)",
-							mb: 2,
-						}}
-					>
-						<Typography variant="body2">
+					<div className="mb-4 rounded-md bg-muted p-4">
+						<p className="text-sm">
 							This is to confirm that{" "}
 							<strong>
 								{member.salutation} {member.given_name} {member.surname}
@@ -260,294 +240,322 @@ export default function EngagementCertificatePage({
 								<strong>{birthDate}</strong>
 							)}
 							, has voluntarily engaged with <strong>TUM.ai</strong>.
-						</Typography>
-					</Box>
-				</Box>
+						</p>
+					</div>
+				</div>
 			</GlassCard>
 
 			<form onSubmit={form.handleSubmit(handleSubmitForApproval)}>
-				{fields.map((field, index) => (
-					<GlassCard key={field.id} sx={{ mb: 3 }}>
-						<Box sx={{ p: 3 }}>
-							<Box
-								sx={{
-									display: "flex",
-									justifyContent: "space-between",
-									alignItems: "center",
-									mb: 2,
-								}}
-							>
-								<Typography variant="h6" sx={{ fontWeight: 500 }}>
-									Engagement #{index + 1}
-								</Typography>
-								{fields.length > 1 && (
-									<IconButton
-										color="error"
-										onClick={() => handleRemoveEngagement(index)}
-										size="small"
-										aria-label={`Remove engagement ${index + 1}`}
-									>
-										<DeleteIcon />
-									</IconButton>
-								)}
-							</Box>
+				{fields.map((field, index) => {
+					const errors = form.formState.errors.engagements?.[index];
+					return (
+						<GlassCard key={field.id} className="mb-6">
+							<div className="p-6">
+								<div className="mb-4 flex items-center justify-between">
+									<h2 className="text-lg font-medium">
+										Engagement #{index + 1}
+									</h2>
+									{fields.length > 1 && (
+										<Button
+											type="button"
+											variant="ghost"
+											size="icon"
+											className="text-destructive hover:text-destructive"
+											onClick={() => handleRemoveEngagement(index)}
+											aria-label={`Remove engagement ${index + 1}`}
+										>
+											<Trash2 className="size-4" />
+										</Button>
+									)}
+								</div>
 
-							<Grid container spacing={2}>
-								<Grid size={{ xs: 12, md: 6 }}>
-									<TextField
-										fullWidth
-										label="Start Date"
-										type="date"
-										{...form.register(`engagements.${index}.startDate`)}
-										error={
-											!!form.formState.errors.engagements?.[index]?.startDate
-										}
-										helperText={
-											form.formState.errors.engagements?.[index]?.startDate
-												?.message
-										}
-										slotProps={{
-											inputLabel: { shrink: true },
-										}}
-										required
-									/>
-								</Grid>
-
-								<Grid size={{ xs: 12, md: 6 }}>
-									<FormControlLabel
-										control={
-											<Checkbox
-												{...form.register(`engagements.${index}.isStillActive`)}
-											/>
-										}
-										label="I am still active in this role"
-									/>
-								</Grid>
-
-								{!form.watch(`engagements.${index}.isStillActive`) && (
-									<Grid size={{ xs: 12, md: 6 }}>
-										<TextField
-											fullWidth
-											label="End Date"
+								<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+									<div className="flex flex-col gap-1.5">
+										<Label htmlFor={`startDate-${index}`}>Start Date</Label>
+										<Input
+											id={`startDate-${index}`}
 											type="date"
-											{...form.register(`engagements.${index}.endDate`)}
-											error={
-												!!form.formState.errors.engagements?.[index]?.endDate
-											}
-											helperText={
-												form.formState.errors.engagements?.[index]?.endDate
-													?.message
-											}
-											slotProps={{
-												inputLabel: { shrink: true },
-											}}
+											aria-invalid={!!errors?.startDate}
 											required
+											{...form.register(`engagements.${index}.startDate`)}
 										/>
-									</Grid>
-								)}
+										{errors?.startDate?.message && (
+											<p className="text-xs text-destructive">
+												{errors.startDate.message}
+											</p>
+										)}
+									</div>
 
-								<Grid size={{ xs: 12, md: 6 }}>
-									<TextField
-										select
-										fullWidth
-										label="Weekly Hours"
-										{...form.register(`engagements.${index}.weeklyHours`)}
-										value={form.watch(`engagements.${index}.weeklyHours`) || ""}
-										error={
-											!!form.formState.errors.engagements?.[index]?.weeklyHours
-										}
-										helperText={
-											form.formState.errors.engagements?.[index]?.weeklyHours
-												?.message
-										}
-									>
-										<MenuItem value="">Select</MenuItem>
-										{WEEKLY_HOURS_OPTIONS.map((hours) => (
-											<MenuItem key={hours} value={hours.toString()}>
-												{hours} hours
-											</MenuItem>
-										))}
-									</TextField>
-								</Grid>
+									<div className="flex items-center gap-2">
+										<Checkbox
+											id={`isStillActive-${index}`}
+											checked={form.watch(`engagements.${index}.isStillActive`)}
+											onCheckedChange={(value) =>
+												form.setValue(
+													`engagements.${index}.isStillActive`,
+													value === true,
+												)
+											}
+										/>
+										<Label
+											htmlFor={`isStillActive-${index}`}
+											className="font-normal"
+										>
+											I am still active in this role
+										</Label>
+									</div>
 
-								<Grid size={{ xs: 12, md: 6 }}>
-									<TextField
-										select
-										fullWidth
-										label="Department"
-										slotProps={{
-											select: {
-												SelectDisplayProps: {
-													"aria-label": "Department",
-												},
-											},
-										}}
-										{...form.register(`engagements.${index}.department`)}
-										value={form.watch(`engagements.${index}.department`) || ""}
-										error={
-											!!form.formState.errors.engagements?.[index]?.department
-										}
-										helperText={
-											form.formState.errors.engagements?.[index]?.department
-												?.message
-										}
-										required
-									>
-										<MenuItem value="">Select</MenuItem>
-										{DEPARTMENTS.map((dept) => (
-											<MenuItem key={dept} value={dept}>
-												{dept}
-											</MenuItem>
-										))}
-									</TextField>
-								</Grid>
-
-								<Grid size={{ xs: 12, md: 6 }}>
-									<TextField
-										select
-										fullWidth
-										label="Special role"
-										slotProps={{
-											select: {
-												SelectDisplayProps: {
-													"aria-label": "Special role",
-												},
-											},
-										}}
-										{...form.register(`engagements.${index}.specialRole`)}
-										value={form.watch(`engagements.${index}.specialRole`) || ""}
-										error={
-											!!form.formState.errors.engagements?.[index]?.specialRole
-										}
-										helperText={
-											form.formState.errors.engagements?.[index]?.specialRole
-												?.message ||
-											"Optional board or executive responsibility."
-										}
-									>
-										<MenuItem value="">None</MenuItem>
-										{ENGAGEMENT_SPECIAL_ROLES.map((role) => (
-											<MenuItem key={role} value={role}>
-												{role}
-											</MenuItem>
-										))}
-									</TextField>
-								</Grid>
-
-								<Grid size={{ xs: 12, md: 6 }}>
-									<FormControlLabel
-										control={
-											<Checkbox
-												{...form.register(`engagements.${index}.isTeamLead`)}
+									{!form.watch(`engagements.${index}.isStillActive`) && (
+										<div className="flex flex-col gap-1.5">
+											<Label htmlFor={`endDate-${index}`}>End Date</Label>
+											<Input
+												id={`endDate-${index}`}
+												type="date"
+												aria-invalid={!!errors?.endDate}
+												required
+												{...form.register(`engagements.${index}.endDate`)}
 											/>
-										}
-										label="I was a team lead"
-									/>
-								</Grid>
+											{errors?.endDate?.message && (
+												<p className="text-xs text-destructive">
+													{errors.endDate.message}
+												</p>
+											)}
+										</div>
+									)}
 
-								<Grid size={{ xs: 12 }}>
-									<TextField
-										fullWidth
-										multiline
-										rows={4}
-										label="Tasks / Responsibilities"
-										placeholder="List each responsibility on a new line"
-										{...form.register(`engagements.${index}.tasksDescription`)}
-										error={
-											!!form.formState.errors.engagements?.[index]
-												?.tasksDescription
-										}
-										helperText={
-											form.formState.errors.engagements?.[index]
-												?.tasksDescription?.message || (
-												<Box
-													component="span"
-													sx={{
-														display: "flex",
-														justifyContent: "space-between",
-													}}
+									<div className="flex flex-col gap-1.5">
+										<Label htmlFor={`weeklyHours-${index}`}>Weekly Hours</Label>
+										<Controller
+											control={form.control}
+											name={`engagements.${index}.weeklyHours`}
+											render={({ field: selectField }) => (
+												<Select
+													value={selectField.value || NONE_VALUE}
+													onValueChange={(value) =>
+														selectField.onChange(
+															value === NONE_VALUE ? "" : value,
+														)
+													}
 												>
-													<span>Enter each task on a new line</span>
-													<span>
-														{
-															(
-																form.watch(
-																	`engagements.${index}.tasksDescription`,
-																) || ""
-															).length
-														}
-														/1000 chars
-													</span>
-												</Box>
-											)
-										}
-										required
-									/>
-								</Grid>
-							</Grid>
-						</Box>
-					</GlassCard>
-				))}
+													<SelectTrigger
+														id={`weeklyHours-${index}`}
+														className="w-full"
+														aria-label="Weekly Hours"
+														aria-invalid={!!errors?.weeklyHours}
+													>
+														<SelectValue placeholder="Select" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value={NONE_VALUE}>Select</SelectItem>
+														{WEEKLY_HOURS_OPTIONS.map((hours) => (
+															<SelectItem key={hours} value={hours.toString()}>
+																{hours} hours
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											)}
+										/>
+										{errors?.weeklyHours?.message && (
+											<p className="text-xs text-destructive">
+												{errors.weeklyHours.message}
+											</p>
+										)}
+									</div>
 
-				<Box sx={{ display: "flex", gap: 2, mb: 3 }}>
+									<div className="flex flex-col gap-1.5">
+										<Label htmlFor={`department-${index}`}>Department</Label>
+										<Controller
+											control={form.control}
+											name={`engagements.${index}.department`}
+											render={({ field: selectField }) => (
+												<Select
+													value={selectField.value || NONE_VALUE}
+													onValueChange={(value) =>
+														selectField.onChange(
+															value === NONE_VALUE ? "" : value,
+														)
+													}
+												>
+													<SelectTrigger
+														id={`department-${index}`}
+														className="w-full"
+														aria-label="Department"
+														aria-invalid={!!errors?.department}
+													>
+														<SelectValue placeholder="Select" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value={NONE_VALUE}>Select</SelectItem>
+														{DEPARTMENTS.map((dept) => (
+															<SelectItem key={dept} value={dept}>
+																{dept}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											)}
+										/>
+										{errors?.department?.message && (
+											<p className="text-xs text-destructive">
+												{errors.department.message}
+											</p>
+										)}
+									</div>
+
+									<div className="flex flex-col gap-1.5">
+										<Label htmlFor={`specialRole-${index}`}>Special role</Label>
+										<Controller
+											control={form.control}
+											name={`engagements.${index}.specialRole`}
+											render={({ field: selectField }) => (
+												<Select
+													value={selectField.value || NONE_VALUE}
+													onValueChange={(value) =>
+														selectField.onChange(
+															value === NONE_VALUE ? "" : value,
+														)
+													}
+												>
+													<SelectTrigger
+														id={`specialRole-${index}`}
+														className="w-full"
+														aria-label="Special role"
+														aria-invalid={!!errors?.specialRole}
+													>
+														<SelectValue placeholder="None" />
+													</SelectTrigger>
+													<SelectContent>
+														<SelectItem value={NONE_VALUE}>None</SelectItem>
+														{ENGAGEMENT_SPECIAL_ROLES.map((role) => (
+															<SelectItem key={role} value={role}>
+																{role}
+															</SelectItem>
+														))}
+													</SelectContent>
+												</Select>
+											)}
+										/>
+										<p className="text-xs text-muted-foreground">
+											{errors?.specialRole?.message ||
+												"Optional board or executive responsibility."}
+										</p>
+									</div>
+
+									<div className="flex items-center gap-2">
+										<Checkbox
+											id={`isTeamLead-${index}`}
+											checked={form.watch(`engagements.${index}.isTeamLead`)}
+											onCheckedChange={(value) =>
+												form.setValue(
+													`engagements.${index}.isTeamLead`,
+													value === true,
+												)
+											}
+										/>
+										<Label
+											htmlFor={`isTeamLead-${index}`}
+											className="font-normal"
+										>
+											I was a team lead
+										</Label>
+									</div>
+
+									<div className="flex flex-col gap-1.5 md:col-span-2">
+										<Label htmlFor={`tasksDescription-${index}`}>
+											Tasks / Responsibilities
+										</Label>
+										<Textarea
+											id={`tasksDescription-${index}`}
+											rows={4}
+											placeholder="List each responsibility on a new line"
+											aria-invalid={!!errors?.tasksDescription}
+											required
+											{...form.register(
+												`engagements.${index}.tasksDescription`,
+											)}
+										/>
+										{errors?.tasksDescription?.message ? (
+											<p className="text-xs text-destructive">
+												{errors.tasksDescription.message}
+											</p>
+										) : (
+											<div className="flex justify-between text-xs text-muted-foreground">
+												<span>Enter each task on a new line</span>
+												<span>
+													{
+														(
+															form.watch(
+																`engagements.${index}.tasksDescription`,
+															) || ""
+														).length
+													}
+													/1000 chars
+												</span>
+											</div>
+										)}
+									</div>
+								</div>
+							</div>
+						</GlassCard>
+					);
+				})}
+
+				<div className="mb-6 flex gap-2">
 					<Button
-						variant="outlined"
-						startIcon={<AddIcon />}
+						type="button"
+						variant="outline"
 						onClick={handleAddEngagement}
 						disabled={fields.length >= 5}
 					>
+						<Plus className="size-4" />
 						Add Another Engagement
 					</Button>
 
-					<Box sx={{ flex: 1 }} />
+					<div className="flex-1" />
 
 					<Button
 						type="submit"
-						variant="contained"
-						size="large"
-						startIcon={
-							isSubmitting ? (
-								<CircularProgress size={20} color="inherit" />
-							) : (
-								<DownloadIcon />
-							)
-						}
+						size="lg"
 						disabled={isSubmitting || isRequestPending}
 					>
+						{isSubmitting ? (
+							<Spinner className="size-5" />
+						) : (
+							<Download className="size-4" />
+						)}
 						{isSubmitting
 							? "Submitting..."
 							: isRequestPending
 								? "Awaiting Admin Review"
 								: "Submit for Approval"}
 					</Button>
-				</Box>
+				</div>
 
 				{approvedRequest && (
-					<Box sx={{ display: "flex", justifyContent: "flex-end", mb: 3 }}>
+					<div className="mb-6 flex justify-end">
 						<Button
 							type="button"
-							variant="outlined"
-							startIcon={
-								isGenerating ? (
-									<CircularProgress size={18} color="inherit" />
-								) : (
-									<DownloadIcon />
-								)
-							}
+							variant="outline"
 							onClick={handleDownloadApproved}
 							disabled={isGenerating}
 						>
+							{isGenerating ? (
+								<Spinner className="size-[18px]" />
+							) : (
+								<Download className="size-4" />
+							)}
 							{isGenerating
 								? "Generating approved certificate..."
 								: "Download Approved Certificate"}
 						</Button>
-					</Box>
+					</div>
 				)}
 
-				<Typography variant="caption" color="text.secondary" sx={{ mt: 2 }}>
+				<p className="mt-2 text-xs text-muted-foreground">
 					* Dates, weekly hours, department, and responsibilities are required.
 					Special role is optional.
-				</Typography>
+				</p>
 			</form>
 		</ToolPageShell>
 	);

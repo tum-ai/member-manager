@@ -1,11 +1,9 @@
-import { CssBaseline, ThemeProvider } from "@mui/material";
 import type { User } from "@supabase/supabase-js";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthenticatedApp } from "./App";
 import { ToastProvider } from "./contexts/ToastContext";
-import getAppTheme from "./theme";
 
 const adminState = vi.hoisted(() => ({
 	isAdmin: false,
@@ -35,10 +33,6 @@ vi.mock("./features/profile/ProfilePage", () => ({
 
 vi.mock("./features/members/MemberList", () => ({
 	default: () => <div>Members route</div>,
-}));
-
-vi.mock("./features/tools/ToolsPage", () => ({
-	default: () => <div>Tools route</div>,
 }));
 
 vi.mock("./features/jobs/JobPostingsPage", () => ({
@@ -80,19 +74,11 @@ const mockUser = {
 
 function renderAuthenticatedApp(initialRoute = "/admin") {
 	return render(
-		<ThemeProvider theme={getAppTheme("light")}>
-			<CssBaseline />
-			<ToastProvider>
-				<MemoryRouter initialEntries={[initialRoute]}>
-					<AuthenticatedApp
-						user={mockUser}
-						colorMode="light"
-						onLogout={vi.fn()}
-						onToggleColorMode={vi.fn()}
-					/>
-				</MemoryRouter>
-			</ToastProvider>
-		</ThemeProvider>,
+		<ToastProvider>
+			<MemoryRouter initialEntries={[initialRoute]}>
+				<AuthenticatedApp user={mockUser} onLogout={vi.fn()} />
+			</MemoryRouter>
+		</ToastProvider>,
 	);
 }
 

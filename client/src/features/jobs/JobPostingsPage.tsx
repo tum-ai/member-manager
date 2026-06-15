@@ -1,36 +1,40 @@
 import {
-	Add as AddIcon,
-	Business as BusinessIcon,
-	EmailOutlined as EmailOutlinedIcon,
-	LocationOnOutlined as LocationOnOutlinedIcon,
-	OpenInNew as OpenInNewIcon,
-	SendOutlined as SendOutlinedIcon,
-	WorkOutline as WorkOutlineIcon,
-} from "@mui/icons-material";
-import {
-	Alert,
-	Avatar,
-	Box,
-	Button,
-	CardContent,
-	Chip,
-	CircularProgress,
-	Dialog,
-	DialogActions,
-	DialogContent,
-	DialogTitle,
-	Divider,
-	Grid,
-	MenuItem,
-	Stack,
-	TextField,
-	Typography,
-	useTheme,
-} from "@mui/material";
-import { alpha } from "@mui/material/styles";
+	Briefcase,
+	Building2,
+	ExternalLink,
+	Mail,
+	MapPin,
+	Plus,
+	Send,
+} from "lucide-react";
 import type React from "react";
-import { useState } from "react";
-import GlassCard from "../../components/ui/GlassCard";
+import { useId, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import GlassCard from "@/components/ui/GlassCard";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Markdown } from "@/components/ui/markdown";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 import { useToast } from "../../contexts/ToastContext";
 import {
 	type JobPostingRequest,
@@ -108,11 +112,11 @@ function getSafeHttpUrl(value?: string | null): string | null {
 	}
 }
 
-function getStatusChipColor(
+function getStatusBadgeVariant(
 	status: JobPostingRequest["status"],
-): "default" | "success" | "warning" | "error" {
+): BadgeVariant {
 	if (status === "approved") return "success";
-	if (status === "rejected") return "error";
+	if (status === "rejected") return "danger";
 	return "warning";
 }
 
@@ -127,103 +131,156 @@ function getApplyLabel(job: PartnerJob): string {
 	);
 }
 
-function JobCard({ job }: { job: PartnerJob }): React.ReactElement {
-	const theme = useTheme();
-	const logoUrl = job.logo_url ?? job.partner.logo_url;
-	const applyHref = getApplyHref(job);
-	const applyLabel = getApplyLabel(job);
+function JobApplyButton({
+	job,
+	className,
+}: {
+	job: PartnerJob;
+	className?: string;
+}): React.ReactElement {
 	const safeExternalUrl = getSafeHttpUrl(job.external_url);
+	return (
+		<Button
+			asChild
+			className={className}
+			onClick={(event) => event.stopPropagation()}
+		>
+			<a
+				href={getApplyHref(job)}
+				target={safeExternalUrl ? "_blank" : undefined}
+				rel={safeExternalUrl ? "noopener noreferrer" : undefined}
+			>
+				{getApplyLabel(job)}
+				{safeExternalUrl ? (
+					<ExternalLink className="size-4" />
+				) : (
+					<Mail className="size-4" />
+				)}
+			</a>
+		</Button>
+	);
+}
+
+function JobCardHeader({ job }: { job: PartnerJob }): React.ReactElement {
+	const logoUrl = job.logo_url ?? job.partner.logo_url;
+	return (
+		<div className="flex items-start gap-4">
+			<Avatar size="lg" className="size-[52px] rounded-md bg-brand/10">
+				<AvatarImage src={logoUrl ?? undefined} alt={job.partner.name} />
+				<AvatarFallback className="rounded-md bg-brand/10 text-brand">
+					<Building2 className="size-5" />
+				</AvatarFallback>
+			</Avatar>
+			<div className="min-w-0 flex-1">
+				<h2 className="mb-0.5 text-xl font-semibold">{job.title}</h2>
+				<p className="text-muted-foreground">{job.partner.name}</p>
+			</div>
+		</div>
+	);
+}
+
+function JobBadges({ job }: { job: PartnerJob }): React.ReactElement {
+	return (
+		<div className="flex flex-wrap gap-2">
+			<Badge variant="secondary">{jobTypeLabels[job.job_type]}</Badge>
+			<Badge variant="outline" className="gap-1 text-muted-foreground">
+				<MapPin className="size-3.5" />
+				{job.location}
+			</Badge>
+		</div>
+	);
+}
+
+function JobMeta({ job }: { job: PartnerJob }): React.ReactElement {
+	return (
+		<div>
+			<p className="text-sm text-muted-foreground">
+				Published {formatDate(job.published_at)}
+			</p>
+			<p className="text-sm text-muted-foreground">
+				Contact: {job.contact.name}
+				{job.contact.role ? `, ${job.contact.role}` : ""}
+			</p>
+		</div>
+	);
+}
+
+function JobDetailDialog({
+	job,
+	open,
+	onOpenChange,
+}: {
+	job: PartnerJob;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}): React.ReactElement {
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="max-h-[85vh] gap-5 overflow-y-auto sm:max-w-2xl">
+				<DialogHeader>
+					<JobCardHeader job={job} />
+				</DialogHeader>
+				<JobBadges job={job} />
+				<Markdown className="text-muted-foreground">
+					{job.description_markdown}
+				</Markdown>
+				<Separator />
+				<div className="flex flex-col items-stretch justify-between gap-3 sm:flex-row sm:items-center">
+					<JobMeta job={job} />
+					<JobApplyButton job={job} className="self-stretch sm:self-center" />
+				</div>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+export function JobCard({ job }: { job: PartnerJob }): React.ReactElement {
+	const [detailOpen, setDetailOpen] = useState(false);
 
 	return (
-		<GlassCard variant="elevated" sx={{ height: "100%" }}>
-			<CardContent
-				sx={{
-					p: { xs: 2.5, md: 3 },
-					height: "100%",
-					display: "flex",
-					flexDirection: "column",
-					gap: 2.25,
+		<>
+			<GlassCard
+				variant="interactive"
+				className="h-full"
+				onClick={() => setDetailOpen(true)}
+				role="button"
+				tabIndex={0}
+				aria-label={`View details for ${job.title}`}
+				onKeyDown={(event) => {
+					if (event.key === "Enter" || event.key === " ") {
+						event.preventDefault();
+						setDetailOpen(true);
+					}
 				}}
 			>
-				<Stack direction="row" spacing={2} alignItems="flex-start">
-					<Avatar
-						src={logoUrl ?? undefined}
-						alt={job.partner.name}
-						variant="rounded"
-						sx={{
-							width: 52,
-							height: 52,
-							bgcolor: alpha(theme.palette.primary.main, 0.12),
-							color: "primary.main",
-						}}
-					>
-						<BusinessIcon />
-					</Avatar>
-					<Box sx={{ minWidth: 0, flex: 1 }}>
-						<Typography variant="h5" sx={{ mb: 0.5 }}>
-							{job.title}
-						</Typography>
-						<Typography color="text.secondary">{job.partner.name}</Typography>
-					</Box>
-				</Stack>
+				<div className="flex h-full flex-col gap-5 p-5 md:p-6">
+					<JobCardHeader job={job} />
+					<JobBadges job={job} />
 
-				<Stack direction="row" spacing={1} useFlexGap flexWrap="wrap">
-					<Chip label={jobTypeLabels[job.job_type]} size="small" />
-					<Chip
-						icon={<LocationOnOutlinedIcon />}
-						label={job.location}
-						size="small"
-						variant="outlined"
-					/>
-				</Stack>
+					<div className="relative">
+						<Markdown clampHeight="7.5rem" className="text-muted-foreground">
+							{job.description_markdown}
+						</Markdown>
+						<span className="mt-1 inline-block text-sm font-medium text-brand">
+							Read more
+						</span>
+					</div>
 
-				<Typography
-					color="text.secondary"
-					sx={{
-						whiteSpace: "pre-line",
-						display: "-webkit-box",
-						WebkitLineClamp: 5,
-						WebkitBoxOrient: "vertical",
-						overflow: "hidden",
-					}}
-				>
-					{job.description_markdown}
-				</Typography>
+					<div className="flex-1" />
+					<Separator />
 
-				<Box sx={{ flex: 1 }} />
-				<Divider />
-
-				<Stack
-					direction={{ xs: "column", sm: "row" }}
-					spacing={1.5}
-					alignItems={{ xs: "stretch", sm: "center" }}
-					justifyContent="space-between"
-				>
-					<Box>
-						<Typography variant="body2" color="text.secondary">
-							Published {formatDate(job.published_at)}
-						</Typography>
-						<Typography variant="body2" color="text.secondary">
-							Contact: {job.contact.name}
-							{job.contact.role ? `, ${job.contact.role}` : ""}
-						</Typography>
-					</Box>
-					<Button
-						component="a"
-						href={applyHref}
-						target={safeExternalUrl ? "_blank" : undefined}
-						rel={safeExternalUrl ? "noopener noreferrer" : undefined}
-						variant="contained"
-						endIcon={
-							safeExternalUrl ? <OpenInNewIcon /> : <EmailOutlinedIcon />
-						}
-						sx={{ alignSelf: { xs: "stretch", sm: "center" } }}
-					>
-						{applyLabel}
-					</Button>
-				</Stack>
-			</CardContent>
-		</GlassCard>
+					<div className="flex flex-col items-stretch justify-between gap-1.5 sm:flex-row sm:items-center">
+						<JobMeta job={job} />
+						<JobApplyButton job={job} className="self-stretch sm:self-center" />
+					</div>
+				</div>
+			</GlassCard>
+			<JobDetailDialog
+				job={job}
+				open={detailOpen}
+				onOpenChange={setDetailOpen}
+			/>
+		</>
 	);
 }
 
@@ -236,66 +293,49 @@ function JobSubmissionPanel({
 }): React.ReactElement {
 	return (
 		<GlassCard variant="elevated">
-			<CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
-				<Stack
-					direction={{ xs: "column", md: "row" }}
-					spacing={2}
-					justifyContent="space-between"
-					alignItems={{ xs: "flex-start", md: "center" }}
-				>
-					<Box>
-						<Typography variant="h5">Member job submissions</Typography>
-						<Typography color="text.secondary" sx={{ mt: 0.5 }}>
+			<div className="p-5 md:p-6">
+				<div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+					<div>
+						<h2 className="text-xl font-semibold">Member job submissions</h2>
+						<p className="mt-0.5 text-muted-foreground">
 							Approved member postings are published on the board.
-						</Typography>
-					</Box>
-					<Button
-						type="button"
-						variant="contained"
-						startIcon={<AddIcon />}
-						onClick={onOpenForm}
-					>
+						</p>
+					</div>
+					<Button type="button" onClick={onOpenForm}>
+						<Plus className="size-4" />
 						Post job
 					</Button>
-				</Stack>
+				</div>
 
-				<Divider sx={{ my: 2.5 }} />
+				<Separator className="my-5" />
 
 				{requests.length === 0 ? (
-					<Typography color="text.secondary">No submitted jobs yet.</Typography>
+					<p className="text-muted-foreground">No submitted jobs yet.</p>
 				) : (
-					<Stack spacing={1.5}>
+					<div className="flex flex-col gap-3">
 						{requests.map((request) => (
-							<Box
+							<div
 								key={request.id}
-								sx={{
-									display: "flex",
-									flexDirection: { xs: "column", sm: "row" },
-									alignItems: { xs: "flex-start", sm: "center" },
-									justifyContent: "space-between",
-									gap: 1.5,
-								}}
+								className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center"
 							>
-								<Box sx={{ minWidth: 0 }}>
-									<Typography sx={{ fontWeight: 700 }}>
-										{request.title}
-									</Typography>
-									<Typography variant="body2" color="text.secondary">
+								<div className="min-w-0">
+									<p className="font-bold">{request.title}</p>
+									<p className="text-sm text-muted-foreground">
 										{request.organization_name} ·{" "}
 										{jobTypeLabels[request.job_type]} · {request.location}
-									</Typography>
-								</Box>
-								<Chip
-									label={request.status}
-									color={getStatusChipColor(request.status)}
-									size="small"
-									sx={{ textTransform: "capitalize" }}
-								/>
-							</Box>
+									</p>
+								</div>
+								<Badge
+									variant={getStatusBadgeVariant(request.status)}
+									className="capitalize"
+								>
+									{request.status}
+								</Badge>
+							</div>
 						))}
-					</Stack>
+					</div>
 				)}
-			</CardContent>
+			</div>
 		</GlassCard>
 	);
 }
@@ -315,147 +355,169 @@ function JobSubmissionDialog({
 	onChange: (field: keyof JobSubmissionFormState, value: string) => void;
 	onSubmit: (event: React.FormEvent<HTMLFormElement>) => void;
 }): React.ReactElement {
+	const fieldId = useId();
+	const id = (name: string) => `${fieldId}-${name}`;
+
 	return (
-		<Dialog open={open} onClose={onClose} fullWidth maxWidth="md">
-			<Box component="form" onSubmit={onSubmit}>
-				<DialogTitle>Post a job</DialogTitle>
-				<DialogContent>
-					<Grid container spacing={2} sx={{ pt: 1 }}>
-						<Grid size={{ xs: 12, md: 7 }}>
-							<TextField
+		<Dialog
+			open={open}
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen) onClose();
+			}}
+		>
+			<DialogContent className="sm:max-w-2xl">
+				<form onSubmit={onSubmit}>
+					<DialogHeader>
+						<DialogTitle>Post a job</DialogTitle>
+					</DialogHeader>
+					<div className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-12">
+						<div className="flex flex-col gap-1.5 md:col-span-7">
+							<Label htmlFor={id("title")}>Job title</Label>
+							<Input
+								id={id("title")}
 								required
-								label="Job title"
 								value={form.title}
 								onChange={(event) => onChange("title", event.target.value)}
 							/>
-						</Grid>
-						<Grid size={{ xs: 12, md: 5 }}>
-							<TextField
+						</div>
+						<div className="flex flex-col gap-1.5 md:col-span-5">
+							<Label htmlFor={id("organization")}>Organization</Label>
+							<Input
+								id={id("organization")}
 								required
-								label="Organization"
 								value={form.organization_name}
 								onChange={(event) =>
 									onChange("organization_name", event.target.value)
 								}
 							/>
-						</Grid>
-						<Grid size={{ xs: 12, sm: 6 }}>
-							<TextField
-								select
-								required
-								label="Job type"
+						</div>
+						<div className="flex flex-col gap-1.5 sm:col-span-6">
+							<Label htmlFor={id("job_type")}>Job type</Label>
+							<Select
 								value={form.job_type}
-								onChange={(event) => onChange("job_type", event.target.value)}
+								onValueChange={(value) => onChange("job_type", value)}
 							>
-								{jobTypeOptions.map(([value, label]) => (
-									<MenuItem key={value} value={value}>
-										{label}
-									</MenuItem>
-								))}
-							</TextField>
-						</Grid>
-						<Grid size={{ xs: 12, sm: 6 }}>
-							<TextField
+								<SelectTrigger
+									id={id("job_type")}
+									className="w-full"
+									aria-label="Job type"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{jobTypeOptions.map(([value, label]) => (
+										<SelectItem key={value} value={value}>
+											{label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col gap-1.5 sm:col-span-6">
+							<Label htmlFor={id("location")}>Location</Label>
+							<Input
+								id={id("location")}
 								required
-								label="Location"
 								value={form.location}
 								onChange={(event) => onChange("location", event.target.value)}
 							/>
-						</Grid>
-						<Grid size={{ xs: 12 }}>
-							<TextField
+						</div>
+						<div className="flex flex-col gap-1.5 md:col-span-12">
+							<Label htmlFor={id("description")}>Description</Label>
+							<Textarea
+								id={id("description")}
 								required
-								multiline
-								minRows={5}
-								label="Description"
+								rows={5}
 								value={form.description_markdown}
 								onChange={(event) =>
 									onChange("description_markdown", event.target.value)
 								}
 							/>
-						</Grid>
-						<Grid size={{ xs: 12, md: 7 }}>
-							<TextField
-								label="Apply link"
+						</div>
+						<div className="flex flex-col gap-1.5 md:col-span-7">
+							<Label htmlFor={id("external_url")}>Apply link</Label>
+							<Input
+								id={id("external_url")}
 								type="url"
 								value={form.external_url}
 								onChange={(event) =>
 									onChange("external_url", event.target.value)
 								}
 							/>
-						</Grid>
-						<Grid size={{ xs: 12, md: 5 }}>
-							<TextField
-								label="Button label"
+						</div>
+						<div className="flex flex-col gap-1.5 md:col-span-5">
+							<Label htmlFor={id("call_to_action")}>Button label</Label>
+							<Input
+								id={id("call_to_action")}
 								value={form.call_to_action}
 								onChange={(event) =>
 									onChange("call_to_action", event.target.value)
 								}
 							/>
-						</Grid>
-						<Grid size={{ xs: 12, md: 4 }}>
-							<TextField
+						</div>
+						<div className="flex flex-col gap-1.5 md:col-span-4">
+							<Label htmlFor={id("contact_name")}>Contact name</Label>
+							<Input
+								id={id("contact_name")}
 								required
-								label="Contact name"
 								value={form.contact_name}
 								onChange={(event) =>
 									onChange("contact_name", event.target.value)
 								}
 							/>
-						</Grid>
-						<Grid size={{ xs: 12, md: 4 }}>
-							<TextField
+						</div>
+						<div className="flex flex-col gap-1.5 md:col-span-4">
+							<Label htmlFor={id("contact_email")}>Contact email</Label>
+							<Input
+								id={id("contact_email")}
 								required
-								label="Contact email"
 								type="email"
 								value={form.contact_email}
 								onChange={(event) =>
 									onChange("contact_email", event.target.value)
 								}
 							/>
-						</Grid>
-						<Grid size={{ xs: 12, md: 4 }}>
-							<TextField
-								label="Contact role"
+						</div>
+						<div className="flex flex-col gap-1.5 md:col-span-4">
+							<Label htmlFor={id("contact_role")}>Contact role</Label>
+							<Input
+								id={id("contact_role")}
 								value={form.contact_role}
 								onChange={(event) =>
 									onChange("contact_role", event.target.value)
 								}
 							/>
-						</Grid>
-						<Grid size={{ xs: 12, md: 7 }}>
-							<TextField
-								label="Logo URL"
+						</div>
+						<div className="flex flex-col gap-1.5 md:col-span-7">
+							<Label htmlFor={id("logo_url")}>Logo URL</Label>
+							<Input
+								id={id("logo_url")}
 								type="url"
 								value={form.logo_url}
 								onChange={(event) => onChange("logo_url", event.target.value)}
 							/>
-						</Grid>
-						<Grid size={{ xs: 12, md: 5 }}>
-							<TextField
-								label="Expires"
+						</div>
+						<div className="flex flex-col gap-1.5 md:col-span-5">
+							<Label htmlFor={id("expires_at")}>Expires</Label>
+							<Input
+								id={id("expires_at")}
 								type="date"
 								value={form.expires_at}
 								onChange={(event) => onChange("expires_at", event.target.value)}
-								slotProps={{ inputLabel: { shrink: true } }}
 							/>
-						</Grid>
-					</Grid>
-				</DialogContent>
-				<DialogActions>
-					<Button type="button" variant="text" onClick={onClose}>
-						Cancel
-					</Button>
-					<Button
-						type="submit"
-						variant="contained"
-						startIcon={<SendOutlinedIcon />}
-						disabled={isSubmitting}
-					>
-						{isSubmitting ? "Submitting..." : "Submit for review"}
-					</Button>
-				</DialogActions>
-			</Box>
+						</div>
+					</div>
+					<DialogFooter className="mt-6">
+						<Button type="button" variant="ghost" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button type="submit" disabled={isSubmitting}>
+							<Send className="size-4" />
+							{isSubmitting ? "Submitting..." : "Submit for review"}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
 		</Dialog>
 	);
 }
@@ -520,23 +582,22 @@ export default function JobPostingsPage(): React.ReactElement {
 		<ToolPageShell
 			title="Job Board"
 			description="Approved opportunities for active TUM.ai members."
-			maxWidth={1120}
 		>
-			<Stack spacing={3}>
+			<div className="flex flex-col gap-6">
 				{requestsError && (
-					<Alert severity="warning">
-						{requestsError instanceof Error
-							? requestsError.message
-							: "Could not load job submissions."}
+					<Alert>
+						<AlertDescription>
+							{requestsError instanceof Error
+								? requestsError.message
+								: "Could not load job submissions."}
+						</AlertDescription>
 					</Alert>
 				)}
 				{isLoadingRequests ? (
-					<Stack direction="row" spacing={1.5} alignItems="center">
-						<CircularProgress size={22} />
-						<Typography color="text.secondary">
-							Loading job submissions...
-						</Typography>
-					</Stack>
+					<div className="flex items-center gap-3">
+						<Spinner className="size-[22px]" />
+						<p className="text-muted-foreground">Loading job submissions...</p>
+					</div>
 				) : (
 					<JobSubmissionPanel
 						requests={jobRequests}
@@ -545,40 +606,40 @@ export default function JobPostingsPage(): React.ReactElement {
 				)}
 
 				{isLoading ? (
-					<Stack direction="row" spacing={1.5} alignItems="center">
-						<CircularProgress size={22} />
-						<Typography color="text.secondary">
-							Loading job postings...
-						</Typography>
-					</Stack>
+					<div className="flex items-center gap-3">
+						<Spinner className="size-[22px]" />
+						<p className="text-muted-foreground">Loading job postings...</p>
+					</div>
 				) : error ? (
-					<Alert severity="error">
-						{error instanceof Error
-							? error.message
-							: "Could not load job postings."}
+					<Alert variant="destructive">
+						<AlertDescription>
+							{error instanceof Error
+								? error.message
+								: "Could not load job postings."}
+						</AlertDescription>
 					</Alert>
 				) : jobs.length === 0 ? (
 					<GlassCard>
-						<CardContent sx={{ p: { xs: 3, md: 4 } }}>
-							<Stack spacing={1.5} alignItems="flex-start">
-								<WorkOutlineIcon color="primary" />
-								<Typography variant="h5">No job postings right now</Typography>
-								<Typography color="text.secondary">
+						<div className="p-6 md:p-8">
+							<div className="flex flex-col items-start gap-3">
+								<Briefcase className="size-6 text-brand" />
+								<h2 className="text-xl font-semibold">
+									No job postings right now
+								</h2>
+								<p className="text-muted-foreground">
 									Approved opportunities will appear here.
-								</Typography>
-							</Stack>
-						</CardContent>
+								</p>
+							</div>
+						</div>
 					</GlassCard>
 				) : (
-					<Grid container spacing={2.5}>
+					<div className={cn("grid grid-cols-1 gap-5 md:grid-cols-2")}>
 						{jobs.map((job) => (
-							<Grid key={job.id} size={{ xs: 12, md: 6 }}>
-								<JobCard job={job} />
-							</Grid>
+							<JobCard key={job.id} job={job} />
 						))}
-					</Grid>
+					</div>
 				)}
-			</Stack>
+			</div>
 			<JobSubmissionDialog
 				open={isSubmissionDialogOpen}
 				form={jobForm}

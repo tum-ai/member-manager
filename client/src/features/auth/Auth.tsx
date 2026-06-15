@@ -1,49 +1,16 @@
-import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
-import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
-import {
-	Box,
-	Button,
-	Container,
-	IconButton,
-	Paper,
-	Tooltip,
-	Typography,
-	useTheme,
-} from "@mui/material";
-import { alpha, styled } from "@mui/material/styles";
+import { Moon, Sun } from "lucide-react";
+import { useTheme } from "next-themes";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getSlackRedirectUrl } from "../../lib/authRedirect";
 import { supabase } from "../../lib/supabaseClient";
-import type { AppColorMode } from "../../theme";
-
-const AuthCard = styled(Paper)(({ theme }) => ({
-	padding: theme.spacing(5),
-	display: "flex",
-	flexDirection: "column",
-	alignItems: "center",
-	gap: theme.spacing(3),
-	borderRadius: 28,
-	background:
-		theme.palette.mode === "light"
-			? "linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 248, 252, 1) 100%)"
-			: alpha(theme.palette.background.paper, 0.82),
-	border: "none",
-	backdropFilter: "blur(12px)",
-	boxShadow:
-		theme.palette.mode === "light"
-			? "0 22px 56px rgba(15, 23, 42, 0.12)"
-			: "0 18px 42px rgba(6, 4, 14, 0.2)",
-	width: "100%",
-	maxWidth: 440,
-	[theme.breakpoints.down("sm")]: {
-		padding: theme.spacing(4),
-	},
-}));
-
-interface AuthProps {
-	colorMode: AppColorMode;
-	onToggleColorMode: () => void;
-}
 
 function isLocalSupabaseProject(): boolean {
 	try {
@@ -58,13 +25,14 @@ function isLocalSupabaseProject(): boolean {
 	}
 }
 
-export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
+export default function Auth() {
 	const [message, setMessage] = useState("");
 	const [localLoginInProgress, setLocalLoginInProgress] = useState<
 		"admin" | "regular" | null
 	>(null);
 
-	const theme = useTheme();
+	const { resolvedTheme, setTheme } = useTheme();
+	const isDark = resolvedTheme === "dark";
 	const showLocalAdminLogin = isLocalSupabaseProject();
 
 	const signInWithSlack = async () => {
@@ -107,153 +75,86 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 	};
 
 	return (
-		<Container
-			maxWidth={false}
-			sx={{
-				display: "flex",
-				justifyContent: "center",
-				alignItems: "center",
-				minHeight: "100vh",
-				px: { xs: 2, md: 4 },
-				py: { xs: 4, md: 6 },
-				position: "relative",
-				overflow: "hidden",
-				backgroundColor: theme.palette.background.default,
-			}}
-		>
-			<Box
-				aria-hidden
-				sx={{
-					position: "absolute",
-					inset: 0,
-					background:
-						theme.palette.mode === "light"
-							? "linear-gradient(to top right, rgba(154, 100, 217, 0.08) 0%, transparent 34%)"
-							: "radial-gradient(circle at 88% 16%, rgba(154, 100, 217, 0.16), transparent 18%), radial-gradient(circle at 12% 36%, rgba(96, 165, 250, 0.12), transparent 22%)",
-				}}
-			/>
+		<div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-8 md:px-6 md:py-12">
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="outline"
+							size="icon"
+							onClick={() => setTheme(isDark ? "light" : "dark")}
+							className="absolute top-5 right-5 z-10 md:top-7 md:right-7"
+							aria-label={
+								isDark ? "Switch to light mode" : "Switch to night mode"
+							}
+						>
+							{isDark ? <Sun /> : <Moon />}
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						{isDark ? "Switch to light mode" : "Switch to night mode"}
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 
-			<Tooltip
-				title={
-					colorMode === "light"
-						? "Switch to night mode"
-						: "Switch to light mode"
-				}
-			>
-				<IconButton
-					onClick={onToggleColorMode}
-					sx={{
-						position: "absolute",
-						top: { xs: 18, md: 28 },
-						right: { xs: 18, md: 28 },
-						zIndex: 2,
-						backgroundColor:
-							theme.palette.mode === "light"
-								? alpha(theme.palette.background.paper, 0.9)
-								: alpha(theme.palette.background.paper, 0.18),
-						border: `1px solid ${theme.palette.divider}`,
-						color: theme.palette.text.primary,
-						"&:hover": {
-							backgroundColor:
-								theme.palette.mode === "light"
-									? theme.palette.background.paper
-									: alpha(theme.palette.background.paper, 0.28),
-						},
-					}}
-				>
-					{colorMode === "light" ? (
-						<DarkModeOutlinedIcon fontSize="small" />
-					) : (
-						<LightModeOutlinedIcon fontSize="small" />
-					)}
-				</IconButton>
-			</Tooltip>
-
-			<AuthCard sx={{ position: "relative", zIndex: 1 }}>
-				<Box
+			<Card className="z-1 flex w-full max-w-md flex-col items-center gap-6 p-8 md:p-10">
+				<div
 					data-testid="auth-logo-surface"
-					sx={{
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "center",
-						width: "100%",
-						maxWidth: 240,
-						px: 2.5,
-						py: 1.75,
-						borderRadius: 3,
+					className="flex w-full max-w-60 items-center justify-center rounded-xl px-6 py-5"
+					style={{
 						background:
 							"linear-gradient(135deg, rgba(27, 0, 73, 0.98) 0%, rgba(82, 53, 115, 0.98) 100%)",
-						boxShadow:
-							theme.palette.mode === "light"
-								? "0 14px 30px rgba(27, 0, 73, 0.18)"
-								: "0 14px 30px rgba(6, 4, 14, 0.28)",
 					}}
 				>
 					<img
 						src="/img/tum_ai_logo_new.svg"
 						alt="TUM.ai Logo"
-						style={{ width: 168, display: "block" }}
+						className="block w-42"
+						style={{ width: 168 }}
 					/>
-				</Box>
-				<Typography variant="h4" component="h1" align="center">
+				</div>
+
+				<h1 className="text-center text-2xl font-bold tracking-tight">
 					Member Manager
-				</Typography>
-				<Button
-					variant="contained"
-					color="primary"
-					onClick={signInWithSlack}
-					fullWidth
-					sx={{ height: 52, mt: 1 }}
-				>
+				</h1>
+
+				<Button className="h-13 w-full" onClick={signInWithSlack}>
 					Continue with Slack
 				</Button>
+
 				{showLocalAdminLogin && (
-					<Box sx={{ width: "100%", display: "grid", gap: 1.5 }}>
+					<div className="grid w-full gap-3">
 						<Button
-							variant="outlined"
-							color="primary"
+							variant="outline"
+							className="h-12"
 							onClick={() => signInWithLocalUser("admin", "admin@example.com")}
 							disabled={localLoginInProgress !== null}
-							fullWidth
-							sx={{ height: 48 }}
 						>
 							{localLoginInProgress === "admin"
 								? "Signing in..."
 								: "Continue as local admin"}
 						</Button>
 						<Button
-							variant="outlined"
-							color="primary"
+							variant="outline"
+							className="h-12"
 							onClick={() =>
 								signInWithLocalUser("regular", "regular-member@example.com")
 							}
 							disabled={localLoginInProgress !== null}
-							fullWidth
-							sx={{ height: 48 }}
 						>
 							{localLoginInProgress === "regular"
 								? "Signing in..."
 								: "Continue as regular user"}
 						</Button>
-					</Box>
+					</div>
 				)}
 
 				{message && (
-					<Typography
-						color="error"
-						align="center"
-						sx={{
-							px: 2,
-							py: 1.5,
-							borderRadius: 2.5,
-							backgroundColor: "rgba(232, 122, 149, 0.08)",
-							border: "1px solid rgba(232, 122, 149, 0.22)",
-						}}
-					>
+					<p className="w-full rounded-lg border border-destructive/25 bg-destructive/5 px-4 py-3 text-center text-destructive">
 						{message}
-					</Typography>
+					</p>
 				)}
-			</AuthCard>
-		</Container>
+			</Card>
+		</div>
 	);
 }

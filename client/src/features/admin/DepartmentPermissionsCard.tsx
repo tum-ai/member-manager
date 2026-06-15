@@ -4,24 +4,25 @@ import {
 	PERMISSIONS,
 	type Permission,
 } from "@member-manager/shared";
+import { type ReactElement, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import GlassCard from "@/components/ui/GlassCard";
+import { Spinner } from "@/components/ui/spinner";
 import {
-	Box,
-	Button,
-	CardContent,
-	Checkbox,
-	CircularProgress,
-	Stack,
 	Table,
 	TableBody,
 	TableCell,
-	TableContainer,
 	TableHead,
+	TableHeader,
 	TableRow,
+} from "@/components/ui/table";
+import {
 	Tooltip,
-	Typography,
-} from "@mui/material";
-import { type ReactElement, useEffect, useState } from "react";
-import GlassCard from "../../components/ui/GlassCard";
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useToast } from "../../contexts/ToastContext";
 import { useDepartmentPermissions } from "../../hooks/useDepartmentPermissions";
 import { DEPARTMENTS } from "../../lib/constants";
@@ -83,86 +84,79 @@ export default function DepartmentPermissionsCard(): ReactElement {
 	}
 
 	return (
-		<GlassCard sx={{ mb: 3 }}>
-			<CardContent sx={{ p: 3 }}>
-				<Box
-					sx={{
-						display: "flex",
-						justifyContent: "space-between",
-						alignItems: { xs: "flex-start", sm: "center" },
-						flexDirection: { xs: "column", sm: "row" },
-						gap: 2,
-						mb: 2,
-					}}
-				>
-					<Box sx={{ maxWidth: 680 }}>
-						<Typography variant="h6" component="h2" sx={{ mb: 0.5 }}>
+		<GlassCard className="mb-6">
+			<div className="p-6">
+				<div className="mb-4 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+					<div className="max-w-[680px]">
+						<h2 className="mb-0.5 text-lg font-semibold">
 							Department Tool Access
-						</Typography>
-						<Typography variant="body2" color="text.secondary">
+						</h2>
+						<p className="text-sm text-muted-foreground">
 							Grant tools to entire departments. Every active member of a
 							department automatically inherits the tools enabled here.
-						</Typography>
-					</Box>
+						</p>
+					</div>
 					<Button
 						type="button"
-						variant="contained"
 						onClick={handleSave}
 						disabled={!isDirty || isSaving || isLoading}
 					>
 						{isSaving ? "Saving..." : "Save changes"}
 					</Button>
-				</Box>
+				</div>
 
 				{isLoading ? (
-					<Stack
-						direction="row"
-						spacing={1.5}
-						alignItems="center"
-						sx={{ py: 3 }}
-					>
-						<CircularProgress size={20} />
-						<Typography color="text.secondary">
+					<div className="flex flex-row items-center gap-3 py-6">
+						<Spinner className="size-5" />
+						<span className="text-muted-foreground">
 							Loading permissions...
-						</Typography>
-					</Stack>
+						</span>
+					</div>
 				) : (
-					<TableContainer>
-						<Table size="small" aria-label="Department tool access matrix">
-							<TableHead>
+					<div className="overflow-x-auto rounded-md border">
+						<Table aria-label="Department tool access matrix">
+							<TableHeader>
 								<TableRow>
-									<TableCell>Department</TableCell>
+									<TableHead>Department</TableHead>
 									{PERMISSIONS.map((permission) => (
-										<TableCell key={permission} align="center">
-											<Tooltip
-												title={PERMISSION_DETAILS[permission].description}
-											>
-												<span>{PERMISSION_DETAILS[permission].label}</span>
-											</Tooltip>
-										</TableCell>
+										<TableHead key={permission} className="text-center">
+											<TooltipProvider>
+												<Tooltip>
+													<TooltipTrigger asChild>
+														<span>{PERMISSION_DETAILS[permission].label}</span>
+													</TooltipTrigger>
+													<TooltipContent>
+														{PERMISSION_DETAILS[permission].description}
+													</TooltipContent>
+												</Tooltip>
+											</TooltipProvider>
+										</TableHead>
 									))}
 								</TableRow>
-							</TableHead>
+							</TableHeader>
 							<TableBody>
 								{DEPARTMENTS.map((department) => {
 									const granted = new Set(draft[department] ?? []);
 									return (
-										<TableRow key={department} hover>
-											<TableCell component="th" scope="row">
+										<TableRow key={department}>
+											<TableHead
+												scope="row"
+												className="h-auto py-2 font-normal"
+											>
 												{department}
-											</TableCell>
+											</TableHead>
 											{PERMISSIONS.map((permission) => (
-												<TableCell key={permission} align="center">
-													<Checkbox
-														checked={granted.has(permission)}
-														onChange={() =>
-															togglePermission(department, permission)
-														}
-														disabled={isSaving}
-														inputProps={{
-															"aria-label": `${PERMISSION_DETAILS[permission].label} for ${department}`,
-														}}
-													/>
+												<TableCell key={permission} className="text-center">
+													<div className="flex justify-center">
+														<Checkbox
+															checked={granted.has(permission)}
+															onCheckedChange={() =>
+																togglePermission(department, permission)
+															}
+															disabled={isSaving}
+															aria-label={`${PERMISSION_DETAILS[permission].label} for ${department}`}
+														/>
+													</div>
 												</TableCell>
 											))}
 										</TableRow>
@@ -170,9 +164,9 @@ export default function DepartmentPermissionsCard(): ReactElement {
 								})}
 							</TableBody>
 						</Table>
-					</TableContainer>
+					</div>
 				)}
-			</CardContent>
+			</div>
 		</GlassCard>
 	);
 }

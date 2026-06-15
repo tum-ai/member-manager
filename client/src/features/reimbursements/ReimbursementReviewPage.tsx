@@ -1,6 +1,7 @@
-import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
 import type React from "react";
 import { useMemo, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Spinner } from "@/components/ui/spinner";
 import { useToast } from "../../contexts/ToastContext";
 import {
 	type ReimbursementRequest,
@@ -253,25 +254,26 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		<ToolPageShell
 			title="Finance Review"
 			description="Review reimbursement and invoice requests, then mark approved requests as paid."
-			maxWidth={1440}
 		>
 			{isLoading && (
-				<Stack direction="row" spacing={1.5} alignItems="center">
-					<CircularProgress size={22} />
-					<Typography color="text.secondary">
+				<div className="flex flex-row items-center gap-3">
+					<Spinner className="size-[22px]" />
+					<p className="text-muted-foreground">
 						Loading reimbursement queue...
-					</Typography>
-				</Stack>
+					</p>
+				</div>
 			)}
 
 			{error && (
-				<Alert severity="error">
-					Legal & Finance members and admins can access this review queue.
+				<Alert variant="destructive">
+					<AlertDescription>
+						Legal & Finance members and admins can access this review queue.
+					</AlertDescription>
 				</Alert>
 			)}
 
 			{!isLoading && !error && (
-				<Box sx={{ display: "grid", gap: 2.5 }}>
+				<div className="grid gap-5">
 					<ReimbursementReviewControls
 						search={search}
 						onSearchChange={setSearch}
@@ -326,7 +328,7 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 						onBuchhaltungsButlerSync={handleBuchhaltungsButlerSync}
 						isSyncingBuchhaltungsButler={isSyncingBuchhaltungsButler}
 					/>
-				</Box>
+				</div>
 			)}
 		</ToolPageShell>
 	);

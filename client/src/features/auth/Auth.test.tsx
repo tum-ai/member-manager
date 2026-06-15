@@ -1,7 +1,6 @@
-import { CssBaseline, ThemeProvider } from "@mui/material";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { ThemeProvider } from "next-themes";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import getAppTheme from "../../theme";
 import Auth from "./Auth";
 
 const signInWithOAuthMock = vi.hoisted(() => vi.fn());
@@ -18,9 +17,12 @@ vi.mock("../../lib/supabaseClient", () => ({
 
 function renderAuth(colorMode: "light" | "dark") {
 	return render(
-		<ThemeProvider theme={getAppTheme(colorMode)}>
-			<CssBaseline />
-			<Auth colorMode={colorMode} onToggleColorMode={vi.fn()} />
+		<ThemeProvider
+			attribute="class"
+			defaultTheme={colorMode}
+			enableSystem={false}
+		>
+			<Auth />
 		</ThemeProvider>,
 	);
 }

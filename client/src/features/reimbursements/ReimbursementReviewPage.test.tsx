@@ -1,9 +1,7 @@
-import { ThemeProvider } from "@mui/material";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import getAppTheme from "../../theme";
 import ReimbursementReviewPage from "./ReimbursementReviewPage";
 
 const {
@@ -118,11 +116,9 @@ vi.mock("../../hooks/useReimbursementRequests", () => ({
 
 function renderPage() {
 	return render(
-		<ThemeProvider theme={getAppTheme("light")}>
-			<MemoryRouter>
-				<ReimbursementReviewPage />
-			</MemoryRouter>
-		</ThemeProvider>,
+		<MemoryRouter>
+			<ReimbursementReviewPage />
+		</MemoryRouter>,
 	);
 }
 
@@ -146,13 +142,10 @@ describe("ReimbursementReviewPage", () => {
 		hookState.isBulkDownloadingReceipts = false;
 	});
 
-	it("shows a finance queue with actions and a back link to tools", async () => {
+	it("shows a finance queue with actions", async () => {
 		const user = userEvent.setup();
 		renderPage();
 
-		expect(
-			screen.getByRole("link", { name: /back to tools/i }),
-		).toHaveAttribute("href", "/tools");
 		expect(
 			screen.getAllByText("Snacks for onboarding workshop guests")[0],
 		).toBeInTheDocument();
@@ -174,10 +167,7 @@ describe("ReimbursementReviewPage", () => {
 				name: /snacks for onboarding workshop guests/i,
 			}),
 		);
-		expect(screen.getByRole("combobox", { name: /action/i })).toHaveTextContent(
-			"Approve",
-		);
-		await user.click(screen.getByRole("button", { name: /apply action/i }));
+		await user.click(screen.getByRole("button", { name: /^approve$/i }));
 
 		await waitFor(() =>
 			expect(reviewRequestAsync).toHaveBeenCalledWith({
@@ -241,12 +231,17 @@ describe("ReimbursementReviewPage", () => {
 		const user = userEvent.setup();
 		renderPage();
 
-		expect(screen.getAllByText("Maya Chen")[0]).toBeInTheDocument();
+		const pendingRequest = screen.getByRole("button", {
+			name: /snacks for onboarding workshop guests/i,
+		});
+		expect(pendingRequest).toHaveTextContent("Maya Chen");
+		await user.click(pendingRequest);
 		expect(screen.getAllByText("maya.chen@tum.ai")[0]).toBeInTheDocument();
 		expect(screen.getAllByText("Commerzbank")[0]).toBeInTheDocument();
 		expect(
 			screen.getAllByText("DE89370400440532013000")[0],
 		).toBeInTheDocument();
+		await user.click(pendingRequest);
 
 		await user.type(
 			screen.getByRole("textbox", { name: /search reimbursement queue/i }),

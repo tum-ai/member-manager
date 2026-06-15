@@ -1,7 +1,20 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { User } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import Modal from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
@@ -217,335 +230,330 @@ export default function MemberForm({ user }: MemberFormProps) {
 	const isUpdating = isUpdatingMember || isUpdatingSepa;
 
 	if (isLoading)
-		return <div className="text-white text-center p-8">Loading...</div>;
+		return (
+			<div className="text-muted-foreground text-center p-8">Loading...</div>
+		);
 
 	return (
 		<div className="flex justify-center items-start min-h-[calc(100vh-100px)] p-4 sm:p-8">
-			<div className="w-full max-w-5xl bg-gray-800 rounded-2xl shadow-xl overflow-hidden border border-gray-700">
+			<div className="w-full max-w-5xl bg-card rounded-2xl shadow-xl overflow-hidden border border-border">
 				<form
 					onSubmit={memberForm.handleSubmit(onSubmit)}
 					className="flex flex-col lg:flex-row"
 				>
-					<div className="flex-1 p-6 sm:p-8 lg:border-r border-gray-700">
-						<div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-700">
-							<h2 className="text-xl font-semibold text-white">
+					<div className="flex-1 p-6 sm:p-8 lg:border-r border-border">
+						<div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
+							<h2 className="text-xl font-semibold text-foreground">
 								Personal Information
 							</h2>
-							<div
-								className={`px-3 py-1 rounded-full text-xs font-medium border ${memberForm.getValues("active") ? "bg-green-900/30 text-green-400 border-green-800" : "bg-red-900/30 text-red-400 border-red-800"}`}
+							<Badge
+								variant={memberForm.getValues("active") ? "success" : "danger"}
 							>
 								{memberForm.getValues("active") ? "Active Member" : "Inactive"}
-							</div>
+							</Badge>
 						</div>
 
 						<div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
 							<div className="sm:col-span-4">
-								<label
+								<Label
 									htmlFor="salutation"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									Salutation *
-								</label>
-								<select
-									id="salutation"
-									{...memberForm.register("salutation")}
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
-								>
-									<option value="">Select...</option>
-									<option value="Mr.">Mr.</option>
-									<option value="Ms.">Ms.</option>
-									<option value="Mx.">Mx.</option>
-								</select>
+								</Label>
+								<Controller
+									control={memberForm.control}
+									name="salutation"
+									render={({ field }) => (
+										<Select value={field.value} onValueChange={field.onChange}>
+											<SelectTrigger id="salutation" className="w-full">
+												<SelectValue placeholder="Select..." />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="Mr.">Mr.</SelectItem>
+												<SelectItem value="Ms.">Ms.</SelectItem>
+												<SelectItem value="Mx.">Mx.</SelectItem>
+											</SelectContent>
+										</Select>
+									)}
+								/>
 								{memberForm.formState.errors.salutation && (
-									<span className="text-red-400 text-xs mt-1 block">
+									<span className="text-destructive text-xs mt-1 block">
 										{memberForm.formState.errors.salutation.message}
 									</span>
 								)}
 							</div>
 							<div className="sm:col-span-8">
-								<label
+								<Label
 									htmlFor="title"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									Title
-								</label>
-								<select
-									id="title"
-									{...memberForm.register("title")}
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
-								>
-									<option value="">None</option>
-									<option value="Dr.">Dr.</option>
-									<option value="Prof.">Prof.</option>
-								</select>
+								</Label>
+								<Controller
+									control={memberForm.control}
+									name="title"
+									render={({ field }) => (
+										<Select value={field.value} onValueChange={field.onChange}>
+											<SelectTrigger id="title" className="w-full">
+												<SelectValue placeholder="None" />
+											</SelectTrigger>
+											<SelectContent>
+												<SelectItem value="Dr.">Dr.</SelectItem>
+												<SelectItem value="Prof.">Prof.</SelectItem>
+											</SelectContent>
+										</Select>
+									)}
+								/>
 							</div>
 
 							<div className="sm:col-span-6">
-								<label
+								<Label
 									htmlFor="given_name"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									First Name *
-								</label>
-								<input
+								</Label>
+								<Input
 									id="given_name"
 									{...memberForm.register("given_name")}
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
 									placeholder="John"
 								/>
 								{memberForm.formState.errors.given_name && (
-									<span className="text-red-400 text-xs mt-1 block">
+									<span className="text-destructive text-xs mt-1 block">
 										{memberForm.formState.errors.given_name.message}
 									</span>
 								)}
 							</div>
 							<div className="sm:col-span-6">
-								<label
+								<Label
 									htmlFor="surname"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									Last Name *
-								</label>
-								<input
+								</Label>
+								<Input
 									id="surname"
 									{...memberForm.register("surname")}
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
 									placeholder="Doe"
 								/>
 								{memberForm.formState.errors.surname && (
-									<span className="text-red-400 text-xs mt-1 block">
+									<span className="text-destructive text-xs mt-1 block">
 										{memberForm.formState.errors.surname.message}
 									</span>
 								)}
 							</div>
 
 							<div className="sm:col-span-8">
-								<label
+								<Label
 									htmlFor="email"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									Email
-								</label>
-								<input
+								</Label>
+								<Input
 									id="email"
 									type="email"
 									value={memberData?.email || user.email || ""}
 									readOnly
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
 								/>
-								<span className="text-gray-500 text-xs mt-1 block">
+								<span className="text-muted-foreground text-xs mt-1 block">
 									Managed by your account login
 								</span>
 							</div>
 							<div className="sm:col-span-4">
-								<label
+								<Label
 									htmlFor="date_of_birth"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									Date of Birth
-								</label>
-								<input
+								</Label>
+								<Input
 									id="date_of_birth"
 									type="date"
 									{...memberForm.register("date_of_birth")}
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
 								/>
 								{memberForm.formState.errors.date_of_birth && (
-									<span className="text-red-400 text-xs mt-1 block">
+									<span className="text-destructive text-xs mt-1 block">
 										{memberForm.formState.errors.date_of_birth.message}
 									</span>
 								)}
 							</div>
 
 							<div className="sm:col-span-9">
-								<label
+								<Label
 									htmlFor="street"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									Street *
-								</label>
-								<input
-									id="street"
-									{...memberForm.register("street")}
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
-								/>
+								</Label>
+								<Input id="street" {...memberForm.register("street")} />
 								{memberForm.formState.errors.street && (
-									<span className="text-red-400 text-xs mt-1 block">
+									<span className="text-destructive text-xs mt-1 block">
 										{memberForm.formState.errors.street.message}
 									</span>
 								)}
 							</div>
 							<div className="sm:col-span-3">
-								<label
+								<Label
 									htmlFor="number"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									No. *
-								</label>
-								<input
-									id="number"
-									{...memberForm.register("number")}
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
-								/>
+								</Label>
+								<Input id="number" {...memberForm.register("number")} />
 								{memberForm.formState.errors.number && (
-									<span className="text-red-400 text-xs mt-1 block">
+									<span className="text-destructive text-xs mt-1 block">
 										{memberForm.formState.errors.number.message}
 									</span>
 								)}
 							</div>
 
 							<div className="sm:col-span-4">
-								<label
+								<Label
 									htmlFor="postal_code"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									Postal Code *
-								</label>
-								<input
+								</Label>
+								<Input
 									id="postal_code"
 									{...memberForm.register("postal_code")}
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
 								/>
 								{memberForm.formState.errors.postal_code && (
-									<span className="text-red-400 text-xs mt-1 block">
+									<span className="text-destructive text-xs mt-1 block">
 										{memberForm.formState.errors.postal_code.message}
 									</span>
 								)}
 							</div>
 							<div className="sm:col-span-8">
-								<label
+								<Label
 									htmlFor="city"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									City *
-								</label>
-								<input
-									id="city"
-									{...memberForm.register("city")}
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
-								/>
+								</Label>
+								<Input id="city" {...memberForm.register("city")} />
 								{memberForm.formState.errors.city && (
-									<span className="text-red-400 text-xs mt-1 block">
+									<span className="text-destructive text-xs mt-1 block">
 										{memberForm.formState.errors.city.message}
 									</span>
 								)}
 							</div>
 							<div className="sm:col-span-12">
-								<label
+								<Label
 									htmlFor="country"
-									className="block text-sm font-medium text-gray-400 mb-1"
+									className="block text-sm font-medium text-muted-foreground mb-1"
 								>
 									Country *
-								</label>
-								<input
+								</Label>
+								<Input
 									id="country"
 									{...memberForm.register("country")}
-									className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
 									defaultValue="Germany"
 								/>
 								{memberForm.formState.errors.country && (
-									<span className="text-red-400 text-xs mt-1 block">
+									<span className="text-destructive text-xs mt-1 block">
 										{memberForm.formState.errors.country.message}
 									</span>
 								)}
 							</div>
 						</div>
 
-						<div className="mt-8 pt-6 border-t border-gray-700">
+						<div className="mt-8 pt-6 border-t border-border">
 							<button
 								type="button"
 								onClick={handleStatusChangeRequest}
-								className="text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors flex items-center gap-1"
+								className="text-sm text-brand hover:text-brand/80 hover:underline transition-colors flex items-center gap-1"
 							>
 								Need to change your membership status?
 							</button>
 							{statusRequestMessage && (
-								<div className="mt-3 p-3 bg-blue-900/20 border border-blue-800 rounded text-sm text-blue-200">
+								<div className="mt-3 p-3 bg-accent border border-border rounded text-sm text-foreground">
 									{statusRequestMessage}
 								</div>
 							)}
 						</div>
 					</div>
 
-					<div className="lg:w-96 bg-gray-800/50 p-6 sm:p-8 flex flex-col justify-between">
+					<div className="lg:w-96 bg-muted/50 p-6 sm:p-8 flex flex-col justify-between">
 						<div>
-							<h2 className="text-xl font-semibold text-white mb-6 pb-4 border-b border-gray-700">
+							<h2 className="text-xl font-semibold text-foreground mb-6 pb-4 border-b border-border">
 								Banking Details
 							</h2>
 
 							<div className="space-y-4">
 								<div>
-									<label
+									<Label
 										htmlFor="iban"
-										className="block text-sm font-medium text-gray-400 mb-1"
+										className="block text-sm font-medium text-muted-foreground mb-1"
 									>
 										IBAN *
-									</label>
-									<input
+									</Label>
+									<Input
 										id="iban"
 										{...sepaForm.register("iban")}
-										className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm font-mono"
+										className="font-mono"
 										placeholder="DE..."
 									/>
 									{sepaForm.formState.errors.iban && (
-										<span className="text-red-400 text-xs mt-1 block">
+										<span className="text-destructive text-xs mt-1 block">
 											{sepaForm.formState.errors.iban.message}
 										</span>
 									)}
 								</div>
 
 								<div>
-									<label
+									<Label
 										htmlFor="bic"
-										className="block text-sm font-medium text-gray-400 mb-1"
+										className="block text-sm font-medium text-muted-foreground mb-1"
 									>
 										BIC
-									</label>
-									<input
+									</Label>
+									<Input
 										id="bic"
 										{...sepaForm.register("bic")}
-										className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm font-mono"
+										className="font-mono"
 									/>
 								</div>
 
 								<div>
-									<label
+									<Label
 										htmlFor="bank_name"
-										className="block text-sm font-medium text-gray-400 mb-1"
+										className="block text-sm font-medium text-muted-foreground mb-1"
 									>
 										Bank Name *
-									</label>
-									<input
-										id="bank_name"
-										{...sepaForm.register("bank_name")}
-										className="w-full px-3 py-2 bg-gray-900/50 border border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all outline-none text-white text-sm"
-									/>
+									</Label>
+									<Input id="bank_name" {...sepaForm.register("bank_name")} />
 									{sepaForm.formState.errors.bank_name && (
-										<span className="text-red-400 text-xs mt-1 block">
+										<span className="text-destructive text-xs mt-1 block">
 											{sepaForm.formState.errors.bank_name.message}
 										</span>
 									)}
 								</div>
 
 								<div className="pt-4 space-y-3">
-									<label className="flex items-start gap-3 p-3 rounded-lg border border-gray-700 bg-gray-900/30 hover:bg-gray-900/50 transition-colors cursor-pointer group">
-										<input
-											type="checkbox"
-											{...sepaForm.register("mandate_agreed")}
-											className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
-											onChange={(e) => {
-												sepaForm.setValue("mandate_agreed", e.target.checked, {
-													shouldDirty: true,
-												});
-												if (
-													!sepaForm.getValues("mandate_agreed") &&
-													e.target.checked
-												) {
-													setShowSepaModal(true);
-												}
-											}}
+									<label className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors cursor-pointer group">
+										<Controller
+											control={sepaForm.control}
+											name="mandate_agreed"
+											render={({ field }) => (
+												<Checkbox
+													className="mt-1"
+													checked={field.value}
+													onCheckedChange={(checked) => {
+														const next = checked === true;
+														sepaForm.setValue("mandate_agreed", next, {
+															shouldDirty: true,
+														});
+														if (!sepaForm.getValues("mandate_agreed") && next) {
+															setShowSepaModal(true);
+														}
+													}}
+												/>
+											)}
 										/>
-										<span className="text-sm text-gray-300">
+										<span className="text-sm text-foreground">
 											I agree to the{" "}
 											<button
 												type="button"
@@ -553,32 +561,35 @@ export default function MemberForm({ user }: MemberFormProps) {
 													e.preventDefault();
 													setShowSepaModal(true);
 												}}
-												className="text-blue-400 hover:underline font-medium"
+												className="text-brand hover:underline font-medium"
 											>
 												SEPA mandate
 											</button>
 										</span>
 									</label>
 
-									<label className="flex items-start gap-3 p-3 rounded-lg border border-gray-700 bg-gray-900/30 hover:bg-gray-900/50 transition-colors cursor-pointer group">
-										<input
-											type="checkbox"
-											{...sepaForm.register("privacy_agreed")}
-											className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
-											disabled={sepaForm.getValues("privacy_agreed")}
-											onChange={(e) => {
-												sepaForm.setValue("privacy_agreed", e.target.checked, {
-													shouldDirty: true,
-												});
-												if (
-													!sepaForm.getValues("privacy_agreed") &&
-													e.target.checked
-												) {
-													setShowPrivacyModal(true);
-												}
-											}}
+									<label className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors cursor-pointer group">
+										<Controller
+											control={sepaForm.control}
+											name="privacy_agreed"
+											render={({ field }) => (
+												<Checkbox
+													className="mt-1"
+													checked={field.value}
+													disabled={sepaForm.getValues("privacy_agreed")}
+													onCheckedChange={(checked) => {
+														const next = checked === true;
+														sepaForm.setValue("privacy_agreed", next, {
+															shouldDirty: true,
+														});
+														if (!sepaForm.getValues("privacy_agreed") && next) {
+															setShowPrivacyModal(true);
+														}
+													}}
+												/>
+											)}
 										/>
-										<span className="text-sm text-gray-300">
+										<span className="text-sm text-foreground">
 											I agree to the{" "}
 											<button
 												type="button"
@@ -586,7 +597,7 @@ export default function MemberForm({ user }: MemberFormProps) {
 													e.preventDefault();
 													setShowPrivacyModal(true);
 												}}
-												className="text-blue-400 hover:underline font-medium"
+												className="text-brand hover:underline font-medium"
 											>
 												Privacy Policy
 											</button>{" "}
@@ -594,25 +605,36 @@ export default function MemberForm({ user }: MemberFormProps) {
 										</span>
 									</label>
 
-									<label className="flex items-start gap-3 p-3 rounded-lg border border-gray-700 bg-gray-900/30 hover:bg-gray-900/50 transition-colors cursor-pointer group">
-										<input
-											type="checkbox"
-											{...sepaForm.register("data_privacy_notice_agreed")}
-											className="mt-1 w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-gray-900"
-											disabled={sepaForm.getValues(
-												"data_privacy_notice_agreed",
+									<label className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors cursor-pointer group">
+										<Controller
+											control={sepaForm.control}
+											name="data_privacy_notice_agreed"
+											render={() => (
+												<Checkbox
+													className="mt-1"
+													checked={sepaForm.getValues(
+														"data_privacy_notice_agreed",
+													)}
+													disabled={sepaForm.getValues(
+														"data_privacy_notice_agreed",
+													)}
+													onCheckedChange={(checked) => {
+														if (checked === true) {
+															setShowDataPrivacyNoticeModal(true);
+															return;
+														}
+														sepaForm.setValue(
+															"data_privacy_notice_agreed",
+															false,
+															{
+																shouldDirty: true,
+															},
+														);
+													}}
+												/>
 											)}
-											onChange={(e) => {
-												if (e.target.checked) {
-													setShowDataPrivacyNoticeModal(true);
-													return;
-												}
-												sepaForm.setValue("data_privacy_notice_agreed", false, {
-													shouldDirty: true,
-												});
-											}}
 										/>
-										<span className="text-sm text-gray-300">
+										<span className="text-sm text-foreground">
 											I agree to the{" "}
 											<button
 												type="button"
@@ -620,7 +642,7 @@ export default function MemberForm({ user }: MemberFormProps) {
 													e.preventDefault();
 													setShowDataPrivacyNoticeModal(true);
 												}}
-												className="text-blue-400 hover:underline font-medium"
+												className="text-brand hover:underline font-medium"
 											>
 												Data Privacy Notice
 											</button>{" "}
@@ -631,52 +653,29 @@ export default function MemberForm({ user }: MemberFormProps) {
 							</div>
 						</div>
 
-						<div className="mt-8 pt-6 border-t border-gray-700 flex flex-col gap-3">
-							<button
-								type="submit"
-								disabled={isUpdating}
-								className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white font-medium rounded-lg shadow-lg hover:shadow-blue-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed transform hover:-translate-y-0.5 active:translate-y-0"
-							>
+						<div className="mt-8 pt-6 border-t border-border flex flex-col gap-3">
+							<Button type="submit" disabled={isUpdating} className="w-full">
 								{isUpdating ? (
 									<span className="flex items-center justify-center gap-2">
-										<svg
-											aria-hidden="true"
-											className="animate-spin h-4 w-4 text-white"
-											xmlns="http://www.w3.org/2000/svg"
-											fill="none"
-											viewBox="0 0 24 24"
-										>
-											<circle
-												className="opacity-25"
-												cx="12"
-												cy="12"
-												r="10"
-												stroke="currentColor"
-												strokeWidth="4"
-											></circle>
-											<path
-												className="opacity-75"
-												fill="currentColor"
-												d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-											></path>
-										</svg>
+										<Spinner />
 										Saving...
 									</span>
 								) : (
 									"Save Changes"
 								)}
-							</button>
-							<button
+							</Button>
+							<Button
 								type="button"
+								variant="ghost"
+								className="w-full text-muted-foreground"
 								onClick={() => {
 									memberForm.reset();
 									sepaForm.reset();
 									showToast("Changes reverted to last saved state.", "info");
 								}}
-								className="w-full px-4 py-2 bg-transparent hover:bg-gray-700/50 text-gray-400 hover:text-white font-medium rounded-lg transition-colors border border-transparent hover:border-gray-600"
 							>
 								Cancel
-							</button>
+							</Button>
 						</div>
 					</div>
 				</form>

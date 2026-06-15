@@ -1,59 +1,41 @@
-import { alpha, Card, type CardProps, styled } from "@mui/material";
+import type * as React from "react";
+import { cn } from "@/lib/utils";
 
-interface GlassCardProps extends CardProps {
+interface GlassCardProps extends React.ComponentProps<"div"> {
 	variant?: "default" | "elevated" | "interactive";
+	// Tolerated during the MUI→shadcn migration: not-yet-migrated call sites may
+	// still pass an MUI `sx` prop. We drop it instead of leaking it to the DOM.
+	sx?: unknown;
 }
 
-const StyledCard = styled(Card, {
-	shouldForwardProp: (prop) => prop !== "variant",
-})<GlassCardProps>(({ theme, variant = "default" }) => ({
-	background:
-		theme.palette.mode === "light"
-			? "linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 248, 252, 1) 100%)"
-			: alpha(theme.palette.background.paper, 0.82),
-	backdropFilter: "blur(10px)",
-	border: "none",
-	borderRadius: 20,
-	boxShadow:
-		theme.palette.mode === "light"
-			? "0 18px 48px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.9)"
-			: "0 18px 42px rgba(6, 4, 14, 0.2)",
-	transition: "all 300ms cubic-bezier(0.4, 0, 0.2, 1)",
+const variantClasses: Record<NonNullable<GlassCardProps["variant"]>, string> = {
+	default: "shadow-sm",
+	elevated: "shadow-md",
+	interactive:
+		"cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0",
+};
 
-	...(variant === "elevated" && {
-		background:
-			theme.palette.mode === "light"
-				? "linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(250, 248, 252, 1) 100%)"
-				: alpha(theme.palette.background.paper, 0.88),
-		boxShadow:
-			theme.palette.mode === "light"
-				? "0 24px 56px rgba(15, 23, 42, 0.1), inset 0 1px 0 rgba(255, 255, 255, 1)"
-				: "0 22px 48px rgba(6, 4, 14, 0.24)",
-	}),
-
-	...(variant === "interactive" && {
-		cursor: "pointer",
-		"&:hover": {
-			transform: "translateY(-4px)",
-			boxShadow:
-				theme.palette.mode === "light"
-					? "0 24px 60px rgba(15, 23, 42, 0.14)"
-					: "0 24px 54px rgba(6, 4, 14, 0.28)",
-		},
-		"&:active": {
-			transform: "translateY(0)",
-		},
-	}),
-}));
-
+// Clean, solid surface (the glassmorphism look was retired in the shadcn
+// migration). Kept as a shim under the same import path + `variant` prop so the
+// many consumers don't all need rewriting at once.
 export default function GlassCard({
 	children,
 	variant = "default",
+	className,
+	sx: _sx,
 	...props
 }: GlassCardProps) {
 	return (
-		<StyledCard variant={variant} {...props}>
+		<div
+			data-slot="glass-card"
+			className={cn(
+				"rounded-xl border bg-card text-card-foreground",
+				variantClasses[variant],
+				className,
+			)}
+			{...props}
+		>
 			{children}
-		</StyledCard>
+		</div>
 	);
 }

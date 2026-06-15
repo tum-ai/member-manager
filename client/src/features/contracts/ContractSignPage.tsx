@@ -1,17 +1,13 @@
-import {
-	Alert,
-	Box,
-	Button,
-	CircularProgress,
-	Container,
-	Divider,
-	Paper,
-	Stack,
-	TextField,
-	Typography,
-} from "@mui/material";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 import ContractDocumentPreview from "./ContractDocumentPreview";
 import SignaturePad from "./SignaturePad";
 import {
@@ -78,101 +74,124 @@ export default function ContractSignPage(): JSX.Element {
 	}
 
 	return (
-		<Container maxWidth="md" sx={{ py: 6 }}>
-			<Typography variant="h4" gutterBottom>
-				Sign Contract
-			</Typography>
+		<div className="mx-auto w-full max-w-3xl px-4 py-12">
+			<div className="mb-6">
+				<p className="text-sm font-medium text-brand">TUM.ai</p>
+				<h1 className="text-3xl font-bold tracking-tight">Sign contract</h1>
+				<p className="mt-1 text-muted-foreground">
+					Review the document below, then add your signature to execute it.
+				</p>
+			</div>
 
 			{loading ? (
-				<CircularProgress />
+				<Spinner />
 			) : loadError ? (
-				<Alert severity="error">{loadError}</Alert>
+				<Alert variant="destructive">
+					<AlertDescription>{loadError}</AlertDescription>
+				</Alert>
 			) : submitted ? (
-				<Alert severity="success">
-					Thank you - the contract has been signed. A copy will be sent by
-					email.
+				<Alert>
+					<AlertDescription>
+						Thank you - the contract has been signed. A copy will be sent by
+						email.
+					</AlertDescription>
 				</Alert>
 			) : commentSubmitted ? (
-				<Alert severity="success">
-					Thank you - your comments have been sent to TUM.ai.
+				<Alert>
+					<AlertDescription>
+						Thank you - your comments have been sent to TUM.ai.
+					</AlertDescription>
 				</Alert>
 			) : payload ? (
-				<Stack spacing={3}>
-					<Paper sx={{ p: 3 }}>
+				<div className="flex flex-col gap-6">
+					<Card className="p-6">
 						<ContractDocumentPreview pages={payload.pages} />
-					</Paper>
+					</Card>
 					{payload.comments.length > 0 ? (
-						<Paper sx={{ p: 3 }}>
-							<Typography variant="subtitle1" gutterBottom>
-								Comments
-							</Typography>
-							<Stack spacing={2}>
+						<Card className="p-6">
+							<p className="mb-2 text-base font-medium">Comments</p>
+							<div className="flex flex-col gap-4">
 								{payload.comments.map((item, index) => (
-									<Box
+									<div
 										key={`${item.created_at}-${item.author_type}-${item.author_name ?? ""}-${item.comment}`}
 									>
-										{index > 0 ? <Divider sx={{ mb: 2 }} /> : null}
-										<Typography variant="caption" color="text.secondary">
+										{index > 0 ? <Separator className="mb-4" /> : null}
+										<p className="text-xs text-muted-foreground">
 											{item.author_type === "partner"
 												? (item.author_name ?? "Partner")
 												: (item.author_name ?? "TUM.ai")}{" "}
 											- {new Date(item.created_at).toLocaleString()}
-										</Typography>
-										<Typography sx={{ whiteSpace: "pre-wrap" }}>
-											{item.comment}
-										</Typography>
-									</Box>
+										</p>
+										<p className="whitespace-pre-wrap">{item.comment}</p>
+									</div>
 								))}
-							</Stack>
-						</Paper>
+							</div>
+						</Card>
 					) : null}
-					<Paper sx={{ p: 3 }}>
-						<Stack spacing={2}>
-							<TextField
-								label="Full Name"
-								value={signerName}
-								onChange={(event) => setSignerName(event.target.value)}
-								required
-							/>
-							<Box>
-								<Typography variant="subtitle2" gutterBottom>
-									Signature
-								</Typography>
+					<Card className="p-6">
+						<p className="mb-1 text-base font-semibold">Sign the contract</p>
+						<p className="mb-4 text-sm text-muted-foreground">
+							Enter your full name and draw your signature to execute the
+							contract. A signed copy will be emailed to you.
+						</p>
+						<div className="flex flex-col gap-4">
+							<div className="flex flex-col gap-1.5">
+								<Label htmlFor="signer-name">Full name</Label>
+								<Input
+									id="signer-name"
+									value={signerName}
+									onChange={(event) => setSignerName(event.target.value)}
+									required
+								/>
+							</div>
+							<div>
+								<p className="mb-2 text-sm font-medium">Signature</p>
 								<SignaturePad onChange={setSignatureData} />
-							</Box>
+							</div>
 							{submitError ? (
-								<Alert severity="error">{submitError}</Alert>
+								<Alert variant="destructive">
+									<AlertDescription>{submitError}</AlertDescription>
+								</Alert>
 							) : null}
 							<Button
-								variant="contained"
+								className="self-start"
 								disabled={!signatureData || !signerName.trim() || submitting}
 								onClick={handleSubmit}
 							>
 								Sign
 							</Button>
-						</Stack>
-					</Paper>
-					<Paper sx={{ p: 3 }}>
-						<Stack spacing={2}>
-							<TextField
-								label="Comments instead of signature"
-								value={comment}
-								onChange={(event) => setComment(event.target.value)}
-								multiline
-								minRows={3}
-								fullWidth
-							/>
+						</div>
+					</Card>
+					<Card className="p-6">
+						<p className="mb-1 text-base font-semibold">
+							Have questions before signing?
+						</p>
+						<p className="mb-4 text-sm text-muted-foreground">
+							Send your questions or requested changes to TUM.ai instead of
+							signing. We'll get back to you.
+						</p>
+						<div className="flex flex-col gap-4">
+							<div className="flex flex-col gap-1.5">
+								<Label htmlFor="sign-comment">Your message</Label>
+								<Textarea
+									id="sign-comment"
+									value={comment}
+									onChange={(event) => setComment(event.target.value)}
+									rows={3}
+								/>
+							</div>
 							<Button
-								variant="outlined"
+								variant="outline"
+								className="self-start"
 								disabled={!comment.trim() || submitting}
 								onClick={handleCommentSubmit}
 							>
-								Send Comments
+								Send message
 							</Button>
-						</Stack>
-					</Paper>
-				</Stack>
+						</div>
+					</Card>
+				</div>
 			) : null}
-		</Container>
+		</div>
 	);
 }

@@ -1,5 +1,5 @@
-import { Box, Button, Stack } from "@mui/material";
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
 
 interface SignaturePadProps {
 	onChange: (dataUrl: string | null) => void;
@@ -80,16 +80,10 @@ export default function SignaturePad({
 	}
 
 	return (
-		<Stack spacing={1}>
-			<Box
-				sx={{
-					border: "1px solid",
-					borderColor: "divider",
-					borderRadius: 1,
-					height,
-					touchAction: "none",
-					bgcolor: "background.paper",
-				}}
+		<div className="flex flex-col gap-2">
+			<div
+				className="touch-none rounded-md border border-border bg-card"
+				style={{ height }}
 			>
 				<canvas
 					ref={canvasRef}
@@ -99,12 +93,12 @@ export default function SignaturePad({
 					onPointerUp={handlePointerUp}
 					onPointerLeave={handlePointerUp}
 				/>
-			</Box>
-			<Stack direction="row" spacing={1}>
-				<Button size="small" onClick={clear} disabled={isEmpty}>
+			</div>
+			<div className="flex flex-row gap-2">
+				<Button variant="outline" size="sm" onClick={clear} disabled={isEmpty}>
 					Clear
 				</Button>
-			</Stack>
-		</Stack>
+			</div>
+		</div>
 	);
 }
