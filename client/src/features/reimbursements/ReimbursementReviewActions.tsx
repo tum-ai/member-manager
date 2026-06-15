@@ -2,6 +2,7 @@ import { Ban, CircleCheck, HandCoins } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { InfoBox } from "@/components/ui/info-box";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
@@ -90,7 +91,7 @@ export default function ReimbursementReviewActions({
 				)}
 			</div>
 			{isRejecting && (
-				<div className="flex flex-col gap-2.5 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+				<InfoBox variant="destructive" className="flex flex-col gap-2.5">
 					<div className="flex flex-col gap-1.5">
 						<Label htmlFor={`rejection-reason-${request.id}`}>
 							Rejection reason
@@ -125,7 +126,7 @@ export default function ReimbursementReviewActions({
 							Cancel
 						</Button>
 					</div>
-				</div>
+				</InfoBox>
 			)}
 		</div>
 	);

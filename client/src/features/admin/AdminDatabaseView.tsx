@@ -35,6 +35,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import GlassCard from "@/components/ui/GlassCard";
+import { InfoBox } from "@/components/ui/info-box";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -45,7 +46,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import {
 	Table,
 	TableBody,
@@ -184,19 +186,7 @@ export default function AdminDatabaseView() {
 		[allMembers, totalMemberCount],
 	);
 
-	if (isLoading)
-		return (
-			<div>
-				<GlassCard variant="elevated">
-					<div className="flex items-center justify-center gap-4 p-8">
-						<Spinner className="size-6" />
-						<span className="text-muted-foreground">
-							Loading admin workspace...
-						</span>
-					</div>
-				</GlassCard>
-			</div>
-		);
+	if (isLoading) return <AdminDatabaseSkeleton />;
 	if (error)
 		return (
 			<div>
@@ -1029,7 +1019,7 @@ interface MetricCardProps {
 
 function MetricCard({ icon, label, value }: MetricCardProps) {
 	return (
-		<div className="flex items-center gap-3 rounded-lg border border-brand/15 bg-brand/5 p-4">
+		<InfoBox variant="brand" className="flex items-center gap-3 p-4">
 			<div className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
 				{icon}
 			</div>
@@ -1037,7 +1027,7 @@ function MetricCard({ icon, label, value }: MetricCardProps) {
 				<p className="text-xs text-muted-foreground">{label}</p>
 				<p className="text-2xl font-semibold">{value}</p>
 			</div>
-		</div>
+		</InfoBox>
 	);
 }
 
@@ -1082,4 +1072,59 @@ function escapeCsvCell(value: string): string {
 		return `"${normalized.replaceAll('"', '""')}"`;
 	}
 	return normalized;
+}
+
+export function AdminDatabaseSkeleton() {
+	return (
+		<SkeletonRegion label="Loading admin workspace">
+			<GlassCard variant="elevated" className="mb-8 overflow-hidden">
+				<div className="p-6 md:p-8">
+					<div className="max-w-[680px] space-y-2.5">
+						<Skeleton className="h-9 w-64" />
+						<Skeleton className="h-4 w-[28rem] max-w-full" />
+					</div>
+					<div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+						{Array.from({ length: 4 }).map((_, i) => (
+							<div
+								// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+								key={i}
+								className="flex items-center gap-3 rounded-lg border p-4"
+							>
+								<Skeleton className="size-10 shrink-0 rounded-lg" />
+								<div className="space-y-1.5">
+									<Skeleton className="h-3 w-24" />
+									<Skeleton className="h-6 w-12" />
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
+			</GlassCard>
+
+			<GlassCard variant="elevated" className="mb-6 overflow-hidden">
+				<div className="flex items-center gap-6 border-b bg-muted/40 px-6 py-3">
+					{Array.from({ length: 8 }).map((_, i) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						<Skeleton key={i} className="h-4 flex-1" />
+					))}
+				</div>
+				{Array.from({ length: 8 }).map((_, row) => (
+					<div
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						key={row}
+						className="flex items-center gap-6 border-b px-6 py-4 last:border-b-0"
+					>
+						<div className="flex flex-1 items-center gap-3">
+							<Skeleton className="size-9 shrink-0 rounded-full" />
+							<Skeleton className="h-4 flex-1" />
+						</div>
+						{Array.from({ length: 6 }).map((_, col) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+							<Skeleton key={col} className="h-4 flex-1" />
+						))}
+					</div>
+				))}
+			</GlassCard>
+		</SkeletonRegion>
+	);
 }

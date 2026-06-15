@@ -16,6 +16,7 @@ import { type ReactElement, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { InfoBox } from "@/components/ui/info-box";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -410,12 +411,20 @@ export default function TumaiDaysPage(): ReactElement {
 											const isPast = new Date(event.scheduled_at) <= new Date();
 
 											return (
-												<button
-													type="button"
+												// biome-ignore lint/a11y/useSemanticElements: row hosts nested edit/delete buttons, so it can't be a <button>
+												<div
+													role="button"
+													tabIndex={0}
 													key={event.id}
 													onClick={() => setSelectedEventId(event.id)}
+													onKeyDown={(e) => {
+														if (e.key === "Enter" || e.key === " ") {
+															e.preventDefault();
+															setSelectedEventId(event.id);
+														}
+													}}
 													className={cn(
-														"group relative w-full overflow-hidden rounded-lg border p-3.5 pl-4 text-left transition-colors",
+														"group relative w-full cursor-pointer overflow-hidden rounded-lg border p-3.5 pl-4 text-left transition-colors",
 														isSelected
 															? "border-brand/60 bg-brand/5"
 															: "border-border bg-transparent hover:border-brand/30 hover:bg-brand/[0.03]",
@@ -501,7 +510,7 @@ export default function TumaiDaysPage(): ReactElement {
 															</TooltipProvider>
 														</div>
 													</div>
-												</button>
+												</div>
 											);
 										})}
 									</div>
@@ -560,7 +569,7 @@ export default function TumaiDaysPage(): ReactElement {
 									</div>
 
 									{/* Response rate */}
-									<div className="mb-4 rounded-lg border bg-muted/30 p-3">
+									<InfoBox variant="muted" className="mb-4">
 										<div className="mb-2 flex items-center justify-between">
 											<span className="text-xs font-medium text-muted-foreground">
 												Response rate ·{" "}
@@ -572,7 +581,7 @@ export default function TumaiDaysPage(): ReactElement {
 											</span>
 										</div>
 										<Progress value={responseRate} className="h-1.5" />
-									</div>
+									</InfoBox>
 
 									{/* Stats Row */}
 									<div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -608,9 +617,10 @@ export default function TumaiDaysPage(): ReactElement {
 												},
 											] as const
 										).map((stat) => (
-											<div
+											<InfoBox
 												key={stat.label}
-												className="flex items-center gap-2.5 rounded-lg border bg-card p-2.5"
+												variant="card"
+												className="flex items-center gap-2.5 p-2.5"
 											>
 												<span
 													className={cn(
@@ -633,7 +643,7 @@ export default function TumaiDaysPage(): ReactElement {
 														{stat.label}
 													</span>
 												</div>
-											</div>
+											</InfoBox>
 										))}
 									</div>
 

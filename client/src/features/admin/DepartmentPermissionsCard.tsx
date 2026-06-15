@@ -8,7 +8,8 @@ import { type ReactElement, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import GlassCard from "@/components/ui/GlassCard";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import {
 	Table,
 	TableBody,
@@ -106,12 +107,35 @@ export default function DepartmentPermissionsCard(): ReactElement {
 				</div>
 
 				{isLoading ? (
-					<div className="flex flex-row items-center gap-3 py-6">
-						<Spinner className="size-5" />
-						<span className="text-muted-foreground">
-							Loading permissions...
-						</span>
-					</div>
+					<SkeletonRegion
+						label="Loading permissions"
+						className="overflow-hidden rounded-md border"
+					>
+						<div className="flex items-center gap-4 border-b bg-muted/40 px-4 py-2.5">
+							<Skeleton className="h-4 w-28" />
+							<div className="flex flex-1 justify-end gap-6">
+								{PERMISSIONS.map((permission) => (
+									<Skeleton key={permission} className="h-4 w-16" />
+								))}
+							</div>
+						</div>
+						{DEPARTMENTS.map((department) => (
+							<div
+								key={department}
+								className="flex items-center gap-4 border-b px-4 py-2.5 last:border-b-0"
+							>
+								<Skeleton className="h-4 w-32" />
+								<div className="flex flex-1 justify-end gap-6">
+									{PERMISSIONS.map((permission) => (
+										<Skeleton
+											key={permission}
+											className="size-4 shrink-0 rounded-[4px]"
+										/>
+									))}
+								</div>
+							</div>
+						))}
+					</SkeletonRegion>
 				) : (
 					<div className="overflow-x-auto rounded-md border">
 						<Table aria-label="Department tool access matrix">

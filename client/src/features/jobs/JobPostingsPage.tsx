@@ -32,7 +32,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { useToast } from "../../contexts/ToastContext";
@@ -594,10 +595,7 @@ export default function JobPostingsPage(): React.ReactElement {
 					</Alert>
 				)}
 				{isLoadingRequests ? (
-					<div className="flex items-center gap-3">
-						<Spinner className="size-[22px]" />
-						<p className="text-muted-foreground">Loading job submissions...</p>
-					</div>
+					<JobSubmissionPanelSkeleton />
 				) : (
 					<JobSubmissionPanel
 						requests={jobRequests}
@@ -606,10 +604,7 @@ export default function JobPostingsPage(): React.ReactElement {
 				)}
 
 				{isLoading ? (
-					<div className="flex items-center gap-3">
-						<Spinner className="size-[22px]" />
-						<p className="text-muted-foreground">Loading job postings...</p>
-					</div>
+					<JobPostingsGridSkeleton />
 				) : error ? (
 					<Alert variant="destructive">
 						<AlertDescription>
@@ -649,5 +644,74 @@ export default function JobPostingsPage(): React.ReactElement {
 				onSubmit={submitJobRequest}
 			/>
 		</ToolPageShell>
+	);
+}
+
+function JobSubmissionPanelSkeleton(): React.ReactElement {
+	return (
+		<SkeletonRegion label="Loading job submissions">
+			<GlassCard variant="elevated">
+				<div className="p-5 md:p-6">
+					<div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
+						<div className="space-y-1.5">
+							<Skeleton className="h-6 w-56" />
+							<Skeleton className="h-4 w-72 max-w-full" />
+						</div>
+						<Skeleton className="h-9 w-28 rounded-md" />
+					</div>
+					<Separator className="my-5" />
+					<div className="flex flex-col gap-3">
+						{Array.from({ length: 3 }).map((_, i) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+							<div key={i} className="flex items-center justify-between gap-3">
+								<div className="min-w-0 flex-1 space-y-1.5">
+									<Skeleton className="h-4 w-40" />
+									<Skeleton className="h-3 w-56 max-w-full" />
+								</div>
+								<Skeleton className="h-5 w-20 rounded-full" />
+							</div>
+						))}
+					</div>
+				</div>
+			</GlassCard>
+		</SkeletonRegion>
+	);
+}
+
+function JobPostingsGridSkeleton(): React.ReactElement {
+	return (
+		<SkeletonRegion
+			label="Loading job postings"
+			className="grid grid-cols-1 gap-5 md:grid-cols-2"
+		>
+			{Array.from({ length: 4 }).map((_, i) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+				<GlassCard key={i} className="h-full">
+					<div className="flex h-full flex-col gap-5 p-5 md:p-6">
+						<div className="flex items-start gap-4">
+							<Skeleton className="size-[52px] shrink-0 rounded-md" />
+							<div className="min-w-0 flex-1 space-y-2">
+								<Skeleton className="h-6 w-3/4" />
+								<Skeleton className="h-4 w-1/2" />
+							</div>
+						</div>
+						<div className="flex gap-1.5">
+							<Skeleton className="h-5 w-20 rounded-full" />
+							<Skeleton className="h-5 w-24 rounded-full" />
+						</div>
+						<div className="space-y-2">
+							<Skeleton className="h-4 w-full" />
+							<Skeleton className="h-4 w-full" />
+							<Skeleton className="h-4 w-2/3" />
+						</div>
+						<Separator />
+						<div className="flex items-center justify-between gap-3">
+							<Skeleton className="h-4 w-32" />
+							<Skeleton className="h-9 w-24 rounded-md" />
+						</div>
+					</div>
+				</GlassCard>
+			))}
+		</SkeletonRegion>
 	);
 }

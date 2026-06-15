@@ -16,6 +16,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 
@@ -152,14 +154,7 @@ export default function EngagementCertificatePage({
 	};
 
 	if (isLoading) {
-		return (
-			<div className="flex min-h-[50vh] items-center justify-center gap-2">
-				<Spinner />
-				<p className="text-lg font-semibold text-muted-foreground">
-					Loading...
-				</p>
-			</div>
-		);
+		return <EngagementCertificateSkeleton />;
 	}
 
 	if (fetchError) {
@@ -501,10 +496,11 @@ export default function EngagementCertificatePage({
 					);
 				})}
 
-				<div className="mb-6 flex gap-2">
+				<div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center">
 					<Button
 						type="button"
 						variant="outline"
+						className="w-full sm:w-auto"
 						onClick={handleAddEngagement}
 						disabled={fields.length >= 5}
 					>
@@ -512,11 +508,12 @@ export default function EngagementCertificatePage({
 						Add Another Engagement
 					</Button>
 
-					<div className="flex-1" />
+					<div className="hidden flex-1 sm:block" />
 
 					<Button
 						type="submit"
 						size="lg"
+						className="w-full sm:w-auto"
 						disabled={isSubmitting || isRequestPending}
 					>
 						{isSubmitting ? (
@@ -537,6 +534,7 @@ export default function EngagementCertificatePage({
 						<Button
 							type="button"
 							variant="outline"
+							className="w-full sm:w-auto"
 							onClick={handleDownloadApproved}
 							disabled={isGenerating}
 						>
@@ -557,6 +555,41 @@ export default function EngagementCertificatePage({
 					Special role is optional.
 				</p>
 			</form>
+		</ToolPageShell>
+	);
+}
+
+function EngagementCertificateSkeleton() {
+	return (
+		<ToolPageShell
+			title="Engagement Certificate"
+			description="Submit engagement details for admin review."
+		>
+			<SkeletonRegion label="Loading engagement certificate">
+				<GlassCard className="mb-6">
+					<div className="space-y-3 p-6">
+						<Skeleton className="h-4 w-full" />
+						<Skeleton className="h-4 w-11/12" />
+						<Skeleton className="h-4 w-3/4" />
+						<Skeleton className="mt-2 h-16 w-full rounded-md" />
+					</div>
+				</GlassCard>
+				<GlassCard className="mb-6">
+					<div className="p-6">
+						<Skeleton className="mb-4 h-6 w-40" />
+						<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+							{Array.from({ length: 4 }).map((_, i) => (
+								// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+								<div key={i} className="space-y-2">
+									<Skeleton className="h-4 w-28" />
+									<Skeleton className="h-9 w-full rounded-md" />
+								</div>
+							))}
+						</div>
+					</div>
+				</GlassCard>
+				<Skeleton className="h-10 w-44 rounded-md" />
+			</SkeletonRegion>
 		</ToolPageShell>
 	);
 }

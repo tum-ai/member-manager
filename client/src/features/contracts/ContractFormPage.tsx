@@ -12,7 +12,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { useCurrentUserIsAdmin } from "../../hooks/useCurrentUserIsAdmin";
 import ToolPageShell from "../tools/ToolPageShell";
 import ContractDocumentPreview from "./ContractDocumentPreview";
@@ -142,7 +143,7 @@ export default function ContractFormPage(): JSX.Element {
 			{templatesQuery.isLoading ||
 			(isEditingDraft && draftQuery.isLoading) ||
 			draftPermissionLoading ? (
-				<Spinner />
+				<ContractFormSkeleton />
 			) : templatesQuery.error ? (
 				<Alert variant="destructive">
 					<AlertDescription>
@@ -177,7 +178,7 @@ export default function ContractFormPage(): JSX.Element {
 			) : (
 				<div className="flex flex-col gap-6">
 					{detailQuery.isLoading ? (
-						<Spinner />
+						<ContractFormSkeleton />
 					) : detailQuery.data ? (
 						<div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)]">
 							<GlassCard className="w-full p-4">
@@ -275,5 +276,38 @@ export default function ContractFormPage(): JSX.Element {
 				</div>
 			)}
 		</ToolPageShell>
+	);
+}
+
+function ContractFormSkeleton() {
+	return (
+		<SkeletonRegion
+			label="Loading contract form"
+			className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)]"
+		>
+			<GlassCard className="w-full p-4">
+				<div className="flex flex-col gap-1.5">
+					<Skeleton className="h-4 w-20" />
+					<Skeleton className="h-9 w-full rounded-md" />
+				</div>
+				<Separator className="my-5" />
+				<div className="flex flex-col gap-5">
+					{Array.from({ length: 5 }).map((_, i) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						<div key={i} className="space-y-2">
+							<Skeleton className="h-4 w-32" />
+							<Skeleton className="h-9 w-full rounded-md" />
+						</div>
+					))}
+				</div>
+				<div className="mt-6 flex flex-row gap-2">
+					<Skeleton className="h-9 w-24 rounded-md" />
+					<Skeleton className="h-9 w-28 rounded-md" />
+				</div>
+			</GlassCard>
+			<GlassCard className="min-w-0 overflow-hidden p-0 lg:sticky lg:top-6 lg:self-start">
+				<Skeleton className="aspect-[1/1.414] w-full rounded-none" />
+			</GlassCard>
+		</SkeletonRegion>
 	);
 }

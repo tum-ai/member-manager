@@ -1,4 +1,5 @@
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { useMembersListData } from "../../hooks/useMembersListData";
 import OrgChartDiagram from "./orgTree/OrgChartDiagram";
 import { buildOrgTree } from "./orgTree/orgTreeData";
@@ -8,10 +9,13 @@ export default function MembersOrgTreePage() {
 
 	if (isLoading) {
 		return (
-			<div className="flex min-h-[60vh] items-center justify-center gap-4">
-				<Spinner className="size-6" />
-				<p className="text-muted-foreground">Loading org tree...</p>
-			</div>
+			<SkeletonRegion label="Loading org tree">
+				<div className="mb-6 space-y-2">
+					<Skeleton className="h-8 w-40" />
+					<Skeleton className="h-4 w-[34rem] max-w-full" />
+				</div>
+				<Skeleton className="h-[60vh] w-full rounded-xl" />
+			</SkeletonRegion>
 		);
 	}
 

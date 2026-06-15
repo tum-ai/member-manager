@@ -72,15 +72,48 @@ export function getTodayGermanDate(): string {
 	});
 }
 
+function isMobileDevice(): boolean {
+	if (typeof navigator === "undefined") return false;
+	const ua = navigator.userAgent;
+	// iPadOS 13+ reports as "Macintosh", so also treat touch-capable Macs as mobile.
+	return (
+		/iPad|iPhone|iPod|Android/i.test(ua) ||
+		(/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)
+	);
+}
+
 export function downloadPdfBlob(blob: Blob, filename: string): void {
 	const url = URL.createObjectURL(blob);
+
+	// Mobile browsers (notably iOS Safari) ignore the anchor `download`
+	// attribute for blob URLs: clicking navigates the current tab to the blob
+	// and, once we revoke it, leaves a blank page. Open the PDF in a new tab so
+	// the user can view, save, or share it instead.
+	if (isMobileDevice()) {
+		const opened = window.open(url, "_blank");
+		if (!opened) {
+			// Popup blocked — fall back to navigating via an anchor.
+			const link = document.createElement("a");
+			link.href = url;
+			link.target = "_blank";
+			link.rel = "noopener";
+			document.body.appendChild(link);
+			link.click();
+			document.body.removeChild(link);
+		}
+		// Revoke late: the new tab still needs to read the blob.
+		setTimeout(() => URL.revokeObjectURL(url), 60_000);
+		return;
+	}
+
 	const link = document.createElement("a");
 	link.href = url;
 	link.download = filename;
 	document.body.appendChild(link);
 	link.click();
 	document.body.removeChild(link);
-	URL.revokeObjectURL(url);
+	// Defer revocation so the browser can start the download first.
+	setTimeout(() => URL.revokeObjectURL(url), 1_000);
 }
 
 export interface PdfDocumentOptions {

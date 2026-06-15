@@ -14,7 +14,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import {
 	Tooltip,
 	TooltipContent,
@@ -174,12 +175,7 @@ export default function MemberList() {
 	]);
 
 	if (isLoading) {
-		return (
-			<div className="flex min-h-[60vh] items-center justify-center gap-4">
-				<Spinner className="size-6" />
-				<p className="text-muted-foreground">Loading members...</p>
-			</div>
-		);
+		return <MemberListSkeleton />;
 	}
 
 	if (error) {
@@ -479,6 +475,71 @@ function MemberCard({ member }: MemberCardProps) {
 						</div>
 					</div>
 				)}
+			</div>
+		</GlassCard>
+	);
+}
+
+// Filter selects mirror the live widths: department, role, status, degree, program.
+const FILTER_WIDTHS = [
+	"w-[220px]",
+	"w-[220px]",
+	"w-[180px]",
+	"w-[220px]",
+	"w-[240px]",
+];
+
+export function MemberListSkeleton() {
+	return (
+		<SkeletonRegion label="Loading members">
+			<GlassCard variant="elevated" className="mb-8 overflow-hidden">
+				<div className="p-6 md:p-8">
+					<div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+						<div className="max-w-[620px] space-y-2">
+							<Skeleton className="h-7 w-44" />
+							<Skeleton className="h-4 w-96 max-w-full" />
+						</div>
+						<Skeleton className="h-9 w-full max-w-[340px] rounded-md" />
+					</div>
+
+					<div className="mt-6 flex flex-wrap items-end gap-4">
+						{FILTER_WIDTHS.map((width) => (
+							<div key={width} className="grid gap-1.5">
+								<Skeleton className="h-4 w-20" />
+								<Skeleton className={`h-9 max-w-full rounded-md ${width}`} />
+							</div>
+						))}
+						<Skeleton className="h-4 w-28" />
+					</div>
+				</div>
+			</GlassCard>
+
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+				{Array.from({ length: 9 }).map((_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+					<MemberCardSkeleton key={i} />
+				))}
+			</div>
+		</SkeletonRegion>
+	);
+}
+
+function MemberCardSkeleton() {
+	return (
+		<GlassCard className="h-full">
+			<div className="p-5">
+				<div className="flex items-start gap-4">
+					<Skeleton className="size-14 shrink-0 rounded-full" />
+					<div className="min-w-0 flex-1 space-y-2">
+						<Skeleton className="h-5 w-3/4" />
+						<Skeleton className="h-4 w-1/2" />
+						<Skeleton className="h-4 w-2/3" />
+					</div>
+				</div>
+				<div className="mt-4 flex flex-wrap gap-1.5">
+					<Skeleton className="h-5 w-16 rounded-full" />
+					<Skeleton className="h-5 w-24 rounded-full" />
+				</div>
 			</div>
 		</GlassCard>
 	);

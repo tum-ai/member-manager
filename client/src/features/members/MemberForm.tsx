@@ -4,9 +4,10 @@ import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { CheckboxCard } from "@/components/ui/checkbox-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LinkButton } from "@/components/ui/link-button";
 import {
 	Select,
 	SelectContent,
@@ -533,122 +534,107 @@ export default function MemberForm({ user }: MemberFormProps) {
 								</div>
 
 								<div className="pt-4 space-y-3">
-									<label className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors cursor-pointer group">
-										<Controller
-											control={sepaForm.control}
-											name="mandate_agreed"
-											render={({ field }) => (
-												<Checkbox
-													className="mt-1"
-													checked={field.value}
-													onCheckedChange={(checked) => {
-														const next = checked === true;
-														sepaForm.setValue("mandate_agreed", next, {
-															shouldDirty: true,
-														});
-														if (!sepaForm.getValues("mandate_agreed") && next) {
-															setShowSepaModal(true);
-														}
-													}}
-												/>
-											)}
-										/>
-										<span className="text-sm text-foreground">
-											I agree to the{" "}
-											<button
-												type="button"
-												onClick={(e) => {
-													e.preventDefault();
-													setShowSepaModal(true);
+									<Controller
+										control={sepaForm.control}
+										name="mandate_agreed"
+										render={({ field }) => (
+											<CheckboxCard
+												checked={field.value}
+												onCheckedChange={(checked) => {
+													const next = checked === true;
+													sepaForm.setValue("mandate_agreed", next, {
+														shouldDirty: true,
+													});
+													if (!sepaForm.getValues("mandate_agreed") && next) {
+														setShowSepaModal(true);
+													}
 												}}
-												className="text-brand hover:underline font-medium"
 											>
-												SEPA mandate
-											</button>
-										</span>
-									</label>
+												I agree to the{" "}
+												<LinkButton
+													className="font-medium"
+													onClick={(e) => {
+														e.preventDefault();
+														setShowSepaModal(true);
+													}}
+												>
+													SEPA mandate
+												</LinkButton>
+											</CheckboxCard>
+										)}
+									/>
 
-									<label className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors cursor-pointer group">
-										<Controller
-											control={sepaForm.control}
-											name="privacy_agreed"
-											render={({ field }) => (
-												<Checkbox
-													className="mt-1"
-													checked={field.value}
-													disabled={sepaForm.getValues("privacy_agreed")}
-													onCheckedChange={(checked) => {
-														const next = checked === true;
-														sepaForm.setValue("privacy_agreed", next, {
-															shouldDirty: true,
-														});
-														if (!sepaForm.getValues("privacy_agreed") && next) {
-															setShowPrivacyModal(true);
-														}
-													}}
-												/>
-											)}
-										/>
-										<span className="text-sm text-foreground">
-											I agree to the{" "}
-											<button
-												type="button"
-												onClick={(e) => {
-													e.preventDefault();
-													setShowPrivacyModal(true);
+									<Controller
+										control={sepaForm.control}
+										name="privacy_agreed"
+										render={({ field }) => (
+											<CheckboxCard
+												checked={field.value}
+												disabled={sepaForm.getValues("privacy_agreed")}
+												onCheckedChange={(checked) => {
+													const next = checked === true;
+													sepaForm.setValue("privacy_agreed", next, {
+														shouldDirty: true,
+													});
+													if (!sepaForm.getValues("privacy_agreed") && next) {
+														setShowPrivacyModal(true);
+													}
 												}}
-												className="text-brand hover:underline font-medium"
 											>
-												Privacy Policy
-											</button>{" "}
-											*
-										</span>
-									</label>
+												I agree to the{" "}
+												<LinkButton
+													className="font-medium"
+													onClick={(e) => {
+														e.preventDefault();
+														setShowPrivacyModal(true);
+													}}
+												>
+													Privacy Policy
+												</LinkButton>{" "}
+												*
+											</CheckboxCard>
+										)}
+									/>
 
-									<label className="flex items-start gap-3 p-3 rounded-lg border border-border bg-card hover:bg-accent transition-colors cursor-pointer group">
-										<Controller
-											control={sepaForm.control}
-											name="data_privacy_notice_agreed"
-											render={() => (
-												<Checkbox
-													className="mt-1"
-													checked={sepaForm.getValues(
+									<Controller
+										control={sepaForm.control}
+										name="data_privacy_notice_agreed"
+										render={() => (
+											<CheckboxCard
+												checked={sepaForm.getValues(
+													"data_privacy_notice_agreed",
+												)}
+												disabled={sepaForm.getValues(
+													"data_privacy_notice_agreed",
+												)}
+												onCheckedChange={(checked) => {
+													if (checked === true) {
+														setShowDataPrivacyNoticeModal(true);
+														return;
+													}
+													sepaForm.setValue(
 														"data_privacy_notice_agreed",
-													)}
-													disabled={sepaForm.getValues(
-														"data_privacy_notice_agreed",
-													)}
-													onCheckedChange={(checked) => {
-														if (checked === true) {
-															setShowDataPrivacyNoticeModal(true);
-															return;
-														}
-														sepaForm.setValue(
-															"data_privacy_notice_agreed",
-															false,
-															{
-																shouldDirty: true,
-															},
-														);
-													}}
-												/>
-											)}
-										/>
-										<span className="text-sm text-foreground">
-											I agree to the{" "}
-											<button
-												type="button"
-												onClick={(e) => {
-													e.preventDefault();
-													setShowDataPrivacyNoticeModal(true);
+														false,
+														{
+															shouldDirty: true,
+														},
+													);
 												}}
-												className="text-brand hover:underline font-medium"
 											>
-												Data Privacy Notice
-											</button>{" "}
-											*
-										</span>
-									</label>
+												I agree to the{" "}
+												<LinkButton
+													className="font-medium"
+													onClick={(e) => {
+														e.preventDefault();
+														setShowDataPrivacyNoticeModal(true);
+													}}
+												>
+													Data Privacy Notice
+												</LinkButton>{" "}
+												*
+											</CheckboxCard>
+										)}
+									/>
 								</div>
 							</div>
 						</div>

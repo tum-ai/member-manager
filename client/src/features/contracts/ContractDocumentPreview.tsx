@@ -1,6 +1,7 @@
 import { FileText } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 
 const PAGE_WIDTH = 595;
 const PAGE_HEIGHT = 842;
@@ -122,9 +123,21 @@ export default function ContractDocumentPreview({
 
 	if (loading) {
 		return (
-			<div className="grid min-h-[320px] place-items-center">
-				<Spinner className="size-7" />
-			</div>
+			<SkeletonRegion
+				label="Loading document"
+				className="grid min-h-[320px] place-items-center p-6"
+			>
+				<div className="aspect-[1/1.414] w-full max-w-[595px] space-y-3 rounded-md border bg-card p-8 shadow-sm">
+					<Skeleton className="mb-6 h-6 w-1/2" />
+					{Array.from({ length: 10 }).map((_, i) => (
+						<Skeleton
+							// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+							key={i}
+							className={i % 4 === 3 ? "h-3 w-2/3" : "h-3 w-full"}
+						/>
+					))}
+				</div>
+			</SkeletonRegion>
 		);
 	}
 

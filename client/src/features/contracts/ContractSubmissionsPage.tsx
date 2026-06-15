@@ -4,6 +4,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import GlassCard from "@/components/ui/GlassCard";
 import { Label } from "@/components/ui/label";
+import { LinkButton } from "@/components/ui/link-button";
 import {
 	Select,
 	SelectContent,
@@ -11,7 +12,8 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import {
 	Table,
 	TableBody,
@@ -96,7 +98,34 @@ export default function ContractSubmissionsPage(): JSX.Element {
 			</div>
 
 			{submissionsQuery.isLoading ? (
-				<Spinner />
+				<SkeletonRegion
+					label="Loading submissions"
+					className="overflow-hidden rounded-xl border bg-card"
+				>
+					<div className="flex items-center gap-6 border-b bg-muted/40 px-4 py-3">
+						{["Contract", "Status", "Submitted", "Signed", "Signing link"].map(
+							(col) => (
+								<Skeleton key={col} className="h-4 flex-1" />
+							),
+						)}
+					</div>
+					{Array.from({ length: 5 }).map((_, i) => (
+						<div
+							// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+							key={i}
+							className="flex items-center gap-6 border-b px-4 py-4 last:border-b-0"
+						>
+							<div className="flex-1 space-y-1.5">
+								<Skeleton className="h-4 w-32" />
+								<Skeleton className="h-3 w-16" />
+							</div>
+							<Skeleton className="h-5 w-20 flex-1 rounded-full" />
+							<Skeleton className="h-4 flex-1" />
+							<Skeleton className="h-4 flex-1" />
+							<Skeleton className="h-5 w-16 flex-1 rounded-full" />
+						</div>
+					))}
+				</SkeletonRegion>
 			) : submissionsQuery.error ? (
 				<Alert variant="destructive">
 					<AlertDescription>
@@ -125,18 +154,17 @@ export default function ContractSubmissionsPage(): JSX.Element {
 								return (
 									<TableRow key={submission.id}>
 										<TableCell>
-											<RouterLink
-												className="flex flex-col text-brand hover:underline"
-												to={to}
-											>
-												<span className="font-medium">
-													{templateNames.get(submission.template_id) ??
-														"Contract"}
-												</span>
-												<span className="font-mono text-xs text-muted-foreground">
-													{submission.id.slice(0, 8)}…
-												</span>
-											</RouterLink>
+											<LinkButton asChild className="flex flex-col">
+												<RouterLink to={to}>
+													<span className="font-medium">
+														{templateNames.get(submission.template_id) ??
+															"Contract"}
+													</span>
+													<span className="font-mono text-xs text-muted-foreground">
+														{submission.id.slice(0, 8)}…
+													</span>
+												</RouterLink>
+											</LinkButton>
 										</TableCell>
 										<TableCell>
 											<Badge variant={getContractStatusTone(submission.status)}>

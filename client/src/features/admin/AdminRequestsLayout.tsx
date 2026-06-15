@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import GlassCard from "@/components/ui/GlassCard";
-import { Spinner } from "@/components/ui/spinner";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 
 interface AdminRequestsLayoutProps {
 	title: string;
@@ -25,12 +26,24 @@ export default function AdminRequestsLayout({
 			</div>
 
 			{isLoading ? (
-				<GlassCard variant="elevated">
-					<div className="flex items-center justify-center gap-4 p-8">
-						<Spinner className="size-6" />
-						<span className="text-muted-foreground">Loading requests...</span>
-					</div>
-				</GlassCard>
+				<SkeletonRegion
+					label="Loading requests"
+					className="grid items-start gap-4 lg:grid-cols-2"
+				>
+					{Array.from({ length: 4 }).map((_, i) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						<GlassCard key={i} className="flex flex-col p-5">
+							<Skeleton className="mb-2 h-5 w-1/2" />
+							<Skeleton className="h-4 w-2/3" />
+							<Skeleton className="mt-0.5 h-4 w-1/3" />
+							<Skeleton className="mt-2 h-4 w-3/4" />
+							<div className="mt-auto flex gap-3 pt-4">
+								<Skeleton className="h-9 w-24 rounded-md" />
+								<Skeleton className="h-9 w-24 rounded-md" />
+							</div>
+						</GlassCard>
+					))}
+				</SkeletonRegion>
 			) : error ? (
 				<GlassCard variant="elevated">
 					<div className="p-8 text-center">

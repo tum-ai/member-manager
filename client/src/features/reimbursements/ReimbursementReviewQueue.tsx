@@ -11,6 +11,7 @@ import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { LinkButton } from "@/components/ui/link-button";
 import {
 	Select,
 	SelectContent,
@@ -445,37 +446,45 @@ function ReceiptLinks({
 	return (
 		<div className="flex flex-row flex-wrap gap-3">
 			{viewUrl && (
-				<a
-					href={viewUrl}
-					target="_blank"
-					rel="noopener noreferrer"
-					aria-label={`View receipt for ${getRequesterName(request)}`}
-					onClick={(event) => {
-						if (!onReceiptOpen) return;
-						event.preventDefault();
-						void onReceiptOpen("view");
-					}}
-					className="inline-flex items-center gap-1.5 text-sm text-brand hover:underline"
+				<LinkButton
+					asChild
+					className="inline-flex items-center gap-1.5 text-sm"
 				>
-					<ExternalLink className="size-4" />
-					View receipt
-				</a>
+					<a
+						href={viewUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						aria-label={`View receipt for ${getRequesterName(request)}`}
+						onClick={(event) => {
+							if (!onReceiptOpen) return;
+							event.preventDefault();
+							void onReceiptOpen("view");
+						}}
+					>
+						<ExternalLink className="size-4" />
+						View receipt
+					</a>
+				</LinkButton>
 			)}
 			{downloadUrl && (
-				<a
-					href={downloadUrl}
-					download
-					aria-label={`Download receipt for ${getRequesterName(request)}`}
-					onClick={(event) => {
-						if (!onReceiptOpen) return;
-						event.preventDefault();
-						void onReceiptOpen("download");
-					}}
-					className="inline-flex items-center gap-1.5 text-sm text-brand hover:underline"
+				<LinkButton
+					asChild
+					className="inline-flex items-center gap-1.5 text-sm"
 				>
-					<FileText className="size-4" />
-					Download receipt
-				</a>
+					<a
+						href={downloadUrl}
+						download
+						aria-label={`Download receipt for ${getRequesterName(request)}`}
+						onClick={(event) => {
+							if (!onReceiptOpen) return;
+							event.preventDefault();
+							void onReceiptOpen("download");
+						}}
+					>
+						<FileText className="size-4" />
+						Download receipt
+					</a>
+				</LinkButton>
 			)}
 			{!viewUrl && !downloadUrl && (
 				<p className="text-sm text-muted-foreground">

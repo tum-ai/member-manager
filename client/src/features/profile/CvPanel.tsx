@@ -4,6 +4,8 @@ import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Spinner } from "@/components/ui/spinner";
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
@@ -122,9 +124,17 @@ export default function CvPanel({ userId, id, className }: CvPanelProps) {
 				</p>
 
 				{isLoading ? (
-					<div className="flex justify-center py-6">
-						<Spinner className="size-6" />
-					</div>
+					<SkeletonRegion
+						label="Loading CV"
+						className="mb-4 flex items-center gap-4 rounded-xl bg-accent p-4"
+					>
+						<Skeleton className="size-5 shrink-0 rounded-md" />
+						<div className="min-w-0 flex-1 space-y-2">
+							<Skeleton className="h-4 w-40" />
+							<Skeleton className="h-3 w-28" />
+						</div>
+						<Skeleton className="h-8 w-24 rounded-md" />
+					</SkeletonRegion>
 				) : cv ? (
 					<div className="mb-4 flex flex-wrap items-center gap-4 rounded-xl bg-accent p-4">
 						<FileText className="size-5 text-brand" />

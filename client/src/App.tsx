@@ -10,7 +10,8 @@ import {
 	useLocation,
 } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
-import { Spinner } from "./components/ui/spinner";
+import { Skeleton } from "./components/ui/skeleton";
+import { SkeletonRegion } from "./components/ui/skeleton-blocks";
 import { ToastProvider } from "./contexts/ToastContext";
 import AdminCertificateRequestsPage from "./features/admin/AdminCertificateRequestsPage";
 import AdminChangeRequestsPage from "./features/admin/AdminChangeRequestsPage";
@@ -98,10 +99,16 @@ export default function App(): JSX.Element {
 
 	if (loading) {
 		return (
-			<div className="flex min-h-screen items-center justify-center gap-3">
-				<Spinner className="size-6" />
-				<span className="text-lg text-muted-foreground">Loading...</span>
-			</div>
+			<SkeletonRegion
+				label="Loading"
+				className="flex min-h-screen items-center justify-center p-6"
+			>
+				<div className="w-full max-w-sm space-y-4">
+					<Skeleton className="mx-auto size-12 rounded-xl" />
+					<Skeleton className="mx-auto h-5 w-40" />
+					<Skeleton className="h-10 w-full rounded-md" />
+				</div>
+			</SkeletonRegion>
 		);
 	}
 
@@ -269,10 +276,25 @@ export function AuthenticatedApp({
 
 function RouteAccessLoading(): JSX.Element {
 	return (
-		<div className="flex min-h-70 items-center justify-center gap-3">
-			<Spinner className="size-6" />
-			<span className="text-muted-foreground">Checking access...</span>
-		</div>
+		<SkeletonRegion label="Checking access" className="space-y-6">
+			<div className="space-y-2">
+				<Skeleton className="h-7 w-56" />
+				<Skeleton className="h-4 w-80 max-w-full" />
+			</div>
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				{Array.from({ length: 6 }).map((_, i) => (
+					<div
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						key={i}
+						className="space-y-3 rounded-xl border bg-card p-5"
+					>
+						<Skeleton className="h-4 w-2/3" />
+						<Skeleton className="h-3 w-full" />
+						<Skeleton className="h-3 w-1/2" />
+					</div>
+				))}
+			</div>
+		</SkeletonRegion>
 	);
 }
 
