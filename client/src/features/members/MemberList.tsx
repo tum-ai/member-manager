@@ -1,9 +1,11 @@
+import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
 import LinkedInIcon from "@mui/icons-material/LinkedIn";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import SearchIcon from "@mui/icons-material/Search";
 import {
 	Avatar,
 	Box,
+	Button,
 	CardContent,
 	Chip,
 	CircularProgress,
@@ -21,6 +23,7 @@ import {
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
 import { useMemo, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 
 import GlassCard from "../../components/ui/GlassCard";
 import { useInnovationProjects } from "../../hooks/useInnovationProjects";
@@ -221,7 +224,24 @@ export default function MemberList() {
 							</Typography>
 						</Box>
 
-						<Box sx={{ width: "100%", maxWidth: 340 }}>
+						<Box
+							sx={{
+								width: "100%",
+								maxWidth: 460,
+								display: "flex",
+								gap: 1,
+								flexDirection: { xs: "column", sm: "row" },
+							}}
+						>
+							<Button
+								component={RouterLink}
+								to="/members/graph"
+								variant="outlined"
+								startIcon={<HubOutlinedIcon />}
+								sx={{ flexShrink: 0 }}
+							>
+								Graph
+							</Button>
 							<TextField
 								size="small"
 								placeholder="Search members..."

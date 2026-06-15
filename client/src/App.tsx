@@ -27,6 +27,7 @@ import ContractSubmissionDetailPage from "./features/contracts/ContractSubmissio
 import ContractSubmissionsPage from "./features/contracts/ContractSubmissionsPage";
 import ContractTemplatesPage from "./features/contracts/ContractTemplatesPage";
 import JobPostingsPage from "./features/jobs/JobPostingsPage";
+import MemberGraphPage from "./features/members/MemberGraphPage";
 import MemberList from "./features/members/MemberList";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
@@ -230,6 +231,7 @@ export function AuthenticatedApp({
 				<Route path="/" element={<ProfilePage user={user} />} />
 				<Route path="/profile" element={<Navigate to="/" replace />} />
 				<Route path="/members" element={<MemberList />} />
+				<Route path="/members/graph" element={<MemberGraphPage />} />
 				<Route path="/tools" element={<ToolsPage />} />
 				<Route
 					path="/tools/reimbursement"

@@ -46,15 +46,17 @@ export default function MainLayout({
 	const location = useLocation();
 
 	const navigationValue =
-		location.pathname === "/members"
-			? "/members"
-			: location.pathname === "/admin"
-				? "/admin"
-				: location.pathname.startsWith("/contracts")
-					? "/contracts"
-					: location.pathname === "/" || location.pathname === "/profile"
-						? "/"
-						: "";
+		location.pathname === "/members/graph"
+			? "/members/graph"
+			: location.pathname === "/members"
+				? "/members"
+				: location.pathname === "/admin"
+					? "/admin"
+					: location.pathname.startsWith("/contracts")
+						? "/contracts"
+						: location.pathname === "/" || location.pathname === "/profile"
+							? "/"
+							: "";
 
 	const handleNavigationChange = (event: SelectChangeEvent<string>) => {
 		const nextPath = event.target.value;
@@ -212,6 +214,7 @@ export default function MainLayout({
 								</MenuItem>
 								<MenuItem value="/">My Profile</MenuItem>
 								<MenuItem value="/members">All Members</MenuItem>
+								<MenuItem value="/members/graph">Member Graph</MenuItem>
 								{hasContractsAccess && (
 									<MenuItem value="/contracts">Contracts</MenuItem>
 								)}
