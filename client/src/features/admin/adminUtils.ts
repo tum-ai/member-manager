@@ -128,6 +128,21 @@ export function filterAdminMembers(
 	});
 }
 
+export function dedupeAdminMembers(members: AdminMember[]): AdminMember[] {
+	const seenUserIds = new Set<string>();
+	return members.filter((member) => {
+		const userId = String(member.user_id ?? "");
+		if (!userId) {
+			return true;
+		}
+		if (seenUserIds.has(userId)) {
+			return false;
+		}
+		seenUserIds.add(userId);
+		return true;
+	});
+}
+
 export function getAdminSortValue(
 	member: AdminMember,
 	sortBy: AdminSortKey,

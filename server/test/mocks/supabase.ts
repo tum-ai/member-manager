@@ -356,9 +356,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 		inFilters: [] as Array<{ column: string; values: unknown[] }>,
 		limitCount: undefined as number | undefined,
 		orQuery: "" as string,
-		orderByConfig: undefined as
-			| { column: string; ascending: boolean }
-			| undefined,
+		orderByConfigs: [] as Array<{ column: string; ascending: boolean }>,
 		rangeConfig: undefined as { from: number; to: number } | undefined,
 		selectConfig: undefined as { count?: string } | undefined,
 		insertedData: null as Array<Record<string, unknown>> | null,
@@ -493,13 +491,14 @@ function createQueryBuilder(table: string): QueryBuilder {
 			});
 		}
 
-		if (state.orderByConfig) {
-			const { column, ascending } = state.orderByConfig;
+		if (state.orderByConfigs.length > 0) {
 			tableData.sort((a, b) => {
-				const aVal = a[column];
-				const bVal = b[column];
-				if (aVal < bVal) return ascending ? -1 : 1;
-				if (aVal > bVal) return ascending ? 1 : -1;
+				for (const { column, ascending } of state.orderByConfigs) {
+					const aVal = a[column];
+					const bVal = b[column];
+					if (aVal < bVal) return ascending ? -1 : 1;
+					if (aVal > bVal) return ascending ? 1 : -1;
+				}
 				return 0;
 			});
 		}
@@ -668,7 +667,10 @@ function createQueryBuilder(table: string): QueryBuilder {
 		},
 
 		order: (column: string, options?: { ascending?: boolean }) => {
-			state.orderByConfig = { column, ascending: options?.ascending ?? true };
+			state.orderByConfigs.push({
+				column,
+				ascending: options?.ascending ?? true,
+			});
 			return proxyBuilder;
 		},
 

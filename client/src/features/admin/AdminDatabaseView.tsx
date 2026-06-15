@@ -74,6 +74,7 @@ import {
 	type AdminMember,
 	type AdminSortKey,
 	BOOLEAN_FILTER_OPTIONS,
+	dedupeAdminMembers,
 	filterAdminMembers,
 	getAdminMemberInitials,
 	hasDataPrivacyNoticeAgreement,
@@ -168,7 +169,10 @@ export default function AdminDatabaseView() {
 	const { researchProjects, isLoading: isLoadingResearchProjects } =
 		useResearchProjects();
 
-	const allMembers = members ?? [];
+	const allMembers = useMemo(
+		() => dedupeAdminMembers(members ?? []),
+		[members],
+	);
 	const loadedMemberCount = allMembers.length;
 	const totalMemberCount = totalMembers ?? loadedMemberCount;
 	const filtered = useMemo(

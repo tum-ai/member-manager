@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	type AdminFilters,
 	type AdminMember,
+	dedupeAdminMembers,
 	filterAdminMembers,
 } from "./adminUtils";
 
@@ -112,5 +113,22 @@ describe("filterAdminMembers", () => {
 				search: "Lovelace Ada",
 			}).map((member) => member.user_id),
 		).toEqual(["member-accepted"]);
+	});
+});
+
+describe("dedupeAdminMembers", () => {
+	it("keeps the first row for each user id", () => {
+		const duplicatePageRows = [
+			members[0],
+			members[1],
+			{
+				...members[0],
+				email: "stale-copy@tum.ai",
+			},
+		];
+
+		expect(
+			dedupeAdminMembers(duplicatePageRows).map((member) => member.email),
+		).toEqual(["ada@tum.ai", "grace@tum.ai"]);
 	});
 });

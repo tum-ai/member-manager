@@ -228,6 +228,22 @@ describe("Admin Routes", async () => {
 			const sortedSurnames = [...surnames].sort();
 			assert.deepStrictEqual(surnames, sortedSurnames);
 		});
+
+		test("uses a stable user id tiebreaker for paged sorting", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/admin/members?sort_by=surname&sort_asc=true&limit=2",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.deepStrictEqual(
+				payload.data.map((member: { user_id: string }) => member.user_id),
+				[testUserIds.admin, testUserIds.user],
+			);
+		});
 	});
 
 	describe("PATCH /api/admin/members/:userId/role", () => {

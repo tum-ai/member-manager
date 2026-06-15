@@ -138,6 +138,19 @@ const MEMBER_DB_SORT_COLUMNS = new Set([
 	"public_location",
 ]);
 
+function orderAdminMembersQuery(
+	// biome-ignore lint/suspicious/noExplicitAny: Supabase query builder type is not exported.
+	query: any,
+	sortBy: string,
+	sortAsc: boolean,
+) {
+	const orderedQuery = query.order(sortBy, { ascending: sortAsc });
+	if (sortBy === "user_id") {
+		return orderedQuery;
+	}
+	return orderedQuery.order("user_id", { ascending: true });
+}
+
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 const DateOnlySchema = z
@@ -337,9 +350,11 @@ export async function adminRoutes(server: FastifyInstance) {
 						data: pagedMembers,
 						error: membersError,
 						count,
-					} = await membersQuery
-						.order(sort_by, { ascending: sort_asc })
-						.range(from, to);
+					} = await orderAdminMembersQuery(
+						membersQuery,
+						sort_by,
+						sort_asc,
+					).range(from, to);
 
 					if (membersError) {
 						request.log.error({ err: membersError }, "Failed to fetch members");
