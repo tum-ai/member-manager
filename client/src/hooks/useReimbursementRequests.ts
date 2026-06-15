@@ -57,11 +57,25 @@ export interface ReimbursementRequest {
 	updated_at?: string;
 }
 
+export interface BuchhaltungsButlerSyncStatus {
+	sync_enabled: boolean;
+	configured: boolean;
+	available: boolean;
+	unavailable_reason?: "disabled" | "missing_credentials" | null;
+}
+
 interface ReimbursementReviewResponse {
 	requests: ReimbursementRequest[];
 	receipt_endpoints?: {
 		bulk_download_url?: string | null;
 	} | null;
+	integrations?: {
+		buchhaltungsbutler?: BuchhaltungsButlerSyncStatus | null;
+	} | null;
+}
+
+interface ReimbursementReviewIntegrationsResponse {
+	buchhaltungsbutler?: BuchhaltungsButlerSyncStatus | null;
 }
 
 const REVIEW_RECEIPT_BULK_DOWNLOAD_URL =
@@ -117,15 +131,21 @@ function normalizeReviewResponse(
 ): {
 	requests: ReimbursementRequest[];
 	bulkDownloadUrl: string | null;
+	buchhaltungsButlerSyncStatus: BuchhaltungsButlerSyncStatus | null;
 } {
 	if (!response) {
-		return { requests: [], bulkDownloadUrl: null };
+		return {
+			requests: [],
+			bulkDownloadUrl: null,
+			buchhaltungsButlerSyncStatus: null,
+		};
 	}
 
 	if (Array.isArray(response)) {
 		return {
 			requests: response,
 			bulkDownloadUrl: REVIEW_RECEIPT_BULK_DOWNLOAD_URL,
+			buchhaltungsButlerSyncStatus: null,
 		};
 	}
 
@@ -134,6 +154,8 @@ function normalizeReviewResponse(
 		bulkDownloadUrl:
 			response.receipt_endpoints?.bulk_download_url ??
 			REVIEW_RECEIPT_BULK_DOWNLOAD_URL,
+		buchhaltungsButlerSyncStatus:
+			response.integrations?.buchhaltungsbutler ?? null,
 	};
 }
 
@@ -246,7 +268,21 @@ export function useReimbursementReview() {
 			>("/api/reimbursements/review");
 		},
 	});
-	const { requests, bulkDownloadUrl } = normalizeReviewResponse(reviewResponse);
+	const { requests, bulkDownloadUrl, buchhaltungsButlerSyncStatus } =
+		normalizeReviewResponse(reviewResponse);
+
+	const {
+		data: integrationsResponse,
+		isLoading: isLoadingReviewIntegrations,
+		error: reviewIntegrationsError,
+	} = useQuery({
+		queryKey: ["reimbursement-review-integrations"],
+		queryFn: async () => {
+			return await apiClient<ReimbursementReviewIntegrationsResponse>(
+				"/api/reimbursements/review/integrations",
+			);
+		},
+	});
 
 	const reviewMutation = useMutation({
 		mutationFn: async (payload: ReviewReimbursementRequestPayload) => {
@@ -346,6 +382,10 @@ export function useReimbursementReview() {
 		isBulkDownloadingReceipts: bulkDownloadReceiptsMutation.isPending,
 		openReceiptAsync: openReceiptMutation.mutateAsync,
 		downloadReceiptAsync: downloadReceiptMutation.mutateAsync,
+		buchhaltungsButlerSyncStatus:
+			integrationsResponse?.buchhaltungsbutler ?? buchhaltungsButlerSyncStatus,
+		isLoadingBuchhaltungsButlerSyncStatus: isLoadingReviewIntegrations,
+		buchhaltungsButlerSyncStatusError: reviewIntegrationsError,
 		syncBuchhaltungsButlerAsync: buchhaltungsButlerSyncMutation.mutateAsync,
 		isSyncingBuchhaltungsButler: buchhaltungsButlerSyncMutation.isPending,
 		updateDepartmentAsync: departmentMutation.mutateAsync,

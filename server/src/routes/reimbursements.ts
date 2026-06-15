@@ -7,6 +7,7 @@ import {
 	addBuchhaltungsButlerReceiptComment,
 	BuchhaltungsButlerApiError,
 	BuchhaltungsButlerConfigError,
+	getBuchhaltungsButlerSyncStatus,
 	uploadBuchhaltungsButlerReceipt,
 } from "../lib/buchhaltungsbutler.js";
 import { DatabaseError } from "../lib/errors.js";
@@ -1057,6 +1058,16 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			);
 
 			return rows.map(withReviewerReceiptMetadata);
+		},
+	);
+
+	server.get(
+		"/reimbursements/review/integrations",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (_request, _reply) => {
+			return {
+				buchhaltungsbutler: getBuchhaltungsButlerSyncStatus(),
+			};
 		},
 	);
 
