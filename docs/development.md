@@ -135,13 +135,9 @@ Re-apply after edits: `pnpm supabase:reset`.
 
 Phase 0 of the client remediation effort. These are enforced (or scheduled to be) so structure holds before larger refactors land.
 
-### File and function size
+### File size
 
-Two complementary gates keep React surfaces small, both enforced by `pnpm lint` (so both run in the existing **Lint** CI job):
-
-**1. Per-function** — Biome's `complexity/noExcessiveLinesPerFunction` (`error`, `maxLines: 300`, blank lines skipped), scoped via `overrides` in `biome.json` to client source (`client/src/**`, excluding `*.test.*` / `*.stories.tsx`). Catches oversized components/functions — the real modularity signal. A second `overrides` entry holds the current backlog (functions already >300 lines: `ProfilePage`, `AdminDatabaseView`, `MemberForm`, `TumaiDaysPage`, `ReimbursementPage`); remove each as it is split (#189), never add new ones.
-
-**2. Per-file** — `scripts/check-file-size.mjs` enforces a raw per-file line budget (catches long files made of many smaller units, which the per-function rule can't see). Runs in `pnpm lint` (and standalone via `pnpm check:filesize`):
+`scripts/check-file-size.mjs` enforces a per-file line budget for React surfaces. It runs as part of `pnpm lint` (and standalone via `pnpm check:filesize`), so it is covered by the existing **Lint** CI job and by the local lint step:
 
 | Limit | Scope | Behaviour |
 | --- | --- | --- |
@@ -149,8 +145,6 @@ Two complementary gates keep React surfaces small, both enforced by `pnpm lint` 
 | **400 lines (soft)** | same scope | prints a non-failing warning |
 
 Exempt entirely: `client/src/components/ui/**` (shadcn primitives), `*.d.ts`, `*.stories.tsx`, `*.test.ts`, `*.test.tsx`.
-
-> Server code is intentionally out of scope for both gates today; the per-function rule can be extended to it later by widening the `overrides` glob.
 
 A short **allowlist** in the script holds the files that already exceed 700 lines (`ProfilePage`, `AdminDatabaseView`, `ContractTemplatesPage`, `ContractSubmissionDetailPage`, `TumaiDaysPage`, `JobPostingsPage`, `ReimbursementPage`, `MemberForm`). These are suppressed from the hard-fail but print a backlog notice each run; they are tracked remediation debt (#189). When you split one below 700, delete it from the allowlist — never add new entries to dodge the gate. The script self-polices this: a **stale allowlist** warning prints when an entry is no longer tracked (renamed/deleted) or has dropped to ≤700 lines, so dead entries don't linger.
 
