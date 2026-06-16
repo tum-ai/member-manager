@@ -21,7 +21,14 @@ function Field({
 	...props
 }: FieldProps) {
 	return (
-		<div data-slot="field" className={cn("grid gap-1.5", className)} {...props}>
+		<div
+			data-slot="field"
+			// min-w-0 lets the field shrink to its grid column instead of inflating
+			// to a child's intrinsic width (native date/number inputs otherwise push
+			// past the card edge on mobile).
+			className={cn("grid min-w-0 gap-1.5", className)}
+			{...props}
+		>
 			{label != null && (
 				<Label htmlFor={htmlFor}>
 					{label}

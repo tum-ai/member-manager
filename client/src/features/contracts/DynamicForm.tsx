@@ -80,7 +80,7 @@ function fieldFor(
 	switch (dataType) {
 		case "TEXTAREA":
 			return (
-				<div className="flex flex-col gap-1.5">
+				<div className="flex min-w-0 flex-col gap-1.5">
 					<Label>
 						{variable.label}
 						{variable.is_required ? " *" : ""}
@@ -97,7 +97,7 @@ function fieldFor(
 			);
 		case "NUMBER":
 			return (
-				<div className="flex flex-col gap-1.5">
+				<div className="flex min-w-0 flex-col gap-1.5">
 					<Label>
 						{variable.label}
 						{variable.is_required ? " *" : ""}
@@ -117,7 +117,7 @@ function fieldFor(
 			);
 		case "DATE":
 			return (
-				<div className="flex flex-col gap-1.5">
+				<div className="flex min-w-0 flex-col gap-1.5">
 					<Label>
 						{variable.label}
 						{variable.is_required ? " *" : ""}
@@ -134,7 +134,7 @@ function fieldFor(
 			);
 		case "BOOLEAN":
 			return (
-				<div className="flex flex-col gap-1.5">
+				<div className="flex min-w-0 flex-col gap-1.5">
 					<Label className="gap-2">
 						<Checkbox
 							checked={value === true}
@@ -164,7 +164,7 @@ function fieldFor(
 					setValue(next);
 				};
 				return (
-					<div className="flex flex-col gap-1.5">
+					<div className="flex min-w-0 flex-col gap-1.5">
 						<Label>
 							{variable.label}
 							{variable.is_required ? " *" : ""}
@@ -217,7 +217,7 @@ function fieldFor(
 			}
 			const currentValue = typeof value === "string" ? value : "";
 			return (
-				<div className="flex flex-col gap-1.5">
+				<div className="flex min-w-0 flex-col gap-1.5">
 					<Label>
 						{variable.label}
 						{variable.is_required ? " *" : ""}
@@ -247,7 +247,7 @@ function fieldFor(
 		}
 		case "FILE":
 			return (
-				<div className="flex flex-col gap-1.5">
+				<div className="flex min-w-0 flex-col gap-1.5">
 					<Label>
 						{`${variable.label} (Filename)`}
 						{variable.is_required ? " *" : ""}
@@ -268,7 +268,7 @@ function fieldFor(
 			);
 		default:
 			return (
-				<div className="flex flex-col gap-1.5">
+				<div className="flex min-w-0 flex-col gap-1.5">
 					<Label>
 						{variable.label}
 						{variable.is_required ? " *" : ""}

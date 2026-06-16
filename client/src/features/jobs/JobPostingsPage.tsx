@@ -372,7 +372,7 @@ function JobSubmissionDialog({
 						<DialogTitle>Post a job</DialogTitle>
 					</DialogHeader>
 					<div className="grid grid-cols-1 gap-4 pt-4 md:grid-cols-12">
-						<div className="flex flex-col gap-1.5 md:col-span-7">
+						<div className="flex min-w-0 flex-col gap-1.5 md:col-span-7">
 							<Label htmlFor={id("title")}>Job title</Label>
 							<Input
 								id={id("title")}
@@ -381,7 +381,7 @@ function JobSubmissionDialog({
 								onChange={(event) => onChange("title", event.target.value)}
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5 md:col-span-5">
+						<div className="flex min-w-0 flex-col gap-1.5 md:col-span-5">
 							<Label htmlFor={id("organization")}>Organization</Label>
 							<Input
 								id={id("organization")}
@@ -392,7 +392,7 @@ function JobSubmissionDialog({
 								}
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5 sm:col-span-6">
+						<div className="flex min-w-0 flex-col gap-1.5 sm:col-span-6">
 							<Label htmlFor={id("job_type")}>Job type</Label>
 							<Select
 								value={form.job_type}
@@ -414,7 +414,7 @@ function JobSubmissionDialog({
 								</SelectContent>
 							</Select>
 						</div>
-						<div className="flex flex-col gap-1.5 sm:col-span-6">
+						<div className="flex min-w-0 flex-col gap-1.5 sm:col-span-6">
 							<Label htmlFor={id("location")}>Location</Label>
 							<Input
 								id={id("location")}
@@ -423,7 +423,7 @@ function JobSubmissionDialog({
 								onChange={(event) => onChange("location", event.target.value)}
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5 md:col-span-12">
+						<div className="flex min-w-0 flex-col gap-1.5 md:col-span-12">
 							<Label htmlFor={id("description")}>Description</Label>
 							<Textarea
 								id={id("description")}
@@ -435,7 +435,7 @@ function JobSubmissionDialog({
 								}
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5 md:col-span-7">
+						<div className="flex min-w-0 flex-col gap-1.5 md:col-span-7">
 							<Label htmlFor={id("external_url")}>Apply link</Label>
 							<Input
 								id={id("external_url")}
@@ -446,7 +446,7 @@ function JobSubmissionDialog({
 								}
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5 md:col-span-5">
+						<div className="flex min-w-0 flex-col gap-1.5 md:col-span-5">
 							<Label htmlFor={id("call_to_action")}>Button label</Label>
 							<Input
 								id={id("call_to_action")}
@@ -456,7 +456,7 @@ function JobSubmissionDialog({
 								}
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5 md:col-span-4">
+						<div className="flex min-w-0 flex-col gap-1.5 md:col-span-4">
 							<Label htmlFor={id("contact_name")}>Contact name</Label>
 							<Input
 								id={id("contact_name")}
@@ -467,7 +467,7 @@ function JobSubmissionDialog({
 								}
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5 md:col-span-4">
+						<div className="flex min-w-0 flex-col gap-1.5 md:col-span-4">
 							<Label htmlFor={id("contact_email")}>Contact email</Label>
 							<Input
 								id={id("contact_email")}
@@ -479,7 +479,7 @@ function JobSubmissionDialog({
 								}
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5 md:col-span-4">
+						<div className="flex min-w-0 flex-col gap-1.5 md:col-span-4">
 							<Label htmlFor={id("contact_role")}>Contact role</Label>
 							<Input
 								id={id("contact_role")}
@@ -489,7 +489,7 @@ function JobSubmissionDialog({
 								}
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5 md:col-span-7">
+						<div className="flex min-w-0 flex-col gap-1.5 md:col-span-7">
 							<Label htmlFor={id("logo_url")}>Logo URL</Label>
 							<Input
 								id={id("logo_url")}
@@ -498,7 +498,7 @@ function JobSubmissionDialog({
 								onChange={(event) => onChange("logo_url", event.target.value)}
 							/>
 						</div>
-						<div className="flex flex-col gap-1.5 md:col-span-5">
+						<div className="flex min-w-0 flex-col gap-1.5 md:col-span-5">
 							<Label htmlFor={id("expires_at")}>Expires</Label>
 							<Input
 								id={id("expires_at")}

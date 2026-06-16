@@ -264,8 +264,12 @@ export default function ContractFormPage(): JSX.Element {
 								<ContractDocumentPreview
 									pages={previewQuery.data?.pages}
 									loading={previewQuery.isLoading || previewQuery.isFetching}
+									// On mobile let the preview grow to its full height and
+									// scroll with the page — a fixed-height inner scroll box
+									// nested in the scrolling page traps touch gestures on iOS.
+									// Desktop keeps the constrained, sticky scroll.
 									maxHeight={{
-										xs: "72vh",
+										xs: "none",
 										lg: "calc(100vh - 130px)",
 									}}
 									minHeight={{ xs: 420, lg: "calc(100vh - 130px)" }}

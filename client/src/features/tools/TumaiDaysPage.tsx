@@ -314,7 +314,7 @@ export default function TumaiDaysPage(): ReactElement {
 									</div>
 								</div>
 								<form onSubmit={handleSubmit} className="grid gap-3">
-									<div className="grid gap-1.5">
+									<div className="grid min-w-0 gap-1.5">
 										<Label htmlFor="event-agenda">Event Agenda</Label>
 										<Textarea
 											id="event-agenda"
@@ -325,7 +325,7 @@ export default function TumaiDaysPage(): ReactElement {
 											required
 										/>
 									</div>
-									<div className="grid gap-1.5">
+									<div className="grid min-w-0 gap-1.5">
 										<Label htmlFor="event-scheduled-at">
 											Schedule Slack Send Time
 										</Label>

@@ -265,7 +265,7 @@ export default function EngagementCertificatePage({
 								</div>
 
 								<div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-									<div className="flex flex-col gap-1.5">
+									<div className="flex min-w-0 flex-col gap-1.5">
 										<Label htmlFor={`startDate-${index}`}>Start Date</Label>
 										<Input
 											id={`startDate-${index}`}
@@ -301,7 +301,7 @@ export default function EngagementCertificatePage({
 									</div>
 
 									{!form.watch(`engagements.${index}.isStillActive`) && (
-										<div className="flex flex-col gap-1.5">
+										<div className="flex min-w-0 flex-col gap-1.5">
 											<Label htmlFor={`endDate-${index}`}>End Date</Label>
 											<Input
 												id={`endDate-${index}`}
@@ -318,7 +318,7 @@ export default function EngagementCertificatePage({
 										</div>
 									)}
 
-									<div className="flex flex-col gap-1.5">
+									<div className="flex min-w-0 flex-col gap-1.5">
 										<Label htmlFor={`weeklyHours-${index}`}>Weekly Hours</Label>
 										<Controller
 											control={form.control}
@@ -358,7 +358,7 @@ export default function EngagementCertificatePage({
 										)}
 									</div>
 
-									<div className="flex flex-col gap-1.5">
+									<div className="flex min-w-0 flex-col gap-1.5">
 										<Label htmlFor={`department-${index}`}>Department</Label>
 										<Controller
 											control={form.control}
@@ -398,7 +398,7 @@ export default function EngagementCertificatePage({
 										)}
 									</div>
 
-									<div className="flex flex-col gap-1.5">
+									<div className="flex min-w-0 flex-col gap-1.5">
 										<Label htmlFor={`specialRole-${index}`}>Special role</Label>
 										<Controller
 											control={form.control}
@@ -456,7 +456,7 @@ export default function EngagementCertificatePage({
 										</Label>
 									</div>
 
-									<div className="flex flex-col gap-1.5 md:col-span-2">
+									<div className="flex min-w-0 flex-col gap-1.5 md:col-span-2">
 										<Label htmlFor={`tasksDescription-${index}`}>
 											Tasks / Responsibilities
 										</Label>

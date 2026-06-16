@@ -566,7 +566,7 @@ export default function ReimbursementPage({
 							</div>
 
 							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-								<div className="flex flex-col gap-1.5">
+								<div className="flex min-w-0 flex-col gap-1.5">
 									<Label htmlFor="reimbursement-amount">Amount</Label>
 									<Input
 										id="reimbursement-amount"
@@ -582,7 +582,7 @@ export default function ReimbursementPage({
 										<p className="text-xs text-destructive">{errors.amount}</p>
 									)}
 								</div>
-								<div className="flex flex-col gap-1.5">
+								<div className="flex min-w-0 flex-col gap-1.5">
 									<Label htmlFor="reimbursement-date">Date</Label>
 									<Input
 										id="reimbursement-date"
@@ -596,7 +596,7 @@ export default function ReimbursementPage({
 										<p className="text-xs text-destructive">{errors.date}</p>
 									)}
 								</div>
-								<div className="col-span-full flex flex-col gap-1.5">
+								<div className="col-span-full flex min-w-0 flex-col gap-1.5">
 									<Label htmlFor="reimbursement-department">Department</Label>
 									<Select
 										value={values.department || undefined}
@@ -633,7 +633,7 @@ export default function ReimbursementPage({
 										</AlertDescription>
 									</Alert>
 								)}
-								<div className="col-span-full flex flex-col gap-1.5">
+								<div className="col-span-full flex min-w-0 flex-col gap-1.5">
 									<Label htmlFor="reimbursement-description">Description</Label>
 									<Textarea
 										id="reimbursement-description"
@@ -652,7 +652,7 @@ export default function ReimbursementPage({
 									)}
 								</div>
 
-								<div className="flex flex-col gap-1.5">
+								<div className="flex min-w-0 flex-col gap-1.5">
 									<Label htmlFor="reimbursement-iban">IBAN</Label>
 									<Input
 										id="reimbursement-iban"
@@ -669,7 +669,7 @@ export default function ReimbursementPage({
 										</p>
 									)}
 								</div>
-								<div className="flex flex-col gap-1.5">
+								<div className="flex min-w-0 flex-col gap-1.5">
 									<Label htmlFor="reimbursement-bic">BIC</Label>
 									<Input
 										id="reimbursement-bic"
