@@ -41,9 +41,17 @@ describe("useAdminData", () => {
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 		await waitFor(() => expect(result.current.members?.length).toBe(2));
 		expect(result.current.totalMembers).toBe(2);
-		expect(result.current.changeRequests).toEqual([{ id: "cr-1" }]);
-		expect(result.current.certificateRequests).toEqual([{ id: "ec-1" }]);
-		expect(result.current.jobRequests).toEqual([{ id: "job-1" }]);
+		// The three side queries settle independently of the members query, so
+		// wait on each rather than asserting against the `?? []` fallback.
+		await waitFor(() =>
+			expect(result.current.changeRequests).toEqual([{ id: "cr-1" }]),
+		);
+		await waitFor(() =>
+			expect(result.current.certificateRequests).toEqual([{ id: "ec-1" }]),
+		);
+		await waitFor(() =>
+			expect(result.current.jobRequests).toEqual([{ id: "job-1" }]),
+		);
 	});
 
 	it("PATCHes the department endpoint", async () => {
