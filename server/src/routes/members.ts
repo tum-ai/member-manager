@@ -1,7 +1,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { checkAdminRole, ensureOwnerOrAdmin } from "../lib/auth.js";
-import { getAuthEmail, getAuthProfiles } from "../lib/authEmails.js";
+import { getAuthProfiles } from "../lib/authEmails.js";
 import {
 	DatabaseError,
 	ForbiddenError,
@@ -538,7 +538,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			}
 
 			try {
-				const email = await getAuthEmail(userId);
+				const profile = (await getAuthProfiles([userId])).get(userId);
 
 				return {
 					...decryptRecordSafely(
@@ -551,10 +551,13 @@ export async function memberRoutes(server: FastifyInstance) {
 							);
 						},
 					),
-					email,
+					email: profile?.email ?? "",
+					// Slack profile picture (from auth metadata) so the profile page
+					// can render the member's avatar.
+					avatar_url: profile?.avatar_url ?? "",
 				};
 			} catch (authError) {
-				request.log.error({ err: authError }, "Failed to fetch auth email");
+				request.log.error({ err: authError }, "Failed to fetch auth profile");
 				throw new DatabaseError();
 			}
 		},
@@ -713,7 +716,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			}
 
 			try {
-				const email = await getAuthEmail(userId);
+				const profile = (await getAuthProfiles([userId])).get(userId);
 
 				return {
 					...decryptRecordSafely(
@@ -726,10 +729,13 @@ export async function memberRoutes(server: FastifyInstance) {
 							);
 						},
 					),
-					email,
+					email: profile?.email ?? "",
+					// Slack profile picture (from auth metadata) so the profile page
+					// can render the member's avatar.
+					avatar_url: profile?.avatar_url ?? "",
 				};
 			} catch (authError) {
-				request.log.error({ err: authError }, "Failed to fetch auth email");
+				request.log.error({ err: authError }, "Failed to fetch auth profile");
 				throw new DatabaseError();
 			}
 		},

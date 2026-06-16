@@ -1,40 +1,49 @@
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-	CalendarMonth as CalendarIcon,
-	DeleteOutline as DeleteIcon,
-	EditOutlined as EditIcon,
-	EventAvailable as EventAvailableIcon,
-	Send as SendIcon,
-} from "@mui/icons-material";
+	CalendarCheck,
+	CalendarDays,
+	CalendarPlus,
+	CalendarX,
+	CircleSlash,
+	Clock,
+	Pencil,
+	Search,
+	Send,
+	Trash2,
+	Users,
+} from "lucide-react";
+import { type ReactElement, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { InfoBox } from "@/components/ui/info-box";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import {
-	Alert,
-	Box,
-	Button,
-	CardContent,
-	Chip,
-	CircularProgress,
-	Divider,
-	FormControl,
-	Grid,
-	IconButton,
-	InputLabel,
-	MenuItem,
-	Paper,
 	Select,
-	Stack,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
 	Table,
 	TableBody,
 	TableCell,
-	TableContainer,
 	TableHead,
+	TableHeader,
 	TableRow,
-	TextField,
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
+import {
 	Tooltip,
-	Typography,
-	useTheme,
-} from "@mui/material";
-import { alpha } from "@mui/material/styles";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { type ReactElement, useState } from "react";
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { cn } from "@/lib/utils";
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { apiClient } from "../../lib/apiClient";
@@ -71,7 +80,6 @@ interface EventResponsesPayload {
 }
 
 export default function TumaiDaysPage(): ReactElement {
-	const theme = useTheme();
 	const { showToast } = useToast();
 	const queryClient = useQueryClient();
 
@@ -267,78 +275,78 @@ export default function TumaiDaysPage(): ReactElement {
 		return matchesSearch && matchesFilter;
 	});
 
+	// Share of active members who have responded (yes or no) so far.
+	const stats = responsesData?.stats;
+	const responseRate =
+		stats && stats.total > 0
+			? Math.round(((stats.yes + stats.no) / stats.total) * 100)
+			: 0;
+
 	return (
 		<ToolPageShell
 			title="TUM.ai Days RSVP"
 			description="Schedule quarterly community gatherings, send Slack DMs, and audit responses."
 		>
-			<Grid container spacing={4}>
+			<div className="grid grid-cols-1 gap-5 md:grid-cols-12">
 				{/* Scheduling Form & Events List */}
-				<Grid size={{ xs: 12, md: 5 }}>
-					<Stack spacing={4}>
+				<div className="md:col-span-5">
+					<div className="flex flex-col gap-5 md:sticky md:top-4 md:self-start">
 						{/* Form Card */}
 						<GlassCard>
-							<CardContent sx={{ p: 4 }}>
-								<Typography variant="h4" sx={{ mb: 3, fontWeight: "bold" }}>
-									{editingEventId ? "Edit Event" : "Schedule Event"}
-								</Typography>
-								<Box
-									component="form"
-									onSubmit={handleSubmit}
-									sx={{ display: "grid", gap: 3 }}
-								>
-									<TextField
-										label="Event Agenda"
-										multiline
-										rows={6}
-										value={agenda}
-										onChange={(e) => setAgenda(e.target.value)}
-										placeholder="Introduce the TUM.ai Day agenda, location, and important notes..."
-										variant="outlined"
-										fullWidth
-										required
-										sx={{
-											"& .MuiOutlinedInput-root": {
-												borderRadius: 3,
-											},
-										}}
-									/>
-									<TextField
-										label="Schedule Slack Send Time"
-										type="datetime-local"
-										value={scheduledAt}
-										onChange={(e) => setScheduledAt(e.target.value)}
-										InputLabelProps={{ shrink: true }}
-										variant="outlined"
-										fullWidth
-										required
-										sx={{
-											"& .MuiOutlinedInput-root": {
-												borderRadius: 3,
-											},
-										}}
-									/>
-									<Stack direction="row" spacing={2}>
+							<div className="p-5">
+								<div className="mb-4 flex items-center gap-2.5">
+									<span className="flex size-8 items-center justify-center rounded-lg bg-brand/10 text-brand">
+										{editingEventId ? (
+											<Pencil className="size-4" />
+										) : (
+											<CalendarPlus className="size-4" />
+										)}
+									</span>
+									<div className="leading-tight">
+										<h2 className="text-sm font-semibold">
+											{editingEventId ? "Edit Event" : "Schedule Event"}
+										</h2>
+										<p className="text-xs text-muted-foreground">
+											{editingEventId
+												? "Update the agenda or send time."
+												: "Plan the next TUM.ai Day gathering."}
+										</p>
+									</div>
+								</div>
+								<form onSubmit={handleSubmit} className="grid gap-3">
+									<div className="grid min-w-0 gap-1.5">
+										<Label htmlFor="event-agenda">Event Agenda</Label>
+										<Textarea
+											id="event-agenda"
+											rows={4}
+											value={agenda}
+											onChange={(e) => setAgenda(e.target.value)}
+											placeholder="Introduce the TUM.ai Day agenda, location, and important notes..."
+											required
+										/>
+									</div>
+									<div className="grid min-w-0 gap-1.5">
+										<Label htmlFor="event-scheduled-at">
+											Schedule Slack Send Time
+										</Label>
+										<Input
+											id="event-scheduled-at"
+											type="datetime-local"
+											value={scheduledAt}
+											onChange={(e) => setScheduledAt(e.target.value)}
+											required
+										/>
+									</div>
+									<div className="mt-1 flex flex-row gap-2">
 										<Button
 											type="submit"
-											variant="contained"
-											color="primary"
-											size="large"
 											disabled={
 												createEventMutation.isPending ||
 												updateEventMutation.isPending
 											}
-											startIcon={<CalendarIcon />}
-											sx={{
-												flexGrow: 1,
-												bgcolor: "#9A64D9",
-												"&:hover": { bgcolor: "#523573" },
-												py: 2,
-												fontSize: "1.1rem",
-												fontWeight: "bold",
-												borderRadius: 3,
-											}}
+											className="flex-grow"
 										>
+											<CalendarDays className="size-4" />
 											{editingEventId
 												? updateEventMutation.isPending
 													? "Updating..."
@@ -349,490 +357,412 @@ export default function TumaiDaysPage(): ReactElement {
 										</Button>
 										{editingEventId && (
 											<Button
-												variant="outlined"
-												color="secondary"
-												size="large"
+												type="button"
+												variant="outline"
 												onClick={handleCancelEdit}
-												sx={{
-													py: 2,
-													fontSize: "1.1rem",
-													borderRadius: 3,
-												}}
 											>
 												Cancel
 											</Button>
 										)}
-									</Stack>
-								</Box>
-							</CardContent>
+									</div>
+								</form>
+							</div>
 						</GlassCard>
 
 						{/* Events List Card */}
 						<GlassCard>
-							<CardContent sx={{ p: 3 }}>
-								<Stack
-									direction="row"
-									justifyContent="space-between"
-									alignItems="center"
-									sx={{ mb: 2 }}
-								>
-									<Typography variant="h5" sx={{ fontWeight: "bold" }}>
-										Scheduled Events
-									</Typography>
+							<div className="p-5">
+								<div className="mb-3 flex flex-row items-center justify-between">
+									<h3 className="text-sm font-semibold">Scheduled Events</h3>
 									<Button
-										size="small"
-										variant="outlined"
-										color="primary"
+										size="sm"
+										variant="ghost"
 										onClick={() => sendPendingMutation.mutate()}
 										disabled={sendPendingMutation.isPending}
-										startIcon={<SendIcon />}
-										sx={{
-											color: "#9A64D9",
-											borderColor: alpha("#9A64D9", 0.5),
-											"&:hover": {
-												borderColor: "#9A64D9",
-												bgcolor: alpha("#9A64D9", 0.08),
-											},
-										}}
+										className="text-muted-foreground"
 									>
+										<Send className="size-3.5" />
 										Check Scheduler
 									</Button>
-								</Stack>
+								</div>
 
 								{isLoadingEvents ? (
-									<Box
-										sx={{ display: "flex", justifyContent: "center", py: 4 }}
-									>
-										<CircularProgress />
-									</Box>
+									<div className="flex flex-col gap-2">
+										{["a", "b", "c"].map((key) => (
+											<Skeleton
+												key={key}
+												className="h-[68px] w-full rounded-lg"
+											/>
+										))}
+									</div>
 								) : eventsError ? (
-									<Alert severity="error">Failed to load events.</Alert>
+									<Alert variant="destructive">
+										<AlertDescription>Failed to load events.</AlertDescription>
+									</Alert>
 								) : events.length === 0 ? (
-									<Typography
-										color="text.secondary"
-										align="center"
-										sx={{ py: 3 }}
-									>
+									<p className="py-6 text-center text-sm text-muted-foreground">
 										No scheduled events. Create one above!
-									</Typography>
+									</p>
 								) : (
-									<Stack spacing={1.5}>
+									<div className="flex flex-col gap-2">
 										{events.map((event) => {
 											const isSelected = event.id === selectedEventId;
 											const isSent = !!event.sent_at;
 											const isPast = new Date(event.scheduled_at) <= new Date();
 
 											return (
-												<Paper
+												// biome-ignore lint/a11y/useSemanticElements: row hosts nested edit/delete buttons, so it can't be a <button>
+												<div
+													role="button"
+													tabIndex={0}
 													key={event.id}
 													onClick={() => setSelectedEventId(event.id)}
-													sx={{
-														p: 2.5,
-														cursor: "pointer",
-														borderRadius: 3,
-														border: "1px solid",
-														borderColor: isSelected
-															? "#9A64D9"
-															: theme.palette.mode === "light"
-																? "#EFEFEF"
-																: alpha("#FFFFFF", 0.08),
-														bgcolor: isSelected
-															? alpha(
-																	"#9A64D9",
-																	theme.palette.mode === "light" ? 0.05 : 0.1,
-																)
-															: "transparent",
-														transition: "all 0.2s ease-in-out",
-														"&:hover": {
-															borderColor: isSelected
-																? "#9A64D9"
-																: alpha("#9A64D9", 0.5),
-															bgcolor: isSelected
-																? alpha(
-																		"#9A64D9",
-																		theme.palette.mode === "light"
-																			? 0.08
-																			: 0.15,
-																	)
-																: alpha("#9A64D9", 0.03),
-														},
+													onKeyDown={(e) => {
+														if (e.key === "Enter" || e.key === " ") {
+															e.preventDefault();
+															setSelectedEventId(event.id);
+														}
 													}}
+													className={cn(
+														"group relative w-full cursor-pointer overflow-hidden rounded-lg border p-3.5 pl-4 text-left transition-colors",
+														isSelected
+															? "border-brand/60 bg-brand/5"
+															: "border-border bg-transparent hover:border-brand/30 hover:bg-brand/[0.03]",
+													)}
 												>
-													<Stack
-														direction="row"
-														justifyContent="space-between"
-														alignItems="flex-start"
-														spacing={2}
-													>
-														<Box sx={{ minWidth: 0, flex: 1 }}>
-															<Typography
-																variant="subtitle1"
-																sx={{
-																	fontWeight: "bold",
-																	lineHeight: 1.3,
-																	mb: 0.5,
-																	whiteSpace: "nowrap",
-																	overflow: "hidden",
-																	textOverflow: "ellipsis",
-																}}
-															>
+													<span
+														className={cn(
+															"absolute inset-y-0 left-0 w-0.5 transition-colors",
+															isSelected
+																? "bg-brand"
+																: "bg-transparent group-hover:bg-brand/30",
+														)}
+													/>
+													<div className="flex flex-row items-start justify-between gap-3">
+														<div className="min-w-0 flex-1">
+															<p className="truncate text-sm font-medium leading-tight">
 																{event.agenda}
-															</Typography>
-															<Typography
-																variant="caption"
-																color="text.secondary"
-																display="block"
-															>
-																Send time: {formatDate(event.scheduled_at)}
-															</Typography>
-															<Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+															</p>
+															<span className="mt-1 flex items-center gap-1 text-xs text-muted-foreground">
+																<Clock className="size-3" />
+																{formatDate(event.scheduled_at)}
+															</span>
+															<div className="mt-1.5 flex flex-row gap-2">
 																{isSent ? (
-																	<Chip
-																		size="small"
-																		label={`Sent ${formatDate(event.sent_at as string)}`}
-																		color="success"
-																		variant="outlined"
-																		sx={{ fontSize: "0.65rem", height: 18 }}
-																	/>
+																	<Badge variant="success" className="gap-1">
+																		<Send className="size-2.5" />
+																		Sent {formatDate(event.sent_at as string)}
+																	</Badge>
 																) : isPast ? (
-																	<Chip
-																		size="small"
-																		label="Pending Send"
-																		color="warning"
-																		sx={{ fontSize: "0.65rem", height: 18 }}
-																	/>
+																	<Badge variant="warning" className="gap-1">
+																		<span className="size-1.5 animate-pulse rounded-full bg-amber-500" />
+																		Pending Send
+																	</Badge>
 																) : (
-																	<Chip
-																		size="small"
-																		label="Scheduled"
-																		color="primary"
-																		variant="outlined"
-																		sx={{
-																			fontSize: "0.65rem",
-																			height: 18,
-																			color: "#9A64D9",
-																			borderColor: "#9A64D9",
-																		}}
-																	/>
+																	<Badge variant="accent" className="gap-1">
+																		<CalendarDays className="size-2.5" />
+																		Scheduled
+																	</Badge>
 																)}
-															</Stack>
-														</Box>
-														<Stack
-															direction="row"
-															spacing={0.5}
-															alignItems="center"
-														>
-															<Tooltip title="Edit Event">
-																<IconButton
-																	size="small"
-																	color="primary"
-																	onClick={(e) => handleStartEdit(event, e)}
-																	sx={{ color: "#9A64D9" }}
-																>
-																	<EditIcon fontSize="small" />
-																</IconButton>
-															</Tooltip>
-															<Tooltip title="Delete Event">
-																<IconButton
-																	size="small"
-																	color="error"
-																	onClick={(e) => handleDelete(event.id, e)}
-																>
-																	<DeleteIcon fontSize="small" />
-																</IconButton>
-															</Tooltip>
-														</Stack>
-													</Stack>
-												</Paper>
+															</div>
+														</div>
+														<div className="flex flex-row items-center gap-1">
+															<TooltipProvider>
+																<Tooltip>
+																	<TooltipTrigger asChild>
+																		<Button
+																			variant="ghost"
+																			size="icon-sm"
+																			onClick={(e) => handleStartEdit(event, e)}
+																			className="text-muted-foreground hover:text-foreground"
+																			aria-label="Edit Event"
+																		>
+																			<Pencil className="size-4" />
+																		</Button>
+																	</TooltipTrigger>
+																	<TooltipContent>Edit Event</TooltipContent>
+																</Tooltip>
+															</TooltipProvider>
+															<TooltipProvider>
+																<Tooltip>
+																	<TooltipTrigger asChild>
+																		<Button
+																			variant="ghost"
+																			size="icon-sm"
+																			onClick={(e) => handleDelete(event.id, e)}
+																			className="text-destructive hover:text-destructive"
+																			aria-label="Delete Event"
+																		>
+																			<Trash2 className="size-4" />
+																		</Button>
+																	</TooltipTrigger>
+																	<TooltipContent>Delete Event</TooltipContent>
+																</Tooltip>
+															</TooltipProvider>
+														</div>
+													</div>
+												</div>
 											);
 										})}
-									</Stack>
+									</div>
 								)}
-							</CardContent>
+							</div>
 						</GlassCard>
-					</Stack>
-				</Grid>
+					</div>
+				</div>
 
 				{/* Audit RSVP Responses View */}
-				<Grid size={{ xs: 12, md: 7 }}>
-					<GlassCard sx={{ height: "100%" }}>
-						<CardContent sx={{ p: 3 }}>
+				<div className="md:col-span-7">
+					<GlassCard className="h-full">
+						<div className="p-5">
 							{!selectedEventId ? (
-								<Box
-									sx={{
-										display: "flex",
-										flexDirection: "column",
-										alignItems: "center",
-										justifyContent: "center",
-										minHeight: 400,
-										color: "text.secondary",
-									}}
-								>
-									<EventAvailableIcon
-										sx={{
-											fontSize: 60,
-											mb: 2,
-											color: alpha(theme.palette.text.secondary, 0.2),
-										}}
-									/>
-									<Typography variant="h6">No Event Selected</Typography>
-									<Typography variant="body2" sx={{ mt: 1 }}>
-										Select an event from the list to view attendee numbers and
-										RSVP auditing logs.
-									</Typography>
-								</Box>
+								<div className="flex min-h-[400px] flex-col items-center justify-center text-center">
+									<span className="mb-4 flex size-14 items-center justify-center rounded-full bg-brand/10 text-brand">
+										<CalendarCheck className="size-6" />
+									</span>
+									<h3 className="text-sm font-semibold">No event selected</h3>
+									<p className="mt-1 max-w-xs text-xs text-muted-foreground">
+										Pick an event from the list to see who's coming and audit
+										every RSVP.
+									</p>
+								</div>
 							) : isLoadingResponses ? (
-								<Box
-									sx={{
-										display: "flex",
-										justifyContent: "center",
-										alignItems: "center",
-										minHeight: 400,
-									}}
-								>
-									<CircularProgress />
-								</Box>
+								<div className="flex flex-col gap-5">
+									<Skeleton className="h-6 w-40" />
+									<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+										{["a", "b", "c", "d"].map((key) => (
+											<Skeleton key={key} className="h-[72px] rounded-lg" />
+										))}
+									</div>
+									<Skeleton className="h-64 w-full rounded-lg" />
+								</div>
 							) : !responsesData ? (
-								<Alert severity="error">Failed to load RSVP details.</Alert>
+								<Alert variant="destructive">
+									<AlertDescription>
+										Failed to load RSVP details.
+									</AlertDescription>
+								</Alert>
 							) : (
-								<Box>
+								<div>
 									{/* Event Header Summary */}
-									<Box sx={{ mb: 3 }}>
-										<Typography variant="h5" sx={{ fontWeight: "bold", mb: 1 }}>
-											Audit Log
-										</Typography>
-										<Typography
-											variant="body2"
-											color="text.secondary"
-											sx={{ whiteSpace: "pre-wrap" }}
-										>
-											<strong>Agenda:</strong> {selectedEvent?.agenda}
-										</Typography>
-									</Box>
+									<div className="mb-4 flex items-start gap-2.5">
+										<span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand/10 text-brand">
+											<CalendarCheck className="size-4" />
+										</span>
+										<div className="min-w-0">
+											<h3 className="text-sm font-semibold leading-tight">
+												Audit Log
+											</h3>
+											<p className="mt-0.5 line-clamp-2 text-xs whitespace-pre-wrap text-muted-foreground">
+												{selectedEvent?.agenda}
+											</p>
+										</div>
+									</div>
 
-									<Divider sx={{ my: 2 }} />
+									{/* Response rate */}
+									<InfoBox variant="muted" className="mb-4">
+										<div className="mb-2 flex items-center justify-between">
+											<span className="text-xs font-medium text-muted-foreground">
+												Response rate ·{" "}
+												{responsesData.stats.yes + responsesData.stats.no}/
+												{responsesData.stats.total}
+											</span>
+											<span className="text-base font-semibold tabular-nums text-brand">
+												{responseRate}%
+											</span>
+										</div>
+										<Progress value={responseRate} className="h-1.5" />
+									</InfoBox>
 
 									{/* Stats Row */}
-									<Grid container spacing={2} sx={{ mb: 3 }}>
-										<Grid size={{ xs: 6, sm: 3 }}>
-											<Paper
-												sx={{
-													p: 2,
-													textAlign: "center",
-													borderRadius: 3,
-													bgcolor: alpha(theme.palette.primary.main, 0.04),
-												}}
+									<div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+										{(
+											[
+												{
+													label: "Total",
+													value: responsesData.stats.total,
+													icon: Users,
+													tint: "bg-brand/10 text-brand",
+													valueClass: "text-foreground",
+												},
+												{
+													label: "Attending",
+													value: responsesData.stats.yes,
+													icon: CalendarCheck,
+													tint: "bg-green-500/10 text-green-600 dark:text-green-400",
+													valueClass: "text-green-600 dark:text-green-400",
+												},
+												{
+													label: "Declined",
+													value: responsesData.stats.no,
+													icon: CalendarX,
+													tint: "bg-destructive/10 text-destructive",
+													valueClass: "text-destructive",
+												},
+												{
+													label: "Pending",
+													value: responsesData.stats.pending,
+													icon: Clock,
+													tint: "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+													valueClass: "text-amber-600 dark:text-amber-400",
+												},
+											] as const
+										).map((stat) => (
+											<InfoBox
+												key={stat.label}
+												variant="card"
+												className="flex items-center gap-2.5 p-2.5"
 											>
-												<Typography variant="caption" color="text.secondary">
-													Total Active
-												</Typography>
-												<Typography variant="h5" sx={{ fontWeight: "bold" }}>
-													{responsesData.stats.total}
-												</Typography>
-											</Paper>
-										</Grid>
-										<Grid size={{ xs: 6, sm: 3 }}>
-											<Paper
-												sx={{
-													p: 2,
-													textAlign: "center",
-													borderRadius: 3,
-													bgcolor: alpha(theme.palette.success.main, 0.04),
-												}}
-											>
-												<Typography variant="caption" color="text.secondary">
-													Attending (Yes)
-												</Typography>
-												<Typography
-													variant="h5"
-													color="success.main"
-													sx={{ fontWeight: "bold" }}
+												<span
+													className={cn(
+														"flex size-7 shrink-0 items-center justify-center rounded-md",
+														stat.tint,
+													)}
 												>
-													{responsesData.stats.yes}
-												</Typography>
-											</Paper>
-										</Grid>
-										<Grid size={{ xs: 6, sm: 3 }}>
-											<Paper
-												sx={{
-													p: 2,
-													textAlign: "center",
-													borderRadius: 3,
-													bgcolor: alpha(theme.palette.error.main, 0.04),
-												}}
-											>
-												<Typography variant="caption" color="text.secondary">
-													Declined (No)
-												</Typography>
-												<Typography
-													variant="h5"
-													color="error.main"
-													sx={{ fontWeight: "bold" }}
-												>
-													{responsesData.stats.no}
-												</Typography>
-											</Paper>
-										</Grid>
-										<Grid size={{ xs: 6, sm: 3 }}>
-											<Paper
-												sx={{
-													p: 2,
-													textAlign: "center",
-													borderRadius: 3,
-													bgcolor: alpha(theme.palette.warning.main, 0.04),
-												}}
-											>
-												<Typography variant="caption" color="text.secondary">
-													No Response
-												</Typography>
-												<Typography
-													variant="h5"
-													color="warning.main"
-													sx={{ fontWeight: "bold" }}
-												>
-													{responsesData.stats.pending}
-												</Typography>
-											</Paper>
-										</Grid>
-									</Grid>
+													<stat.icon className="size-3.5" />
+												</span>
+												<div className="min-w-0 leading-none">
+													<p
+														className={cn(
+															"text-base font-semibold tabular-nums",
+															stat.valueClass,
+														)}
+													>
+														{stat.value}
+													</p>
+													<span className="text-xs text-muted-foreground">
+														{stat.label}
+													</span>
+												</div>
+											</InfoBox>
+										))}
+									</div>
 
 									{/* Filters and Search */}
-									<Stack
-										direction={{ xs: "column", sm: "row" }}
-										spacing={2}
-										sx={{ mb: 3 }}
-									>
-										<TextField
-											size="small"
-											label="Search by Name or Email"
-											value={searchTerm}
-											onChange={(e) => setSearchTerm(e.target.value)}
-											fullWidth
-										/>
-										<FormControl size="small" sx={{ minWidth: 160 }}>
-											<InputLabel>Response Status</InputLabel>
+									<div className="mb-4 flex flex-col gap-3 sm:flex-row">
+										<div className="grid w-full gap-2">
+											<Label htmlFor="rsvp-search">
+												Search by Name or Email
+											</Label>
+											<div className="relative">
+												<Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+												<Input
+													id="rsvp-search"
+													value={searchTerm}
+													onChange={(e) => setSearchTerm(e.target.value)}
+													placeholder="Search members…"
+													className="pl-9"
+												/>
+											</div>
+										</div>
+										<div className="grid min-w-0 gap-2 sm:min-w-[160px]">
+											<Label htmlFor="rsvp-status-filter">
+												Response Status
+											</Label>
 											<Select
 												value={statusFilter}
-												label="Response Status"
-												onChange={(e) =>
+												onValueChange={(value) =>
 													setStatusFilter(
-														e.target.value as "all" | "yes" | "no" | "pending",
+														value as "all" | "yes" | "no" | "pending",
 													)
 												}
 											>
-												<MenuItem value="all">All responses</MenuItem>
-												<MenuItem value="yes">Attending (Yes)</MenuItem>
-												<MenuItem value="no">Declined (No)</MenuItem>
-												<MenuItem value="pending">Pending</MenuItem>
+												<SelectTrigger
+													id="rsvp-status-filter"
+													className="w-full"
+													aria-label="Response Status"
+												>
+													<SelectValue />
+												</SelectTrigger>
+												<SelectContent>
+													<SelectItem value="all">All responses</SelectItem>
+													<SelectItem value="yes">Attending (Yes)</SelectItem>
+													<SelectItem value="no">Declined (No)</SelectItem>
+													<SelectItem value="pending">Pending</SelectItem>
+												</SelectContent>
 											</Select>
-										</FormControl>
-									</Stack>
+										</div>
+									</div>
 
 									{/* Responses Table */}
-									<TableContainer
-										component={Paper}
-										sx={{
-											borderRadius: 3,
-											boxShadow: "none",
-											border: "1px solid",
-											borderColor:
-												theme.palette.mode === "light"
-													? "#EFEFEF"
-													: alpha("#FFFFFF", 0.08),
-										}}
-									>
+									<div className="overflow-x-auto rounded-xl border">
 										<Table>
-											<TableHead>
-												<TableRow>
-													<TableCell sx={{ fontWeight: "bold" }}>
+											<TableHeader className="bg-muted/50">
+												<TableRow className="hover:bg-transparent">
+													<TableHead className="font-semibold">
 														Member
-													</TableCell>
-													<TableCell sx={{ fontWeight: "bold" }}>
+													</TableHead>
+													<TableHead className="font-semibold">
 														Department
-													</TableCell>
-													<TableCell sx={{ fontWeight: "bold" }}>
+													</TableHead>
+													<TableHead className="font-semibold">
 														Status
-													</TableCell>
-													<TableCell sx={{ fontWeight: "bold" }}>
+													</TableHead>
+													<TableHead className="font-semibold">
 														Reason for Absence
-													</TableCell>
+													</TableHead>
 												</TableRow>
-											</TableHead>
+											</TableHeader>
 											<TableBody>
 												{filteredResponses.length === 0 ? (
-													<TableRow>
-														<TableCell
-															colSpan={4}
-															align="center"
-															sx={{ py: 3 }}
-														>
-															No matches found.
+													<TableRow className="hover:bg-transparent">
+														<TableCell colSpan={4} className="py-10">
+															<div className="flex flex-col items-center gap-2 text-muted-foreground">
+																<CircleSlash className="size-6 text-muted-foreground/40" />
+																<span className="text-sm">
+																	No matches found.
+																</span>
+															</div>
 														</TableCell>
 													</TableRow>
 												) : (
 													filteredResponses.map((row) => (
 														<TableRow key={row.userId}>
 															<TableCell>
-																<Typography
-																	variant="body2"
-																	sx={{ fontWeight: "bold" }}
-																>
+																<p className="text-sm font-bold">
 																	{row.givenName} {row.surname}
-																</Typography>
-																<Typography
-																	variant="caption"
-																	color="text.secondary"
-																>
+																</p>
+																<span className="text-xs text-muted-foreground">
 																	{row.email}
-																</Typography>
+																</span>
 															</TableCell>
 															<TableCell>{row.department}</TableCell>
 															<TableCell>
 																{row.status === "yes" ? (
-																	<Chip
-																		label="Yes"
-																		color="success"
-																		size="small"
-																	/>
+																	<Badge variant="success">Yes</Badge>
 																) : row.status === "no" ? (
-																	<Chip label="No" color="error" size="small" />
+																	<Badge variant="danger">No</Badge>
 																) : (
-																	<Chip
-																		label="Pending"
-																		color="warning"
-																		size="small"
-																		variant="outlined"
-																	/>
+																	<Badge variant="warning">Pending</Badge>
 																)}
 															</TableCell>
 															<TableCell>
-																<Typography
-																	variant="body2"
-																	sx={{
-																		fontStyle: row.reason ? "normal" : "italic",
-																		color: row.reason
-																			? "text.primary"
-																			: "text.secondary",
-																	}}
+																<p
+																	className={cn(
+																		"text-sm",
+																		row.reason
+																			? "text-foreground not-italic"
+																			: "text-muted-foreground italic",
+																	)}
 																>
 																	{row.reason ||
 																		(row.status === "no"
 																			? "No reason given"
 																			: "—")}
-																</Typography>
+																</p>
 															</TableCell>
 														</TableRow>
 													))
 												)}
 											</TableBody>
 										</Table>
-									</TableContainer>
-								</Box>
+									</div>
+								</div>
 							)}
-						</CardContent>
+						</div>
 					</GlassCard>
-				</Grid>
-			</Grid>
+				</div>
+			</div>
 		</ToolPageShell>
 	);
 }

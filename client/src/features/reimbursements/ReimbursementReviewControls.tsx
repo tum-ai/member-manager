@@ -1,22 +1,15 @@
-import ClearIcon from "@mui/icons-material/Clear";
-import DownloadIcon from "@mui/icons-material/Download";
-import FilterListIcon from "@mui/icons-material/FilterList";
-import SearchIcon from "@mui/icons-material/Search";
-import {
-	Button,
-	CardContent,
-	FormControl,
-	IconButton,
-	InputAdornment,
-	InputLabel,
-	MenuItem,
-	Select,
-	Stack,
-	TextField,
-	Typography,
-} from "@mui/material";
-import type { SelectChangeEvent } from "@mui/material/Select";
+import { Download, ListFilter, Search, X } from "lucide-react";
 import type React from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import GlassCard from "../../components/ui/GlassCard";
 import {
 	ALL_REIMBURSEMENT_REVIEW_FILTER,
@@ -84,88 +77,77 @@ export default function ReimbursementReviewControls({
 
 	return (
 		<GlassCard variant="elevated">
-			<CardContent sx={{ p: { xs: 2, md: 2.5 } }}>
-				<Stack spacing={2}>
-					<Stack
-						direction={{ xs: "column", md: "row" }}
-						spacing={1.5}
-						alignItems={{ xs: "stretch", md: "center" }}
-					>
-						<TextField
-							label="Search reimbursement queue"
-							value={search}
-							onChange={(event) => onSearchChange(event.target.value)}
-							size="small"
-							placeholder="Name, email, description, IBAN..."
-							InputProps={{
-								startAdornment: (
-									<InputAdornment position="start">
-										<SearchIcon fontSize="small" />
-									</InputAdornment>
-								),
-								endAdornment: search ? (
-									<InputAdornment position="end">
-										<IconButton
-											aria-label="Clear search"
-											size="small"
-											onClick={() => onSearchChange("")}
-										>
-											<ClearIcon fontSize="small" />
-										</IconButton>
-									</InputAdornment>
-								) : undefined,
-							}}
-						/>
+			<div className="p-4 md:p-5">
+				<div className="flex flex-col gap-4">
+					<div className="flex flex-col gap-3 md:flex-row md:items-center">
+						<div className="relative flex-1">
+							<Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+							<Input
+								aria-label="Search reimbursement queue"
+								value={search}
+								onChange={(event) => onSearchChange(event.target.value)}
+								placeholder="Name, email, description, IBAN..."
+								className="px-9"
+							/>
+							{search && (
+								<Button
+									type="button"
+									aria-label="Clear search"
+									variant="ghost"
+									size="icon-sm"
+									onClick={() => onSearchChange("")}
+									className="absolute top-1/2 right-1 -translate-y-1/2"
+								>
+									<X className="size-4" />
+								</Button>
+							)}
+						</div>
 						{canBulkDownload && (
 							<Button
-								variant="outlined"
-								startIcon={<DownloadIcon />}
+								variant="outline"
 								disabled={isBulkDownloading}
 								onClick={onBulkDownload}
-								sx={{ whiteSpace: "nowrap" }}
+								className="whitespace-nowrap"
 							>
+								<Download className="size-4" />
 								Download selected receipts ({selectedCount})
 							</Button>
 						)}
-					</Stack>
+					</div>
 
-					<Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+					<div className="flex flex-row flex-wrap gap-2">
 						<Button
-							size="small"
-							variant={isAllQuickFilter ? "contained" : "outlined"}
+							size="sm"
+							variant={isAllQuickFilter ? "default" : "outline"}
 							onClick={() => onQuickFilter("all")}
 						>
 							All
 						</Button>
 						<Button
-							size="small"
-							variant={isNeedsApproval ? "contained" : "outlined"}
+							size="sm"
+							variant={isNeedsApproval ? "default" : "outline"}
 							onClick={() => onQuickFilter("needs_approval")}
 						>
 							Needs approval ({queueStats.needsApproval})
 						</Button>
 						<Button
-							size="small"
-							variant={isApprovedNotPaid ? "contained" : "outlined"}
+							size="sm"
+							variant={isApprovedNotPaid ? "default" : "outline"}
 							onClick={() => onQuickFilter("approved_not_paid")}
 						>
 							Approved, not paid ({queueStats.readyForPayment})
 						</Button>
 						<Button
-							size="small"
-							variant={isClosed ? "contained" : "outlined"}
+							size="sm"
+							variant={isClosed ? "default" : "outline"}
 							onClick={() => onQuickFilter("closed")}
 						>
 							Closed ({queueStats.closed})
 						</Button>
-					</Stack>
+					</div>
 
-					<Stack
-						direction={{ xs: "column", md: "row" }}
-						spacing={1.5}
-						alignItems={{ xs: "stretch", md: "center" }}
-					>
-						<FilterListIcon color="action" />
+					<div className="flex flex-col gap-3 md:flex-row md:items-center">
+						<ListFilter className="size-5 text-muted-foreground" />
 						<ReviewSelect
 							label="Department"
 							value={departmentFilter}
@@ -216,21 +198,21 @@ export default function ReimbursementReviewControls({
 						/>
 						{hasActiveFilters && (
 							<Button
-								variant="text"
-								startIcon={<ClearIcon />}
+								variant="ghost"
 								onClick={onClearFilters}
-								sx={{ whiteSpace: "nowrap" }}
+								className="whitespace-nowrap"
 							>
+								<X className="size-4" />
 								Clear filters
 							</Button>
 						)}
-					</Stack>
+					</div>
 
-					<Typography variant="body2" color="text.secondary">
+					<p className="text-sm text-muted-foreground">
 						Showing {filteredCount} of {totalCount} reimbursement requests.
-					</Typography>
-				</Stack>
-			</CardContent>
+					</p>
+				</div>
+			</div>
 		</GlassCard>
 	);
 }
@@ -251,22 +233,25 @@ function ReviewSelect({
 	const labelId = `finance-review-${label.toLowerCase()}-label`;
 
 	return (
-		<FormControl size="small" sx={{ minWidth: { xs: "100%", md: 180 } }}>
-			<InputLabel id={labelId}>{label}</InputLabel>
-			<Select
-				labelId={labelId}
-				label={label}
-				value={value}
-				onChange={(event: SelectChangeEvent<string>) =>
-					onChange(event.target.value)
-				}
-			>
-				{options.map((option) => (
-					<MenuItem key={option.value} value={option.value}>
-						{option.label}
-					</MenuItem>
-				))}
+		<div className="flex w-full flex-col gap-1.5 md:w-auto md:min-w-[180px]">
+			<Label htmlFor={labelId}>{label}</Label>
+			<Select value={value} onValueChange={onChange}>
+				<SelectTrigger
+					id={labelId}
+					size="sm"
+					className="w-full"
+					aria-label={label}
+				>
+					<SelectValue placeholder={label} />
+				</SelectTrigger>
+				<SelectContent>
+					{options.map((option) => (
+						<SelectItem key={option.value} value={option.value}>
+							{option.label}
+						</SelectItem>
+					))}
+				</SelectContent>
 			</Select>
-		</FormControl>
+		</div>
 	);
 }

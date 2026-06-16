@@ -1,23 +1,25 @@
-import AttachFileIcon from "@mui/icons-material/AttachFile";
-import {
-	Alert,
-	alpha,
-	Box,
-	Button,
-	CardContent,
-	Chip,
-	CircularProgress,
-	MenuItem,
-	TextField,
-	ToggleButton,
-	ToggleButtonGroup,
-	Typography,
-	useTheme,
-} from "@mui/material";
 import type { User } from "@supabase/supabase-js";
+import { FileCheck2, UploadCloud } from "lucide-react";
 import type React from "react";
 import { useEffect, useState } from "react";
 
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
+import { Textarea } from "@/components/ui/textarea";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { cn } from "@/lib/utils";
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
@@ -151,7 +153,6 @@ function validateForm(values: FormValues): FormErrors {
 export default function ReimbursementPage({
 	user,
 }: ReimbursementPageProps): React.ReactElement {
-	const theme = useTheme();
 	const { showToast } = useToast();
 	const {
 		requests,
@@ -167,6 +168,7 @@ export default function ReimbursementPage({
 	const [values, setValues] = useState<FormValues>(defaultValues);
 	const [errors, setErrors] = useState<FormErrors>({});
 	const [isReadingReceipt, setIsReadingReceipt] = useState(false);
+	const [isDraggingReceipt, setIsDraggingReceipt] = useState(false);
 	const memberDepartment =
 		typeof (member as { department?: unknown } | undefined)?.department ===
 		"string"
@@ -203,8 +205,7 @@ export default function ReimbursementPage({
 	};
 
 	const handleSubmissionTypeChange = (
-		_event: React.MouseEvent<HTMLElement>,
-		nextType: ReimbursementSubmissionType | null,
+		nextType: ReimbursementSubmissionType | "",
 	): void => {
 		if (!nextType) {
 			return;
@@ -234,16 +235,7 @@ export default function ReimbursementPage({
 		}));
 	};
 
-	const handleReceiptChange = async (
-		event: React.ChangeEvent<HTMLInputElement>,
-	): Promise<void> => {
-		const file = event.target.files?.[0];
-		event.target.value = "";
-
-		if (!file) {
-			return;
-		}
-
+	const processReceiptFile = async (file: File): Promise<void> => {
 		if (!ALLOWED_RECEIPT_TYPES.has(file.type)) {
 			setErrors((current) => ({
 				...current,
@@ -311,6 +303,24 @@ export default function ReimbursementPage({
 		}
 	};
 
+	const handleReceiptChange = (
+		event: React.ChangeEvent<HTMLInputElement>,
+	): void => {
+		const file = event.target.files?.[0];
+		event.target.value = "";
+		if (file) void processReceiptFile(file);
+	};
+
+	const handleReceiptDrop = (
+		event: React.DragEvent<HTMLLabelElement>,
+	): void => {
+		event.preventDefault();
+		setIsDraggingReceipt(false);
+		if (isReceiptBusy) return;
+		const file = event.dataTransfer.files?.[0];
+		if (file) void processReceiptFile(file);
+	};
+
 	const handleSubmit = async (
 		event: React.FormEvent<HTMLFormElement>,
 	): Promise<void> => {
@@ -365,297 +375,328 @@ export default function ReimbursementPage({
 		<ToolPageShell
 			title="Reimbursements"
 			description="Submit reimbursements or vendor invoices to the Legal and Finance department."
-			maxWidth={1280}
 		>
-			<Box
-				sx={{
-					display: "grid",
-					gridTemplateColumns: {
-						xs: "1fr",
-						lg: "minmax(380px, 0.9fr) minmax(0, 1.35fr)",
-					},
-					gap: 3,
-				}}
-			>
+			<div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(380px,0.9fr)_minmax(0,1.35fr)]">
 				<GlassCard>
-					<CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
-						<Typography variant="h5" sx={{ mb: 2 }}>
-							Existing requests
-						</Typography>
+					<div className="p-5 md:p-6">
+						<h2 className="mb-4 text-xl font-semibold">Existing requests</h2>
 
 						{isLoading && (
-							<Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-								<CircularProgress size={22} />
-								<Typography color="text.secondary">
-									Loading reimbursement requests...
-								</Typography>
-							</Box>
+							<SkeletonRegion
+								label="Loading reimbursement requests"
+								className="grid gap-3"
+							>
+								{Array.from({ length: 3 }).map((_, i) => (
+									<div
+										// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+										key={i}
+										className="min-w-0 rounded-lg bg-muted/50 p-4"
+									>
+										<div className="mb-2 flex items-start justify-between gap-3">
+											<div className="min-w-0 flex-1 space-y-1.5">
+												<Skeleton className="h-5 w-40" />
+												<Skeleton className="h-4 w-24" />
+											</div>
+											<Skeleton className="h-5 w-16" />
+										</div>
+										<div className="mb-2 flex gap-1.5">
+											<Skeleton className="h-5 w-20 rounded-full" />
+											<Skeleton className="h-5 w-16 rounded-full" />
+										</div>
+										<Skeleton className="h-4 w-3/4" />
+									</div>
+								))}
+							</SkeletonRegion>
 						)}
 
 						{error && (
-							<Alert severity="error">
-								Error loading reimbursement requests: {getErrorMessage(error)}
+							<Alert variant="destructive">
+								<AlertDescription>
+									Error loading reimbursement requests: {getErrorMessage(error)}
+								</AlertDescription>
 							</Alert>
 						)}
 
 						{!isLoading && !error && sortedRequests.length === 0 && (
-							<Alert severity="info">No reimbursement requests yet.</Alert>
+							<Alert>
+								<AlertDescription>
+									No reimbursement requests yet.
+								</AlertDescription>
+							</Alert>
 						)}
 
 						{!isLoading && !error && sortedRequests.length > 0 && (
-							<Box sx={{ display: "grid", gap: 1.5 }}>
+							<div className="grid gap-3">
 								{sortedRequests.map((request) => (
-									<Box
+									<div
 										key={request.id}
-										sx={{
-											p: 2,
-											borderRadius: 2,
-											bgcolor: alpha(theme.palette.primary.main, 0.06),
-											minWidth: 0,
-										}}
+										className="min-w-0 rounded-lg bg-muted/50 p-4"
 									>
-										<Box
-											sx={{
-												display: "flex",
-												justifyContent: "space-between",
-												alignItems: "flex-start",
-												flexWrap: "wrap",
-												gap: 1.5,
-												mb: 1,
-											}}
-										>
-											<Box sx={{ minWidth: 0, flex: "1 1 220px" }}>
-												<Typography
-													variant="subtitle1"
-													fontWeight={700}
-													sx={{ overflowWrap: "anywhere" }}
-												>
+										<div className="mb-2 flex flex-wrap items-start justify-between gap-3">
+											<div className="min-w-0 flex-[1_1_220px]">
+												<p className="font-bold break-words">
 													{getRequestTypeLabel(request)} request
-												</Typography>
-												<Typography variant="body2" color="text.secondary">
+												</p>
+												<p className="text-sm text-muted-foreground">
 													{formatDate(request.date)}
-												</Typography>
-											</Box>
-											<Typography
-												variant="subtitle1"
-												fontWeight={700}
-												sx={{ whiteSpace: "nowrap" }}
-											>
+												</p>
+											</div>
+											<p className="font-bold whitespace-nowrap">
 												{formatAmount(request.amount)}
-											</Typography>
-										</Box>
-										<Box
-											sx={{
-												display: "flex",
-												flexWrap: "wrap",
-												gap: 0.75,
-												mb: 1,
-											}}
-										>
-											<Chip
-												label={getRequestTypeLabel(request)}
-												size="small"
-												variant="outlined"
-											/>
-											<Chip label={getStatusLabel(request)} size="small" />
-										</Box>
-										<Typography
-											variant="body2"
-											sx={{ overflowWrap: "anywhere", mb: 0.5 }}
-										>
+											</p>
+										</div>
+										<div className="mb-2 flex flex-wrap gap-1.5">
+											<Badge variant="outline">
+												{getRequestTypeLabel(request)}
+											</Badge>
+											<Badge variant="neutral">{getStatusLabel(request)}</Badge>
+										</div>
+										<p className="mb-1 text-sm break-words">
 											{request.description}
-										</Typography>
+										</p>
 										{request.receipt_filename && (
-											<Typography variant="body2" color="text.secondary">
+											<p className="text-sm text-muted-foreground">
 												{request.receipt_filename}
-											</Typography>
+											</p>
 										)}
 										{request.rejection_reason && (
-											<Typography variant="body2" color="error" sx={{ mt: 1 }}>
+											<p className="mt-2 text-sm text-destructive">
 												{request.rejection_reason}
-											</Typography>
+											</p>
 										)}
-									</Box>
+									</div>
 								))}
-							</Box>
+							</div>
 						)}
-					</CardContent>
+					</div>
 				</GlassCard>
 
 				<GlassCard>
-					<CardContent sx={{ p: { xs: 2.5, md: 3 } }}>
-						<Typography variant="h5" sx={{ mb: 2 }}>
-							New request
-						</Typography>
+					<div className="p-5 md:p-6">
+						<h2 className="mb-4 text-xl font-semibold">New request</h2>
 
-						<Box component="form" onSubmit={handleSubmit} noValidate>
-							<Box
-								sx={{
-									mb: 2.5,
-									display: "grid",
-									justifyItems: "center",
-									textAlign: "center",
-									gap: 1,
-								}}
-							>
-								<Box
-									sx={{
-										display: "grid",
-										justifyItems: "center",
-										gap: 1,
-										maxWidth: 440,
+						<form onSubmit={handleSubmit} noValidate>
+							<div className="mb-6">
+								<label
+									onDragOver={(event) => {
+										event.preventDefault();
+										if (!isReceiptBusy) setIsDraggingReceipt(true);
 									}}
+									onDragLeave={() => setIsDraggingReceipt(false)}
+									onDrop={handleReceiptDrop}
+									className={cn(
+										"flex cursor-pointer flex-col items-center justify-center gap-3 rounded-xl border border-dashed border-border px-6 py-10 text-center transition-colors",
+										"hover:border-brand/50 hover:bg-accent/40",
+										isDraggingReceipt && "border-brand bg-brand/5",
+										isReceiptBusy && "pointer-events-none opacity-70",
+										errors.receiptFile && "border-destructive/60",
+									)}
 								>
-									<Button
-										component="label"
-										variant="outlined"
-										startIcon={<AttachFileIcon />}
-										disabled={isReceiptBusy}
-										sx={{
-											borderRadius: 999,
-											px: 3,
-											minHeight: 46,
-											width: "fit-content",
-										}}
+									<span
+										className={cn(
+											"flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground transition-colors",
+											(isDraggingReceipt || values.receipt) &&
+												"bg-brand/10 text-brand",
+										)}
 									>
-										{isReceiptBusy ? "Reading..." : "Attach receipt"}
-										<input
-											hidden
-											type="file"
-											aria-label="Receipt file"
-											accept="application/pdf,image/jpeg,image/jpg,image/png"
-											onChange={handleReceiptChange}
-										/>
-									</Button>
-									<Typography variant="body2" color="text.secondary">
-										{values.receipt
-											? values.receipt.fileName
-											: "Required PDF, JPG, or PNG up to 10 MB. Details are extracted automatically when possible."}
-									</Typography>
-								</Box>
-								{errors.receiptFile && (
-									<Typography variant="caption" color="error">
-										{errors.receiptFile}
-									</Typography>
+										{values.receipt ? (
+											<FileCheck2 className="size-6" />
+										) : (
+											<UploadCloud className="size-6" />
+										)}
+									</span>
+									<div className="grid gap-1">
+										<p className="font-medium">
+											{isReceiptBusy
+												? "Reading receipt…"
+												: values.receipt
+													? values.receipt.fileName
+													: "Drag & drop your receipt"}
+										</p>
+										<p className="text-sm text-muted-foreground">
+											{values.receipt && !isReceiptBusy ? (
+												<span className="text-brand">
+													Click or drop to replace
+												</span>
+											) : (
+												"or click to browse · PDF, JPG, or PNG up to 10 MB"
+											)}
+										</p>
+									</div>
+									<input
+										hidden
+										type="file"
+										aria-label="Receipt file"
+										accept="application/pdf,image/jpeg,image/jpg,image/png"
+										onChange={handleReceiptChange}
+									/>
+								</label>
+								{!values.receipt && !isReceiptBusy && (
+									<p className="mt-2 text-center text-xs text-muted-foreground">
+										Details are extracted automatically when possible.
+									</p>
 								)}
-							</Box>
+								{errors.receiptFile && (
+									<p className="mt-2 text-center text-xs text-destructive">
+										{errors.receiptFile}
+									</p>
+								)}
+							</div>
 
-							<Box sx={{ mb: 2 }}>
-								<ToggleButtonGroup
-									exclusive
-									fullWidth
-									color="primary"
+							<div className="mb-4">
+								<ToggleGroup
+									type="single"
 									value={values.submissionType}
-									onChange={handleSubmissionTypeChange}
-									aria-label="Submission type"
-								>
-									<ToggleButton value="reimbursement">
-										Reimbursement
-									</ToggleButton>
-									<ToggleButton value="invoice">Invoice</ToggleButton>
-								</ToggleButtonGroup>
-							</Box>
-
-							<Box
-								sx={{
-									display: "grid",
-									gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
-									gap: 2,
-								}}
-							>
-								<TextField
-									label="Amount"
-									type="number"
-									value={values.amount}
-									onChange={(event) => setField("amount", event.target.value)}
-									error={Boolean(errors.amount)}
-									helperText={errors.amount}
-									inputProps={{ min: "0", step: "0.01" }}
-									required
-								/>
-								<TextField
-									label="Date"
-									type="date"
-									value={values.date}
-									onChange={(event) => setField("date", event.target.value)}
-									error={Boolean(errors.date)}
-									helperText={errors.date}
-									slotProps={{ inputLabel: { shrink: true } }}
-									required
-								/>
-								<TextField
-									select
-									label="Department"
-									value={values.department}
-									onChange={(event) =>
-										setField("department", event.target.value)
+									onValueChange={(value) =>
+										handleSubmissionTypeChange(
+											value as ReimbursementSubmissionType | "",
+										)
 									}
-									error={Boolean(errors.department)}
-									helperText={errors.department}
-									required
-									sx={{ gridColumn: "1 / -1" }}
+									variant="outline"
+									aria-label="Submission type"
+									className="w-full"
 								>
-									{DEPARTMENTS.map((department) => (
-										<MenuItem key={department} value={department}>
-											{department}
-										</MenuItem>
-									))}
-								</TextField>
+									<ToggleGroupItem value="reimbursement" className="flex-1">
+										Reimbursement
+									</ToggleGroupItem>
+									<ToggleGroupItem value="invoice" className="flex-1">
+										Invoice
+									</ToggleGroupItem>
+								</ToggleGroup>
+							</div>
+
+							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+								<div className="flex min-w-0 flex-col gap-1.5">
+									<Label htmlFor="reimbursement-amount">Amount</Label>
+									<Input
+										id="reimbursement-amount"
+										type="number"
+										value={values.amount}
+										onChange={(event) => setField("amount", event.target.value)}
+										aria-invalid={Boolean(errors.amount)}
+										min="0"
+										step="0.01"
+										required
+									/>
+									{errors.amount && (
+										<p className="text-xs text-destructive">{errors.amount}</p>
+									)}
+								</div>
+								<div className="flex min-w-0 flex-col gap-1.5">
+									<Label htmlFor="reimbursement-date">Date</Label>
+									<Input
+										id="reimbursement-date"
+										type="date"
+										value={values.date}
+										onChange={(event) => setField("date", event.target.value)}
+										aria-invalid={Boolean(errors.date)}
+										required
+									/>
+									{errors.date && (
+										<p className="text-xs text-destructive">{errors.date}</p>
+									)}
+								</div>
+								<div className="col-span-full flex min-w-0 flex-col gap-1.5">
+									<Label htmlFor="reimbursement-department">Department</Label>
+									<Select
+										value={values.department || undefined}
+										onValueChange={(value) => setField("department", value)}
+									>
+										<SelectTrigger
+											id="reimbursement-department"
+											className="w-full"
+											aria-label="Department"
+											aria-invalid={Boolean(errors.department)}
+										>
+											<SelectValue placeholder="Department" />
+										</SelectTrigger>
+										<SelectContent>
+											{DEPARTMENTS.map((department) => (
+												<SelectItem key={department} value={department}>
+													{department}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									{errors.department && (
+										<p className="text-xs text-destructive">
+											{errors.department}
+										</p>
+									)}
+								</div>
 								{showDepartmentWarning && (
-									<Alert severity="warning" sx={{ gridColumn: "1 / -1" }}>
-										This request is for a department different from your member
-										department. Finance may ask for additional confirmation.
+									<Alert className="col-span-full">
+										<AlertDescription>
+											This request is for a department different from your
+											member department. Finance may ask for additional
+											confirmation.
+										</AlertDescription>
 									</Alert>
 								)}
-								<TextField
-									label="Description"
-									value={values.description}
-									onChange={(event) =>
-										setField("description", event.target.value)
-									}
-									error={Boolean(errors.description)}
-									helperText={errors.description}
-									minRows={3}
-									multiline
-									required
-									sx={{ gridColumn: "1 / -1" }}
-								/>
+								<div className="col-span-full flex min-w-0 flex-col gap-1.5">
+									<Label htmlFor="reimbursement-description">Description</Label>
+									<Textarea
+										id="reimbursement-description"
+										value={values.description}
+										onChange={(event) =>
+											setField("description", event.target.value)
+										}
+										aria-invalid={Boolean(errors.description)}
+										rows={3}
+										required
+									/>
+									{errors.description && (
+										<p className="text-xs text-destructive">
+											{errors.description}
+										</p>
+									)}
+								</div>
 
-								<TextField
-									label="IBAN"
-									value={values.paymentIban}
-									onChange={(event) =>
-										setField("paymentIban", event.target.value)
-									}
-									error={Boolean(errors.paymentIban)}
-									helperText={errors.paymentIban}
-									required
-								/>
-								<TextField
-									label="BIC"
-									value={values.paymentBic}
-									onChange={(event) =>
-										setField("paymentBic", event.target.value)
-									}
-									error={Boolean(errors.paymentBic)}
-									helperText={errors.paymentBic}
-									required
-								/>
-							</Box>
+								<div className="flex min-w-0 flex-col gap-1.5">
+									<Label htmlFor="reimbursement-iban">IBAN</Label>
+									<Input
+										id="reimbursement-iban"
+										value={values.paymentIban}
+										onChange={(event) =>
+											setField("paymentIban", event.target.value)
+										}
+										aria-invalid={Boolean(errors.paymentIban)}
+										required
+									/>
+									{errors.paymentIban && (
+										<p className="text-xs text-destructive">
+											{errors.paymentIban}
+										</p>
+									)}
+								</div>
+								<div className="flex min-w-0 flex-col gap-1.5">
+									<Label htmlFor="reimbursement-bic">BIC</Label>
+									<Input
+										id="reimbursement-bic"
+										value={values.paymentBic}
+										onChange={(event) =>
+											setField("paymentBic", event.target.value)
+										}
+										aria-invalid={Boolean(errors.paymentBic)}
+										required
+									/>
+									{errors.paymentBic && (
+										<p className="text-xs text-destructive">
+											{errors.paymentBic}
+										</p>
+									)}
+								</div>
+							</div>
 
-							<Box sx={{ display: "flex", justifyContent: "flex-end", mt: 3 }}>
-								<Button
-									type="submit"
-									variant="contained"
-									disabled={isSubmitDisabled}
-								>
+							<div className="mt-6 flex justify-end">
+								<Button type="submit" disabled={isSubmitDisabled}>
 									{isCreating ? "Submitting..." : "Submit request"}
 								</Button>
-							</Box>
-						</Box>
-					</CardContent>
+							</div>
+						</form>
+					</div>
 				</GlassCard>
-			</Box>
+			</div>
 		</ToolPageShell>
 	);
 }

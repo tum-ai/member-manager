@@ -1,14 +1,7 @@
 import type { Permission } from "@member-manager/shared";
-import {
-	Box,
-	CircularProgress,
-	CssBaseline,
-	ThemeProvider,
-	Typography,
-} from "@mui/material";
 import type { User } from "@supabase/supabase-js";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { type ReactElement, useEffect, useMemo, useState } from "react";
+import { type ReactElement, useEffect, useState } from "react";
 import {
 	BrowserRouter,
 	Navigate,
@@ -17,8 +10,13 @@ import {
 	useLocation,
 } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
+import { Skeleton } from "./components/ui/skeleton";
+import { SkeletonRegion } from "./components/ui/skeleton-blocks";
 import { ToastProvider } from "./contexts/ToastContext";
+import AdminCertificateRequestsPage from "./features/admin/AdminCertificateRequestsPage";
+import AdminChangeRequestsPage from "./features/admin/AdminChangeRequestsPage";
 import AdminDatabaseView from "./features/admin/AdminDatabaseView";
+import AdminJobRequestsPage from "./features/admin/AdminJobRequestsPage";
 import Auth from "./features/auth/Auth";
 import EngagementCertificatePage from "./features/certificate/EngagementCertificatePage";
 import ContractFormPage from "./features/contracts/ContractFormPage";
@@ -28,29 +26,21 @@ import ContractSubmissionsPage from "./features/contracts/ContractSubmissionsPag
 import ContractTemplatesPage from "./features/contracts/ContractTemplatesPage";
 import JobPostingsPage from "./features/jobs/JobPostingsPage";
 import MemberList from "./features/members/MemberList";
+import MembersOrgChartPage from "./features/members/MembersOrgChartPage";
+import MembersOrgTreePage from "./features/members/MembersOrgTreePage";
+import MembersProjectsPage from "./features/members/MembersProjectsPage";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
 import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
-import ToolsPage from "./features/tools/ToolsPage";
 import TumaiDaysPage from "./features/tools/TumaiDaysPage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import { useToolAccess } from "./hooks/useToolAccess";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
-import {
-	type AppColorMode,
-	COLOR_MODE_STORAGE_KEY,
-	default as getAppTheme,
-	getPreferredColorMode,
-} from "./theme";
 
 export default function App(): JSX.Element {
 	const [user, setUser] = useState<User | null>(null);
 	const [loading, setLoading] = useState(true);
-	const [colorMode, setColorMode] = useState<AppColorMode>(() =>
-		getPreferredColorMode(),
-	);
-	const theme = useMemo(() => getAppTheme(colorMode), [colorMode]);
 
 	useEffect(() => {
 		// Don't let a slow or unreachable auth service freeze the UI:
@@ -101,80 +91,47 @@ export default function App(): JSX.Element {
 		};
 	}, []);
 
-	useEffect(() => {
-		window.localStorage.setItem(COLOR_MODE_STORAGE_KEY, colorMode);
-		// Keep the shadcn/ui `.dark` token set in sync with the MUI color mode so
-		// migrated components match the surrounding UI in both modes.
-		document.documentElement.classList.toggle("dark", colorMode === "dark");
-	}, [colorMode]);
-
 	async function handleLogout(): Promise<void> {
 		await supabase.auth.signOut();
 		queryClient.clear();
 		setUser(null);
 	}
 
-	function toggleColorMode(): void {
-		setColorMode((currentMode) => (currentMode === "light" ? "dark" : "light"));
-	}
-
 	if (loading) {
 		return (
-			<ThemeProvider theme={theme}>
-				<CssBaseline />
-				<Box
-					sx={{
-						display: "flex",
-						justifyContent: "center",
-						alignItems: "center",
-						minHeight: "100vh",
-						gap: 2,
-					}}
-				>
-					<CircularProgress />
-					<Typography variant="h6" color="text.secondary">
-						Loading...
-					</Typography>
-				</Box>
-			</ThemeProvider>
+			<SkeletonRegion
+				label="Loading"
+				className="flex min-h-screen items-center justify-center p-6"
+			>
+				<div className="w-full max-w-sm space-y-4">
+					<Skeleton className="mx-auto size-12 rounded-xl" />
+					<Skeleton className="mx-auto h-5 w-40" />
+					<Skeleton className="h-10 w-full rounded-md" />
+				</div>
+			</SkeletonRegion>
 		);
 	}
 
 	return (
-		<ThemeProvider theme={theme}>
-			<CssBaseline />
-			<QueryClientProvider client={queryClient}>
-				<ToastProvider>
-					<BrowserRouter>
-						<AppRouter
-							user={user}
-							colorMode={colorMode}
-							onLogout={handleLogout}
-							onToggleColorMode={toggleColorMode}
-						/>
-					</BrowserRouter>
-				</ToastProvider>
-			</QueryClientProvider>
-		</ThemeProvider>
+		<QueryClientProvider client={queryClient}>
+			<ToastProvider>
+				<BrowserRouter>
+					<AppRouter user={user} onLogout={handleLogout} />
+				</BrowserRouter>
+			</ToastProvider>
+		</QueryClientProvider>
 	);
 }
 
 interface AppRouterProps {
 	user: User | null;
-	colorMode: AppColorMode;
 	onLogout: () => Promise<void>;
-	onToggleColorMode: () => void;
 }
 
 // The partner-signing page (/contracts/sign/:token) is public — render it
 // before the auth gate so unauthenticated partners can sign without an
 // account.
-function AppRouter({
-	user,
-	colorMode,
-	onLogout,
-	onToggleColorMode,
-}: AppRouterProps): JSX.Element {
+function AppRouter({ user, onLogout }: AppRouterProps): JSX.Element {
 	const location = useLocation();
 	const isPublicSignRoute = location.pathname.startsWith("/contracts/sign/");
 
@@ -187,35 +144,33 @@ function AppRouter({
 	}
 
 	if (!user) {
-		return <Auth colorMode={colorMode} onToggleColorMode={onToggleColorMode} />;
+		return <Auth />;
 	}
 
-	return (
-		<AuthenticatedApp
-			user={user}
-			colorMode={colorMode}
-			onLogout={onLogout}
-			onToggleColorMode={onToggleColorMode}
-		/>
-	);
+	return <AuthenticatedApp user={user} onLogout={onLogout} />;
 }
 
 interface AuthenticatedAppProps {
 	user: User;
-	colorMode: AppColorMode;
 	onLogout: () => void;
-	onToggleColorMode: () => void;
 }
 
 export function AuthenticatedApp({
 	user,
-	colorMode,
 	onLogout,
-	onToggleColorMode,
 }: AuthenticatedAppProps): JSX.Element {
 	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
 	const { permissions } = useToolAccess();
 	const hasContractsAccess = isAdmin || permissions.includes("contracts.admin");
+
+	const adminRoute = (element: JSX.Element): JSX.Element =>
+		isLoadingAdminRole ? (
+			<RouteAccessLoading />
+		) : isAdmin ? (
+			element
+		) : (
+			<Navigate to="/" replace />
+		);
 
 	return (
 		<MainLayout
@@ -223,14 +178,14 @@ export function AuthenticatedApp({
 			isAdmin={isAdmin || isLoadingAdminRole}
 			hasContractsAccess={hasContractsAccess}
 			onLogout={onLogout}
-			colorMode={colorMode}
-			onToggleColorMode={onToggleColorMode}
 		>
 			<Routes>
 				<Route path="/" element={<ProfilePage user={user} />} />
 				<Route path="/profile" element={<Navigate to="/" replace />} />
 				<Route path="/members" element={<MemberList />} />
-				<Route path="/tools" element={<ToolsPage />} />
+				<Route path="/members/org-chart" element={<MembersOrgChartPage />} />
+				<Route path="/members/org-tree" element={<MembersOrgTreePage />} />
+				<Route path="/members/projects" element={<MembersProjectsPage />} />
 				<Route
 					path="/tools/reimbursement"
 					element={<ReimbursementPage user={user} />}
@@ -300,17 +255,18 @@ export function AuthenticatedApp({
 						</RequirePermission>
 					}
 				/>
+				<Route path="/admin" element={adminRoute(<AdminDatabaseView />)} />
 				<Route
-					path="/admin"
-					element={
-						isLoadingAdminRole ? (
-							<RouteAccessLoading />
-						) : isAdmin ? (
-							<AdminDatabaseView />
-						) : (
-							<Navigate to="/" replace />
-						)
-					}
+					path="/admin/change-requests"
+					element={adminRoute(<AdminChangeRequestsPage />)}
+				/>
+				<Route
+					path="/admin/certificate-requests"
+					element={adminRoute(<AdminCertificateRequestsPage />)}
+				/>
+				<Route
+					path="/admin/job-requests"
+					element={adminRoute(<AdminJobRequestsPage />)}
 				/>
 				<Route path="*" element={<Navigate to="/" replace />} />
 			</Routes>
@@ -320,18 +276,25 @@ export function AuthenticatedApp({
 
 function RouteAccessLoading(): JSX.Element {
 	return (
-		<Box
-			sx={{
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "center",
-				gap: 1.5,
-				minHeight: 280,
-			}}
-		>
-			<CircularProgress size={24} />
-			<Typography color="text.secondary">Checking access...</Typography>
-		</Box>
+		<SkeletonRegion label="Checking access" className="space-y-6">
+			<div className="space-y-2">
+				<Skeleton className="h-7 w-56" />
+				<Skeleton className="h-4 w-80 max-w-full" />
+			</div>
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				{Array.from({ length: 6 }).map((_, i) => (
+					<div
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						key={i}
+						className="space-y-3 rounded-xl border bg-card p-5"
+					>
+						<Skeleton className="h-4 w-2/3" />
+						<Skeleton className="h-3 w-full" />
+						<Skeleton className="h-3 w-1/2" />
+					</div>
+				))}
+			</div>
+		</SkeletonRegion>
 	);
 }
 

@@ -1,24 +1,27 @@
-import CloudSyncIcon from "@mui/icons-material/CloudSync";
-import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import { ExternalLink, FileText, RefreshCw } from "lucide-react";
+import type React from "react";
+import { useId } from "react";
 import {
 	Accordion,
-	AccordionDetails,
-	AccordionSummary,
-	Alert,
-	Box,
-	Button,
-	Checkbox,
-	Chip,
-	Divider,
-	Link,
-	MenuItem,
-	Stack,
-	TextField,
-	Typography,
-} from "@mui/material";
-import type React from "react";
+	AccordionContent,
+	AccordionItem,
+	AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { LinkButton } from "@/components/ui/link-button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { cn } from "@/lib/utils";
 import GlassCard from "../../components/ui/GlassCard";
 import type {
 	BuchhaltungsButlerSyncStatus,
@@ -85,51 +88,44 @@ export default function ReimbursementReviewQueue({
 }: ReimbursementReviewQueueProps): React.ReactElement {
 	if (requests.length === 0) {
 		return (
-			<Alert severity="info">
-				No reimbursement requests match the current filters.
+			<Alert>
+				<AlertDescription>
+					No reimbursement requests match the current filters.
+				</AlertDescription>
 			</Alert>
 		);
 	}
 
 	return (
-		<Stack spacing={2}>
-			<Box
-				sx={{
-					display: "grid",
-					gap: 1.25,
-				}}
-			>
-				{requests.map((request) => (
-					<ReviewItem
-						key={request.id}
-						request={request}
-						selected={selectedIds.has(request.id)}
-						hasBulkDownload={hasBulkDownload}
-						isReviewing={isReviewing}
-						rejectionReason={rejectionReasons[request.id] ?? ""}
-						onSelectionChange={onSelectionChange}
-						onReasonChange={(reason) => onReasonChange(request.id, reason)}
-						onReview={(action) => onReview(request.id, action)}
-						onDepartmentChange={(department) =>
-							onDepartmentChange(request.id, department)
-						}
-						onReceiptOpen={(mode) => onReceiptOpen(request, mode)}
-						isUpdatingDepartment={isUpdatingDepartment}
-						buchhaltungsButlerSyncStatus={buchhaltungsButlerSyncStatus}
-						isLoadingBuchhaltungsButlerSyncStatus={
-							isLoadingBuchhaltungsButlerSyncStatus
-						}
-						hasBuchhaltungsButlerSyncStatusError={
-							hasBuchhaltungsButlerSyncStatusError
-						}
-						onBuchhaltungsButlerSync={() =>
-							onBuchhaltungsButlerSync(request.id)
-						}
-						isSyncingBuchhaltungsButler={isSyncingBuchhaltungsButler}
-					/>
-				))}
-			</Box>
-		</Stack>
+		<div className="grid gap-3">
+			{requests.map((request) => (
+				<ReviewItem
+					key={request.id}
+					request={request}
+					selected={selectedIds.has(request.id)}
+					hasBulkDownload={hasBulkDownload}
+					isReviewing={isReviewing}
+					rejectionReason={rejectionReasons[request.id] ?? ""}
+					onSelectionChange={onSelectionChange}
+					onReasonChange={(reason) => onReasonChange(request.id, reason)}
+					onReview={(action) => onReview(request.id, action)}
+					onDepartmentChange={(department) =>
+						onDepartmentChange(request.id, department)
+					}
+					onReceiptOpen={(mode) => onReceiptOpen(request, mode)}
+					isUpdatingDepartment={isUpdatingDepartment}
+					buchhaltungsButlerSyncStatus={buchhaltungsButlerSyncStatus}
+					isLoadingBuchhaltungsButlerSyncStatus={
+						isLoadingBuchhaltungsButlerSyncStatus
+					}
+					hasBuchhaltungsButlerSyncStatusError={
+						hasBuchhaltungsButlerSyncStatusError
+					}
+					onBuchhaltungsButlerSync={() => onBuchhaltungsButlerSync(request.id)}
+					isSyncingBuchhaltungsButler={isSyncingBuchhaltungsButler}
+				/>
+			))}
+		</div>
 	);
 }
 
@@ -180,154 +176,99 @@ function ReviewItem({
 	const bbSyncStatus = request.bb_sync_status ?? "not_synced";
 
 	return (
-		<GlassCard sx={{ overflow: "hidden" }}>
-			<Accordion
-				disableGutters
-				elevation={0}
-				sx={{
-					bgcolor: "transparent",
-					"&:before": { display: "none" },
-				}}
-			>
-				<AccordionSummary
-					expandIcon={<ExpandMoreIcon />}
-					sx={{
-						alignItems: "flex-start",
-						px: { xs: 1.5, md: 2.25 },
-						py: 1,
-						"& .MuiAccordionSummary-content": {
-							my: 0,
-							minWidth: 0,
-						},
-					}}
-				>
-					<Stack
-						direction={{ xs: "column", lg: "row" }}
-						spacing={{ xs: 1.25, lg: 2 }}
-						alignItems={{ xs: "stretch", lg: "center" }}
-						sx={{ width: "100%", minWidth: 0, pr: 1 }}
-					>
-						<Stack
-							direction="row"
-							spacing={1}
-							alignItems="flex-start"
-							sx={{ minWidth: 0, flex: "1 1 auto" }}
-						>
-							{hasBulkDownload && (
-								<Checkbox
-									checked={selected}
-									disabled={!selectable}
-									onClick={(event) => event.stopPropagation()}
-									onFocus={(event) => event.stopPropagation()}
-									onChange={(event) =>
-										onSelectionChange(request.id, event.target.checked)
-									}
-									inputProps={{
-										"aria-label": `Select receipt from ${requesterName}`,
-									}}
-									sx={{ mt: -0.75, ml: -1 }}
-								/>
-							)}
-							<Box sx={{ minWidth: 0 }}>
-								<Stack
-									direction="row"
-									spacing={0.75}
-									alignItems="center"
-									flexWrap="wrap"
-									useFlexGap
-									sx={{ mb: 0.75 }}
-								>
-									<Chip label={getReviewStage(request)} size="small" />
-									<Chip label={typeLabel} size="small" variant="outlined" />
-									<Chip
-										label={request.department}
-										size="small"
-										variant="outlined"
+		<GlassCard className="overflow-hidden">
+			<Accordion type="single" collapsible>
+				<AccordionItem value={request.id} className="border-b-0">
+					<div className="flex items-center gap-3 px-3 py-1 md:px-4">
+						{hasBulkDownload && (
+							<Checkbox
+								checked={selected}
+								disabled={!selectable}
+								onClick={(event) => event.stopPropagation()}
+								onCheckedChange={(checked) =>
+									onSelectionChange(request.id, checked === true)
+								}
+								aria-label={`Select receipt from ${requesterName}`}
+							/>
+						)}
+						<div className="min-w-0 flex-1">
+							<AccordionTrigger className="w-full items-center py-3 hover:no-underline">
+								<div className="flex w-full min-w-0 flex-col items-stretch gap-2 pr-1 lg:flex-row lg:items-center lg:gap-4">
+									<div className="min-w-0 flex-[1_1_auto]">
+										<div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+											<Badge
+												variant={getReviewStageTone(getReviewStage(request))}
+												className="font-semibold"
+											>
+												{getReviewStage(request)}
+											</Badge>
+											<Badge variant="outline">{typeLabel}</Badge>
+											<Badge variant="outline">{request.department}</Badge>
+											<Badge
+												variant={getBuchhaltungsButlerSyncTone(bbSyncStatus)}
+											>
+												{`BB: ${formatBuchhaltungsButlerSyncStatus(bbSyncStatus)}`}
+											</Badge>
+										</div>
+										<p className="font-bold break-words">
+											{request.description}
+										</p>
+										<p className="text-sm font-normal text-muted-foreground">
+											{requesterName} · {formatReviewDate(request.date)}
+										</p>
+									</div>
+
+									<div className="flex items-center justify-end lg:min-w-[120px] lg:flex-[0_0_auto]">
+										<p className="text-lg font-extrabold whitespace-nowrap tabular-nums">
+											{formatReviewAmount(request.amount)}
+										</p>
+									</div>
+								</div>
+							</AccordionTrigger>
+						</div>
+					</div>
+
+					<AccordionContent className="px-4 pt-0 pb-6 md:px-6">
+						<Separator className="mb-4" />
+						<div className="flex flex-col gap-5">
+							<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[1.1fr_1.4fr_1fr]">
+								<DetailGroup title="Requester">
+									<Detail label="Name" value={requesterName} strong />
+									<Detail label="Email" value={getRequesterEmail(request)} />
+									<DepartmentEditor
+										department={request.department}
+										disabled={isUpdatingDepartment}
+										onDepartmentChange={onDepartmentChange}
 									/>
-									<Chip
-										label={`BB: ${formatBuchhaltungsButlerSyncStatus(
-											bbSyncStatus,
-										)}`}
-										size="small"
-										color={getBuchhaltungsButlerSyncColor(bbSyncStatus)}
-										variant="outlined"
+								</DetailGroup>
+
+								<DetailGroup title="Payment">
+									<Detail label="Bank" value={getBankName(request)} />
+									<Detail
+										label="IBAN"
+										value={getPaymentIban(request)}
+										monospace
 									/>
-								</Stack>
-								<Typography
-									variant="subtitle1"
-									fontWeight={700}
-									sx={{ overflowWrap: "anywhere" }}
-								>
-									{request.description}
-								</Typography>
-								<Typography variant="body2" color="text.secondary">
-									{requesterName} · {formatReviewDate(request.date)}
-								</Typography>
-							</Box>
-						</Stack>
+									<Detail
+										label="BIC"
+										value={getPaymentBic(request)}
+										monospace
+									/>
+								</DetailGroup>
 
-						<Stack
-							direction="row"
-							spacing={2}
-							alignItems="center"
-							justifyContent="flex-end"
-							sx={{
-								flex: { xs: "1 1 auto", lg: "0 0 auto" },
-								minWidth: { lg: 120 },
-							}}
-						>
-							<Typography
-								variant="h6"
-								fontWeight={800}
-								sx={{ whiteSpace: "nowrap" }}
-							>
-								{formatReviewAmount(request.amount)}
-							</Typography>
-						</Stack>
-					</Stack>
-				</AccordionSummary>
+								<DetailGroup title="Receipt">
+									<Detail
+										label="File"
+										value={request.receipt_filename ?? "No file"}
+									/>
+									<ReceiptLinks
+										request={request}
+										onReceiptOpen={onReceiptOpen}
+									/>
+								</DetailGroup>
+							</div>
 
-				<AccordionDetails sx={{ px: { xs: 2, md: 3 }, pt: 0, pb: 3 }}>
-					<Divider sx={{ mb: 2 }} />
-					<Stack spacing={2.25}>
-						<Box
-							sx={{
-								display: "grid",
-								gridTemplateColumns: {
-									xs: "1fr",
-									md: "1fr 1fr",
-									xl: "1.1fr 1.4fr 1fr",
-								},
-								gap: 2,
-							}}
-						>
-							<DetailGroup title="Requester">
-								<Detail label="Name" value={requesterName} strong />
-								<Detail label="Email" value={getRequesterEmail(request)} />
-								<DepartmentEditor
-									department={request.department}
-									disabled={isUpdatingDepartment}
-									onDepartmentChange={onDepartmentChange}
-								/>
-							</DetailGroup>
-
-							<DetailGroup title="Payment">
-								<Detail label="Bank" value={getBankName(request)} />
-								<Detail
-									label="IBAN"
-									value={getPaymentIban(request)}
-									monospace
-								/>
-								<Detail label="BIC" value={getPaymentBic(request)} monospace />
-							</DetailGroup>
-
-							<DetailGroup title="Receipt">
-								<Detail
-									label="File"
-									value={request.receipt_filename ?? "No file"}
-								/>
-								<ReceiptLinks request={request} onReceiptOpen={onReceiptOpen} />
-							</DetailGroup>
+							<Separator />
 
 							<DetailGroup title="BuchhaltungsButler">
 								<Detail
@@ -354,30 +295,24 @@ function ReviewItem({
 									isSyncing={isSyncingBuchhaltungsButler}
 								/>
 							</DetailGroup>
-						</Box>
 
-						<Box>
-							<Typography
-								variant="caption"
-								color="text.secondary"
-								sx={{ display: "block", mb: 0.5 }}
-							>
-								Description
-							</Typography>
-							<Typography sx={{ overflowWrap: "anywhere" }}>
-								{request.description}
-							</Typography>
-						</Box>
+							<div>
+								<span className="mb-1 block text-xs text-muted-foreground">
+									Description
+								</span>
+								<p className="break-words">{request.description}</p>
+							</div>
 
-						<ReimbursementReviewActions
-							request={request}
-							isReviewing={isReviewing}
-							rejectionReason={rejectionReason}
-							onReasonChange={onReasonChange}
-							onReview={onReview}
-						/>
-					</Stack>
-				</AccordionDetails>
+							<ReimbursementReviewActions
+								request={request}
+								isReviewing={isReviewing}
+								rejectionReason={rejectionReason}
+								onReasonChange={onReasonChange}
+								onReview={onReview}
+							/>
+						</div>
+					</AccordionContent>
+				</AccordionItem>
 			</Accordion>
 		</GlassCard>
 	);
@@ -391,19 +326,10 @@ function DetailGroup({
 	children: React.ReactNode;
 }): React.ReactElement {
 	return (
-		<Box
-			sx={{
-				display: "grid",
-				alignContent: "start",
-				gap: 1,
-				minWidth: 0,
-			}}
-		>
-			<Typography variant="subtitle2" fontWeight={800}>
-				{title}
-			</Typography>
+		<div className="grid min-w-0 content-start gap-2">
+			<p className="text-sm font-extrabold">{title}</p>
 			{children}
-		</Box>
+		</div>
 	);
 }
 
@@ -416,23 +342,34 @@ function DepartmentEditor({
 	disabled: boolean;
 	onDepartmentChange: (department: string) => Promise<void>;
 }): React.ReactElement {
+	const labelId = useId();
 	return (
-		<TextField
-			select
-			label="Request department"
-			value={department}
-			onChange={(event) => {
-				void onDepartmentChange(event.target.value);
-			}}
-			size="small"
-			disabled={disabled}
-		>
-			{DEPARTMENTS.map((option) => (
-				<MenuItem key={option} value={option}>
-					{option}
-				</MenuItem>
-			))}
-		</TextField>
+		<div className="flex flex-col gap-1.5">
+			<Label htmlFor={labelId}>Request department</Label>
+			<Select
+				value={department || undefined}
+				onValueChange={(value) => {
+					void onDepartmentChange(value);
+				}}
+				disabled={disabled}
+			>
+				<SelectTrigger
+					id={labelId}
+					size="sm"
+					className="w-full"
+					aria-label="Request department"
+				>
+					<SelectValue placeholder="Request department" />
+				</SelectTrigger>
+				<SelectContent>
+					{DEPARTMENTS.map((option) => (
+						<SelectItem key={option} value={option}>
+							{option}
+						</SelectItem>
+					))}
+				</SelectContent>
+			</Select>
+		</div>
 	);
 }
 
@@ -448,21 +385,18 @@ function Detail({
 	monospace?: boolean;
 }): React.ReactElement {
 	return (
-		<Box>
-			<Typography variant="caption" color="text.secondary">
-				{label}
-			</Typography>
-			<Typography
-				variant="body2"
-				sx={{
-					fontWeight: strong ? 700 : 500,
-					fontFamily: monospace ? "monospace" : undefined,
-					overflowWrap: "anywhere",
-				}}
+		<div>
+			<span className="text-xs text-muted-foreground">{label}</span>
+			<p
+				className={cn(
+					"text-sm break-words",
+					strong ? "font-bold" : "font-medium",
+					monospace && "font-mono",
+				)}
 			>
 				{value}
-			</Typography>
-		</Box>
+			</p>
+		</div>
 	);
 }
 
@@ -473,13 +407,19 @@ function formatBuchhaltungsButlerSyncStatus(status: string): string {
 	return "Not synced";
 }
 
-function getBuchhaltungsButlerSyncColor(
-	status: string,
-): "default" | "success" | "warning" | "error" {
-	if (status === "pending") return "warning";
-	if (status === "synced") return "success";
-	if (status === "failed") return "error";
-	return "default";
+function getBuchhaltungsButlerSyncTone(status: string): BadgeVariant {
+	if (status === "failed") return "danger";
+	if (status === "synced") return "accent";
+	if (status === "pending") return "accent";
+	return "neutral";
+}
+
+function getReviewStageTone(stage: string): BadgeVariant {
+	if (stage === "Paid") return "success";
+	if (stage === "Ready for payment") return "accent";
+	if (stage === "Rejected") return "danger";
+	// Needs approval
+	return "warning";
 }
 
 function BuchhaltungsButlerSyncButton({
@@ -513,16 +453,16 @@ function BuchhaltungsButlerSyncButton({
 	const isPending = request.bb_sync_status === "pending";
 
 	return (
-		<Stack spacing={0.5} alignItems="flex-start">
+		<div className="flex flex-col items-start gap-1">
 			<Button
-				variant="outlined"
-				size="small"
-				startIcon={<CloudSyncIcon />}
+				variant="outline"
+				size="sm"
 				disabled={isUnavailable || isSyncing || isPending}
 				onClick={() => {
 					void onSync();
 				}}
 			>
+				<RefreshCw className="size-4" />
 				{isLoadingSyncStatus
 					? "Checking sync..."
 					: isUnavailable
@@ -535,16 +475,16 @@ function BuchhaltungsButlerSyncButton({
 				hasSyncStatusError ||
 				!syncStatus ||
 				unavailableMessage) && (
-				<Typography variant="caption" color="text.secondary">
+				<p className="text-xs text-muted-foreground">
 					{getBuchhaltungsButlerAvailabilityMessage({
 						isLoading: isLoadingSyncStatus,
 						hasError: hasSyncStatusError,
 						status: syncStatus,
 						unavailableMessage,
 					})}
-				</Typography>
+				</p>
 			)}
-		</Stack>
+		</div>
 	);
 }
 
@@ -593,55 +533,57 @@ function ReceiptLinks({
 	const { viewUrl, downloadUrl } = getReceiptLinks(request);
 
 	if (!request.receipt_filename && !viewUrl && !downloadUrl) {
-		return (
-			<Typography variant="body2" color="text.secondary">
-				No receipt
-			</Typography>
-		);
+		return <p className="text-sm text-muted-foreground">No receipt</p>;
 	}
 
 	return (
-		<Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+		<div className="flex flex-row flex-wrap gap-3">
 			{viewUrl && (
-				<Link
-					href={viewUrl}
-					target="_blank"
-					rel="noopener noreferrer"
-					underline="none"
-					aria-label={`View receipt for ${getRequesterName(request)}`}
-					onClick={(event) => {
-						if (!onReceiptOpen) return;
-						event.preventDefault();
-						void onReceiptOpen("view");
-					}}
-					sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
+				<LinkButton
+					asChild
+					className="inline-flex items-center gap-1.5 text-sm"
 				>
-					<OpenInNewIcon fontSize="small" />
-					View receipt
-				</Link>
+					<a
+						href={viewUrl}
+						target="_blank"
+						rel="noopener noreferrer"
+						aria-label={`View receipt for ${getRequesterName(request)}`}
+						onClick={(event) => {
+							if (!onReceiptOpen) return;
+							event.preventDefault();
+							void onReceiptOpen("view");
+						}}
+					>
+						<ExternalLink className="size-4" />
+						View receipt
+					</a>
+				</LinkButton>
 			)}
 			{downloadUrl && (
-				<Link
-					href={downloadUrl}
-					download
-					underline="none"
-					aria-label={`Download receipt for ${getRequesterName(request)}`}
-					onClick={(event) => {
-						if (!onReceiptOpen) return;
-						event.preventDefault();
-						void onReceiptOpen("download");
-					}}
-					sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}
+				<LinkButton
+					asChild
+					className="inline-flex items-center gap-1.5 text-sm"
 				>
-					<ReceiptLongIcon fontSize="small" />
-					Download receipt
-				</Link>
+					<a
+						href={downloadUrl}
+						download
+						aria-label={`Download receipt for ${getRequesterName(request)}`}
+						onClick={(event) => {
+							if (!onReceiptOpen) return;
+							event.preventDefault();
+							void onReceiptOpen("download");
+						}}
+					>
+						<FileText className="size-4" />
+						Download receipt
+					</a>
+				</LinkButton>
 			)}
 			{!viewUrl && !downloadUrl && (
-				<Typography variant="body2" color="text.secondary">
+				<p className="text-sm text-muted-foreground">
 					{request.receipt_filename}
-				</Typography>
+				</p>
 			)}
-		</Stack>
+		</div>
 	);
 }

@@ -1,8 +1,6 @@
-import { ThemeProvider } from "@mui/material";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import getAppTheme from "../../theme";
 import JobPostingsPage from "./JobPostingsPage";
 
 const { jobsState, submitJobRequestAsync, showToast } = vi.hoisted(() => ({
@@ -34,11 +32,9 @@ vi.mock("../../contexts/ToastContext", () => ({
 
 function renderPage() {
 	return render(
-		<ThemeProvider theme={getAppTheme("light")}>
-			<MemoryRouter>
-				<JobPostingsPage />
-			</MemoryRouter>
-		</ThemeProvider>,
+		<MemoryRouter>
+			<JobPostingsPage />
+		</MemoryRouter>,
 	);
 }
 

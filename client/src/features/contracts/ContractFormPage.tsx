@@ -1,16 +1,19 @@
-import {
-	Alert,
-	Box,
-	Button,
-	CircularProgress,
-	MenuItem,
-	Paper,
-	Stack,
-	TextField,
-	Typography,
-} from "@mui/material";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import GlassCard from "@/components/ui/GlassCard";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { useCurrentUserIsAdmin } from "../../hooks/useCurrentUserIsAdmin";
 import ToolPageShell from "../tools/ToolPageShell";
 import ContractDocumentPreview from "./ContractDocumentPreview";
@@ -136,126 +139,179 @@ export default function ContractFormPage(): JSX.Element {
 	return (
 		<ToolPageShell
 			title={isEditingDraft ? "Edit Contract Draft" : "Create Contract"}
-			maxWidth="min(1720px, 100%)"
 		>
 			{templatesQuery.isLoading ||
 			(isEditingDraft && draftQuery.isLoading) ||
 			draftPermissionLoading ? (
-				<CircularProgress />
+				<ContractFormSkeleton />
 			) : templatesQuery.error ? (
-				<Alert severity="error">
-					{(templatesQuery.error as Error).message}
+				<Alert variant="destructive">
+					<AlertDescription>
+						{(templatesQuery.error as Error).message}
+					</AlertDescription>
 				</Alert>
 			) : draftQuery.error ? (
-				<Alert severity="error">{(draftQuery.error as Error).message}</Alert>
+				<Alert variant="destructive">
+					<AlertDescription>
+						{(draftQuery.error as Error).message}
+					</AlertDescription>
+				</Alert>
 			) : draftCannotBeEditedByUser ? (
-				<Alert severity="warning">
-					Only the draft creator can edit this draft.
+				<Alert>
+					<AlertDescription>
+						Only the draft creator can edit this draft.
+					</AlertDescription>
 				</Alert>
 			) : draftCannotBeEdited ? (
-				<Alert severity="warning">
-					This draft has already been submitted and can no longer be edited
-					here.
+				<Alert>
+					<AlertDescription>
+						This draft has already been submitted and can no longer be edited
+						here.
+					</AlertDescription>
 				</Alert>
 			) : selectableTemplates.length === 0 ? (
-				<Alert severity="info">No active templates are available.</Alert>
+				<Alert>
+					<AlertDescription>
+						No active templates are available.
+					</AlertDescription>
+				</Alert>
 			) : (
-				<Stack spacing={3}>
+				<div className="flex flex-col gap-6">
 					{detailQuery.isLoading ? (
-						<CircularProgress />
+						<ContractFormSkeleton />
 					) : detailQuery.data ? (
-						<Box
-							sx={{
-								alignItems: "start",
-								display: "grid",
-								gap: 2,
-								gridTemplateColumns: {
-									xs: "1fr",
-									lg: "minmax(300px, 360px) minmax(0, 1fr)",
-								},
-							}}
-						>
-							<Paper
-								sx={{
-									p: 2,
-									position: { lg: "sticky" },
-									top: { lg: 24 },
-									width: "100%",
-								}}
-							>
-								<TextField
-									fullWidth
-									select
-									label="Template"
-									value={selectedId}
-									disabled={isEditingDraft}
-									onChange={(event) => {
-										setSelectedId(event.target.value);
-										setFormData({});
-									}}
-									sx={{ mb: 3 }}
-								>
-									{selectableTemplates.map((template) => (
-										<MenuItem key={template.id} value={template.id}>
-											{template.name}
-										</MenuItem>
-									))}
-								</TextField>
-								<Typography variant="h6" gutterBottom>
-									Form
-								</Typography>
+						<div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)]">
+							<GlassCard className="w-full p-4">
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="template-select">Template</Label>
+									<Select
+										value={selectedId || undefined}
+										disabled={isEditingDraft}
+										onValueChange={(value) => {
+											setSelectedId(value);
+											setFormData({});
+										}}
+									>
+										<SelectTrigger
+											id="template-select"
+											className="w-full"
+											aria-label="Template"
+										>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{selectableTemplates.map((template) => (
+												<SelectItem key={template.id} value={template.id}>
+													{template.name}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									{isEditingDraft ? (
+										<p className="text-xs text-muted-foreground">
+											The template can't be changed after a draft is created.
+										</p>
+									) : null}
+								</div>
+								<Separator className="my-5" />
 								<DynamicForm
 									variables={detailQuery.data.variables}
 									values={formData}
 									onChange={setFormData}
 									disabled={saving}
 								/>
-								<Stack direction="row" spacing={1} sx={{ mt: 3 }}>
+								<div className="mt-6 flex flex-row gap-2">
 									<Button
-										variant="contained"
 										disabled={saving || missingRequired.length > 0}
 										onClick={() => saveDraft("submitted")}
 									>
 										{isEditingDraft ? "Submit Draft" : "Submit"}
 									</Button>
-									<Button disabled={saving} onClick={() => saveDraft("draft")}>
+									<Button
+										variant="outline"
+										disabled={saving}
+										onClick={() => saveDraft("draft")}
+									>
 										{isEditingDraft ? "Save Draft" : "Save as Draft"}
 									</Button>
-								</Stack>
+								</div>
 								{missingRequired.length > 0 ? (
-									<Alert severity="warning" sx={{ mt: 2 }}>
-										Required fields missing: {missingRequired.join(", ")}
+									<Alert className="mt-4">
+										<AlertDescription>
+											Required fields missing: {missingRequired.join(", ")}
+										</AlertDescription>
 									</Alert>
 								) : null}
 								{mutationError ? (
-									<Alert severity="error" sx={{ mt: 2 }}>
-										{(mutationError as Error).message}
+									<Alert variant="destructive" className="mt-4">
+										<AlertDescription>
+											{(mutationError as Error).message}
+										</AlertDescription>
 									</Alert>
 								) : null}
-							</Paper>
-							<Paper sx={{ p: { xs: 1.5, md: 2 }, minWidth: 0 }}>
-								<Typography variant="h6" gutterBottom>
+							</GlassCard>
+							<GlassCard className="relative min-w-0 overflow-hidden p-0 lg:sticky lg:top-6 lg:self-start">
+								<span className="pointer-events-none absolute top-3 left-3 z-10 rounded-md border bg-background/85 px-2 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
 									Preview
-								</Typography>
+								</span>
 								{previewQuery.error ? (
-									<Alert severity="error" sx={{ mb: 2 }}>
-										{(previewQuery.error as Error).message}
+									<Alert variant="destructive" className="m-4 w-auto">
+										<AlertDescription>
+											{(previewQuery.error as Error).message}
+										</AlertDescription>
 									</Alert>
 								) : null}
 								<ContractDocumentPreview
 									pages={previewQuery.data?.pages}
 									loading={previewQuery.isLoading || previewQuery.isFetching}
+									// On mobile let the preview grow to its full height and
+									// scroll with the page — a fixed-height inner scroll box
+									// nested in the scrolling page traps touch gestures on iOS.
+									// Desktop keeps the constrained, sticky scroll.
 									maxHeight={{
-										xs: "72vh",
-										lg: "calc(100vh - 170px)",
+										xs: "none",
+										lg: "calc(100vh - 130px)",
 									}}
-									minHeight={{ xs: 520, lg: "calc(100vh - 170px)" }}
+									minHeight={{ xs: 420, lg: "calc(100vh - 130px)" }}
 								/>
-							</Paper>
-						</Box>
+							</GlassCard>
+						</div>
 					) : null}
-				</Stack>
+				</div>
 			)}
 		</ToolPageShell>
+	);
+}
+
+function ContractFormSkeleton() {
+	return (
+		<SkeletonRegion
+			label="Loading contract form"
+			className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,560px)]"
+		>
+			<GlassCard className="w-full p-4">
+				<div className="flex flex-col gap-1.5">
+					<Skeleton className="h-4 w-20" />
+					<Skeleton className="h-9 w-full rounded-md" />
+				</div>
+				<Separator className="my-5" />
+				<div className="flex flex-col gap-5">
+					{Array.from({ length: 5 }).map((_, i) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						<div key={i} className="space-y-2">
+							<Skeleton className="h-4 w-32" />
+							<Skeleton className="h-9 w-full rounded-md" />
+						</div>
+					))}
+				</div>
+				<div className="mt-6 flex flex-row gap-2">
+					<Skeleton className="h-9 w-24 rounded-md" />
+					<Skeleton className="h-9 w-28 rounded-md" />
+				</div>
+			</GlassCard>
+			<GlassCard className="min-w-0 overflow-hidden p-0 lg:sticky lg:top-6 lg:self-start">
+				<Skeleton className="aspect-[1/1.414] w-full rounded-none" />
+			</GlassCard>
+		</SkeletonRegion>
 	);
 }

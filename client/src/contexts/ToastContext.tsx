@@ -1,6 +1,6 @@
-import { Alert, Snackbar } from "@mui/material";
 import type React from "react";
-import { createContext, useCallback, useContext, useState } from "react";
+import { createContext, useCallback, useContext } from "react";
+import { toast } from "sonner";
 
 type ToastSeverity = "success" | "error" | "info" | "warning";
 
@@ -10,40 +10,32 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
+// Thin wrapper over sonner so the 18 existing `useToast()` call sites keep the
+// same `showToast(message, severity)` API. The <Toaster/> itself is mounted once
+// in main.tsx.
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-	const [open, setOpen] = useState(false);
-	const [message, setMessage] = useState("");
-	const [severity, setSeverity] = useState<ToastSeverity>("info");
-
-	const showToast = useCallback((msg: string, sev: ToastSeverity = "info") => {
-		setMessage(msg);
-		setSeverity(sev);
-		setOpen(true);
-	}, []);
-
-	const handleClose = (
-		_event?: React.SyntheticEvent | Event,
-		reason?: string,
-	) => {
-		if (reason === "clickaway") {
-			return;
-		}
-		setOpen(false);
-	};
+	const showToast = useCallback(
+		(message: string, severity: ToastSeverity = "info") => {
+			switch (severity) {
+				case "success":
+					toast.success(message);
+					break;
+				case "error":
+					toast.error(message);
+					break;
+				case "warning":
+					toast.warning(message);
+					break;
+				default:
+					toast.info(message);
+			}
+		},
+		[],
+	);
 
 	return (
 		<ToastContext.Provider value={{ showToast }}>
 			{children}
-			<Snackbar
-				open={open}
-				autoHideDuration={6000}
-				onClose={handleClose}
-				anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-			>
-				<Alert onClose={handleClose} severity={severity} sx={{ width: "100%" }}>
-					{message}
-				</Alert>
-			</Snackbar>
 		</ToastContext.Provider>
 	);
 }

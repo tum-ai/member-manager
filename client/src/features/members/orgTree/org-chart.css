@@ -1,0 +1,40 @@
+/*
+ * Styling for the parts of the d3-org-chart that are drawn by the library
+ * itself (SVG links, the node group wrappers) and therefore can't be reached
+ * by the inline styles inside `nodeContent`. Everything is theme-token driven
+ * so light/dark switch with no re-render.
+ */
+
+.org-tree {
+	width: 100%;
+	height: 100%;
+}
+
+/* Connector lines between nodes. */
+.org-tree path.link {
+	stroke: var(--border);
+	stroke-width: 1.5px;
+	fill: none;
+}
+
+/* Smooth the node + content transitions the library animates. */
+.org-tree .node-foreign-object-div > div {
+	transition:
+		box-shadow 150ms ease,
+		transform 150ms ease;
+}
+
+.org-tree .node-button-foreign-object .node-button-div {
+	cursor: pointer;
+}
+
+/* Theme-aware logo swap inside the root node. */
+.org-tree .org-logo-dark {
+	display: none;
+}
+.dark .org-tree .org-logo-light {
+	display: none;
+}
+.dark .org-tree .org-logo-dark {
+	display: block;
+}

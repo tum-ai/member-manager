@@ -406,6 +406,28 @@ insert into public.member_change_requests (
         '00000000-0000-0000-0000-000000000001',
         now() - interval '1 day',
         now() - interval '3 days'
+    ),
+    (
+        '20000000-0000-0000-0000-000000000004',
+        '00000000-0000-0000-0000-000000000011',
+        'pending',
+        '{"member_role": "Team Lead", "department": "Marketing"}'::jsonb,
+        'Stepping up to lead the marketing team next semester.',
+        null,
+        null,
+        null,
+        now() - interval '6 hours'
+    ),
+    (
+        '20000000-0000-0000-0000-000000000005',
+        '00000000-0000-0000-0000-000000000005',
+        'pending',
+        '{"member_status": "alumni", "batch": "WS22"}'::jsonb,
+        'Finished my studies this spring — please move me to alumni.',
+        null,
+        null,
+        null,
+        now() - interval '3 hours'
     )
 on conflict (id) do update set
     user_id = excluded.user_id,
@@ -457,6 +479,26 @@ insert into public.engagement_certificate_requests (
         '00000000-0000-0000-0000-000000000001',
         now() - interval '2 days',
         now() - interval '3 days'
+    ),
+    (
+        '30000000-0000-0000-0000-000000000004',
+        '00000000-0000-0000-0000-000000000011',
+        'pending',
+        '[{"id":"seed-engagement-4","startDate":"2024-10-01","endDate":"","isStillActive":true,"weeklyHours":"8","department":"Marketing","isTeamLead":true,"specialRole":"Team Lead","tasksDescription":"Led marketing campaigns and managed the content calendar across channels."}]'::jsonb,
+        null,
+        null,
+        null,
+        now() - interval '5 hours'
+    ),
+    (
+        '30000000-0000-0000-0000-000000000005',
+        '00000000-0000-0000-0000-000000000005',
+        'pending',
+        '[{"id":"seed-engagement-5a","startDate":"2023-04-01","endDate":"2024-03-31","isStillActive":false,"weeklyHours":"6","department":"Research","isTeamLead":false,"tasksDescription":"Contributed to the perception research project and co-authored a workshop paper."},{"id":"seed-engagement-5b","startDate":"2024-04-01","endDate":"","isStillActive":true,"weeklyHours":"10","department":"Software Development","isTeamLead":true,"specialRole":"Team Lead","tasksDescription":"Led the platform team and mentored new contributors."}]'::jsonb,
+        null,
+        null,
+        null,
+        now() - interval '2 hours'
     )
 on conflict (id) do update set
     user_id = excluded.user_id,
@@ -628,3 +670,466 @@ on conflict (id) do update set
     bb_sync_attempts = excluded.bb_sync_attempts,
     bb_last_sync_attempt_at = excluded.bb_last_sync_attempt_at,
     bb_synced_by = excluded.bb_synced_by;
+
+-- =========================================================================
+-- Broaden SEPA + agreement coverage to every seeded member so reimbursement
+-- and payment flows can be exercised from any local login (not just the four
+-- accounts above). Existing rows are left untouched (`do nothing`).
+-- =========================================================================
+insert into public.sepa (user_id, iban, bic, bank_name, mandate_agreed, privacy_agreed)
+select m.user_id, 'DE89370400440532013000', 'COBADEFFXXX', 'Commerzbank', true, true
+from public.members m
+on conflict (user_id) do nothing;
+
+insert into public.member_agreements (
+    user_id, sepa_mandate_agreed, privacy_policy_agreed, data_privacy_notice_agreed
+)
+select m.user_id, true, true, true
+from public.members m
+on conflict (user_id) do nothing;
+
+-- =========================================================================
+-- Member CVs (metadata only). Storage objects cannot be created from SQL, so
+-- the referenced PDF does not exist in the `member-cvs` bucket — the CV panel
+-- renders the version/history UI, but the download/signed-URL action will 404.
+-- This is intentional and sufficient for verifying the CV UI locally.
+-- =========================================================================
+insert into public.member_cvs (
+    id, user_id, storage_bucket, storage_path, original_filename, mime_type,
+    size_bytes, sha256, source, version, is_current, uploaded_at, uploaded_by_user_id
+) values
+    (
+        '50000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000001',
+        'member-cvs',
+        '00000000-0000-0000-0000-000000000001/seed-cv-v1.pdf',
+        'ada-president-cv.pdf',
+        'application/pdf',
+        24576,
+        '0000000000000000000000000000000000000000000000000000000000000001',
+        'admin_upload',
+        1,
+        false,
+        now() - interval '60 days',
+        '00000000-0000-0000-0000-000000000001'
+    ),
+    (
+        '50000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-000000000001',
+        'member-cvs',
+        '00000000-0000-0000-0000-000000000001/seed-cv-v2.pdf',
+        'ada-president-cv.pdf',
+        'application/pdf',
+        28672,
+        '0000000000000000000000000000000000000000000000000000000000000002',
+        'member_upload',
+        2,
+        true,
+        now() - interval '10 days',
+        '00000000-0000-0000-0000-000000000001'
+    ),
+    (
+        '50000000-0000-0000-0000-000000000003',
+        '00000000-0000-0000-0000-000000000020',
+        'member-cvs',
+        '00000000-0000-0000-0000-000000000020/seed-cv-v1.pdf',
+        'regular-user-cv.pdf',
+        'application/pdf',
+        20480,
+        '0000000000000000000000000000000000000000000000000000000000000003',
+        'application',
+        1,
+        true,
+        now() - interval '5 days',
+        '00000000-0000-0000-0000-000000000020'
+    )
+on conflict (id) do nothing;
+
+-- =========================================================================
+-- TUM.ai Days: one upcoming (not yet sent) and one past (already sent) event,
+-- plus a spread of yes/no RSVPs so the manage view and response stats render.
+-- =========================================================================
+insert into public.tumai_days (id, agenda, scheduled_at, sent_at, created_at) values
+    (
+        '60000000-0000-0000-0000-000000000001',
+        E'Upcoming TUM.ai Day\n- 18:00 Welcome & org updates\n- 18:30 Department breakouts\n- 19:30 Social & pizza',
+        now() + interval '9 days',
+        null,
+        now() - interval '2 days'
+    ),
+    (
+        '60000000-0000-0000-0000-000000000002',
+        E'Past TUM.ai Day\n- Semester kickoff\n- Makeathon retro\n- New member onboarding',
+        now() - interval '21 days',
+        now() - interval '28 days',
+        now() - interval '30 days'
+    )
+on conflict (id) do nothing;
+
+insert into public.tumai_day_responses (id, tumai_day_id, user_id, status, reason) values
+    ('61000000-0000-0000-0000-000000000001', '60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000001', 'yes', null),
+    ('61000000-0000-0000-0000-000000000002', '60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000003', 'yes', null),
+    ('61000000-0000-0000-0000-000000000003', '60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000006', 'no', 'Travelling that week.'),
+    ('61000000-0000-0000-0000-000000000004', '60000000-0000-0000-0000-000000000001', '00000000-0000-0000-0000-000000000011', 'yes', null),
+    ('61000000-0000-0000-0000-000000000005', '60000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000001', 'yes', null),
+    ('61000000-0000-0000-0000-000000000006', '60000000-0000-0000-0000-000000000002', '00000000-0000-0000-0000-000000000020', 'no', 'Exam period.')
+on conflict (id) do nothing;
+
+-- =========================================================================
+-- Job posting requests covering all review states and job types. The table's
+-- review_state_check requires: pending => no reviewer/published; approved =>
+-- reviewed_by + reviewed_at + published_at all set; rejected => reviewed_by +
+-- reviewed_at set, published_at null. Admin (user 1) is the reviewer.
+-- =========================================================================
+insert into public.job_posting_requests (
+    id, user_id, status, title, organization_name, description_markdown,
+    call_to_action, job_type, location, contact_name, contact_email, contact_role,
+    external_url, expires_at, published_at, review_note, reviewed_by, reviewed_at, created_at
+) values
+    (
+        '70000000-0000-0000-0000-000000000001',
+        '00000000-0000-0000-0000-000000000020',
+        'pending',
+        'Working Student – Machine Learning',
+        'Acme AI GmbH',
+        E'## About the role\nSupport our ML team with data pipelines and model evaluation.\n\n- 15–20h/week\n- Hybrid in Munich',
+        'Apply now',
+        'working_student',
+        'Munich, Germany',
+        'Hanna Recruiter',
+        'jobs@acme-ai.example',
+        'Talent Lead',
+        'https://acme-ai.example/careers/ml-werkstudent',
+        now() + interval '30 days',
+        null,
+        null,
+        null,
+        null,
+        now() - interval '1 day'
+    ),
+    (
+        '70000000-0000-0000-0000-000000000002',
+        '00000000-0000-0000-0000-000000000011',
+        'approved',
+        'AI Research Internship (6 months)',
+        'DeepLab Research',
+        E'## Internship\nWork on applied LLM research alongside our core team.\n\n- Full-time, 6 months\n- Stipend provided',
+        'Apply now',
+        'internship',
+        'Berlin, Germany (hybrid)',
+        'Jonas Lead',
+        'careers@deeplab.example',
+        'Research Manager',
+        'https://deeplab.example/internships',
+        now() + interval '45 days',
+        now() - interval '4 days',
+        'Approved — relevant to our research members.',
+        '00000000-0000-0000-0000-000000000001',
+        now() - interval '4 days',
+        now() - interval '6 days'
+    ),
+    (
+        '70000000-0000-0000-0000-000000000003',
+        '00000000-0000-0000-0000-000000000005',
+        'approved',
+        'Master Thesis – Robotics Perception',
+        'TUM Robotics Lab',
+        E'## Thesis opportunity\nDevelop perception models for autonomous manipulation.\n\n- 6 months\n- Co-supervised',
+        'Get in touch',
+        'thesis',
+        'Garching, Germany',
+        'Prof. Dr. Maier',
+        'thesis@robotics.tum.example',
+        'Supervisor',
+        null,
+        now() + interval '90 days',
+        now() - interval '2 days',
+        'Approved.',
+        '00000000-0000-0000-0000-000000000001',
+        now() - interval '2 days',
+        now() - interval '3 days'
+    ),
+    (
+        '70000000-0000-0000-0000-000000000004',
+        '00000000-0000-0000-0000-000000000006',
+        'rejected',
+        'Unpaid "growth hacker" gig',
+        'Sketchy Startup',
+        E'Vague description, no compensation details, off-topic for members.',
+        'Apply now',
+        'other',
+        'Remote',
+        'Anon Founder',
+        'founder@sketchy.example',
+        null,
+        null,
+        null,
+        null,
+        'Rejected — does not meet job board guidelines (no compensation, off-topic).',
+        '00000000-0000-0000-0000-000000000001',
+        now() - interval '1 day',
+        now() - interval '2 days'
+    ),
+    (
+        '70000000-0000-0000-0000-000000000005',
+        '00000000-0000-0000-0000-000000000021',
+        'approved',
+        'Full-Time ML Engineer',
+        'Venture Co',
+        E'## Full-time role\nBuild and ship ML features end to end.\n\n- Competitive salary\n- Munich-based',
+        'Apply now',
+        'full_time',
+        'Munich, Germany',
+        'Valerie Venture',
+        'hiring@venture.example',
+        'CTO',
+        'https://venture.example/jobs/ml-engineer',
+        now() + interval '60 days',
+        now() - interval '7 days',
+        'Approved.',
+        '00000000-0000-0000-0000-000000000001',
+        now() - interval '7 days',
+        now() - interval '9 days'
+    ),
+    (
+        '70000000-0000-0000-0000-000000000006',
+        '00000000-0000-0000-0000-000000000018',
+        'pending',
+        'Part-Time Frontend Developer',
+        'Pixel Labs',
+        E'## Frontend role\nBuild delightful UI with React and TypeScript.\n\n- 12h/week\n- Remote-friendly',
+        'Apply now',
+        'working_student',
+        'Remote (EU)',
+        'Mara Hiring',
+        'jobs@pixellabs.example',
+        'Engineering Lead',
+        'https://pixellabs.example/careers/frontend',
+        now() + interval '40 days',
+        null,
+        null,
+        null,
+        null,
+        now() - interval '8 hours'
+    ),
+    (
+        '70000000-0000-0000-0000-000000000007',
+        '00000000-0000-0000-0000-000000000003',
+        'pending',
+        'Master Thesis – LLM Evaluation',
+        'TUM Data Lab',
+        E'## Thesis\nDesign evaluation harnesses for large language models.\n\n- 6 months\n- Co-supervised with industry',
+        'Get in touch',
+        'thesis',
+        'Garching, Germany',
+        'Dr. Schmidt',
+        'thesis@datalab.tum.example',
+        'Supervisor',
+        null,
+        now() + interval '120 days',
+        null,
+        null,
+        null,
+        null,
+        now() - interval '5 hours'
+    )
+on conflict (id) do nothing;
+
+-- =========================================================================
+-- Contract submissions referencing the templates seeded by migrations
+-- (template 001 = Long-Term Partnership, 002 = Hackathon, 003 = Jury). Covers
+-- the submitted -> in_review -> approved -> sent_to_partner -> completed and
+-- rejected states so the contract review queue and detail views render.
+-- =========================================================================
+insert into public.contract_submissions (
+    id, template_id, submitter_user_id, form_data, generated_contract_text,
+    status, notes, feedback_message, signature_token, signature_token_expires_at,
+    signer_name, signed_at, reviewed_by, reviewed_at, sent_to_partner_at,
+    completed_at, submitted_at, created_at, updated_at
+) values
+    (
+        '80000000-0000-0000-0000-000000000001',
+        '10000000-0000-4000-8000-000000000001',
+        '00000000-0000-0000-0000-000000000015',
+        jsonb_build_object(
+            'partner_company_name', 'Globex SE',
+            'partner_address', 'Hauptstr. 1, 80333 Munich',
+            'partner_representative', 'Dr. Erika Mustermann',
+            'partner_description', 'Industrial automation company.',
+            'sponsoring_package', 'long_term_gold',
+            'payment_due_date', '2026-08-01',
+            'start_date', '2026-07-01',
+            'end_date', '2027-06-30',
+            'tumai_contact_name', 'Paula Partners',
+            'tumai_contact_email', 'partners-sponsors-lead@example.com',
+            'partner_contact_name', 'Erika Mustermann',
+            'partner_contact_email', 'erika@globex.example',
+            'tumai_signer_name', 'Ada President'
+        ),
+        'Generated contract text for Globex SE (Long-Term Partnership, Gold).',
+        'submitted', null, null, null, null, null, null, null, null, null, null,
+        now() - interval '3 days', now() - interval '3 days', now() - interval '3 days'
+    ),
+    (
+        '80000000-0000-0000-0000-000000000002',
+        '10000000-0000-4000-8000-000000000002',
+        '00000000-0000-0000-0000-000000000016',
+        jsonb_build_object(
+            'partner_company_name', 'Initech GmbH',
+            'partner_address', 'Lindwurmstr. 5, 80337 Munich',
+            'partner_representative', 'Peter Initech',
+            'event_name', 'TUM.ai Makeathon 2026',
+            'event_start_date', '2026-09-12',
+            'event_end_date', '2026-09-14',
+            'event_location', 'Munich',
+            'sponsoring_package', 'ehl_silver',
+            'tumai_signer_name', 'Ada President',
+            'partner_contact_email', 'peter@initech.example'
+        ),
+        'Generated contract text for Initech GmbH (Hackathon, Silver).',
+        'in_review', 'Checking liability clause.', null, null, null, null, null,
+        null, null, null, null,
+        now() - interval '6 days', now() - interval '6 days', now() - interval '5 days'
+    ),
+    (
+        '80000000-0000-0000-0000-000000000003',
+        '10000000-0000-4000-8000-000000000001',
+        '00000000-0000-0000-0000-000000000015',
+        jsonb_build_object(
+            'partner_company_name', 'Umbrella AG',
+            'partner_address', 'Schellingstr. 4, 80799 Munich',
+            'partner_representative', 'Alice Umbrella',
+            'partner_description', 'Biotech research firm.',
+            'sponsoring_package', 'long_term_silver',
+            'payment_due_date', '2026-07-15',
+            'start_date', '2026-07-01',
+            'end_date', '2027-06-30',
+            'tumai_contact_name', 'Paula Partners',
+            'tumai_contact_email', 'partners-sponsors-lead@example.com',
+            'partner_contact_name', 'Alice Umbrella',
+            'partner_contact_email', 'alice@umbrella.example',
+            'tumai_signer_name', 'Ada President'
+        ),
+        'Generated contract text for Umbrella AG (Long-Term Partnership, Silver).',
+        'approved', 'Looks good, ready to send.', null, null, null, null, null,
+        '00000000-0000-0000-0000-000000000001', now() - interval '2 days', null, null,
+        now() - interval '8 days', now() - interval '8 days', now() - interval '2 days'
+    ),
+    (
+        '80000000-0000-0000-0000-000000000004',
+        '10000000-0000-4000-8000-000000000001',
+        '00000000-0000-0000-0000-000000000015',
+        jsonb_build_object(
+            'partner_company_name', 'Soylent Corp',
+            'partner_address', 'Marienplatz 8, 80331 Munich',
+            'partner_representative', 'Bob Soylent',
+            'partner_description', 'Food technology company.',
+            'sponsoring_package', 'long_term_bronze',
+            'payment_due_date', '2026-09-01',
+            'start_date', '2026-08-01',
+            'end_date', '2027-07-31',
+            'tumai_contact_name', 'Paula Partners',
+            'tumai_contact_email', 'partners-sponsors-lead@example.com',
+            'partner_contact_name', 'Bob Soylent',
+            'partner_contact_email', 'bob@soylent.example',
+            'tumai_signer_name', 'Ada President'
+        ),
+        'Generated contract text for Soylent Corp (Long-Term Partnership, Bronze).',
+        'sent_to_partner', null, null,
+        'seed-signature-token-soylent-0004', now() + interval '14 days',
+        null, null,
+        '00000000-0000-0000-0000-000000000001', now() - interval '4 days',
+        now() - interval '3 days', null,
+        now() - interval '10 days', now() - interval '10 days', now() - interval '3 days'
+    ),
+    (
+        '80000000-0000-0000-0000-000000000005',
+        '10000000-0000-4000-8000-000000000003',
+        '00000000-0000-0000-0000-000000000016',
+        jsonb_build_object(
+            'partner_company_name', 'Hooli LLC',
+            'partner_address', 'Sendlinger Str. 10, 80331 Munich',
+            'partner_representative', 'Gavin Hooli',
+            'event_start_date', '2026-06-01',
+            'event_end_date', '2026-06-02',
+            'event_location', 'Munich',
+            'sponsoring_package', 'e_lab_final',
+            'tumai_signer_name', 'Ada President',
+            'partner_contact_email', 'gavin@hooli.example'
+        ),
+        'Generated contract text for Hooli LLC (Jury seat, Final).',
+        'completed', null, null, null, null,
+        'Gavin Hooli', now() - interval '1 day',
+        '00000000-0000-0000-0000-000000000001', now() - interval '6 days',
+        now() - interval '5 days', now() - interval '1 day',
+        now() - interval '12 days', now() - interval '12 days', now() - interval '1 day'
+    ),
+    (
+        '80000000-0000-0000-0000-000000000006',
+        '10000000-0000-4000-8000-000000000002',
+        '00000000-0000-0000-0000-000000000016',
+        jsonb_build_object(
+            'partner_company_name', 'Vandelay Industries',
+            'partner_address', 'Unknown',
+            'partner_representative', 'Art Vandelay',
+            'event_name', 'TUM.ai Makeathon 2026',
+            'event_start_date', '2026-09-12',
+            'event_end_date', '2026-09-14',
+            'event_location', 'Munich',
+            'sponsoring_package', 'ehl_bronze',
+            'tumai_signer_name', 'Ada President',
+            'partner_contact_email', 'art@vandelay.example'
+        ),
+        'Generated contract text for Vandelay Industries (Hackathon, Bronze).',
+        'rejected', null, 'Partner could not confirm budget; resubmit next quarter.',
+        null, null, null, null,
+        '00000000-0000-0000-0000-000000000001', now() - interval '1 day', null, null,
+        now() - interval '5 days', now() - interval '5 days', now() - interval '1 day'
+    )
+on conflict (id) do nothing;
+
+-- A couple of document versions for the sent-to-partner submission, and the
+-- partner's comment, so the contract detail/version history renders.
+insert into public.contract_document_versions (
+    id, submission_id, version_number, source, rendered_text, rendered_html,
+    form_data_snapshot, created_by, created_at
+) values
+    (
+        '81000000-0000-0000-0000-000000000001',
+        '80000000-0000-0000-0000-000000000004',
+        1,
+        'generated',
+        'Generated contract text for Soylent Corp (Long-Term Partnership, Bronze).',
+        '<p>Generated contract text for Soylent Corp (Long-Term Partnership, Bronze).</p>',
+        '{}'::jsonb,
+        '00000000-0000-0000-0000-000000000001',
+        now() - interval '4 days'
+    ),
+    (
+        '81000000-0000-0000-0000-000000000002',
+        '80000000-0000-0000-0000-000000000004',
+        2,
+        'sent_to_partner',
+        'Revised contract text sent to Soylent Corp for signature.',
+        '<p>Revised contract text sent to Soylent Corp for signature.</p>',
+        '{}'::jsonb,
+        '00000000-0000-0000-0000-000000000001',
+        now() - interval '3 days'
+    )
+on conflict (id) do nothing;
+
+insert into public.contract_partner_comments (
+    id, submission_id, author_type, author_name, author_email, comment,
+    document_version_id, created_at
+) values
+    (
+        '82000000-0000-0000-0000-000000000001',
+        '80000000-0000-0000-0000-000000000004',
+        'partner',
+        'Bob Soylent',
+        'bob@soylent.example',
+        'Could we adjust the payment due date to September 15th?',
+        '81000000-0000-0000-0000-000000000002',
+        now() - interval '2 days'
+    )
+on conflict (id) do nothing;

@@ -4,7 +4,7 @@ import { loginAsLocalAdmin } from "./helpers";
 test("keeps the session across a reload", async ({ page }) => {
 	await loginAsLocalAdmin(page);
 	await page.reload();
-	await expect(page.getByRole("link", { name: "Tools" })).toBeVisible();
+	await expect(page.getByRole("button", { name: "Tools" })).toBeVisible();
 });
 
 test("navigates to the members directory", async ({ page }) => {

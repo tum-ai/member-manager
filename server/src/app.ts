@@ -4,6 +4,7 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import errorHandler from "./plugins/errorHandler.js";
 import { adminRoutes } from "./routes/admin.js";
+import { avatarProxyRoutes } from "./routes/avatarProxy.js";
 import { bugReportRoutes } from "./routes/bugReports.js";
 import { changeRequestRoutes } from "./routes/changeRequests.js";
 import { contractRoutes } from "./routes/contracts.js";
@@ -81,6 +82,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 	await server.register(
 		async (api) => {
 			await api.register(slackInteractionRoutes);
+			await api.register(avatarProxyRoutes);
 			await api.register(bugReportRoutes);
 			await api.register(memberRoutes);
 			await api.register(cvRoutes);

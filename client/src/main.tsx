@@ -1,13 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
-import "./theme-augmentation";
-import { Box, Typography } from "@mui/material";
-import CssBaseline from "@mui/material/CssBaseline";
-import { ThemeProvider } from "@mui/material/styles";
-import getAppTheme, { getPreferredColorMode } from "./theme";
-
-const startupTheme = getAppTheme(getPreferredColorMode());
 
 function getErrorMessage(error: unknown): string {
 	if (error instanceof Error) {
@@ -26,28 +19,14 @@ function renderStartupError(message: string): void {
 
 	ReactDOM.createRoot(rootElement).render(
 		<React.StrictMode>
-			<ThemeProvider theme={startupTheme}>
-				<CssBaseline />
-				<Box
-					sx={{
-						display: "flex",
-						flexDirection: "column",
-						justifyContent: "center",
-						alignItems: "center",
-						minHeight: "100vh",
-						px: 3,
-						textAlign: "center",
-						gap: 2,
-					}}
-				>
-					<Typography variant="h4">App failed to start</Typography>
-					<Typography color="text.secondary">{message}</Typography>
-					<Typography color="text.secondary">
-						Check client/.env.local or client/.env, then restart the Vite dev
-						server.
-					</Typography>
-				</Box>
-			</ThemeProvider>
+			<div className="flex min-h-screen flex-col items-center justify-center gap-2 px-6 text-center">
+				<h1 className="text-2xl font-bold">App failed to start</h1>
+				<p className="text-muted-foreground">{message}</p>
+				<p className="text-muted-foreground">
+					Check client/.env.local or client/.env, then restart the Vite dev
+					server.
+				</p>
+			</div>
 		</React.StrictMode>,
 	);
 }
@@ -63,11 +42,21 @@ async function bootstrap(): Promise<void> {
 
 	try {
 		const { default: App } = await import("./App");
+		const { ThemeProvider } = await import("next-themes");
+		const { Toaster } = await import("./components/ui/sonner");
 
 		console.log("Root element found, mounting...");
 		ReactDOM.createRoot(rootElement).render(
 			<React.StrictMode>
-				<App />
+				<ThemeProvider
+					attribute="class"
+					defaultTheme="system"
+					enableSystem
+					storageKey="member-manager-color-mode"
+				>
+					<App />
+					<Toaster />
+				</ThemeProvider>
 			</React.StrictMode>,
 		);
 		console.log("App mounted successfully.");
