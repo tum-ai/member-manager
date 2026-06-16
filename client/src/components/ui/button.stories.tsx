@@ -59,7 +59,10 @@ export const DisabledBlocksClick: Story = {
 		const canvas = within(canvasElement);
 		const button = canvas.getByRole("button", { name: "Disabled" });
 		await expect(button).toBeDisabled();
-		await userEvent.click(button);
+		// The disabled button has `pointer-events: none`; userEvent.click would
+		// throw before dispatching. Skip the pointer-events check so the click is
+		// attempted — a disabled button still fires no handler.
+		await userEvent.click(button, { pointerEventsCheck: 0 });
 		await expect(args.onClick).not.toHaveBeenCalled();
 	},
 };
