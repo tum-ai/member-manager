@@ -1,0 +1,33 @@
+# Spell-check config for `typos` (crate-ci/typos).
+# This repo is bilingual (English code/docs + German legal/contract content),
+# so German prose files are excluded wholesale and a small allowlist covers
+# intentional identifiers/fixtures. Prefer fixing real typos over adding words.
+
+[files]
+extend-exclude = [
+  "pnpm-lock.yaml",
+  "*.svg",
+  # Vendored TUM.ai brand assets (German source CSS, third-party).
+  "docs/brand/**",
+  # German legal/contract template prose embedded in migrations.
+  "supabase/migrations/*contract*template*.sql",
+  # Seeded demo data contains German names/strings.
+  "supabase/seed.sql",
+]
+
+[default.extend-words]
+# Intentional test fixtures / identifiers, not misspellings.
+Gti = "Gti"
+INSER = "INSER"
+# "PnS" (Partnerships & Sponsoring) tokenizes to "Pn".
+Pn = "Pn"
+# Umlaut transliteration map in simplePdf.ts (ü -> ue, Ü -> Ue).
+ue = "ue"
+Ue = "Ue"
+# Degree abbreviation (Bachelor of Arts).
+BA = "BA"
+# PNG / zlib technical terms in receipt image processing.
+Flate = "Flate"
+paeth = "paeth"
+# German month name inside a .docx filename referenced in docs.
+Februar = "Februar"

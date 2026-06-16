@@ -175,7 +175,7 @@ describe("ReimbursementReviewPage", () => {
 				action: "approve",
 			}),
 		);
-	}, 10_000);
+	}, 30_000);
 
 	it("keeps finance review badges non-duplicative in collapsed rows", () => {
 		renderPage();
@@ -273,7 +273,7 @@ describe("ReimbursementReviewPage", () => {
 		expect(
 			screen.getByText(/no reimbursement requests match/i),
 		).toBeInTheDocument();
-	}, 10_000);
+	}, 30_000);
 
 	it("exposes receipt links and bulk downloads selected receipts when endpoints are available", async () => {
 		const user = userEvent.setup();

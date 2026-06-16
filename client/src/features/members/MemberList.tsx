@@ -258,13 +258,13 @@ export default function MemberList() {
 								</SelectTrigger>
 								<SelectContent>
 									<SelectItem value={ALL_VALUE}>All</SelectItem>
-									{MEMBER_ROLES.filter((item) => item !== "Alumni").map(
-										(item) => (
-											<SelectItem key={item} value={item}>
-												{item}
-											</SelectItem>
-										),
-									)}
+									{MEMBER_ROLES.filter(
+										(item) => (item as string) !== "Alumni",
+									).map((item) => (
+										<SelectItem key={item} value={item}>
+											{item}
+										</SelectItem>
+									))}
 								</SelectContent>
 							</Select>
 						</div>

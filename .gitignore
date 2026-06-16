@@ -8,6 +8,12 @@ node_modules/
 coverage/
 *.lcov
 
+# Playwright / E2E
+/playwright-report/
+/test-results/
+/blob-report/
+/playwright/.cache/
+
 # Production / Build
 dist/
 build/

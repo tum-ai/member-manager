@@ -33,9 +33,37 @@ export default defineConfig(({ mode }) => {
 			globals: true,
 			environment: "jsdom",
 			setupFiles: "./src/test/setup.ts",
+			// v8 coverage instrumentation slows userEvent-heavy tests; give them
+			// headroom so they don't time out on slower CI runners.
+			testTimeout: 30_000,
+			hookTimeout: 30_000,
 			env: {
 				VITE_SUPABASE_URL: "https://test.supabase.co",
 				VITE_SUPABASE_ANON_KEY: "test-anon-key",
+			},
+			coverage: {
+				provider: "v8",
+				reporter: ["text-summary", "json-summary", "lcov"],
+				// Count every source file, not just those a test imports, so a new
+				// untested file drags the ratchet down instead of slipping past it.
+				all: true,
+				include: ["src/**/*.{ts,tsx}"],
+				exclude: [
+					"src/**/*.d.ts",
+					"src/test/**",
+					"src/**/*.stories.{ts,tsx}",
+					"src/main.tsx",
+					"src/vite-env.d.ts",
+				],
+				// Ratcheting floor: thresholds sit just below the measured baseline so
+				// coverage can only regress slightly before CI fails. Raise these
+				// (never lower) as coverage improves. See docs/development.md.
+				thresholds: {
+					statements: 34,
+					branches: 35,
+					functions: 35,
+					lines: 34,
+				},
 			},
 		},
 	};
