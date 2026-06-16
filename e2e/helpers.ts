@@ -25,11 +25,11 @@ export async function loginAsLocalMember(page: Page): Promise<void> {
 	await expectAuthenticated(page);
 }
 
-// The authenticated shell renders the persistent "Tools" sidebar group as a
-// collapsible trigger button (shadcn sidebar). Its presence is a stable signal
-// that auth completed and the app shell mounted.
+// The authenticated shell renders the persistent "Tools" sidebar section label
+// (shadcn sidebar group label). Its presence is a stable signal that auth
+// completed and the app shell mounted.
 export async function expectAuthenticated(page: Page): Promise<void> {
-	await expect(page.getByRole("button", { name: "Tools" })).toBeVisible();
+	await expect(page.getByText("Tools", { exact: true })).toBeVisible();
 }
 
 // Sonner toasts render their message as plain text; assert on the message we

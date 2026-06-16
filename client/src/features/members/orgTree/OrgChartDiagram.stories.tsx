@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
+import { ToastProvider } from "../../../contexts/ToastContext";
 import type { Member } from "../../../types";
 import OrgChartDiagram from "./OrgChartDiagram";
 import { buildOrgTree } from "./orgTreeData";
@@ -82,6 +83,14 @@ const meta = {
 	component: OrgChartDiagram,
 	tags: ["autodocs"],
 	parameters: { layout: "fullscreen" },
+	// OrgChartDiagram calls useToast(), so it must render inside a ToastProvider.
+	decorators: [
+		(Story) => (
+			<ToastProvider>
+				<Story />
+			</ToastProvider>
+		),
+	],
 } satisfies Meta<typeof OrgChartDiagram>;
 
 export default meta;

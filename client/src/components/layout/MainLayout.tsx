@@ -5,19 +5,24 @@ import {
 	CalendarDays,
 	ChevronRight,
 	FileText,
-	FolderKanban,
-	LayoutGrid,
+	FlaskConical,
+	Handshake,
+	HeartHandshake,
 	LogOut,
+	type LucideIcon,
 	Moon,
 	Network,
 	Receipt,
+	Scale,
 	ScrollText,
 	Search,
 	Settings,
 	ShieldCheck,
 	Sun,
+	Target,
 	User as UserIcon,
 	Users,
+	Wallet,
 	Workflow,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -41,6 +46,7 @@ import {
 	SidebarContent,
 	SidebarFooter,
 	SidebarGroup,
+	SidebarGroupLabel,
 	SidebarHeader,
 	SidebarInset,
 	SidebarMenu,
@@ -71,8 +77,45 @@ interface MainLayoutProps {
 interface NavLeaf {
 	label: string;
 	to: string;
-	icon: typeof Receipt;
+	icon: LucideIcon;
+	/** Omitted means visible; set false to gate by permission/breakpoint. */
+	visible?: boolean;
 }
+
+/** A collapsible group of leaves — e.g. one department inside the Tools section. */
+interface NavFolder {
+	key: string;
+	label: string;
+	icon: LucideIcon;
+	/**
+	 * Extra route prefixes that mark this folder active/open (for sub-pages not
+	 * present as items, e.g. a submission detail view). The folder is also
+	 * active whenever the current route exactly matches one of its items, so
+	 * `match` is only needed for deeper routes.
+	 */
+	match?: string[];
+	items: NavLeaf[];
+	visible?: boolean;
+}
+
+/** A labeled section (the "middle title") holding leaves and/or folders. */
+interface NavSection {
+	key: string;
+	label?: string;
+	entries: Array<NavLeaf | NavFolder>;
+	visible?: boolean;
+}
+
+const isFolder = (entry: NavLeaf | NavFolder): entry is NavFolder =>
+	"items" in entry;
+
+// Profile lives at `/` (and the legacy `/profile` redirect), so it can't use a
+// plain prefix match — that would light up for every route.
+const isLeafActive = (pathname: string, to: string) =>
+	to === "/" ? pathname === "/" || pathname === "/profile" : pathname === to;
+
+const isWithinPrefix = (pathname: string, prefix: string) =>
+	pathname === prefix || pathname.startsWith(`${prefix}/`);
 
 export default function MainLayout({
 	children,
@@ -89,84 +132,144 @@ export default function MainLayout({
 	const showTumaiDays = permissions.includes("tumai_days.manage");
 
 	const pathname = location.pathname;
-	const isActive = (to: string) => pathname === to;
-	const isWithin = (prefix: string) =>
-		pathname === prefix || pathname.startsWith(`${prefix}/`);
 
-	const toolItems: NavLeaf[] = [
-		{ label: "Reimbursement", to: "/tools/reimbursement", icon: Receipt },
+	const sections: NavSection[] = [
 		{
-			label: "Engagement Certificate",
-			to: "/tools/engagement-certificate",
-			icon: Award,
-		},
-		{ label: "Job Board", to: "/tools/jobs", icon: Briefcase },
-		...(showTumaiDays
-			? [
-					{
-						label: "TUM.ai Days",
-						to: "/tools/tumai-days",
-						icon: CalendarDays,
-					} as NavLeaf,
-				]
-			: []),
-		...(showFinanceReview
-			? [
-					{
-						label: "Finance Review",
-						to: "/tools/reimbursement/review",
-						icon: ShieldCheck,
-					} as NavLeaf,
-				]
-			: []),
-	];
-
-	const memberItems: NavLeaf[] = [
-		{ label: "Browse", to: "/members", icon: Search },
-		{ label: "Org Chart", to: "/members/org-chart", icon: Network },
-		...(isMobile
-			? []
-			: [
-					{
-						label: "Org Tree",
-						to: "/members/org-tree",
-						icon: Workflow,
-					} as NavLeaf,
-				]),
-		{ label: "Projects", to: "/members/projects", icon: FolderKanban },
-	];
-
-	const contractItems: NavLeaf[] = [
-		{ label: "Create Contract", to: "/contracts", icon: FileText },
-		{
-			label: "Submissions",
-			to: "/contracts/submissions",
-			icon: ScrollText,
-		},
-		{ label: "Templates", to: "/contracts/templates", icon: Settings },
-	];
-
-	const adminItems: NavLeaf[] = [
-		{ label: "Members", to: "/admin", icon: Users },
-		{
-			label: "Change Requests",
-			to: "/admin/change-requests",
-			icon: FileText,
+			key: "home",
+			entries: [{ label: "Profile", to: "/", icon: UserIcon }],
 		},
 		{
-			label: "Certificate Requests",
-			to: "/admin/certificate-requests",
-			icon: Award,
+			key: "tumai",
+			label: "TUM.ai",
+			entries: [
+				{
+					key: "members",
+					label: "Members",
+					icon: Users,
+					items: [
+						{ label: "Browse", to: "/members", icon: Search },
+						{ label: "Org Chart", to: "/members/org-chart", icon: Network },
+						{
+							label: "Org Tree",
+							to: "/members/org-tree",
+							icon: Workflow,
+							visible: !isMobile,
+						},
+					],
+				},
+				{ label: "Research", to: "/members/research", icon: FlaskConical },
+				{ label: "Task Forces", to: "/members/innovation", icon: Target },
+			],
 		},
-		{ label: "Job Requests", to: "/admin/job-requests", icon: Briefcase },
+		{
+			key: "tools",
+			label: "Tools",
+			entries: [
+				{
+					key: "legal",
+					label: "Legal",
+					icon: Scale,
+					// `/contracts` is the create page and a prefix of every other
+					// contract route, so it covers the whole subtree.
+					match: ["/contracts"],
+					visible: hasContractsAccess,
+					items: [
+						{ label: "Create Contract", to: "/contracts", icon: FileText },
+						{
+							label: "Submissions",
+							to: "/contracts/submissions",
+							icon: ScrollText,
+						},
+						{ label: "Templates", to: "/contracts/templates", icon: Settings },
+					],
+				},
+				{
+					key: "finance",
+					label: "Finance",
+					icon: Wallet,
+					// Finance Review lives under `/tools/reimbursement/review`.
+					match: ["/tools/reimbursement"],
+					items: [
+						{
+							label: "Reimbursement",
+							to: "/tools/reimbursement",
+							icon: Receipt,
+						},
+						{
+							label: "Finance Review",
+							to: "/tools/reimbursement/review",
+							icon: ShieldCheck,
+							visible: showFinanceReview,
+						},
+					],
+				},
+				{
+					key: "tools-community",
+					label: "Community",
+					icon: HeartHandshake,
+					items: [
+						{
+							label: "Engagement Certificate",
+							to: "/tools/engagement-certificate",
+							icon: Award,
+						},
+						{
+							label: "TUM.ai Days",
+							to: "/tools/tumai-days",
+							icon: CalendarDays,
+							visible: showTumaiDays,
+						},
+					],
+				},
+				{
+					key: "partners",
+					label: "Partners & Sponsors",
+					icon: Handshake,
+					match: ["/tools/jobs"],
+					items: [{ label: "Job Board", to: "/tools/jobs", icon: Briefcase }],
+				},
+			],
+		},
+		{
+			key: "administration",
+			label: "Administration",
+			visible: isAdmin,
+			entries: [
+				{ label: "Members", to: "/admin", icon: Users },
+				{
+					label: "Change Requests",
+					to: "/admin/change-requests",
+					icon: FileText,
+				},
+				{
+					label: "Certificate Requests",
+					to: "/admin/certificate-requests",
+					icon: Award,
+				},
+				{ label: "Job Requests", to: "/admin/job-requests", icon: Briefcase },
+			],
+		},
 	];
 
-	const membersOpen = isWithin("/members");
-	const toolsOpen = isWithin("/tools");
-	// `/contracts` is a prefix of nothing else; the create page is exactly
-	// `/contracts`, so treat the whole subtree as the contracts group.
-	const contractsOpen = isWithin("/contracts");
-	const adminOpen = isWithin("/admin");
+	// Drop hidden leaves, then empty folders, then empty/hidden sections so we
+	// never render an empty department or a bare section label.
+	const visibleSections = sections
+		.filter((section) => section.visible !== false)
+		.map((section) => ({
+			...section,
+			entries: section.entries
+				.filter((entry) => entry.visible !== false)
+				.map((entry) =>
+					isFolder(entry)
+						? {
+								...entry,
+								items: entry.items.filter((i) => i.visible !== false),
+							}
+						: entry,
+				)
+				.filter((entry) => !isFolder(entry) || entry.items.length > 0),
+		}))
+		.filter((section) => section.entries.length > 0);
 
 	const userEmail = user?.email ?? "";
 	const displayName = getDisplayName(user) || userEmail || "Account";
@@ -202,162 +305,30 @@ export default function MainLayout({
 				</SidebarHeader>
 
 				<SidebarContent>
-					<SidebarGroup>
-						<SidebarMenu>
-							<SidebarMenuItem>
-								<SidebarMenuButton
-									asChild
-									isActive={pathname === "/" || pathname === "/profile"}
-									tooltip="Profile"
-								>
-									<RouterLink to="/">
-										<UserIcon />
-										<span>Profile</span>
-									</RouterLink>
-								</SidebarMenuButton>
-							</SidebarMenuItem>
-
-							<Collapsible
-								asChild
-								defaultOpen={membersOpen}
-								className="group/collapsible"
-							>
-								<SidebarMenuItem>
-									<CollapsibleTrigger asChild>
-										<SidebarMenuButton isActive={membersOpen} tooltip="Members">
-											<Users />
-											<span>Members</span>
-											<ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
-										</SidebarMenuButton>
-									</CollapsibleTrigger>
-									<CollapsibleContent>
-										<SidebarMenuSub>
-											{memberItems.map((item) => (
-												<SidebarMenuSubItem key={item.to}>
-													<SidebarMenuSubButton
-														asChild
-														isActive={isActive(item.to)}
-													>
-														<RouterLink to={item.to}>
-															<item.icon />
-															<span>{item.label}</span>
-														</RouterLink>
-													</SidebarMenuSubButton>
-												</SidebarMenuSubItem>
-											))}
-										</SidebarMenuSub>
-									</CollapsibleContent>
-								</SidebarMenuItem>
-							</Collapsible>
-
-							{/* Tools — group of quick links; parent only toggles. */}
-							<Collapsible
-								asChild
-								defaultOpen={toolsOpen}
-								className="group/collapsible"
-							>
-								<SidebarMenuItem>
-									<CollapsibleTrigger asChild>
-										<SidebarMenuButton isActive={toolsOpen} tooltip="Tools">
-											<LayoutGrid />
-											<span>Tools</span>
-											<ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
-										</SidebarMenuButton>
-									</CollapsibleTrigger>
-									<CollapsibleContent>
-										<SidebarMenuSub>
-											{toolItems.map((item) => (
-												<SidebarMenuSubItem key={item.to}>
-													<SidebarMenuSubButton
-														asChild
-														isActive={isActive(item.to)}
-													>
-														<RouterLink to={item.to}>
-															<item.icon />
-															<span>{item.label}</span>
-														</RouterLink>
-													</SidebarMenuSubButton>
-												</SidebarMenuSubItem>
-											))}
-										</SidebarMenuSub>
-									</CollapsibleContent>
-								</SidebarMenuItem>
-							</Collapsible>
-
-							{hasContractsAccess && (
-								<Collapsible
-									asChild
-									defaultOpen={contractsOpen}
-									className="group/collapsible"
-								>
-									<SidebarMenuItem>
-										<CollapsibleTrigger asChild>
-											<SidebarMenuButton
-												isActive={contractsOpen}
-												tooltip="Contracts"
-											>
-												<FileText />
-												<span>Contracts</span>
-												<ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
-											</SidebarMenuButton>
-										</CollapsibleTrigger>
-										<CollapsibleContent>
-											<SidebarMenuSub>
-												{contractItems.map((item) => (
-													<SidebarMenuSubItem key={item.to}>
-														<SidebarMenuSubButton
-															asChild
-															isActive={isActive(item.to)}
-														>
-															<RouterLink to={item.to}>
-																<item.icon />
-																<span>{item.label}</span>
-															</RouterLink>
-														</SidebarMenuSubButton>
-													</SidebarMenuSubItem>
-												))}
-											</SidebarMenuSub>
-										</CollapsibleContent>
-									</SidebarMenuItem>
-								</Collapsible>
+					{visibleSections.map((section) => (
+						<SidebarGroup key={section.key}>
+							{section.label && (
+								<SidebarGroupLabel>{section.label}</SidebarGroupLabel>
 							)}
-
-							{isAdmin && (
-								<Collapsible
-									asChild
-									defaultOpen={adminOpen}
-									className="group/collapsible"
-								>
-									<SidebarMenuItem>
-										<CollapsibleTrigger asChild>
-											<SidebarMenuButton isActive={adminOpen} tooltip="Admin">
-												<ShieldCheck />
-												<span>Admin</span>
-												<ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
-											</SidebarMenuButton>
-										</CollapsibleTrigger>
-										<CollapsibleContent>
-											<SidebarMenuSub>
-												{adminItems.map((item) => (
-													<SidebarMenuSubItem key={item.to}>
-														<SidebarMenuSubButton
-															asChild
-															isActive={isActive(item.to)}
-														>
-															<RouterLink to={item.to}>
-																<item.icon />
-																<span>{item.label}</span>
-															</RouterLink>
-														</SidebarMenuSubButton>
-													</SidebarMenuSubItem>
-												))}
-											</SidebarMenuSub>
-										</CollapsibleContent>
-									</SidebarMenuItem>
-								</Collapsible>
-							)}
-						</SidebarMenu>
-					</SidebarGroup>
+							<SidebarMenu>
+								{section.entries.map((entry) =>
+									isFolder(entry) ? (
+										<NavFolderItem
+											key={entry.key}
+											folder={entry}
+											pathname={pathname}
+										/>
+									) : (
+										<NavLeafItem
+											key={entry.to}
+											leaf={entry}
+											pathname={pathname}
+										/>
+									),
+								)}
+							</SidebarMenu>
+						</SidebarGroup>
+					))}
 				</SidebarContent>
 
 				<SidebarFooter>
@@ -418,6 +389,63 @@ export default function MainLayout({
 				</footer>
 			</SidebarInset>
 		</SidebarProvider>
+	);
+}
+
+function NavLeafItem({ leaf, pathname }: { leaf: NavLeaf; pathname: string }) {
+	return (
+		<SidebarMenuItem>
+			<SidebarMenuButton
+				asChild
+				isActive={isLeafActive(pathname, leaf.to)}
+				tooltip={leaf.label}
+			>
+				<RouterLink to={leaf.to}>
+					<leaf.icon />
+					<span>{leaf.label}</span>
+				</RouterLink>
+			</SidebarMenuButton>
+		</SidebarMenuItem>
+	);
+}
+
+function NavFolderItem({
+	folder,
+	pathname,
+}: {
+	folder: NavFolder;
+	pathname: string;
+}) {
+	const open =
+		folder.items.some((item) => pathname === item.to) ||
+		(folder.match?.some((prefix) => isWithinPrefix(pathname, prefix)) ?? false);
+
+	return (
+		<Collapsible asChild defaultOpen={open} className="group/collapsible">
+			<SidebarMenuItem>
+				<CollapsibleTrigger asChild>
+					<SidebarMenuButton isActive={open} tooltip={folder.label}>
+						<folder.icon />
+						<span>{folder.label}</span>
+						<ChevronRight className="ml-auto size-4 transition-transform group-data-[state=open]/collapsible:rotate-90" />
+					</SidebarMenuButton>
+				</CollapsibleTrigger>
+				<CollapsibleContent>
+					<SidebarMenuSub>
+						{folder.items.map((item) => (
+							<SidebarMenuSubItem key={item.to}>
+								<SidebarMenuSubButton asChild isActive={pathname === item.to}>
+									<RouterLink to={item.to}>
+										<item.icon />
+										<span>{item.label}</span>
+									</RouterLink>
+								</SidebarMenuSubButton>
+							</SidebarMenuSubItem>
+						))}
+					</SidebarMenuSub>
+				</CollapsibleContent>
+			</SidebarMenuItem>
+		</Collapsible>
 	);
 }
 

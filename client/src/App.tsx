@@ -26,9 +26,10 @@ import ContractSubmissionsPage from "./features/contracts/ContractSubmissionsPag
 import ContractTemplatesPage from "./features/contracts/ContractTemplatesPage";
 import JobPostingsPage from "./features/jobs/JobPostingsPage";
 import MemberList from "./features/members/MemberList";
+import MembersInnovationPage from "./features/members/MembersInnovationPage";
 import MembersOrgChartPage from "./features/members/MembersOrgChartPage";
 import MembersOrgTreePage from "./features/members/MembersOrgTreePage";
-import MembersProjectsPage from "./features/members/MembersProjectsPage";
+import MembersResearchPage from "./features/members/MembersResearchPage";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
 import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
@@ -185,7 +186,12 @@ export function AuthenticatedApp({
 				<Route path="/members" element={<MemberList />} />
 				<Route path="/members/org-chart" element={<MembersOrgChartPage />} />
 				<Route path="/members/org-tree" element={<MembersOrgTreePage />} />
-				<Route path="/members/projects" element={<MembersProjectsPage />} />
+				<Route path="/members/research" element={<MembersResearchPage />} />
+				<Route path="/members/innovation" element={<MembersInnovationPage />} />
+				<Route
+					path="/members/projects"
+					element={<Navigate to="/members/research" replace />}
+				/>
 				<Route
 					path="/tools/reimbursement"
 					element={<ReimbursementPage user={user} />}

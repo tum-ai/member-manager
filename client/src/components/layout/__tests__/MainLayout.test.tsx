@@ -22,13 +22,15 @@ const mockUser = {
 function renderLayout({
 	isAdmin,
 	hasContractsAccess = false,
+	route = "/",
 }: {
 	isAdmin: boolean;
 	hasContractsAccess?: boolean;
+	route?: string;
 }) {
 	return render(
 		<ToastProvider>
-			<MemoryRouter initialEntries={["/"]}>
+			<MemoryRouter initialEntries={[route]}>
 				<MainLayout
 					user={mockUser}
 					isAdmin={isAdmin}
@@ -53,36 +55,58 @@ describe("MainLayout sidebar navigation", () => {
 		]);
 	});
 
-	it("always shows Profile, Members and Tools nav entries", () => {
+	it("always shows the Profile link, the Members menu and the Tools section", () => {
 		renderLayout({ isAdmin: false });
 
 		expect(screen.getByRole("link", { name: /profile/i })).toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: /members/i }),
-		).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Members" })).toBeInTheDocument();
 		expect(screen.getByText("Tools")).toBeInTheDocument();
 	});
 
-	it("shows an Admin nav group for admin users", () => {
+	it("surfaces Research and Task Forces as their own member nav links", () => {
+		// Render within the members area so the (collapsible) Members menu is open.
+		renderLayout({ isAdmin: false, route: "/members" });
+
+		expect(screen.getByRole("link", { name: /research/i })).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: /task forces/i }),
+		).toBeInTheDocument();
+	});
+
+	it("shows an Administration section for admin users", () => {
 		renderLayout({ isAdmin: true });
 
-		expect(screen.getByRole("button", { name: "Admin" })).toBeInTheDocument();
+		expect(screen.getByText("Administration")).toBeInTheDocument();
 	});
 
-	it("does not show an Admin link for non-admin users", () => {
+	it("does not show the Administration section for non-admin users", () => {
 		renderLayout({ isAdmin: false });
 
-		expect(
-			screen.queryByRole("link", { name: /admin/i }),
-		).not.toBeInTheDocument();
+		expect(screen.queryByText("Administration")).not.toBeInTheDocument();
 	});
 
-	it("shows a Contracts entry only when the user has contracts access", () => {
+	it("shows the Legal department only when the user has contracts access", () => {
 		renderLayout({ isAdmin: false, hasContractsAccess: false });
-		expect(screen.queryByText("Contracts")).not.toBeInTheDocument();
+		expect(screen.queryByText("Legal")).not.toBeInTheDocument();
 
 		renderLayout({ isAdmin: false, hasContractsAccess: true });
-		expect(screen.getByText("Contracts")).toBeInTheDocument();
+		expect(screen.getByText("Legal")).toBeInTheDocument();
+	});
+
+	it("reveals the gated Finance Review tool only with the finance.review permission", () => {
+		// Render at the reimbursement route so the (collapsible) Finance
+		// department is expanded and its items are mounted.
+		renderLayout({ isAdmin: false, route: "/tools/reimbursement" });
+		expect(
+			screen.queryByRole("link", { name: /finance review/i }),
+		).not.toBeInTheDocument();
+
+		toolAccessState.permissions = ["finance.review"];
+		renderLayout({ isAdmin: false, route: "/tools/reimbursement" });
+		expect(
+			screen.getByRole("link", { name: /finance review/i }),
+		).toBeInTheDocument();
+		toolAccessState.permissions = [];
 	});
 
 	it("keeps a report bug action at the bottom of the layout", () => {
