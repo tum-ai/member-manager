@@ -63,13 +63,13 @@ describe("MainLayout sidebar navigation", () => {
 		expect(screen.getByText("Tools")).toBeInTheDocument();
 	});
 
-	it("surfaces Research and Innovation as their own member nav links", () => {
+	it("surfaces Research and Task Forces as their own member nav links", () => {
 		// Render within the members area so the (collapsible) Members menu is open.
 		renderLayout({ isAdmin: false, route: "/members" });
 
 		expect(screen.getByRole("link", { name: /research/i })).toBeInTheDocument();
 		expect(
-			screen.getByRole("link", { name: /innovation/i }),
+			screen.getByRole("link", { name: /task forces/i }),
 		).toBeInTheDocument();
 	});
 
