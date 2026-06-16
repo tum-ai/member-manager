@@ -55,6 +55,66 @@ export async function apiClient<T = any>(
 	return response.json();
 }
 
+// POST a JSON body and consume a Server-Sent Events response, invoking
+// `onEvent` for each `data:` frame. Uses fetch + a ReadableStream reader (not
+// EventSource) because auth is a Bearer header. Resolves when the stream ends.
+export async function apiStream(
+	endpoint: string,
+	body: unknown,
+	onEvent: (event: unknown) => void,
+): Promise<void> {
+	if (import.meta.env.PROD && !isSecurePageContext()) {
+		throw new Error("The app must be served over HTTPS in production");
+	}
+
+	const {
+		data: { session },
+	} = await supabase.auth.getSession();
+	const token = session?.access_token;
+
+	const response = await fetch(endpoint, {
+		method: "POST",
+		headers: {
+			"Content-Type": "application/json",
+			Accept: "text/event-stream",
+			...(token ? { Authorization: `Bearer ${token}` } : {}),
+		},
+		body: JSON.stringify(body),
+	});
+
+	if (response.status === 401) {
+		await supabase.auth.signOut();
+		throw new Error("Your session expired. Please sign in again.");
+	}
+	if (!response.ok || !response.body) {
+		throw new Error(await readJsonErrorMessage(response));
+	}
+
+	const reader = response.body.getReader();
+	const decoder = new TextDecoder();
+	let buffer = "";
+	for (;;) {
+		const { value, done } = await reader.read();
+		if (done) break;
+		buffer += decoder.decode(value, { stream: true });
+		for (;;) {
+			const idx = buffer.indexOf("\n\n");
+			if (idx < 0) break;
+			const frame = buffer.slice(0, idx);
+			buffer = buffer.slice(idx + 2);
+			const dataLine = frame
+				.split("\n")
+				.find((line) => line.startsWith("data:"));
+			if (!dataLine) continue;
+			try {
+				onEvent(JSON.parse(dataLine.slice(5).trim()));
+			} catch {
+				// ignore malformed frame
+			}
+		}
+	}
+}
+
 export async function apiBlob(
 	endpoint: string,
 	options: RequestInit = {},

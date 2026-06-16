@@ -8,6 +8,7 @@ import {
 	FolderKanban,
 	LayoutGrid,
 	LogOut,
+	MessagesSquare,
 	Moon,
 	Network,
 	Receipt,
@@ -15,6 +16,7 @@ import {
 	Search,
 	Settings,
 	ShieldCheck,
+	Sparkles,
 	Sun,
 	User as UserIcon,
 	Users,
@@ -89,6 +91,9 @@ export default function MainLayout({
 	const showTumaiDays = permissions.includes("tumai_days.manage");
 
 	const pathname = location.pathname;
+	// The assistant chat is a full-bleed surface (no centered max-width / page
+	// padding) so its references panel and floating controls hug the edges.
+	const fullBleed = pathname === "/expertise/chat";
 	const isActive = (to: string) => pathname === to;
 	const isWithin = (prefix: string) =>
 		pathname === prefix || pathname.startsWith(`${prefix}/`);
@@ -163,6 +168,9 @@ export default function MainLayout({
 
 	const membersOpen = isWithin("/members");
 	const toolsOpen = isWithin("/tools");
+	// Expertise owns its subtree except the assistant chat, which is "Agent".
+	const expertiseActive = isWithin("/expertise") && pathname !== "/expertise/chat";
+	const agentActive = pathname === "/expertise/chat";
 	// `/contracts` is a prefix of nothing else; the create page is exactly
 	// `/contracts`, so treat the whole subtree as the contracts group.
 	const contractsOpen = isWithin("/contracts");
@@ -213,6 +221,32 @@ export default function MainLayout({
 									<RouterLink to="/">
 										<UserIcon />
 										<span>Profile</span>
+									</RouterLink>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									asChild
+									isActive={expertiseActive}
+									tooltip="Expertise"
+								>
+									<RouterLink to="/expertise">
+										<Sparkles />
+										<span>Expertise</span>
+									</RouterLink>
+								</SidebarMenuButton>
+							</SidebarMenuItem>
+
+							<SidebarMenuItem>
+								<SidebarMenuButton
+									asChild
+									isActive={agentActive}
+									tooltip="Agent"
+								>
+									<RouterLink to="/expertise/chat">
+										<MessagesSquare />
+										<span>Agent</span>
 									</RouterLink>
 								</SidebarMenuButton>
 							</SidebarMenuItem>
@@ -409,13 +443,21 @@ export default function MainLayout({
 					<ThemeToggleButton />
 				</header>
 
-				<main className="mx-auto w-full max-w-7xl min-w-0 flex-1 px-4 py-6 md:px-6 md:py-8">
+				<main
+					className={
+						fullBleed
+							? "flex min-w-0 flex-1 flex-col"
+							: "mx-auto w-full max-w-7xl min-w-0 flex-1 px-4 py-6 md:px-6 md:py-8"
+					}
+				>
 					{children}
 				</main>
 
-				<footer className="mx-auto w-full max-w-7xl px-4 pb-6 md:px-6">
-					<BugReportButton user={user} />
-				</footer>
+				{!fullBleed && (
+					<footer className="mx-auto w-full max-w-7xl px-4 pb-6 md:px-6">
+						<BugReportButton user={user} />
+					</footer>
+				)}
 			</SidebarInset>
 		</SidebarProvider>
 	);
