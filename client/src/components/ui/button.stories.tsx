@@ -1,12 +1,15 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ArrowRight } from "lucide-react";
+import { expect, fn, userEvent, within } from "storybook/test";
 import { Button } from "./button";
 
 const meta = {
 	title: "UI/Button",
 	component: Button,
 	tags: ["autodocs"],
-	parameters: { layout: "centered" },
+	// These stories are a11y-clean, so opt into enforced a11y checks (the global
+	// default is "todo"). See .storybook/preview.tsx for the rationale.
+	parameters: { layout: "centered", a11y: { test: "error" } },
 	argTypes: {
 		variant: {
 			control: "select",
@@ -37,6 +40,32 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+// Interaction test: clicking the button fires its onClick handler exactly once.
+export const ClickFiresHandler: Story = {
+	args: { onClick: fn(), children: "Click me" },
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = canvas.getByRole("button", { name: "Click me" });
+		await userEvent.click(button);
+		await expect(args.onClick).toHaveBeenCalledTimes(1);
+	},
+};
+
+// Interaction test: a disabled button does not fire its handler when clicked.
+export const DisabledBlocksClick: Story = {
+	args: { onClick: fn(), disabled: true, children: "Disabled" },
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = canvas.getByRole("button", { name: "Disabled" });
+		await expect(button).toBeDisabled();
+		// The disabled button has `pointer-events: none`; userEvent.click would
+		// throw before dispatching. Skip the pointer-events check so the click is
+		// attempted — a disabled button still fires no handler.
+		await userEvent.click(button, { pointerEventsCheck: 0 });
+		await expect(args.onClick).not.toHaveBeenCalled();
+	},
+};
 
 export const Secondary: Story = {
 	args: { variant: "secondary" },
