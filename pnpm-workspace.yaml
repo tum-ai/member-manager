@@ -5,3 +5,6 @@ packages:
 allowBuilds:
   core-js: true
   esbuild: true
+  # MSW's postinstall only builds the browser service worker; node's
+  # setupServer doesn't need it, so skip the build script.
+  msw: false
