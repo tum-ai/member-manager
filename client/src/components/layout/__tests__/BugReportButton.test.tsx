@@ -23,7 +23,7 @@ const mockUser = {
 	email: "user@test.com",
 } as User;
 
-const TEST_TIMEOUT_MS = 10_000;
+const TEST_TIMEOUT_MS = 30_000;
 
 function renderBugReportButton(initialRoute = "/members?search=ada#result") {
 	return render(

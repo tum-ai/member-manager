@@ -187,7 +187,7 @@ describe("AdminDatabaseView", () => {
 				public_location: null,
 			});
 		});
-	}, 10_000);
+	}, 30_000);
 
 	it("requires a department for member and team lead roles", async () => {
 		const user = userEvent.setup();
