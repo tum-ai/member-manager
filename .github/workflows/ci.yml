@@ -63,6 +63,21 @@ jobs:
           flags: unittests
           fail_ci_if_error: false
 
+  # Aggregates the split jobs back under the legacy required-check name so
+  # branch protection ("Lint / Build / Test") stays satisfied without a
+  # settings change. Fails if any dependency failed or was cancelled.
+  required-checks:
+    name: Lint / Build / Test
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, build, test]
+    if: ${{ always() }}
+    steps:
+      - name: Verify required jobs succeeded
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "A required job failed or was cancelled: ${{ join(needs.*.result, ', ') }}"
+          exit 1
+
   workflow-lint:
     name: Workflow Lint
     runs-on: ubuntu-latest
