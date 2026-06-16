@@ -17,6 +17,7 @@ import {
 	authenticate,
 	requireBoardMember,
 	requireContractsAdmin,
+	requireContractsCreate,
 } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -940,7 +941,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get(
 		"/contracts/templates",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, _reply) => {
 			const { data, error } = await getSupabase()
 				.from("contract_templates")
@@ -958,7 +959,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get<{ Params: { id: string } }>(
 		"/contracts/templates/:id",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
 			try {
 				const result = await fetchTemplateWithChildren(request.params.id);
@@ -976,7 +977,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.post<{ Params: { id: string } }>(
 		"/contracts/templates/:id/preview",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
 			const body = PreviewBodySchema.parse(request.body);
 			const formData = enrichContractFormData(body.form_data);
@@ -1197,7 +1198,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get(
 		"/contracts/submissions",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, _reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const { data, error } = await getSupabase()
@@ -1219,7 +1220,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
@@ -1253,7 +1254,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id/comments",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, _reply) => {
 			try {
 				return await fetchSubmissionComments(request.params.id);
@@ -1266,7 +1267,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id/pdf",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
@@ -1334,7 +1335,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.post(
 		"/contracts/submissions",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const body = SubmissionBodySchema.parse(request.body);
@@ -1407,7 +1408,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.patch<{ Params: { id: string } }>(
 		"/contracts/submissions/:id/draft",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const body = DraftSubmissionPatchSchema.parse(request.body);

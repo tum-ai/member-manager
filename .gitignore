@@ -64,6 +64,14 @@ desktop.ini
 # Misc
 *.Zone.Identifier
 
+# Secrets / certificates
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account-*.json
+
 # Tum.ai member data
 /data
 .vercel

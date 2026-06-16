@@ -3,6 +3,7 @@ import {
 	checkAdminRole,
 	checkBoardRole,
 	checkContractsAdmin,
+	checkContractsCreate,
 	checkReimbursementReviewer,
 	checkTumaiDaysManager,
 } from "../lib/auth.js";
@@ -75,6 +76,29 @@ export async function requireContractsAdmin(
 		request.log.error(
 			{ err: error, userId: user?.id },
 			"Failed to check contracts admin permission",
+		);
+		return reply.status(500).send({ error: "Internal Server Error" });
+	}
+}
+
+export async function requireContractsCreate(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const user = (request as AuthenticatedRequest).user;
+
+	try {
+		const allowed = await checkContractsCreate(user.id);
+
+		if (!allowed) {
+			return reply
+				.status(403)
+				.send({ error: "Contract submission access required" });
+		}
+	} catch (error) {
+		request.log.error(
+			{ err: error, userId: user?.id },
+			"Failed to check contracts create permission",
 		);
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}

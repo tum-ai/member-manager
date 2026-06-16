@@ -39,6 +39,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import { cn } from "@/lib/utils";
+import { useToolAccess } from "@/hooks/useToolAccess";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import {
 	getContractStatusLabel,
@@ -192,7 +193,12 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const [downloadError, setDownloadError] = useState<string | null>(null);
 	const [downloading, setDownloading] = useState(false);
 	const { currentUserId, isAdmin } = useCurrentUserIsAdmin();
-	const previewQuery = useContractSubmissionPreview(id, editedText);
+	const { permissions } = useToolAccess();
+	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
+	const previewQuery = useContractSubmissionPreview(
+		isContractsAdmin ? id : undefined,
+		editedText,
+	);
 
 	useEffect(() => {
 		const data = submissionQuery.data;
@@ -671,34 +677,36 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					) : (
 						<p className="text-muted-foreground">No partner comments yet.</p>
 					)}
-					<div className="mt-4 flex flex-col gap-4">
-						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="internal-reply">Internal reply</Label>
-							<Textarea
-								id="internal-reply"
-								value={internalComment}
-								onChange={(event) => setInternalComment(event.target.value)}
-								rows={3}
-							/>
+					{isContractsAdmin ? (
+						<div className="mt-4 flex flex-col gap-4">
+							<div className="flex flex-col gap-1.5">
+								<Label htmlFor="internal-reply">Internal reply</Label>
+								<Textarea
+									id="internal-reply"
+									value={internalComment}
+									onChange={(event) => setInternalComment(event.target.value)}
+									rows={3}
+								/>
+							</div>
+							<div>
+								<Button
+									variant="outline"
+									disabled={!internalComment.trim() || busy}
+									onClick={() =>
+										createCommentMutation.mutate(
+											{ comment: internalComment.trim() },
+											{ onSuccess: () => setInternalComment("") },
+										)
+									}
+								>
+									Add internal reply
+								</Button>
+							</div>
 						</div>
-						<div>
-							<Button
-								variant="outline"
-								disabled={!internalComment.trim() || busy}
-								onClick={() =>
-									createCommentMutation.mutate(
-										{ comment: internalComment.trim() },
-										{ onSuccess: () => setInternalComment("") },
-									)
-								}
-							>
-								Add internal reply
-							</Button>
-						</div>
-					</div>
+					) : null}
 				</GlassCard>
 
-				{submission.status === "partner_signed" ? (
+				{isContractsAdmin && submission.status === "partner_signed" ? (
 					<GlassCard className="p-6">
 						<p className="mb-2 text-base font-medium">Board signature</p>
 						<div className="flex flex-col gap-4">
@@ -730,7 +738,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					</GlassCard>
 				) : null}
 
-				{submission.status === "board_signed" ? (
+				{isContractsAdmin && submission.status === "board_signed" ? (
 					<GlassCard className="p-6">
 						<p className="mb-2 text-base font-medium">Final PDF</p>
 						<Button
