@@ -41,9 +41,18 @@ const preview: Preview = {
 			},
 		},
 		a11y: {
-			// 'todo' - show a11y violations in the test UI only
-			// 'error' - fail CI on a11y violations
+			// 'todo' - run a11y checks and surface violations, without failing
+			// 'error' - run a11y checks and FAIL the test on any violation
 			// 'off' - skip a11y checks entirely
+			//
+			// Global default is 'todo': the a11y addon runs on every story and
+			// reports violations in the test output, but does not gate CI yet.
+			// ~16 of the 50 pre-existing display stories (checkbox/switch
+			// aria-checked, progress aria-progressbar-name, command/select/org-chart
+			// button-name) have real violations that must be fixed at the component
+			// level before global enforcement. Tracked as a follow-up. Stories that
+			// are already clean opt in to enforcement via a per-story/meta override,
+			// e.g. `parameters: { a11y: { test: "error" } }` (see Button, Modal).
 			test: "todo",
 		},
 	},
