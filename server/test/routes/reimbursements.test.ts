@@ -583,6 +583,53 @@ describe("Reimbursement Routes", async () => {
 			assert.strictEqual(reviewedRequest.payment_bic, "INGDDEFFXXX");
 		});
 
+		test("reports BuchhaltungsButler availability separately from the review list", async () => {
+			resetDatabase();
+			delete process.env.BUCHHALTUNGSBUTLER_API_CLIENT;
+			delete process.env.BUCHHALTUNGSBUTLER_API_SECRET;
+			delete process.env.BUCHHALTUNGSBUTLER_API_KEY;
+			delete process.env.BUCHHALTUNGSBUTLER_SYNC_ENABLED;
+
+			const disabledResponse = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/review/integrations",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(disabledResponse.statusCode, 200);
+			assert.deepStrictEqual(
+				JSON.parse(disabledResponse.payload).buchhaltungsbutler,
+				{
+					sync_enabled: false,
+					configured: false,
+					available: false,
+					unavailable_reason: "disabled",
+				},
+			);
+
+			process.env.BUCHHALTUNGSBUTLER_API_CLIENT = "client-id";
+			process.env.BUCHHALTUNGSBUTLER_API_SECRET = "client-secret";
+			process.env.BUCHHALTUNGSBUTLER_API_KEY = "customer-key";
+			process.env.BUCHHALTUNGSBUTLER_SYNC_ENABLED = "true";
+
+			const enabledResponse = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/review/integrations",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(enabledResponse.statusCode, 200);
+			assert.deepStrictEqual(
+				JSON.parse(enabledResponse.payload).buchhaltungsbutler,
+				{
+					sync_enabled: true,
+					configured: true,
+					available: true,
+					unavailable_reason: null,
+				},
+			);
+		});
+
 		test("lets reviewers view and download receipt files", async () => {
 			resetDatabase();
 

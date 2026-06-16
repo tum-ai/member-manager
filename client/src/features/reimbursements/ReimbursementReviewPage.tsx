@@ -74,6 +74,9 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		isBulkDownloadingReceipts,
 		openReceiptAsync,
 		downloadReceiptAsync,
+		buchhaltungsButlerSyncStatus,
+		isLoadingBuchhaltungsButlerSyncStatus,
+		buchhaltungsButlerSyncStatusError,
 		syncBuchhaltungsButlerAsync,
 		isSyncingBuchhaltungsButler,
 		updateDepartmentAsync,
@@ -356,6 +359,13 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 						hasBulkDownload={canBulkDownloadReceipts}
 						isUpdatingDepartment={isUpdatingDepartment}
 						onReceiptOpen={handleReceiptOpen}
+						buchhaltungsButlerSyncStatus={buchhaltungsButlerSyncStatus}
+						isLoadingBuchhaltungsButlerSyncStatus={
+							isLoadingBuchhaltungsButlerSyncStatus
+						}
+						hasBuchhaltungsButlerSyncStatusError={Boolean(
+							buchhaltungsButlerSyncStatusError,
+						)}
 						onBuchhaltungsButlerSync={handleBuchhaltungsButlerSync}
 						isSyncingBuchhaltungsButler={isSyncingBuchhaltungsButler}
 					/>
