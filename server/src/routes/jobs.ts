@@ -773,12 +773,17 @@ export async function jobRoutes(server: FastifyInstance) {
 		{ preHandler: [authenticate, requireAdmin] },
 		async (request, _reply) => {
 			const authenticatedRequest = request as AuthenticatedRequest;
-			const partnerRequests =
-				await fetchPartnerJobRequests(authenticatedRequest);
-			const { data, error } = await getSupabase()
+			const partnerRequestsPromise =
+				fetchPartnerJobRequests(authenticatedRequest);
+			const memberRequestsPromise = getSupabase()
 				.from("job_posting_requests")
 				.select("*")
 				.order("created_at", { ascending: false });
+
+			const [partnerRequests, { data, error }] = await Promise.all([
+				partnerRequestsPromise,
+				memberRequestsPromise,
+			]);
 
 			if (error) {
 				if (isMissingJobPostingRequestsTable(error)) {

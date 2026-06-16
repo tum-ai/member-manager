@@ -41,7 +41,14 @@ import {
 	useTheme,
 } from "@mui/material";
 import { alpha } from "@mui/material/styles";
-import { type ReactElement, type ReactNode, useMemo, useState } from "react";
+import {
+	type Dispatch,
+	type ReactElement,
+	type ReactNode,
+	type SetStateAction,
+	useMemo,
+	useState,
+} from "react";
 import * as XLSX from "xlsx";
 import GlassCard from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
@@ -141,8 +148,6 @@ export default function AdminDatabaseView() {
 		isSavingMember,
 		isReviewingChangeRequest,
 		isReviewingCertificateRequest,
-		isReviewingJobRequest,
-		isRemovingJobRequest,
 	} = useAdminData();
 
 	const [filters, setFilters] = useState<AdminFilters>(initialFilters);
@@ -164,6 +169,12 @@ export default function AdminDatabaseView() {
 
 	const [certificateRequestBeingViewed, setCertificateRequestBeingViewed] =
 		useState<EngagementCertificateRequest | null>(null);
+	const [reviewingJobRequestIds, setReviewingJobRequestIds] = useState(
+		() => new Set<string>(),
+	);
+	const [removingJobRequestIds, setRemovingJobRequestIds] = useState(
+		() => new Set<string>(),
+	);
 	const [exportAnchorEl, setExportAnchorEl] = useState<HTMLElement | null>(
 		null,
 	);
@@ -420,10 +431,27 @@ export default function AdminDatabaseView() {
 		}
 	}
 
+	function setJobRequestPending(
+		setter: Dispatch<SetStateAction<Set<string>>>,
+		requestId: string,
+		isPending: boolean,
+	) {
+		setter((currentIds) => {
+			const nextIds = new Set(currentIds);
+			if (isPending) {
+				nextIds.add(requestId);
+			} else {
+				nextIds.delete(requestId);
+			}
+			return nextIds;
+		});
+	}
+
 	async function reviewJobRequest(
 		requestId: string,
 		decision: "approved" | "rejected",
 	) {
+		setJobRequestPending(setReviewingJobRequestIds, requestId, true);
 		try {
 			await reviewJobRequestAsync({
 				requestId,
@@ -433,6 +461,8 @@ export default function AdminDatabaseView() {
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : "Unknown error";
 			showToast(`Failed to review job request: ${errorMessage}`, "error");
+		} finally {
+			setJobRequestPending(setReviewingJobRequestIds, requestId, false);
 		}
 	}
 
@@ -442,12 +472,15 @@ export default function AdminDatabaseView() {
 		);
 		if (!confirmed) return;
 
+		setJobRequestPending(setRemovingJobRequestIds, request.id, true);
 		try {
 			await removeJobRequestAsync(request.id);
 			showToast("Job request removed", "success");
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : "Unknown error";
 			showToast(`Failed to remove job request: ${errorMessage}`, "error");
+		} finally {
+			setJobRequestPending(setRemovingJobRequestIds, request.id, false);
 		}
 	}
 
@@ -633,8 +666,8 @@ export default function AdminDatabaseView() {
 				onViewCertificateRequest={setCertificateRequestBeingViewed}
 				isReviewingChangeRequest={isReviewingChangeRequest}
 				isReviewingCertificateRequest={isReviewingCertificateRequest}
-				isReviewingJobRequest={isReviewingJobRequest}
-				isRemovingJobRequest={isRemovingJobRequest}
+				reviewingJobRequestIds={reviewingJobRequestIds}
+				removingJobRequestIds={removingJobRequestIds}
 			/>
 
 			<DepartmentPermissionsCard />
@@ -1376,8 +1409,8 @@ interface PendingRequestPanelsProps {
 	onViewCertificateRequest: (request: EngagementCertificateRequest) => void;
 	isReviewingChangeRequest: boolean;
 	isReviewingCertificateRequest: boolean;
-	isReviewingJobRequest: boolean;
-	isRemovingJobRequest: boolean;
+	reviewingJobRequestIds: ReadonlySet<string>;
+	removingJobRequestIds: ReadonlySet<string>;
 }
 
 function PendingRequestPanels({
@@ -1393,8 +1426,8 @@ function PendingRequestPanels({
 	onViewCertificateRequest,
 	isReviewingChangeRequest,
 	isReviewingCertificateRequest,
-	isReviewingJobRequest,
-	isRemovingJobRequest,
+	reviewingJobRequestIds,
+	removingJobRequestIds,
 }: PendingRequestPanelsProps): ReactElement {
 	const theme = useTheme();
 	const pendingChangeRequests = changeRequests.filter(
@@ -1584,6 +1617,9 @@ function PendingRequestPanels({
 										? "Partner Portal"
 										: getMemberDisplayName(request.user_id);
 									const safeExternalUrl = getSafeHttpUrl(request.external_url);
+									const isJobRequestActionPending =
+										reviewingJobRequestIds.has(request.id) ||
+										removingJobRequestIds.has(request.id);
 									return (
 										<Box
 											key={request.id}
@@ -1667,7 +1703,7 @@ function PendingRequestPanels({
 													onClick={() =>
 														onReviewJobRequest(request.id, "approved")
 													}
-													disabled={isReviewingJobRequest}
+													disabled={isJobRequestActionPending}
 													aria-label={`Approve job posting request for ${requesterName}`}
 												>
 													Approve
@@ -1679,7 +1715,7 @@ function PendingRequestPanels({
 													onClick={() =>
 														onReviewJobRequest(request.id, "rejected")
 													}
-													disabled={isReviewingJobRequest}
+													disabled={isJobRequestActionPending}
 													aria-label={`Reject job posting request for ${requesterName}`}
 												>
 													Reject
@@ -1690,9 +1726,7 @@ function PendingRequestPanels({
 													color="error"
 													size="small"
 													onClick={() => onRemoveJobRequest(request)}
-													disabled={
-														isReviewingJobRequest || isRemovingJobRequest
-													}
+													disabled={isJobRequestActionPending}
 													aria-label={`Remove job posting request for ${requesterName}`}
 												>
 													Remove
