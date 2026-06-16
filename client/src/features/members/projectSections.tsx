@@ -5,6 +5,8 @@ import {
 	AccordionTrigger,
 } from "@/components/ui/accordion";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { OrgChartTeamCard, renderMembers } from "./orgChartShared";
 import type {
 	OrgChartInnovationProjectGroup,
@@ -129,5 +131,59 @@ export function ProjectsEmptyState({ label }: { label: string }): JSX.Element {
 		<div className="rounded-xl border bg-card p-8 text-center">
 			<p className="text-muted-foreground">{`No active ${label} projects yet.`}</p>
 		</div>
+	);
+}
+
+function ProjectsHeaderSkeleton(): JSX.Element {
+	return (
+		<div className="mb-6 space-y-2">
+			<Skeleton className="h-8 w-36" />
+			<Skeleton className="h-4 w-[32rem] max-w-full" />
+		</div>
+	);
+}
+
+export function ResearchSkeleton(): JSX.Element {
+	return (
+		<SkeletonRegion label="Loading research projects">
+			<ProjectsHeaderSkeleton />
+			<div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+				{Array.from({ length: 2 }).map((_, i) => (
+					<div
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						key={i}
+						className="space-y-3 rounded-xl border bg-card p-5"
+					>
+						<Skeleton className="h-5 w-48" />
+						<Skeleton className="h-4 w-full" />
+						<Skeleton className="h-4 w-4/5" />
+						<div className="flex items-center gap-2.5 pt-2">
+							<Skeleton className="size-8 shrink-0 rounded-full" />
+							<Skeleton className="h-4 w-32" />
+						</div>
+					</div>
+				))}
+			</div>
+		</SkeletonRegion>
+	);
+}
+
+export function InnovationSkeleton(): JSX.Element {
+	return (
+		<SkeletonRegion label="Loading innovation projects">
+			<ProjectsHeaderSkeleton />
+			<div className="flex flex-col gap-3">
+				{Array.from({ length: 3 }).map((_, i) => (
+					<div
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						key={i}
+						className="space-y-2 rounded-xl border bg-card px-5 py-4"
+					>
+						<Skeleton className="h-5 w-56" />
+						<Skeleton className="h-4 w-40" />
+					</div>
+				))}
+			</div>
+		</SkeletonRegion>
 	);
 }

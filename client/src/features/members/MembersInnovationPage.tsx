@@ -1,10 +1,9 @@
-import { Skeleton } from "@/components/ui/skeleton";
-import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { useInnovationProjects } from "../../hooks/useInnovationProjects";
 import { useMembersListData } from "../../hooks/useMembersListData";
 import { buildOrgChart } from "./orgChartUtils";
 import {
 	InnovationProjectsSection,
+	InnovationSkeleton,
 	ProjectsEmptyState,
 } from "./projectSections";
 
@@ -43,29 +42,5 @@ export default function MembersInnovationPage() {
 				<ProjectsEmptyState label="innovation" />
 			)}
 		</div>
-	);
-}
-
-function InnovationSkeleton() {
-	return (
-		<SkeletonRegion label="Loading innovation projects">
-			<div className="mb-6 space-y-2">
-				<Skeleton className="h-8 w-36" />
-				<Skeleton className="h-4 w-[32rem] max-w-full" />
-			</div>
-
-			<div className="flex flex-col gap-3">
-				{Array.from({ length: 3 }).map((_, i) => (
-					<div
-						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
-						key={i}
-						className="space-y-2 rounded-xl border bg-card px-5 py-4"
-					>
-						<Skeleton className="h-5 w-56" />
-						<Skeleton className="h-4 w-40" />
-					</div>
-				))}
-			</div>
-		</SkeletonRegion>
 	);
 }
