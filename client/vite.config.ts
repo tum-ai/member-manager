@@ -59,10 +59,10 @@ export default defineConfig(({ mode }) => {
 				// coverage can only regress slightly before CI fails. Raise these
 				// (never lower) as coverage improves. See docs/development.md.
 				thresholds: {
-					statements: 34,
-					branches: 35,
-					functions: 35,
-					lines: 34,
+					statements: 36,
+					branches: 36,
+					functions: 37,
+					lines: 37,
 				},
 			},
 		},
