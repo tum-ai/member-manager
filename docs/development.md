@@ -146,7 +146,7 @@ Phase 0 of the client remediation effort. These are enforced (or scheduled to be
 
 Exempt entirely: `client/src/components/ui/**` (shadcn primitives), `*.d.ts`, `*.stories.tsx`, `*.test.ts`, `*.test.tsx`.
 
-A short **allowlist** in the script holds the files that already exceed 700 lines (`ProfilePage`, `AdminDatabaseView`, `ContractTemplatesPage`, `ContractSubmissionDetailPage`, `TumaiDaysPage`, `JobPostingsPage`, `ReimbursementPage`, `MemberForm`). These are suppressed from the hard-fail but print a backlog notice each run; they are tracked remediation debt (#189). When you split one below 700, delete it from the allowlist — never add new entries to dodge the gate.
+A short **allowlist** in the script holds the files that already exceed 700 lines (`ProfilePage`, `AdminDatabaseView`, `ContractTemplatesPage`, `ContractSubmissionDetailPage`, `TumaiDaysPage`, `JobPostingsPage`, `ReimbursementPage`, `MemberForm`). These are suppressed from the hard-fail but print a backlog notice each run; they are tracked remediation debt (#189). When you split one below 700, delete it from the allowlist — never add new entries to dodge the gate. The script self-polices this: a **stale allowlist** warning prints when an entry is no longer tracked (renamed/deleted) or has dropped to ≤700 lines, so dead entries don't linger.
 
 ### Import / export conventions
 

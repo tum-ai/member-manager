@@ -64,8 +64,12 @@ export function classifyFile(path, lineCount, { allowlist = ALLOWLIST } = {}) {
 }
 
 const FEATURE_DIR_PATTERN = /^(client\/src\/features\/[^/]+)\//;
+// Anchored to line starts (`m` flag) and bounded by `;` so a match can't span
+// across statements. Block comments are stripped before scanning (see
+// findCrossFeatureImports), so import-like text in comments or string literals
+// is not misreported.
 const IMPORT_PATTERN =
-	/(?:import|export)\b[^'"]*?\bfrom\s*["']([^"']+)["']|import\s*["']([^"']+)["']/g;
+	/^[ \t]*(?:import|export)\b[^;]*?\bfrom\s*["']([^"']+)["']|^[ \t]*import\s*["']([^"']+)["']/gm;
 
 function featureRootOf(path) {
 	const match = FEATURE_DIR_PATTERN.exec(path);
@@ -108,11 +112,13 @@ export function findCrossFeatureImports(path, source) {
 
 	const fileDir = path.slice(0, path.lastIndexOf("/"));
 	const offenders = [];
+	// Strip block comments so commented-out import lines aren't misreported.
+	const scannable = source.replace(/\/\*[\s\S]*?\*\//g, "");
 	IMPORT_PATTERN.lastIndex = 0;
-	let match = IMPORT_PATTERN.exec(source);
+	let match = IMPORT_PATTERN.exec(scannable);
 	while (match !== null) {
 		const specifier = match[1] ?? match[2];
-		match = IMPORT_PATTERN.exec(source);
+		match = IMPORT_PATTERN.exec(scannable);
 		if (!specifier?.startsWith("../")) {
 			continue;
 		}
@@ -124,6 +130,39 @@ export function findCrossFeatureImports(path, source) {
 	return offenders;
 }
 
+/**
+ * Detect allowlist entries that no longer belong: either no longer tracked
+ * (renamed or deleted) or no longer exceeding the hard limit (file was split
+ * below the threshold). Non-failing warning so the allowlist self-cleans.
+ *
+ * @returns {{path: string, reason: string}[]}
+ */
+export function findStaleAllowlist(
+	trackedFiles,
+	lineCounts,
+	allowlist = ALLOWLIST,
+) {
+	const tracked = new Set(trackedFiles);
+	const stale = [];
+	for (const entry of allowlist) {
+		if (!tracked.has(entry)) {
+			stale.push({
+				path: entry,
+				reason: "no longer tracked (renamed or deleted)",
+			});
+			continue;
+		}
+		const lineCount = lineCounts.get(entry) ?? 0;
+		if (lineCount <= HARD_LIMIT) {
+			stale.push({
+				path: entry,
+				reason: `now ${lineCount} lines (<= ${HARD_LIMIT})`,
+			});
+		}
+	}
+	return stale;
+}
+
 function listTrackedFiles() {
 	const output = execFileSync("git", ["ls-files", "-z"], {
 		encoding: "utf8",
@@ -132,10 +171,13 @@ function listTrackedFiles() {
 	return output.split("\0").filter(Boolean);
 }
 
-function countLines(path) {
-	const source = readFileSync(path, "utf8");
+/**
+ * Count lines in a source string, matching `wc -l` semantics plus a final
+ * line that lacks a trailing newline.
+ */
+export function countLinesInSource(source) {
 	if (source === "") {
-		return { lineCount: 0, source };
+		return 0;
 	}
 	let lineCount = 0;
 	for (const char of source) {
@@ -147,7 +189,12 @@ function countLines(path) {
 	if (!source.endsWith("\n")) {
 		lineCount++;
 	}
-	return { lineCount, source };
+	return lineCount;
+}
+
+function countLines(path) {
+	const source = readFileSync(path, "utf8");
+	return { lineCount: countLinesInSource(source), source };
 }
 
 export function main() {
@@ -157,6 +204,7 @@ export function main() {
 	const softWarnings = [];
 	const allowlistNotices = [];
 	const crossFeatureWarnings = [];
+	const lineCounts = new Map();
 
 	for (const path of files) {
 		if (!path.endsWith(".tsx") && !path.endsWith(".ts")) {
@@ -164,6 +212,7 @@ export function main() {
 		}
 
 		const { lineCount, source } = countLines(path);
+		lineCounts.set(path, lineCount);
 		const { status, limit } = classifyFile(path, lineCount);
 
 		if (status === "hard-fail") {
@@ -208,6 +257,17 @@ export function main() {
 		console.log("");
 	}
 
+	const staleAllowlist = findStaleAllowlist(files, lineCounts);
+	if (staleAllowlist.length > 0) {
+		console.log(
+			"Stale allowlist entries (non-failing) — remove from ALLOWLIST in scripts/check-file-size.mjs:",
+		);
+		for (const { path, reason } of staleAllowlist) {
+			console.log(`  - ${path}: ${reason}`);
+		}
+		console.log("");
+	}
+
 	if (hardFailures.length > 0) {
 		console.error(`File-size hard limit exceeded (> ${HARD_LIMIT} lines):`);
 		for (const { path, lineCount, limit } of hardFailures) {
@@ -225,6 +285,9 @@ export function main() {
 	return 0;
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+	process.argv[1] &&
+	import.meta.url === pathToFileURL(process.argv[1]).href
+) {
 	process.exitCode = main();
 }

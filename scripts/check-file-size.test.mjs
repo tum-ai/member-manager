@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
 	classifyFile,
+	countLinesInSource,
 	findCrossFeatureImports,
+	findStaleAllowlist,
 	HARD_LIMIT,
 	normalizePosixPath,
 	SOFT_LIMIT,
@@ -62,6 +64,22 @@ describe("classifyFile size policy", () => {
 		});
 		assert.equal(result.status, "allowlisted");
 		assert.equal(result.limit, HARD_LIMIT);
+	});
+
+	test("allowlist only applies above the hard limit (not at/below)", () => {
+		// An allowlisted file that has shrunk to <= the hard limit is classified
+		// on its merits, not as "allowlisted" — this is what lets the allowlist
+		// be flagged stale and removed.
+		assert.equal(
+			classifyFile(ALLOWLISTED, SOFT_LIMIT + 1, { allowlist: [ALLOWLISTED] })
+				.status,
+			"soft-warn",
+		);
+		assert.equal(
+			classifyFile(ALLOWLISTED, SOFT_LIMIT, { allowlist: [ALLOWLISTED] })
+				.status,
+			"ok",
+		);
 	});
 
 	test("exempts ui components", () => {
@@ -182,5 +200,63 @@ describe("findCrossFeatureImports", () => {
 		const path = "client/src/lib/utils.ts";
 		const source = `import { x } from "../../features/jobs/x";`;
 		assert.deepEqual(findCrossFeatureImports(path, source), []);
+	});
+
+	test("ignores import-like text in line comments and string literals", () => {
+		const path = "client/src/features/jobs/JobPostingsPage.tsx";
+		const source = [
+			`// import { x } from "../../lib/x";`,
+			`const s = 'import x from "../../lib/x"';`,
+			`const t = "see ../../lib/x for details";`,
+		].join("\n");
+		assert.deepEqual(findCrossFeatureImports(path, source), []);
+	});
+
+	test("ignores import-like text inside block comments", () => {
+		const path = "client/src/features/jobs/JobPostingsPage.tsx";
+		const source = [
+			"/*",
+			`import { x } from "../../lib/x";`,
+			"*/",
+			`import { JobCard } from "./JobCard";`,
+		].join("\n");
+		assert.deepEqual(findCrossFeatureImports(path, source), []);
+	});
+});
+
+describe("countLinesInSource", () => {
+	test("counts lines with and without a trailing newline", () => {
+		assert.equal(countLinesInSource(""), 0);
+		assert.equal(countLinesInSource("a"), 1);
+		assert.equal(countLinesInSource("a\n"), 1);
+		assert.equal(countLinesInSource("a\nb"), 2);
+		assert.equal(countLinesInSource("a\nb\n"), 2);
+	});
+});
+
+describe("findStaleAllowlist", () => {
+	const ENTRY = "client/src/features/jobs/JobPostingsPage.tsx";
+
+	test("flags an entry that is no longer tracked", () => {
+		const stale = findStaleAllowlist([], new Map(), [ENTRY]);
+		assert.equal(stale.length, 1);
+		assert.match(stale[0].reason, /no longer tracked/);
+	});
+
+	test("flags an entry that has dropped to/below the hard limit", () => {
+		const stale = findStaleAllowlist([ENTRY], new Map([[ENTRY, HARD_LIMIT]]), [
+			ENTRY,
+		]);
+		assert.equal(stale.length, 1);
+		assert.match(stale[0].reason, /<= 700/);
+	});
+
+	test("keeps an entry that is tracked and still over the limit", () => {
+		const stale = findStaleAllowlist(
+			[ENTRY],
+			new Map([[ENTRY, HARD_LIMIT + 1]]),
+			[ENTRY],
+		);
+		assert.deepEqual(stale, []);
 	});
 });
