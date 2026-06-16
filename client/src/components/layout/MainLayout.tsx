@@ -139,8 +139,8 @@ export default function MainLayout({
 			entries: [{ label: "Profile", to: "/", icon: UserIcon }],
 		},
 		{
-			key: "community",
-			label: "Community",
+			key: "tumai",
+			label: "TUM.ai",
 			entries: [
 				{
 					key: "members",
