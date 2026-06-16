@@ -63,24 +63,13 @@ jobs:
           flags: unittests
           fail_ci_if_error: false
 
-  file-size:
-    name: File Size Guardrail
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
-      - name: Setup toolchain
-        uses: ./.github/actions/setup
-      - name: Check file sizes
-        run: node scripts/check-file-size.mjs
-
   # Aggregates the split jobs back under the legacy required-check name so
   # branch protection ("Lint / Build / Test") stays satisfied without a
   # settings change. Fails if any dependency failed or was cancelled.
   required-checks:
     name: Lint / Build / Test
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, build, test, file-size]
+    needs: [lint, typecheck, build, test]
     if: ${{ always() }}
     steps:
       - name: Verify required jobs succeeded

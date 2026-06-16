@@ -137,7 +137,7 @@ Phase 0 of the client remediation effort. These are enforced (or scheduled to be
 
 ### File size
 
-`scripts/check-file-size.mjs` (root script `pnpm check:filesize`, CI job "File Size Guardrail") enforces a per-file line budget for React surfaces:
+`scripts/check-file-size.mjs` enforces a per-file line budget for React surfaces. It runs as part of `pnpm lint` (and standalone via `pnpm check:filesize`), so it is covered by the existing **Lint** CI job and by the local lint step:
 
 | Limit | Scope | Behaviour |
 | --- | --- | --- |
@@ -222,11 +222,10 @@ CI (`.github/workflows/`) runs each gate as its own job so failures are isolated
 
 | Job (workflow) | Command | Notes |
 | --- | --- | --- |
-| Lint | `pnpm lint` | Biome |
+| Lint | `pnpm lint` | Biome + file-size guardrail (`check-file-size.mjs`, hard-fails >700-line feature/layout `.tsx` — see "Frontend code standards") |
 | Typecheck | `pnpm typecheck` | `tsc --noEmit` per package |
 | Build | `pnpm build` | |
 | Test | `pnpm test:coverage` | Vitest (client) + c8 (server), coverage uploaded to Codecov |
-| File Size Guardrail | `node scripts/check-file-size.mjs` | hard-fails >700-line feature/layout `.tsx` (see "Frontend code standards") |
 | Workflow Lint | actionlint + zizmor | zizmor is advisory for now |
 | Spell Check | `crate-ci/typos` | config in `_typos.toml` |
 | E2E (`e2e.yml`) | `pnpm test:e2e` | Playwright smoke vs a real local Supabase stack |
