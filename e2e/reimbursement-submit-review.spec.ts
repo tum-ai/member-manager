@@ -27,8 +27,18 @@ test("member submits a reimbursement and an admin approves it", async ({
 
 	// The file input is visually hidden but still settable; uploading triggers an
 	// optional receipt-parse call that may 503 in CI (no OPENAI_API_KEY) — that is
-	// handled gracefully by the page and does not block submission.
+	// handled gracefully by the page and does not block submission. On success it
+	// would overwrite the fields we type below, so wait for the parse call to
+	// settle (any status) BEFORE filling, keeping our deterministic values the
+	// ones that get submitted.
+	const parseSettled = memberPage
+		.waitForResponse(
+			(r) => r.url().includes("/api/reimbursements/parse-receipt"),
+			{ timeout: 15_000 },
+		)
+		.catch(() => undefined);
 	await memberPage.getByLabel("Receipt file").setInputFiles(RECEIPT_FIXTURE);
+	await parseSettled;
 
 	await memberPage.getByLabel("Amount").fill("23.45");
 	await memberPage.getByLabel("Date").fill("2026-06-10");

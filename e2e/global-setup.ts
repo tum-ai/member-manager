@@ -33,6 +33,14 @@ async function globalSetup(_config: FullConfig): Promise<void> {
 		);
 	}
 
+	if (response.status === 409 || response.status === 410) {
+		throw new Error(
+			`E2E global setup: the seeded signing token (${SEED_CONTRACT_SIGN_TOKEN}) ` +
+				`was already consumed (${response.status}) — the database is not fresh. ` +
+				`Run \`supabase db reset\` (or a fresh \`supabase start\`) before the suite.`,
+		);
+	}
+
 	if (!response.ok) {
 		throw new Error(
 			`E2E global setup: unexpected ${response.status} from ${url} while ` +

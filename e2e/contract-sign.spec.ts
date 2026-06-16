@@ -7,8 +7,15 @@ import { SEED_CONTRACT_SIGN_TOKEN } from "./helpers";
 // supabase/seed.sql), so the document loads and accepts a signature.
 //
 // NOTE: signing mutates the seeded row (sets signed_at), so this test is
-// one-shot per database. CI gets a fresh Supabase stack each run; for repeated
-// local runs, reset the DB (`supabase db reset`) between runs.
+// stateful and one-shot per database. CI gets a fresh Supabase stack each run;
+// for repeated local runs, reset the DB (`supabase db reset`) between runs.
+//
+// Retries are disabled for this spec: a retry would re-run against the now-signed
+// token and fail misleadingly (the page renders the already-signed state, not the
+// sign form). global-setup fails fast if the token was already consumed, so a
+// non-fresh DB is caught before the suite rather than masked by retries.
+test.describe.configure({ retries: 0 });
+
 test("a partner can sign a contract via the public signing link", async ({
 	page,
 }) => {
