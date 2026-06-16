@@ -82,13 +82,18 @@ interface NavLeaf {
 	visible?: boolean;
 }
 
-/** A collapsible group of leaves — one department inside the Tools section. */
+/** A collapsible group of leaves — e.g. one department inside the Tools section. */
 interface NavFolder {
 	key: string;
 	label: string;
 	icon: LucideIcon;
-	/** Route prefixes that mark this folder active/open. */
-	match: string[];
+	/**
+	 * Extra route prefixes that mark this folder active/open (for sub-pages not
+	 * present as items, e.g. a submission detail view). The folder is also
+	 * active whenever the current route exactly matches one of its items, so
+	 * `match` is only needed for deeper routes.
+	 */
+	match?: string[];
 	items: NavLeaf[];
 	visible?: boolean;
 }
@@ -134,16 +139,23 @@ export default function MainLayout({
 			entries: [{ label: "Profile", to: "/", icon: UserIcon }],
 		},
 		{
-			key: "members",
-			label: "Members",
+			key: "community",
+			label: "Community",
 			entries: [
-				{ label: "Browse", to: "/members", icon: Search },
-				{ label: "Org Chart", to: "/members/org-chart", icon: Network },
 				{
-					label: "Org Tree",
-					to: "/members/org-tree",
-					icon: Workflow,
-					visible: !isMobile,
+					key: "members",
+					label: "Members",
+					icon: Users,
+					items: [
+						{ label: "Browse", to: "/members", icon: Search },
+						{ label: "Org Chart", to: "/members/org-chart", icon: Network },
+						{
+							label: "Org Tree",
+							to: "/members/org-tree",
+							icon: Workflow,
+							visible: !isMobile,
+						},
+					],
 				},
 				{ label: "Research", to: "/members/research", icon: FlaskConical },
 				{ label: "Innovation", to: "/members/innovation", icon: Lightbulb },
@@ -192,10 +204,9 @@ export default function MainLayout({
 					],
 				},
 				{
-					key: "community",
-					label: "Community",
+					key: "engagement",
+					label: "Engagement",
 					icon: HeartHandshake,
-					match: ["/tools/engagement-certificate", "/tools/tumai-days"],
 					items: [
 						{
 							label: "Engagement Certificate",
@@ -405,7 +416,9 @@ function NavFolderItem({
 	folder: NavFolder;
 	pathname: string;
 }) {
-	const open = folder.match.some((prefix) => isWithinPrefix(pathname, prefix));
+	const open =
+		folder.items.some((item) => pathname === item.to) ||
+		(folder.match?.some((prefix) => isWithinPrefix(pathname, prefix)) ?? false);
 
 	return (
 		<Collapsible asChild defaultOpen={open} className="group/collapsible">

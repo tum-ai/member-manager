@@ -55,16 +55,17 @@ describe("MainLayout sidebar navigation", () => {
 		]);
 	});
 
-	it("always shows the Profile link and the Members and Tools sections", () => {
+	it("always shows the Profile link, the Members menu and the Tools section", () => {
 		renderLayout({ isAdmin: false });
 
 		expect(screen.getByRole("link", { name: /profile/i })).toBeInTheDocument();
-		expect(screen.getByText("Members")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Members" })).toBeInTheDocument();
 		expect(screen.getByText("Tools")).toBeInTheDocument();
 	});
 
 	it("surfaces Research and Innovation as their own member nav links", () => {
-		renderLayout({ isAdmin: false });
+		// Render within the members area so the (collapsible) Members menu is open.
+		renderLayout({ isAdmin: false, route: "/members" });
 
 		expect(screen.getByRole("link", { name: /research/i })).toBeInTheDocument();
 		expect(
