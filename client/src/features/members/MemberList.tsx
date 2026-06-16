@@ -278,13 +278,13 @@ export default function MemberList() {
 								onChange={(e) => setRole(e.target.value)}
 							>
 								<MenuItem value="">All</MenuItem>
-								{MEMBER_ROLES.filter((item) => item !== "Alumni").map(
-									(item) => (
-										<MenuItem key={item} value={item}>
-											{item}
-										</MenuItem>
-									),
-								)}
+								{MEMBER_ROLES.filter(
+									(item) => (item as string) !== "Alumni",
+								).map((item) => (
+									<MenuItem key={item} value={item}>
+										{item}
+									</MenuItem>
+								))}
 							</Select>
 						</FormControl>
 

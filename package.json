@@ -8,11 +8,15 @@
 	"scripts": {
 		"dev": "pnpm dev:local",
 		"dev:local": "pnpm build:shared && pnpm supabase:start && pnpm setup:local && pnpm -r --parallel --filter @member-manager/client --filter @member-manager/server run dev:local",
-		"gate": "pnpm lint && pnpm test && pnpm build",
+		"gate": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
 		"build": "pnpm -r run build",
 		"build:shared": "pnpm --filter @member-manager/shared run build",
+		"typecheck": "pnpm build:shared && pnpm -r run typecheck",
 		"test": "pnpm build:shared && pnpm test:scripts && pnpm -r run test",
+		"test:coverage": "pnpm build:shared && pnpm test:scripts && pnpm -r run test:coverage",
 		"test:scripts": "node --test scripts/*.test.mjs",
+		"test:e2e": "playwright test",
+		"test:e2e:ui": "playwright test --ui",
 		"lint": "biome check api && pnpm -r run lint",
 		"lint:staged": "biome check --staged --no-errors-on-unmatched",
 		"lint:apply": "pnpm -r --parallel run lint:apply",
@@ -26,6 +30,7 @@
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",
+		"@playwright/test": "^1.60.0",
 		"@types/node": "^24.13.2"
 	}
 }

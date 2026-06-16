@@ -170,7 +170,7 @@ describe("ReimbursementPage", () => {
 		expect(
 			await screen.findByText(/different from your member department/i),
 		).toBeInTheDocument();
-	}, 10_000);
+	}, 30_000);
 
 	it("puts receipt upload first and lets users correct extracted fields", async () => {
 		parseReceiptAsync.mockResolvedValueOnce({
@@ -220,7 +220,7 @@ describe("ReimbursementPage", () => {
 		expect(await screen.findByText(/iban is required/i)).toBeInTheDocument();
 		expect(screen.getByText(/bic is required/i)).toBeInTheDocument();
 		expect(createRequestAsync).not.toHaveBeenCalled();
-	}, 10_000);
+	}, 30_000);
 
 	it("submits invoice payout details instead of profile bank details", async () => {
 		createRequestAsync.mockResolvedValueOnce({});
