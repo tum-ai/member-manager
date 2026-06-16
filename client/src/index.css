@@ -59,6 +59,21 @@
 	body {
 		@apply bg-background text-foreground;
 	}
+
+	/*
+	 * iOS/Safari render native date & time controls at a fixed intrinsic width
+	 * that ignores width:100%, so they overflow narrow cards on mobile. Resetting
+	 * the native appearance makes them honor their container width. The picker
+	 * still opens on tap / via the calendar indicator.
+	 */
+	input[type="date"],
+	input[type="datetime-local"],
+	input[type="time"],
+	input[type="month"],
+	input[type="week"] {
+		-webkit-appearance: none;
+		appearance: none;
+	}
 }
 
 /* Slim, themed scrollbar for horizontally scrollable surfaces (tables, etc.). */
