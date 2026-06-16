@@ -53,5 +53,46 @@
 				"organizeImports": "on"
 			}
 		}
-	}
+	},
+	"overrides": [
+		{
+			// Per-function size gate for client source — complements the per-file
+			// guardrail in scripts/check-file-size.mjs. Client app code only;
+			// tests/stories exempt.
+			"includes": [
+				"client/src/**/*.ts",
+				"client/src/**/*.tsx",
+				"!**/*.test.ts",
+				"!**/*.test.tsx",
+				"!**/*.stories.tsx"
+			],
+			"linter": {
+				"rules": {
+					"complexity": {
+						"noExcessiveLinesPerFunction": {
+							"level": "error",
+							"options": { "maxLines": 300, "skipBlankLines": true }
+						}
+					}
+				}
+			}
+		},
+		{
+			// Backlog: client components whose main function exceeds 300 lines.
+			// Tracked for splitting in #189; remove each entry as it is broken
+			// up. Do not add new entries.
+			"includes": [
+				"client/src/features/profile/ProfilePage.tsx",
+				"client/src/features/admin/AdminDatabaseView.tsx",
+				"client/src/features/members/MemberForm.tsx",
+				"client/src/features/tools/TumaiDaysPage.tsx",
+				"client/src/features/reimbursements/ReimbursementPage.tsx"
+			],
+			"linter": {
+				"rules": {
+					"complexity": { "noExcessiveLinesPerFunction": "off" }
+				}
+			}
+		}
+	]
 }
