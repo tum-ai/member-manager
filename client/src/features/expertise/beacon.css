@@ -1,0 +1,136 @@
+/* Beacon expertise UI — motion + accents. Plain CSS (not Tailwind-scanned), so
+   class names here are preserved as-is. References the app's CSS color tokens. */
+
+@keyframes beacon-fade-up {
+	from {
+		opacity: 0;
+		transform: translateY(10px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+/* Concentric "beacon" sweep used in the search empty state. */
+@keyframes beacon-ping {
+	0% {
+		transform: scale(0.45);
+		opacity: 0.5;
+	}
+	80% {
+		opacity: 0;
+	}
+	100% {
+		transform: scale(2.4);
+		opacity: 0;
+	}
+}
+
+@keyframes beacon-float {
+	0%,
+	100% {
+		transform: translateY(0);
+	}
+	50% {
+		transform: translateY(-5px);
+	}
+}
+
+@keyframes beacon-shimmer {
+	0% {
+		background-position: -200% 0;
+	}
+	100% {
+		background-position: 200% 0;
+	}
+}
+
+.beacon-fade-up {
+	animation: beacon-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.beacon-float {
+	animation: beacon-float 4.5s ease-in-out infinite;
+}
+
+.beacon-ping-ring {
+	position: absolute;
+	inset: 0;
+	border-radius: 9999px;
+	border: 1px solid var(--brand);
+	animation: beacon-ping 3s ease-out infinite;
+}
+
+/* Soft animated brand aurora behind the hero mark. */
+.beacon-aurora {
+	background:
+		radial-gradient(
+			60% 60% at 35% 30%,
+			color-mix(in oklab, var(--brand) 30%, transparent),
+			transparent 70%
+		),
+		radial-gradient(
+			50% 50% at 70% 70%,
+			color-mix(in oklab, var(--brand) 18%, transparent),
+			transparent 70%
+		);
+	filter: blur(22px);
+}
+
+/* Gradient banner used in profile / drawer heroes. */
+.beacon-hero-gradient {
+	background:
+		radial-gradient(
+			120% 140% at 0% 0%,
+			color-mix(in oklab, var(--brand) 20%, transparent),
+			transparent 55%
+		),
+		radial-gradient(
+			120% 140% at 100% 0%,
+			color-mix(in oklab, var(--brand) 10%, transparent),
+			transparent 50%
+		);
+}
+
+/* Fade above the sticky composer so messages scroll under it cleanly. */
+.beacon-scroll-fade {
+	-webkit-mask-image: linear-gradient(to bottom, transparent, #000 16px);
+	mask-image: linear-gradient(to bottom, transparent, #000 16px);
+}
+
+/* Shimmering "Thinking…" text — a bright band sweeps across the word. */
+@keyframes beacon-text-sweep {
+	0% {
+		background-position: 150% 0;
+	}
+	100% {
+		background-position: -50% 0;
+	}
+}
+
+.beacon-shimmer-text {
+	background: linear-gradient(
+		90deg,
+		var(--muted-foreground) 0%,
+		var(--muted-foreground) 35%,
+		var(--brand) 50%,
+		var(--muted-foreground) 65%,
+		var(--muted-foreground) 100%
+	);
+	background-size: 200% 100%;
+	-webkit-background-clip: text;
+	background-clip: text;
+	color: transparent;
+	animation: beacon-text-sweep 1.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.beacon-fade-up,
+	.beacon-float,
+	.beacon-ping-ring,
+	.beacon-shimmer-text {
+		animation: none;
+		color: var(--muted-foreground);
+	}
+}

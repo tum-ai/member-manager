@@ -13,6 +13,7 @@ import {
 	HeartHandshake,
 	LogOut,
 	type LucideIcon,
+	MessagesSquare,
 	Moon,
 	Network,
 	Receipt,
@@ -22,6 +23,7 @@ import {
 	Search,
 	Settings,
 	ShieldCheck,
+	Sparkles,
 	Sun,
 	Target,
 	User as UserIcon,
@@ -141,11 +143,18 @@ export function MainLayout({
 	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
 
 	const pathname = location.pathname;
+	// The assistant chat is a full-bleed surface (no centered max-width / page
+	// padding) so its references panel and floating controls hug the edges.
+	const fullBleed = pathname === "/expertise/chat";
 
 	const sections: NavSection[] = [
 		{
 			key: "home",
-			entries: [{ label: "Profile", to: "/", icon: UserIcon }],
+			entries: [
+				{ label: "Profile", to: "/", icon: UserIcon },
+				{ label: "Expertise", to: "/expertise", icon: Sparkles },
+				{ label: "Agent", to: "/expertise/chat", icon: MessagesSquare },
+			],
 		},
 		{
 			key: "tumai",
@@ -433,13 +442,21 @@ export function MainLayout({
 					<ThemeToggleButton />
 				</header>
 
-				<main className="mx-auto w-full max-w-7xl min-w-0 flex-1 px-4 py-6 md:px-6 md:py-8">
+				<main
+					className={
+						fullBleed
+							? "flex min-w-0 flex-1 flex-col"
+							: "mx-auto w-full max-w-7xl min-w-0 flex-1 px-4 py-6 md:px-6 md:py-8"
+					}
+				>
 					{children}
 				</main>
 
-				<footer className="mx-auto w-full max-w-7xl px-4 pb-6 md:px-6">
-					<BugReportButton user={user} />
-				</footer>
+				{!fullBleed && (
+					<footer className="mx-auto w-full max-w-7xl px-4 pb-6 md:px-6">
+						<BugReportButton user={user} />
+					</footer>
+				)}
 			</SidebarInset>
 		</SidebarProvider>
 	);
