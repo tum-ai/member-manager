@@ -56,6 +56,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { proxiedAvatarUrl } from "@/lib/avatarUrl";
 import { cn } from "@/lib/utils";
 import { useToast } from "../../contexts/ToastContext";
 import { useAdminData } from "../../hooks/useAdminData";
@@ -593,7 +594,7 @@ export default function AdminDatabaseView() {
 												</Button>
 												<Avatar className="size-11 bg-muted">
 													<AvatarImage
-														src={row.avatar_url || undefined}
+														src={proxiedAvatarUrl(row.avatar_url)}
 														alt={fullName}
 													/>
 													<AvatarFallback className="bg-muted font-bold text-foreground">

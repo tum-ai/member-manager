@@ -1,6 +1,7 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { useMembersListData } from "../../hooks/useMembersListData";
+import { isActiveMember } from "../../lib/memberMetadata";
 import OrgChartView from "./OrgChartView";
 
 export default function MembersOrgChartPage() {
@@ -20,7 +21,8 @@ export default function MembersOrgChartPage() {
 		);
 	}
 
-	return <OrgChartView members={members ?? []} />;
+	// Alumni and inactive members are excluded from the org chart.
+	return <OrgChartView members={(members ?? []).filter(isActiveMember)} />;
 }
 
 function MemberRowSkeleton() {

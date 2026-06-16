@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/tooltip";
 import GlassCard from "../../components/ui/GlassCard";
 import { useMembersListData } from "../../hooks/useMembersListData";
+import { proxiedAvatarUrl } from "../../lib/avatarUrl";
 import {
 	BOARD_MEMBER_ROLE,
 	DEGREE_TYPES,
@@ -394,7 +395,7 @@ function MemberCard({ member }: MemberCardProps) {
 				<div className="flex items-start gap-4">
 					<Avatar className="size-14 shrink-0 bg-muted text-foreground">
 						<AvatarImage
-							src={member.avatar_url || undefined}
+							src={proxiedAvatarUrl(member.avatar_url)}
 							alt={displayName}
 						/>
 						<AvatarFallback className="bg-muted text-lg font-bold text-foreground">

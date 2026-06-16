@@ -59,6 +59,10 @@ export function computeProfileCompleteness({
 		member.city,
 		member.country,
 		member.batch,
+		// Study/education: a real degree counts; an explicit "None" serializes to
+		// "" (EducationFields NONE_VALUE) and so does not count — same trim rule
+		// as every other select-backed field below.
+		member.degree,
 		// department and member_role are admin-managed (stripped from
 		// self-service updates), so a member can never fill them in — excluded
 		// from completeness so a fully-filled editable profile reaches 100%.

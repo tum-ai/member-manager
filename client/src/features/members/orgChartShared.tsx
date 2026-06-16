@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { proxiedAvatarUrl } from "../../lib/avatarUrl";
 import { BOARD_MEMBER_ROLE } from "../../lib/constants";
 import type { Member } from "../../types";
 
@@ -49,7 +50,7 @@ export function OrgChartPerson({
 				)}
 			>
 				<AvatarImage
-					src={member.avatar_url || undefined}
+					src={proxiedAvatarUrl(member.avatar_url)}
 					alt={getDisplayName(member)}
 				/>
 				<AvatarFallback

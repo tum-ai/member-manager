@@ -3,6 +3,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMembersListData } from "../../hooks/useMembersListData";
+import { isActiveMember } from "../../lib/memberMetadata";
 import OrgChartDiagram from "./orgTree/OrgChartDiagram";
 import { buildOrgTree } from "./orgTree/orgTreeData";
 
@@ -37,7 +38,8 @@ export default function MembersOrgTreePage() {
 		);
 	}
 
-	const nodes = buildOrgTree(members ?? []);
+	// Alumni and inactive members are excluded from the org tree.
+	const nodes = buildOrgTree((members ?? []).filter(isActiveMember));
 
 	return (
 		<div>

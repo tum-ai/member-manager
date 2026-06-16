@@ -51,6 +51,7 @@ import { useMemberChangeRequests } from "../../hooks/useMemberChangeRequests";
 import { useMemberData } from "../../hooks/useMemberData";
 import { useResearchProjects } from "../../hooks/useResearchProjects";
 import { useSepaData } from "../../hooks/useSepaData";
+import { proxiedAvatarUrl } from "../../lib/avatarUrl";
 import {
 	BATCH_OPTIONS,
 	DEPARTMENTS,
@@ -612,7 +613,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								<div className="flex items-center gap-4">
 									<Avatar className="size-16 shrink-0 bg-muted">
 										<AvatarImage
-											src={memberData?.avatar_url || undefined}
+											src={proxiedAvatarUrl(memberData?.avatar_url)}
 											alt={headerFullName || "Member avatar"}
 										/>
 										<AvatarFallback className="bg-brand/10 text-lg font-semibold text-brand">

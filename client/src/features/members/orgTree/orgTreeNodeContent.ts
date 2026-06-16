@@ -1,3 +1,4 @@
+import { proxiedAvatarUrl } from "../../../lib/avatarUrl";
 import {
 	TUM_AI_LOGO_MARK_DARK,
 	TUM_AI_LOGO_MARK_LIGHT,
@@ -39,11 +40,10 @@ function avatarHtml(member: Member, size: number, isBoard = false): string {
 		`<div style="position:absolute;inset:0;display:flex;align-items:center;` +
 		`justify-content:center;color:var(--muted-foreground);font-weight:600;` +
 		`font-size:${Math.round(size * 0.34)}px;">${initials}</div>`;
-	const url = member.avatar_url ? escapeHtml(member.avatar_url) : "";
-	// crossorigin lets the avatar be drawn onto the export canvas without tainting
-	// it (PNG export otherwise fails silently on cross-origin Slack avatars).
+	const proxied = proxiedAvatarUrl(member.avatar_url);
+	const url = proxied ? escapeHtml(proxied) : "";
 	const img = url
-		? `<img src="${url}" alt="" crossorigin="anonymous" style="position:absolute;inset:0;width:100%;` +
+		? `<img src="${url}" alt="" style="position:absolute;inset:0;width:100%;` +
 			`height:100%;object-fit:cover;" onerror="this.style.display='none'" />`
 		: "";
 	const inner = `<div style="${circle}">${fallback}${img}</div>`;
