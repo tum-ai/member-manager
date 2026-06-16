@@ -57,15 +57,9 @@
 	"overrides": [
 		{
 			// Per-function size gate for client source — complements the per-file
-			// guardrail in scripts/check-file-size.mjs. Client app code only;
-			// tests/stories exempt.
-			"includes": [
-				"client/src/**/*.ts",
-				"client/src/**/*.tsx",
-				"!**/*.test.ts",
-				"!**/*.test.tsx",
-				"!**/*.stories.tsx"
-			],
+			// guardrail in scripts/check-file-size.mjs. Positive-only globs:
+			// negated patterns here can re-broaden the global file set.
+			"includes": ["client/src/**/*.ts", "client/src/**/*.tsx"],
 			"linter": {
 				"rules": {
 					"complexity": {
@@ -74,6 +68,19 @@
 							"options": { "maxLines": 300, "skipBlankLines": true }
 						}
 					}
+				}
+			}
+		},
+		{
+			// Tests and stories legitimately have long bodies — exempt them.
+			"includes": [
+				"client/src/**/*.test.ts",
+				"client/src/**/*.test.tsx",
+				"client/src/**/*.stories.tsx"
+			],
+			"linter": {
+				"rules": {
+					"complexity": { "noExcessiveLinesPerFunction": "off" }
 				}
 			}
 		},
