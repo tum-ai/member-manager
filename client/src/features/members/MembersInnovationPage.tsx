@@ -30,9 +30,9 @@ export default function MembersInnovationPage() {
 	return (
 		<div>
 			<div className="mb-6">
-				<h1 className="text-2xl font-bold tracking-tight">Innovation</h1>
+				<h1 className="text-2xl font-bold tracking-tight">Task Forces</h1>
 				<p className="mt-1 text-muted-foreground">
-					Innovation initiatives and the members behind them.
+					Task forces and the members behind them.
 				</p>
 			</div>
 
