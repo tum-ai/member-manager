@@ -180,7 +180,36 @@ const RoleHistoryCreateSchema = z
 		},
 	);
 
+const AgentLogQuerySchema = z
+	.object({
+		chat_id: z.string().uuid().optional(),
+		turn_id: z.string().uuid().optional(),
+	})
+	.refine((q) => q.chat_id || q.turn_id, {
+		message: "chat_id or turn_id is required",
+	});
+
 export async function adminRoutes(server: FastifyInstance) {
+	// Beacon assistant activity log — full per-turn reasoning trace for a chat.
+	server.get(
+		"/admin/beacon/agent-log",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const { chat_id, turn_id } = AgentLogQuerySchema.parse(request.query);
+			let query = getSupabase()
+				.from("beacon_agent_log")
+				.select(
+					"id, chat_id, turn_id, user_id, query, model, trace, step_count, people_count, duration_ms, created_at",
+				)
+				.order("created_at", { ascending: true });
+			if (chat_id) query = query.eq("chat_id", chat_id);
+			if (turn_id) query = query.eq("turn_id", turn_id);
+			const { data, error } = await query;
+			if (error) throw new DatabaseError(error.message);
+			return reply.send({ turns: data ?? [] });
+		},
+	);
+
 	server.get(
 		"/admin/members",
 		{ preHandler: [authenticate, requireAdmin] },

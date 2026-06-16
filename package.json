@@ -26,7 +26,9 @@
 		"supabase:stop": "supabase stop",
 		"supabase:status": "supabase status",
 		"supabase:reset": "supabase db reset",
-		"supabase:migrations:check": "node scripts/check-supabase-migrations.mjs"
+		"supabase:migrations:check": "node scripts/check-supabase-migrations.mjs",
+		"db:pull": "node scripts/pull-remote-db.mjs",
+		"db:prepare-local": "pnpm --filter @member-manager/server exec tsx src/scripts/prepareLocalDb.ts"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.4.16",
