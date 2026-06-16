@@ -43,7 +43,14 @@ export default function SignaturePad({
 		const context = canvas.getContext("2d");
 		if (!context) return;
 		drawingRef.current = true;
-		canvas.setPointerCapture(event.pointerId);
+		// Pointer capture is a best-effort optimization; it throws for
+		// non-active/synthetic pointers (e.g. dispatched events in tests) and is
+		// not required to draw, so failing to capture must not break signing.
+		try {
+			canvas.setPointerCapture(event.pointerId);
+		} catch {
+			// ignore — drawing still works without capture
+		}
 		const { x, y } = pointerPos(event);
 		context.beginPath();
 		context.moveTo(x, y);

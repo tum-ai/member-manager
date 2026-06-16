@@ -31,18 +31,25 @@ test("a partner can sign a contract via the public signing link", async ({
 
 	await page.getByLabel("Full name").fill("Bob Soylent");
 
-	// The signature pad is a <canvas> that only emits a data URL after a pointer
-	// stroke; drag across it to produce a non-empty signature, which enables the
-	// Sign button.
+	// The signature pad is a <canvas> that listens to pointer events and only
+	// emits a data URL (enabling Sign) after a pointerdown→move→up stroke.
+	// Dispatch the pointer events directly with explicit client coordinates:
+	// synthesized mouse input does not reliably register the stroke headlessly.
 	const canvas = page.locator("canvas");
 	await expect(canvas).toBeVisible();
 	const box = await canvas.boundingBox();
 	if (!box) throw new Error("signature canvas has no bounding box");
-	await page.mouse.move(box.x + box.width * 0.2, box.y + box.height * 0.5);
-	await page.mouse.down();
-	await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.3);
-	await page.mouse.move(box.x + box.width * 0.8, box.y + box.height * 0.6);
-	await page.mouse.up();
+	const at = (fx: number, fy: number) => ({
+		pointerId: 1,
+		isPrimary: true,
+		bubbles: true,
+		clientX: box.x + box.width * fx,
+		clientY: box.y + box.height * fy,
+	});
+	await canvas.dispatchEvent("pointerdown", { button: 0, ...at(0.2, 0.5) });
+	await canvas.dispatchEvent("pointermove", at(0.5, 0.3));
+	await canvas.dispatchEvent("pointermove", at(0.8, 0.6));
+	await canvas.dispatchEvent("pointerup", { button: 0, ...at(0.8, 0.6) });
 
 	const signButton = page.getByRole("button", { name: "Sign", exact: true });
 	await expect(signButton).toBeEnabled();

@@ -87,8 +87,9 @@ test("member submits a reimbursement and an admin approves it", async ({
 	await queueItem.click();
 
 	// Approve and assert the state transition both via toast and the stage badge
-	// flipping from "Needs approval" to "Ready for payment".
-	await adminPage.getByRole("button", { name: "Approve" }).click();
+	// flipping from "Needs approval" to "Ready for payment". Use an exact name so
+	// this doesn't also match the "Approved, not paid (N)" stage-filter button.
+	await adminPage.getByRole("button", { name: "Approve", exact: true }).click();
 	await expectToast(adminPage, /reimbursement request updated/i);
 
 	await expect(adminPage.getByText("Ready for payment").first()).toBeVisible();
