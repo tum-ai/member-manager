@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LinkButton } from "@/components/ui/link-button";
@@ -725,8 +726,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								/>
 
 								<div className="grid grid-cols-1 gap-4 sm:grid-cols-12">
-									<div className="grid gap-1.5 sm:col-span-4">
-										<Label htmlFor={salutationId}>Salutation (optional)</Label>
+									<Field
+										className="sm:col-span-4"
+										label="Salutation (optional)"
+										htmlFor={salutationId}
+										error={errors.salutation?.message}
+									>
 										<Select
 											value={toSelectValue(
 												memberForm.watch("salutation") || "",
@@ -754,14 +759,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												<SelectItem value="Mx.">Mx.</SelectItem>
 											</SelectContent>
 										</Select>
-										{errors.salutation?.message && (
-											<p className="text-xs text-destructive">
-												{errors.salutation.message}
-											</p>
-										)}
-									</div>
-									<div className="grid gap-1.5 sm:col-span-8">
-										<Label htmlFor={titleId}>Title</Label>
+									</Field>
+									<Field
+										className="sm:col-span-8"
+										label="Title"
+										htmlFor={titleId}
+									>
 										<Select
 											value={toSelectValue(memberForm.watch("title") || "")}
 											onValueChange={(value) =>
@@ -783,39 +786,43 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												<SelectItem value="Prof.">Prof.</SelectItem>
 											</SelectContent>
 										</Select>
-									</div>
+									</Field>
 
-									<div className="grid gap-1.5 sm:col-span-6">
-										<Label htmlFor={givenNameId}>First Name *</Label>
+									<Field
+										className="sm:col-span-6"
+										label="First Name"
+										htmlFor={givenNameId}
+										required
+										error={errors.given_name?.message}
+									>
 										<Input
 											id={givenNameId}
 											{...memberForm.register("given_name")}
 											aria-invalid={!!errors.given_name}
 											required
 										/>
-										{errors.given_name?.message && (
-											<p className="text-xs text-destructive">
-												{errors.given_name.message}
-											</p>
-										)}
-									</div>
-									<div className="grid gap-1.5 sm:col-span-6">
-										<Label htmlFor={surnameId}>Last Name *</Label>
+									</Field>
+									<Field
+										className="sm:col-span-6"
+										label="Last Name"
+										htmlFor={surnameId}
+										required
+										error={errors.surname?.message}
+									>
 										<Input
 											id={surnameId}
 											{...memberForm.register("surname")}
 											aria-invalid={!!errors.surname}
 											required
 										/>
-										{errors.surname?.message && (
-											<p className="text-xs text-destructive">
-												{errors.surname.message}
-											</p>
-										)}
-									</div>
+									</Field>
 
-									<div className="grid gap-1.5 sm:col-span-8">
-										<Label htmlFor={emailId}>Email</Label>
+									<Field
+										className="sm:col-span-8"
+										label="Email"
+										htmlFor={emailId}
+										description="Managed by your account login"
+									>
 										<Input
 											id={emailId}
 											type="email"
@@ -823,24 +830,20 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											disabled
 											readOnly
 										/>
-										<p className="text-xs text-muted-foreground">
-											Managed by your account login
-										</p>
-									</div>
-									<div className="grid gap-1.5 sm:col-span-4">
-										<Label htmlFor={dobId}>Date of Birth</Label>
+									</Field>
+									<Field
+										className="sm:col-span-4"
+										label="Date of Birth"
+										htmlFor={dobId}
+										error={errors.date_of_birth?.message}
+									>
 										<Input
 											id={dobId}
 											type="date"
 											{...memberForm.register("date_of_birth")}
 											aria-invalid={!!errors.date_of_birth}
 										/>
-										{errors.date_of_birth?.message && (
-											<p className="text-xs text-destructive">
-												{errors.date_of_birth.message}
-											</p>
-										)}
-									</div>
+									</Field>
 
 									<div className="sm:col-span-12">
 										<p className="mt-2 mb-2 text-sm font-medium text-muted-foreground">
@@ -848,73 +851,68 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 										</p>
 									</div>
 
-									<div className="grid gap-1.5 sm:col-span-9">
-										<Label htmlFor={streetId}>Street</Label>
+									<Field
+										className="sm:col-span-9"
+										label="Street"
+										htmlFor={streetId}
+										error={errors.street?.message}
+									>
 										<Input
 											id={streetId}
 											{...memberForm.register("street")}
 											aria-invalid={!!errors.street}
 										/>
-										{errors.street?.message && (
-											<p className="text-xs text-destructive">
-												{errors.street.message}
-											</p>
-										)}
-									</div>
-									<div className="grid gap-1.5 sm:col-span-3">
-										<Label htmlFor={numberId}>Number</Label>
+									</Field>
+									<Field
+										className="sm:col-span-3"
+										label="Number"
+										htmlFor={numberId}
+										error={errors.number?.message}
+									>
 										<Input
 											id={numberId}
 											{...memberForm.register("number")}
 											aria-invalid={!!errors.number}
 										/>
-										{errors.number?.message && (
-											<p className="text-xs text-destructive">
-												{errors.number.message}
-											</p>
-										)}
-									</div>
+									</Field>
 
-									<div className="grid gap-1.5 sm:col-span-4">
-										<Label htmlFor={postalCodeId}>Postal Code</Label>
+									<Field
+										className="sm:col-span-4"
+										label="Postal Code"
+										htmlFor={postalCodeId}
+										error={errors.postal_code?.message}
+									>
 										<Input
 											id={postalCodeId}
 											{...memberForm.register("postal_code")}
 											aria-invalid={!!errors.postal_code}
 										/>
-										{errors.postal_code?.message && (
-											<p className="text-xs text-destructive">
-												{errors.postal_code.message}
-											</p>
-										)}
-									</div>
-									<div className="grid gap-1.5 sm:col-span-8">
-										<Label htmlFor={cityId}>City</Label>
+									</Field>
+									<Field
+										className="sm:col-span-8"
+										label="City"
+										htmlFor={cityId}
+										error={errors.city?.message}
+									>
 										<Input
 											id={cityId}
 											{...memberForm.register("city")}
 											aria-invalid={!!errors.city}
 										/>
-										{errors.city?.message && (
-											<p className="text-xs text-destructive">
-												{errors.city.message}
-											</p>
-										)}
-									</div>
+									</Field>
 
-									<div className="grid gap-1.5 sm:col-span-12">
-										<Label htmlFor={countryId}>Country</Label>
+									<Field
+										className="sm:col-span-12"
+										label="Country"
+										htmlFor={countryId}
+										error={errors.country?.message}
+									>
 										<Input
 											id={countryId}
 											{...memberForm.register("country")}
 											aria-invalid={!!errors.country}
 										/>
-										{errors.country?.message && (
-											<p className="text-xs text-destructive">
-												{errors.country.message}
-											</p>
-										)}
-									</div>
+									</Field>
 								</div>
 							</CardContent>
 						</GlassCard>
@@ -928,8 +926,11 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								/>
 
 								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-									<div className="grid gap-1.5">
-										<Label htmlFor={batchId}>Batch</Label>
+									<Field
+										label="Batch"
+										htmlFor={batchId}
+										error={errors.batch?.message}
+									>
 										<Select
 											value={toSelectValue(memberForm.watch("batch") || "")}
 											onValueChange={(value) =>
@@ -955,14 +956,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												))}
 											</SelectContent>
 										</Select>
-										{errors.batch?.message && (
-											<p className="text-xs text-destructive">
-												{errors.batch.message}
-											</p>
-										)}
-									</div>
-									<div className="grid gap-1.5">
-										<Label htmlFor={departmentId}>Department</Label>
+									</Field>
+									<Field label="Department" htmlFor={departmentId}>
 										{isAdmin ? (
 											<Select
 												value={toSelectValue(currentDepartment)}
@@ -1008,10 +1003,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												</p>
 											</>
 										)}
-									</div>
+									</Field>
 
-									<div className="grid gap-1.5">
-										<Label htmlFor={roleId}>Role in TUM.ai</Label>
+									<Field label="Role in TUM.ai" htmlFor={roleId}>
 										{isAdmin ? (
 											<>
 												<Select
@@ -1073,12 +1067,13 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												</p>
 											</>
 										)}
-									</div>
+									</Field>
 									{isResearchDepartmentSelected && (
-										<div className="grid gap-1.5">
-											<Label htmlFor={researchProjectId}>
-												Research project
-											</Label>
+										<Field
+											label="Research project"
+											htmlFor={researchProjectId}
+											description="Pick the research project you are part of."
+										>
 											<Select
 												value={toSelectValue(researchProjectSelectValue)}
 												onValueChange={(value) =>
@@ -1108,10 +1103,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 													))}
 												</SelectContent>
 											</Select>
-											<p className="text-xs text-muted-foreground">
-												Pick the research project you are part of.
-											</p>
-										</div>
+										</Field>
 									)}
 									<EducationFields
 										degreeValue={memberForm.watch("degree")}
@@ -1138,8 +1130,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								/>
 
 								<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-									<div className="grid gap-1.5 sm:col-span-2">
-										<Label htmlFor={linkedinUrlId}>LinkedIn Profile URL</Label>
+									<Field
+										className="sm:col-span-2"
+										label="LinkedIn Profile URL"
+										htmlFor={linkedinUrlId}
+										error={
+											linkedinForm.formState.errors.linkedin_profile_url
+												?.message
+										}
+									>
 										<div className="relative">
 											<Input
 												id={linkedinUrlId}
@@ -1169,28 +1168,19 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												</Button>
 											)}
 										</div>
-										{linkedinForm.formState.errors.linkedin_profile_url
-											?.message && (
-											<p className="text-xs text-destructive">
-												{
-													linkedinForm.formState.errors.linkedin_profile_url
-														.message
-												}
-											</p>
-										)}
-									</div>
+									</Field>
 
-									<div className="grid gap-1.5">
-										<Label htmlFor={publicLocationId}>Public location</Label>
+									<Field
+										label="Public location"
+										htmlFor={publicLocationId}
+										description="Shown on your member profile; separate from your address."
+									>
 										<Input
 											id={publicLocationId}
 											placeholder="Munich, Germany"
 											{...linkedinForm.register("public_location")}
 										/>
-										<p className="text-xs text-muted-foreground">
-											Shown on your member profile; separate from your address.
-										</p>
-									</div>
+									</Field>
 								</div>
 							</CardContent>
 						</GlassCard>
@@ -1211,8 +1201,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 									/>
 
 									<div className="grid grid-cols-1 gap-4">
-										<div className="grid gap-1.5">
-											<Label htmlFor={requestedRoleId}>Requested role</Label>
+										<Field label="Requested role" htmlFor={requestedRoleId}>
 											<Select
 												value={toSelectValue(requestedRole)}
 												onValueChange={(value) =>
@@ -1235,11 +1224,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 													))}
 												</SelectContent>
 											</Select>
-										</div>
-										<div className="grid gap-1.5">
-											<Label htmlFor={requestedDepartmentId}>
-												Requested department
-											</Label>
+										</Field>
+										<Field
+											label="Requested department"
+											htmlFor={requestedDepartmentId}
+											description="Department changes are reviewed by an admin."
+										>
 											<Select
 												value={toSelectValue(requestedDepartment)}
 												onValueChange={(value) =>
@@ -1262,10 +1252,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 													))}
 												</SelectContent>
 											</Select>
-											<p className="text-xs text-muted-foreground">
-												Department changes are reviewed by an admin.
-											</p>
-										</div>
+										</Field>
 										<div>
 											<div className="flex items-center gap-1">
 												<div className="flex items-center gap-2">
@@ -1300,8 +1287,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												</TooltipProvider>
 											</div>
 										</div>
-										<div className="grid gap-1.5">
-											<Label htmlFor={reasonId}>Reason</Label>
+										<Field label="Reason" htmlFor={reasonId}>
 											<Textarea
 												id={reasonId}
 												value={changeRequestReason}
@@ -1311,7 +1297,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 												rows={3}
 												placeholder="Briefly explain why your role or status should change."
 											/>
-										</div>
+										</Field>
 									</div>
 
 									{latestMemberChangeRequest && (
@@ -1355,8 +1341,12 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								/>
 
 								<div className="mb-6 grid gap-4">
-									<div className="grid gap-1.5">
-										<Label htmlFor={ibanId}>IBAN *</Label>
+									<Field
+										label="IBAN"
+										htmlFor={ibanId}
+										required
+										error={sepaForm.formState.errors.iban?.message}
+									>
 										<Input
 											id={ibanId}
 											{...sepaForm.register("iban")}
@@ -1364,30 +1354,23 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 											className="font-mono"
 											required
 										/>
-										{sepaForm.formState.errors.iban?.message && (
-											<p className="text-xs text-destructive">
-												{sepaForm.formState.errors.iban.message}
-											</p>
-										)}
-									</div>
-									<div className="grid gap-1.5">
-										<Label htmlFor={bicId}>BIC</Label>
+									</Field>
+									<Field label="BIC" htmlFor={bicId}>
 										<Input id={bicId} {...sepaForm.register("bic")} />
-									</div>
-									<div className="grid gap-1.5">
-										<Label htmlFor={bankNameId}>Bank Name *</Label>
+									</Field>
+									<Field
+										label="Bank Name"
+										htmlFor={bankNameId}
+										required
+										error={sepaForm.formState.errors.bank_name?.message}
+									>
 										<Input
 											id={bankNameId}
 											{...sepaForm.register("bank_name")}
 											aria-invalid={!!sepaForm.formState.errors.bank_name}
 											required
 										/>
-										{sepaForm.formState.errors.bank_name?.message && (
-											<p className="text-xs text-destructive">
-												{sepaForm.formState.errors.bank_name.message}
-											</p>
-										)}
-									</div>
+									</Field>
 								</div>
 
 								<div className="space-y-3">

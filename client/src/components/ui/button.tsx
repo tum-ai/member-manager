@@ -51,6 +51,7 @@ const Button = React.forwardRef<
 			variant = "default",
 			size = "default",
 			asChild = false,
+			type,
 			...props
 		},
 		ref,
@@ -63,6 +64,7 @@ const Button = React.forwardRef<
 				data-slot="button"
 				data-variant={variant}
 				data-size={size}
+				type={asChild ? type : (type ?? "button")}
 				className={cn(buttonVariants({ variant, size, className }))}
 				{...props}
 			/>

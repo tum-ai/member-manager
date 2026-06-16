@@ -5,8 +5,8 @@ import { Controller, useForm } from "react-hook-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CheckboxCard } from "@/components/ui/checkbox-card";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { LinkButton } from "@/components/ui/link-button";
 import {
 	Select,
@@ -255,13 +255,13 @@ export default function MemberForm({ user }: MemberFormProps) {
 						</div>
 
 						<div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-							<div className="sm:col-span-4">
-								<Label
-									htmlFor="salutation"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									Salutation *
-								</Label>
+							<Field
+								className="sm:col-span-4"
+								label="Salutation"
+								htmlFor="salutation"
+								required
+								error={memberForm.formState.errors.salutation?.message}
+							>
 								<Controller
 									control={memberForm.control}
 									name="salutation"
@@ -278,19 +278,8 @@ export default function MemberForm({ user }: MemberFormProps) {
 										</Select>
 									)}
 								/>
-								{memberForm.formState.errors.salutation && (
-									<span className="text-destructive text-xs mt-1 block">
-										{memberForm.formState.errors.salutation.message}
-									</span>
-								)}
-							</div>
-							<div className="sm:col-span-8">
-								<Label
-									htmlFor="title"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									Title
-								</Label>
+							</Field>
+							<Field className="sm:col-span-8" label="Title" htmlFor="title">
 								<Controller
 									control={memberForm.control}
 									name="title"
@@ -306,159 +295,131 @@ export default function MemberForm({ user }: MemberFormProps) {
 										</Select>
 									)}
 								/>
-							</div>
+							</Field>
 
-							<div className="sm:col-span-6">
-								<Label
-									htmlFor="given_name"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									First Name *
-								</Label>
+							<Field
+								className="sm:col-span-6"
+								label="First Name"
+								htmlFor="given_name"
+								required
+								error={memberForm.formState.errors.given_name?.message}
+							>
 								<Input
 									id="given_name"
 									{...memberForm.register("given_name")}
+									aria-invalid={!!memberForm.formState.errors.given_name}
 									placeholder="John"
 								/>
-								{memberForm.formState.errors.given_name && (
-									<span className="text-destructive text-xs mt-1 block">
-										{memberForm.formState.errors.given_name.message}
-									</span>
-								)}
-							</div>
-							<div className="sm:col-span-6">
-								<Label
-									htmlFor="surname"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									Last Name *
-								</Label>
+							</Field>
+							<Field
+								className="sm:col-span-6"
+								label="Last Name"
+								htmlFor="surname"
+								required
+								error={memberForm.formState.errors.surname?.message}
+							>
 								<Input
 									id="surname"
 									{...memberForm.register("surname")}
+									aria-invalid={!!memberForm.formState.errors.surname}
 									placeholder="Doe"
 								/>
-								{memberForm.formState.errors.surname && (
-									<span className="text-destructive text-xs mt-1 block">
-										{memberForm.formState.errors.surname.message}
-									</span>
-								)}
-							</div>
+							</Field>
 
-							<div className="sm:col-span-8">
-								<Label
-									htmlFor="email"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									Email
-								</Label>
+							<Field
+								className="sm:col-span-8"
+								label="Email"
+								htmlFor="email"
+								description="Managed by your account login"
+							>
 								<Input
 									id="email"
 									type="email"
 									value={memberData?.email || user.email || ""}
 									readOnly
 								/>
-								<span className="text-muted-foreground text-xs mt-1 block">
-									Managed by your account login
-								</span>
-							</div>
-							<div className="sm:col-span-4">
-								<Label
-									htmlFor="date_of_birth"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									Date of Birth
-								</Label>
+							</Field>
+							<Field
+								className="sm:col-span-4"
+								label="Date of Birth"
+								htmlFor="date_of_birth"
+								error={memberForm.formState.errors.date_of_birth?.message}
+							>
 								<Input
 									id="date_of_birth"
 									type="date"
 									{...memberForm.register("date_of_birth")}
+									aria-invalid={!!memberForm.formState.errors.date_of_birth}
 								/>
-								{memberForm.formState.errors.date_of_birth && (
-									<span className="text-destructive text-xs mt-1 block">
-										{memberForm.formState.errors.date_of_birth.message}
-									</span>
-								)}
-							</div>
+							</Field>
 
-							<div className="sm:col-span-9">
-								<Label
-									htmlFor="street"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									Street *
-								</Label>
-								<Input id="street" {...memberForm.register("street")} />
-								{memberForm.formState.errors.street && (
-									<span className="text-destructive text-xs mt-1 block">
-										{memberForm.formState.errors.street.message}
-									</span>
-								)}
-							</div>
-							<div className="sm:col-span-3">
-								<Label
-									htmlFor="number"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									No. *
-								</Label>
-								<Input id="number" {...memberForm.register("number")} />
-								{memberForm.formState.errors.number && (
-									<span className="text-destructive text-xs mt-1 block">
-										{memberForm.formState.errors.number.message}
-									</span>
-								)}
-							</div>
+							<Field
+								className="sm:col-span-9"
+								label="Street"
+								htmlFor="street"
+								required
+								error={memberForm.formState.errors.street?.message}
+							>
+								<Input
+									id="street"
+									{...memberForm.register("street")}
+									aria-invalid={!!memberForm.formState.errors.street}
+								/>
+							</Field>
+							<Field
+								className="sm:col-span-3"
+								label="No."
+								htmlFor="number"
+								required
+								error={memberForm.formState.errors.number?.message}
+							>
+								<Input
+									id="number"
+									{...memberForm.register("number")}
+									aria-invalid={!!memberForm.formState.errors.number}
+								/>
+							</Field>
 
-							<div className="sm:col-span-4">
-								<Label
-									htmlFor="postal_code"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									Postal Code *
-								</Label>
+							<Field
+								className="sm:col-span-4"
+								label="Postal Code"
+								htmlFor="postal_code"
+								required
+								error={memberForm.formState.errors.postal_code?.message}
+							>
 								<Input
 									id="postal_code"
 									{...memberForm.register("postal_code")}
+									aria-invalid={!!memberForm.formState.errors.postal_code}
 								/>
-								{memberForm.formState.errors.postal_code && (
-									<span className="text-destructive text-xs mt-1 block">
-										{memberForm.formState.errors.postal_code.message}
-									</span>
-								)}
-							</div>
-							<div className="sm:col-span-8">
-								<Label
-									htmlFor="city"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									City *
-								</Label>
-								<Input id="city" {...memberForm.register("city")} />
-								{memberForm.formState.errors.city && (
-									<span className="text-destructive text-xs mt-1 block">
-										{memberForm.formState.errors.city.message}
-									</span>
-								)}
-							</div>
-							<div className="sm:col-span-12">
-								<Label
-									htmlFor="country"
-									className="block text-sm font-medium text-muted-foreground mb-1"
-								>
-									Country *
-								</Label>
+							</Field>
+							<Field
+								className="sm:col-span-8"
+								label="City"
+								htmlFor="city"
+								required
+								error={memberForm.formState.errors.city?.message}
+							>
+								<Input
+									id="city"
+									{...memberForm.register("city")}
+									aria-invalid={!!memberForm.formState.errors.city}
+								/>
+							</Field>
+							<Field
+								className="sm:col-span-12"
+								label="Country"
+								htmlFor="country"
+								required
+								error={memberForm.formState.errors.country?.message}
+							>
 								<Input
 									id="country"
 									{...memberForm.register("country")}
+									aria-invalid={!!memberForm.formState.errors.country}
 									defaultValue="Germany"
 								/>
-								{memberForm.formState.errors.country && (
-									<span className="text-destructive text-xs mt-1 block">
-										{memberForm.formState.errors.country.message}
-									</span>
-								)}
-							</div>
+							</Field>
 						</div>
 
 						<div className="mt-8 pt-6 border-t border-border">
@@ -484,54 +445,41 @@ export default function MemberForm({ user }: MemberFormProps) {
 							</h2>
 
 							<div className="space-y-4">
-								<div>
-									<Label
-										htmlFor="iban"
-										className="block text-sm font-medium text-muted-foreground mb-1"
-									>
-										IBAN *
-									</Label>
+								<Field
+									label="IBAN"
+									htmlFor="iban"
+									required
+									error={sepaForm.formState.errors.iban?.message}
+								>
 									<Input
 										id="iban"
 										{...sepaForm.register("iban")}
+										aria-invalid={!!sepaForm.formState.errors.iban}
 										className="font-mono"
 										placeholder="DE..."
 									/>
-									{sepaForm.formState.errors.iban && (
-										<span className="text-destructive text-xs mt-1 block">
-											{sepaForm.formState.errors.iban.message}
-										</span>
-									)}
-								</div>
+								</Field>
 
-								<div>
-									<Label
-										htmlFor="bic"
-										className="block text-sm font-medium text-muted-foreground mb-1"
-									>
-										BIC
-									</Label>
+								<Field label="BIC" htmlFor="bic">
 									<Input
 										id="bic"
 										{...sepaForm.register("bic")}
 										className="font-mono"
 									/>
-								</div>
+								</Field>
 
-								<div>
-									<Label
-										htmlFor="bank_name"
-										className="block text-sm font-medium text-muted-foreground mb-1"
-									>
-										Bank Name *
-									</Label>
-									<Input id="bank_name" {...sepaForm.register("bank_name")} />
-									{sepaForm.formState.errors.bank_name && (
-										<span className="text-destructive text-xs mt-1 block">
-											{sepaForm.formState.errors.bank_name.message}
-										</span>
-									)}
-								</div>
+								<Field
+									label="Bank Name"
+									htmlFor="bank_name"
+									required
+									error={sepaForm.formState.errors.bank_name?.message}
+								>
+									<Input
+										id="bank_name"
+										{...sepaForm.register("bank_name")}
+										aria-invalid={!!sepaForm.formState.errors.bank_name}
+									/>
+								</Field>
 
 								<div className="pt-4 space-y-3">
 									<Controller

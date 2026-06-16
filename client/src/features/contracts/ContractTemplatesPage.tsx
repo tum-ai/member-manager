@@ -16,6 +16,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import { Field } from "@/components/ui/field";
 import GlassCard from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -303,15 +304,14 @@ function NewTemplateDialog({
 				<DialogHeader>
 					<DialogTitle>New Template</DialogTitle>
 				</DialogHeader>
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="new-template-name">Name</Label>
+				<Field label="Name" htmlFor="new-template-name">
 					<Input
 						id="new-template-name"
 						autoFocus
 						value={name}
 						onChange={(event) => setName(event.target.value)}
 					/>
-				</div>
+				</Field>
 				{error ? (
 					<Alert variant="destructive">
 						<AlertDescription>{error.message}</AlertDescription>
@@ -389,8 +389,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 		<div className="flex flex-col gap-6">
 			<GlassCard className="p-6">
 				<div className="flex flex-col gap-4">
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="template-name">Name</Label>
+					<Field label="Name" htmlFor="template-name">
 						<Input
 							id="template-name"
 							value={draft.name}
@@ -398,9 +397,8 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 								setDraft({ ...draft, name: event.target.value })
 							}
 						/>
-					</div>
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="template-description">Description</Label>
+					</Field>
+					<Field label="Description" htmlFor="template-description">
 						<Textarea
 							id="template-description"
 							value={draft.description}
@@ -409,9 +407,14 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 							}
 							rows={2}
 						/>
-					</div>
-					<div className="flex flex-col gap-1.5">
-						<Label htmlFor="template-contract-text">Contract text</Label>
+					</Field>
+					<Field
+						label="Contract text"
+						htmlFor="template-contract-text"
+						description={
+							'Use {{variable}} to insert values and [IF {{var}} = "x" THEN {...} ELSE {...}] for conditional text.'
+						}
+					>
 						<Textarea
 							id="template-contract-text"
 							className="max-h-[480px] min-h-48 font-mono"
@@ -421,12 +424,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 							}
 							rows={8}
 						/>
-						<p className="text-xs text-muted-foreground">
-							{
-								'Use {{variable}} to insert values and [IF {{var}} = "x" THEN {...} ELSE {...}] for conditional text.'
-							}
-						</p>
-					</div>
+					</Field>
 					<Label className="gap-2">
 						<Checkbox
 							checked={draft.is_active}
@@ -647,8 +645,16 @@ function NewVariableForm({
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-row gap-2">
-				<div className="flex min-w-[120px] flex-1 flex-col gap-1.5">
-					<Label htmlFor="new-variable-name">Variable name</Label>
+				<Field
+					className="min-w-[120px] flex-1"
+					label="Variable name"
+					htmlFor="new-variable-name"
+					error={
+						variableNameInvalid
+							? "Must start with a letter; only letters, digits, underscores allowed"
+							: undefined
+					}
+				>
 					<Input
 						id="new-variable-name"
 						className="h-8"
@@ -657,24 +663,24 @@ function NewVariableForm({
 						onChange={(event) => setVariableName(event.target.value)}
 						aria-invalid={variableNameInvalid}
 					/>
-					{variableNameInvalid ? (
-						<p className="text-xs text-destructive">
-							Must start with a letter; only letters, digits, underscores
-							allowed
-						</p>
-					) : null}
-				</div>
-				<div className="flex min-w-[120px] flex-1 flex-col gap-1.5">
-					<Label htmlFor="new-variable-label">Label</Label>
+				</Field>
+				<Field
+					className="min-w-[120px] flex-1"
+					label="Label"
+					htmlFor="new-variable-label"
+				>
 					<Input
 						id="new-variable-label"
 						className="h-8"
 						value={label}
 						onChange={(event) => setLabel(event.target.value)}
 					/>
-				</div>
-				<div className="flex min-w-[140px] flex-1 flex-col gap-1.5">
-					<Label htmlFor="new-variable-type">Type</Label>
+				</Field>
+				<Field
+					className="min-w-[140px] flex-1"
+					label="Type"
+					htmlFor="new-variable-type"
+				>
 					<Select
 						value={dataType}
 						onValueChange={(value) =>
@@ -697,29 +703,25 @@ function NewVariableForm({
 							))}
 						</SelectContent>
 					</Select>
-				</div>
+				</Field>
 			</div>
-			<div className="flex flex-col gap-1.5">
-				<Label htmlFor="new-variable-help">Help text (optional)</Label>
+			<Field label="Help text (optional)" htmlFor="new-variable-help">
 				<Input
 					id="new-variable-help"
 					className="h-8"
 					value={helpText}
 					onChange={(event) => setHelpText(event.target.value)}
 				/>
-			</div>
+			</Field>
 			{dataType === "SELECT" ? (
-				<div className="flex flex-col gap-1.5">
-					<Label htmlFor="new-variable-options">
-						Options (comma-separated)
-					</Label>
+				<Field label="Options (comma-separated)" htmlFor="new-variable-options">
 					<Input
 						id="new-variable-options"
 						className="h-8"
 						value={optionsRaw}
 						onChange={(event) => setOptionsRaw(event.target.value)}
 					/>
-				</div>
+				</Field>
 			) : null}
 			<Label className="gap-2">
 				<Checkbox
@@ -806,17 +808,23 @@ function NewBlockForm({
 	return (
 		<div className="flex flex-col gap-3">
 			<div className="flex flex-row gap-2">
-				<div className="flex min-w-[120px] flex-1 flex-col gap-1.5">
-					<Label htmlFor="new-block-name">Name</Label>
+				<Field
+					className="min-w-[120px] flex-1"
+					label="Name"
+					htmlFor="new-block-name"
+				>
 					<Input
 						id="new-block-name"
 						className="h-8"
 						value={name}
 						onChange={(event) => setName(event.target.value)}
 					/>
-				</div>
-				<div className="flex min-w-[140px] flex-1 flex-col gap-1.5">
-					<Label htmlFor="new-block-condition">Condition</Label>
+				</Field>
+				<Field
+					className="min-w-[140px] flex-1"
+					label="Condition"
+					htmlFor="new-block-condition"
+				>
 					<Select
 						value={conditionType}
 						onValueChange={(value) =>
@@ -839,32 +847,37 @@ function NewBlockForm({
 							))}
 						</SelectContent>
 					</Select>
-				</div>
+				</Field>
 				{needsVariable ? (
-					<div className="flex min-w-[100px] flex-1 flex-col gap-1.5">
-						<Label htmlFor="new-block-variable">Variable</Label>
+					<Field
+						className="min-w-[100px] flex-1"
+						label="Variable"
+						htmlFor="new-block-variable"
+					>
 						<Input
 							id="new-block-variable"
 							className="h-8"
 							value={conditionVariable}
 							onChange={(event) => setConditionVariable(event.target.value)}
 						/>
-					</div>
+					</Field>
 				) : null}
 				{needsValue ? (
-					<div className="flex min-w-[100px] flex-1 flex-col gap-1.5">
-						<Label htmlFor="new-block-value">Value</Label>
+					<Field
+						className="min-w-[100px] flex-1"
+						label="Value"
+						htmlFor="new-block-value"
+					>
 						<Input
 							id="new-block-value"
 							className="h-8"
 							value={conditionValue}
 							onChange={(event) => setConditionValue(event.target.value)}
 						/>
-					</div>
+					</Field>
 				) : null}
 			</div>
-			<div className="flex flex-col gap-1.5">
-				<Label htmlFor="new-block-text">Block Text</Label>
+			<Field label="Block Text" htmlFor="new-block-text">
 				<Textarea
 					id="new-block-text"
 					className="font-mono"
@@ -872,7 +885,7 @@ function NewBlockForm({
 					onChange={(event) => setBlockText(event.target.value)}
 					rows={3}
 				/>
-			</div>
+			</Field>
 			{error ? (
 				<Alert variant="destructive">
 					<AlertDescription>{error.message}</AlertDescription>
