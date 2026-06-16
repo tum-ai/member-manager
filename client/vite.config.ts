@@ -30,6 +30,22 @@ export default defineConfig(({ mode }) => {
 			},
 		},
 		test: {
+			// Two Vitest projects: the fast jsdom unit project (this block, applied
+			// to the "unit" project via `extends: true`) and a separate headless-
+			// browser "storybook" project (./vitest.storybook.config.ts) that runs
+			// the stories' `play` interaction tests + a11y checks. Kept additive to
+			// minimize merge conflicts with the concurrent MSW work (#185).
+			projects: [
+				{
+					extends: true,
+					test: {
+						name: "unit",
+						// Storybook stories run in the browser project, not here.
+						exclude: ["**/*.stories.{ts,tsx}", "**/node_modules/**"],
+					},
+				},
+				"./vitest.storybook.config.ts",
+			],
 			globals: true,
 			environment: "jsdom",
 			setupFiles: "./src/test/setup.ts",

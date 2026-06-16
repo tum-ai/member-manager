@@ -3,7 +3,10 @@ import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { AdminDatabaseSkeleton } from "./admin/AdminDatabaseView";
 import { MemberListSkeleton } from "./members/MemberList";
 import { OrgChartSkeleton } from "./members/MembersOrgChartPage";
-import { ProjectsSkeleton } from "./members/MembersProjectsPage";
+import {
+	InnovationSkeleton,
+	ResearchSkeleton,
+} from "./members/projectSections";
 import { ProfilePageSkeleton } from "./profile/ProfilePage";
 
 /**
@@ -35,8 +38,12 @@ export const OrgChart: Story = {
 	render: () => <OrgChartSkeleton />,
 };
 
-export const Projects: Story = {
-	render: () => <ProjectsSkeleton />,
+export const Research: Story = {
+	render: () => <ResearchSkeleton />,
+};
+
+export const Innovation: Story = {
+	render: () => <InnovationSkeleton />,
 };
 
 export const Region: Story = {
