@@ -15,7 +15,7 @@
 		"lint:apply": "biome check . --write",
 		"typecheck": "tsc --noEmit",
 		"test": "tsx --test test/**/*.test.ts",
-		"test:coverage": "c8 --reporter=text-summary --reporter=lcov --reporter=json-summary --src=src --check-coverage --lines=70 --functions=70 --branches=50 --statements=70 tsx --test test/**/*.test.ts"
+		"test:coverage": "c8 --reporter=text-summary --reporter=lcov --reporter=json-summary --all --src=src --check-coverage --lines=70 --functions=70 --branches=50 --statements=70 tsx --test test/**/*.test.ts"
 	},
 	"dependencies": {
 		"@fastify/cors": "^11.2.0",

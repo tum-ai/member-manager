@@ -1,4 +1,6 @@
 /// <reference types="vitest" />
+import { fileURLToPath } from "node:url";
+import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
 
@@ -7,7 +9,12 @@ export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), "");
 
 	return {
-		plugins: [react()],
+		plugins: [react(), tailwindcss()],
+		resolve: {
+			alias: {
+				"@": fileURLToPath(new URL("./src", import.meta.url)),
+			},
+		},
 		server: {
 			// Bind to every local interface so the dev server is reachable via
 			// both `http://localhost:5173` and `http://127.0.0.1:5173`. macOS +
@@ -37,14 +44,25 @@ export default defineConfig(({ mode }) => {
 			coverage: {
 				provider: "v8",
 				reporter: ["text-summary", "json-summary", "lcov"],
+				// Count every source file, not just those a test imports, so a new
+				// untested file drags the ratchet down instead of slipping past it.
+				all: true,
+				include: ["src/**/*.{ts,tsx}"],
+				exclude: [
+					"src/**/*.d.ts",
+					"src/test/**",
+					"src/**/*.stories.{ts,tsx}",
+					"src/main.tsx",
+					"src/vite-env.d.ts",
+				],
 				// Ratcheting floor: thresholds sit just below the measured baseline so
 				// coverage can only regress slightly before CI fails. Raise these
 				// (never lower) as coverage improves. See docs/development.md.
 				thresholds: {
-					statements: 54,
-					branches: 55,
-					functions: 56,
-					lines: 56,
+					statements: 34,
+					branches: 35,
+					functions: 35,
+					lines: 34,
 				},
 			},
 		},

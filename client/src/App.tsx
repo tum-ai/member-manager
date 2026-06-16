@@ -103,6 +103,9 @@ export default function App(): JSX.Element {
 
 	useEffect(() => {
 		window.localStorage.setItem(COLOR_MODE_STORAGE_KEY, colorMode);
+		// Keep the shadcn/ui `.dark` token set in sync with the MUI color mode so
+		// migrated components match the surrounding UI in both modes.
+		document.documentElement.classList.toggle("dark", colorMode === "dark");
 	}, [colorMode]);
 
 	async function handleLogout(): Promise<void> {

@@ -20,6 +20,10 @@ build/
 out/
 *.tsbuildinfo
 
+# Storybook
+storybook-static/
+*storybook.log
+
 # Environment variables
 .env
 .env.local
