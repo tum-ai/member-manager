@@ -13,7 +13,9 @@ concurrency:
 
 jobs:
   e2e:
-    name: Playwright Smoke
+    # Stable check name surfaced to branch protection as "E2E / Playwright E2E".
+    # Do not rename without updating the required-check configuration.
+    name: Playwright E2E
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -37,7 +39,7 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium
 
-      - name: Run Playwright smoke tests
+      - name: Run Playwright E2E suite
         run: pnpm test:e2e
 
       - name: Upload Playwright report
