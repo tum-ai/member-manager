@@ -42,6 +42,13 @@ export interface AddBuchhaltungsButlerCommentInput {
 	commentText: string;
 }
 
+export interface BuchhaltungsButlerSyncStatus {
+	sync_enabled: boolean;
+	configured: boolean;
+	available: boolean;
+	unavailable_reason: "disabled" | "missing_credentials" | null;
+}
+
 export class BuchhaltungsButlerConfigError extends Error {
 	constructor(message = "BuchhaltungsButler sync is not configured") {
 		super(message);
@@ -71,6 +78,26 @@ export class BuchhaltungsButlerApiError extends Error {
 
 export function isBuchhaltungsButlerSyncEnabled(): boolean {
 	return process.env.BUCHHALTUNGSBUTLER_SYNC_ENABLED === "true";
+}
+
+export function getBuchhaltungsButlerSyncStatus(): BuchhaltungsButlerSyncStatus {
+	const syncEnabled = isBuchhaltungsButlerSyncEnabled();
+	const configured = Boolean(
+		process.env.BUCHHALTUNGSBUTLER_API_CLIENT?.trim() &&
+			process.env.BUCHHALTUNGSBUTLER_API_SECRET?.trim() &&
+			process.env.BUCHHALTUNGSBUTLER_API_KEY?.trim(),
+	);
+
+	return {
+		sync_enabled: syncEnabled,
+		configured,
+		available: syncEnabled && configured,
+		unavailable_reason: !syncEnabled
+			? "disabled"
+			: configured
+				? null
+				: "missing_credentials",
+	};
 }
 
 function getCredentials(): BuchhaltungsButlerCredentials {

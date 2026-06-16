@@ -21,6 +21,7 @@ import {
 import type React from "react";
 import GlassCard from "../../components/ui/GlassCard";
 import type {
+	BuchhaltungsButlerSyncStatus,
 	ReimbursementRequest,
 	ReimbursementReviewAction,
 } from "../../hooks/useReimbursementRequests";
@@ -57,6 +58,9 @@ interface ReimbursementReviewQueueProps {
 		request: ReimbursementRequest,
 		mode: "view" | "download",
 	) => Promise<void>;
+	buchhaltungsButlerSyncStatus: BuchhaltungsButlerSyncStatus | null;
+	isLoadingBuchhaltungsButlerSyncStatus: boolean;
+	hasBuchhaltungsButlerSyncStatusError: boolean;
 	onBuchhaltungsButlerSync: (requestId: string) => Promise<void>;
 	isSyncingBuchhaltungsButler: boolean;
 }
@@ -73,6 +77,9 @@ export default function ReimbursementReviewQueue({
 	hasBulkDownload,
 	isUpdatingDepartment,
 	onReceiptOpen,
+	buchhaltungsButlerSyncStatus,
+	isLoadingBuchhaltungsButlerSyncStatus,
+	hasBuchhaltungsButlerSyncStatusError,
 	onBuchhaltungsButlerSync,
 	isSyncingBuchhaltungsButler,
 }: ReimbursementReviewQueueProps): React.ReactElement {
@@ -108,6 +115,13 @@ export default function ReimbursementReviewQueue({
 						}
 						onReceiptOpen={(mode) => onReceiptOpen(request, mode)}
 						isUpdatingDepartment={isUpdatingDepartment}
+						buchhaltungsButlerSyncStatus={buchhaltungsButlerSyncStatus}
+						isLoadingBuchhaltungsButlerSyncStatus={
+							isLoadingBuchhaltungsButlerSyncStatus
+						}
+						hasBuchhaltungsButlerSyncStatusError={
+							hasBuchhaltungsButlerSyncStatusError
+						}
 						onBuchhaltungsButlerSync={() =>
 							onBuchhaltungsButlerSync(request.id)
 						}
@@ -131,6 +145,9 @@ interface ReviewItemProps {
 	onDepartmentChange: (department: string) => Promise<void>;
 	onReceiptOpen: (mode: "view" | "download") => Promise<void>;
 	isUpdatingDepartment: boolean;
+	buchhaltungsButlerSyncStatus: BuchhaltungsButlerSyncStatus | null;
+	isLoadingBuchhaltungsButlerSyncStatus: boolean;
+	hasBuchhaltungsButlerSyncStatusError: boolean;
 	onBuchhaltungsButlerSync: () => Promise<void>;
 	isSyncingBuchhaltungsButler: boolean;
 }
@@ -147,6 +164,9 @@ function ReviewItem({
 	onDepartmentChange,
 	onReceiptOpen,
 	isUpdatingDepartment,
+	buchhaltungsButlerSyncStatus,
+	isLoadingBuchhaltungsButlerSyncStatus,
+	hasBuchhaltungsButlerSyncStatusError,
 	onBuchhaltungsButlerSync,
 	isSyncingBuchhaltungsButler,
 }: ReviewItemProps): React.ReactElement {
@@ -327,6 +347,9 @@ function ReviewItem({
 								)}
 								<BuchhaltungsButlerSyncButton
 									request={request}
+									syncStatus={buchhaltungsButlerSyncStatus}
+									isLoadingSyncStatus={isLoadingBuchhaltungsButlerSyncStatus}
+									hasSyncStatusError={hasBuchhaltungsButlerSyncStatusError}
 									onSync={onBuchhaltungsButlerSync}
 									isSyncing={isSyncingBuchhaltungsButler}
 								/>
@@ -461,10 +484,16 @@ function getBuchhaltungsButlerSyncColor(
 
 function BuchhaltungsButlerSyncButton({
 	request,
+	syncStatus,
+	isLoadingSyncStatus,
+	hasSyncStatusError,
 	onSync,
 	isSyncing,
 }: {
 	request: ReimbursementRequest;
+	syncStatus: BuchhaltungsButlerSyncStatus | null;
+	isLoadingSyncStatus: boolean;
+	hasSyncStatusError: boolean;
 	onSync: () => Promise<void>;
 	isSyncing: boolean;
 }): React.ReactElement | null {
@@ -474,21 +503,84 @@ function BuchhaltungsButlerSyncButton({
 		return null;
 	}
 
+	const unavailableMessage =
+		getBuchhaltungsButlerUnavailableMessage(syncStatus);
+	const isUnavailable =
+		isLoadingSyncStatus ||
+		hasSyncStatusError ||
+		!syncStatus ||
+		Boolean(unavailableMessage);
+	const isPending = request.bb_sync_status === "pending";
+
 	return (
-		<Button
-			variant="outlined"
-			size="small"
-			startIcon={<CloudSyncIcon />}
-			disabled={isSyncing || request.bb_sync_status === "pending"}
-			onClick={() => {
-				void onSync();
-			}}
-		>
-			{isSyncing || request.bb_sync_status === "pending"
-				? "Syncing..."
-				: "Sync to BuchhaltungsButler"}
-		</Button>
+		<Stack spacing={0.5} alignItems="flex-start">
+			<Button
+				variant="outlined"
+				size="small"
+				startIcon={<CloudSyncIcon />}
+				disabled={isUnavailable || isSyncing || isPending}
+				onClick={() => {
+					void onSync();
+				}}
+			>
+				{isLoadingSyncStatus
+					? "Checking sync..."
+					: isUnavailable
+						? "Sync unavailable"
+						: isSyncing || isPending
+							? "Syncing..."
+							: "Sync to BuchhaltungsButler"}
+			</Button>
+			{(isLoadingSyncStatus ||
+				hasSyncStatusError ||
+				!syncStatus ||
+				unavailableMessage) && (
+				<Typography variant="caption" color="text.secondary">
+					{getBuchhaltungsButlerAvailabilityMessage({
+						isLoading: isLoadingSyncStatus,
+						hasError: hasSyncStatusError,
+						status: syncStatus,
+						unavailableMessage,
+					})}
+				</Typography>
+			)}
+		</Stack>
 	);
+}
+
+function getBuchhaltungsButlerUnavailableMessage(
+	status: BuchhaltungsButlerSyncStatus | null,
+): string | null {
+	if (!status || status.available) {
+		return null;
+	}
+	if (status.unavailable_reason === "disabled") {
+		return "BuchhaltungsButler sync is disabled.";
+	}
+	if (status.unavailable_reason === "missing_credentials") {
+		return "BuchhaltungsButler credentials are missing.";
+	}
+	return "BuchhaltungsButler sync is unavailable.";
+}
+
+function getBuchhaltungsButlerAvailabilityMessage({
+	isLoading,
+	hasError,
+	status,
+	unavailableMessage,
+}: {
+	isLoading: boolean;
+	hasError: boolean;
+	status: BuchhaltungsButlerSyncStatus | null;
+	unavailableMessage: string | null;
+}): string {
+	if (isLoading) {
+		return "Checking BuchhaltungsButler availability.";
+	}
+	if (hasError || !status) {
+		return "BuchhaltungsButler availability could not be checked.";
+	}
+	return unavailableMessage ?? "BuchhaltungsButler sync is unavailable.";
 }
 
 function ReceiptLinks({
