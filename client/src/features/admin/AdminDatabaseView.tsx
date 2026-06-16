@@ -1,63 +1,65 @@
-import AccountBalanceOutlinedIcon from "@mui/icons-material/AccountBalanceOutlined";
-import DownloadIcon from "@mui/icons-material/Download";
-import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
-import LinkedInIcon from "@mui/icons-material/LinkedIn";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
-import SearchIcon from "@mui/icons-material/Search";
-import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
-import VerifiedUserOutlinedIcon from "@mui/icons-material/VerifiedUserOutlined";
-import WorkOutlineIcon from "@mui/icons-material/WorkOutline";
 import {
-	Avatar,
-	Box,
-	Button,
-	CardContent,
-	Checkbox,
-	Chip,
-	CircularProgress,
+	Check,
+	ChevronDown,
+	ChevronsUpDown,
+	ChevronUp,
+	Download,
+	ExternalLink,
+	Landmark,
+	Link2,
+	Mail,
+	Pencil,
+	Search,
+	Shield,
+	ShieldCheck,
+	Users,
+	X,
+} from "lucide-react";
+import { type ReactElement, type ReactNode, useMemo, useState } from "react";
+import * as XLSX from "xlsx";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
 	Dialog,
-	DialogActions,
 	DialogContent,
+	DialogFooter,
+	DialogHeader,
 	DialogTitle,
-	Divider,
-	FormControlLabel,
-	Grid,
-	InputAdornment,
-	MenuItem,
-	MenuList,
-	Popover,
-	Stack,
+} from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import GlassCard from "@/components/ui/GlassCard";
+import { InfoBox } from "@/components/ui/info-box";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
+import {
 	Table,
 	TableBody,
 	TableCell,
-	TableContainer,
 	TableHead,
+	TableHeader,
 	TableRow,
-	TableSortLabel,
-	TextField,
-	Typography,
-	useTheme,
-} from "@mui/material";
-import { alpha } from "@mui/material/styles";
-import {
-	type Dispatch,
-	type ReactElement,
-	type ReactNode,
-	type SetStateAction,
-	useMemo,
-	useState,
-} from "react";
-import * as XLSX from "xlsx";
-import GlassCard from "../../components/ui/GlassCard";
+} from "@/components/ui/table";
+import { proxiedAvatarUrl } from "@/lib/avatarUrl";
+import { cn } from "@/lib/utils";
 import { useToast } from "../../contexts/ToastContext";
-import {
-	type EngagementCertificateRequest,
-	type JobPostingRequest,
-	type MemberChangeRequest,
-	useAdminData,
-} from "../../hooks/useAdminData";
+import { useAdminData } from "../../hooks/useAdminData";
 import { useResearchProjects } from "../../hooks/useResearchProjects";
 import {
 	BATCH_OPTIONS,
@@ -90,6 +92,13 @@ import {
 } from "./adminUtils";
 import DepartmentPermissionsCard from "./DepartmentPermissionsCard";
 
+// Radix Select forbids an empty-string item value, so the editor's "clear"
+// options carry a sentinel that maps back to "" in the change handlers.
+const NONE_VALUE = "__none__";
+// The filter dropdowns expose an "All" option that the underlying filter state
+// represents as "". Same sentinel-mapping trick as above.
+const ALL_VALUE = "__all__";
+
 const initialFilters: AdminFilters = {
 	search: "",
 	mandateAgreed: "",
@@ -119,35 +128,17 @@ const sortableColumns: Array<{
 	{ key: "active", label: "Status", width: 140 },
 ];
 
-const adminJobTypeLabels: Record<string, string> = {
-	internship: "Internship",
-	working_student: "Working student",
-	full_time: "Full-time",
-	thesis: "Thesis",
-	other: "Other",
-};
-
 export default function AdminDatabaseView() {
-	const theme = useTheme();
 	const { showToast } = useToast();
 	const {
 		members,
 		totalMembers,
-		changeRequests,
-		certificateRequests,
-		jobRequests,
 		isLoading,
 		isLoadingMoreMembers,
 		isRefreshingMembers,
 		error,
 		updateMemberAsync,
-		reviewChangeRequestAsync,
-		reviewCertificateRequestAsync,
-		reviewJobRequestAsync,
-		removeJobRequestAsync,
 		isSavingMember,
-		isReviewingChangeRequest,
-		isReviewingCertificateRequest,
 	} = useAdminData();
 
 	const [filters, setFilters] = useState<AdminFilters>(initialFilters);
@@ -167,17 +158,6 @@ export default function AdminDatabaseView() {
 	const [editLinkedinUrl, setEditLinkedinUrl] = useState("");
 	const [editLocation, setEditLocation] = useState("");
 
-	const [certificateRequestBeingViewed, setCertificateRequestBeingViewed] =
-		useState<EngagementCertificateRequest | null>(null);
-	const [reviewingJobRequestIds, setReviewingJobRequestIds] = useState(
-		() => new Set<string>(),
-	);
-	const [removingJobRequestIds, setRemovingJobRequestIds] = useState(
-		() => new Set<string>(),
-	);
-	const [exportAnchorEl, setExportAnchorEl] = useState<HTMLElement | null>(
-		null,
-	);
 	const { researchProjects, isLoading: isLoadingResearchProjects } =
 		useResearchProjects();
 
@@ -207,39 +187,19 @@ export default function AdminDatabaseView() {
 		[allMembers, totalMemberCount],
 	);
 
-	if (isLoading)
-		return (
-			<Box sx={{ py: 2 }}>
-				<GlassCard variant="elevated">
-					<CardContent
-						sx={{
-							p: 4,
-							display: "flex",
-							alignItems: "center",
-							justifyContent: "center",
-							gap: 2,
-						}}
-					>
-						<CircularProgress size={24} />
-						<Typography color="text.secondary">
-							Loading admin workspace...
-						</Typography>
-					</CardContent>
-				</GlassCard>
-			</Box>
-		);
+	if (isLoading) return <AdminDatabaseSkeleton />;
 	if (error)
 		return (
-			<Box sx={{ py: 2 }}>
+			<div>
 				<GlassCard variant="elevated">
-					<CardContent sx={{ p: 4, textAlign: "center" }}>
-						<Typography color="error" sx={{ fontWeight: 700, mb: 1 }}>
+					<div className="p-8 text-center">
+						<p className="mb-1 font-bold text-destructive">
 							Unable to load the admin workspace
-						</Typography>
-						<Typography color="text.secondary">{error.message}</Typography>
-					</CardContent>
+						</p>
+						<p className="text-muted-foreground">{error.message}</p>
+					</div>
 				</GlassCard>
-			</Box>
+			</div>
 		);
 
 	function handleSortChange(column: AdminSortKey) {
@@ -266,102 +226,6 @@ export default function AdminDatabaseView() {
 		setEditAccessRole(member.access_role === "admin" ? "admin" : "user");
 		setEditLinkedinUrl(member.linkedin_profile_url || "");
 		setEditLocation(member.public_location || "");
-	}
-
-	function getMemberDisplayName(userId: string): string {
-		const member = allMembers.find((entry) => entry.user_id === userId);
-		if (!member) {
-			return "Unknown member";
-		}
-
-		return `${member.given_name} ${member.surname}`.trim() || "Unknown member";
-	}
-
-	function formatRequestedChanges(request: MemberChangeRequest): string {
-		const member = allMembers.find(
-			(entry) => entry.user_id === request.user_id,
-		);
-		const currentRole =
-			typeof member?.member_role === "string" && member.member_role.trim()
-				? member.member_role
-				: "Member";
-		const currentDepartment = resolveDepartmentForMemberRole(
-			currentRole,
-			typeof member?.department === "string" || member?.department === null
-				? member.department
-				: null,
-		);
-		const requestedRole =
-			typeof request.changes.member_role === "string"
-				? request.changes.member_role
-				: undefined;
-		const requestedDepartmentValue =
-			typeof request.changes.department === "string" ||
-			request.changes.department === null
-				? request.changes.department
-				: currentDepartment;
-		const effectiveDepartment =
-			Object.hasOwn(request.changes, "department") || requestedRole
-				? resolveDepartmentForMemberRole(
-						requestedRole ?? currentRole,
-						requestedDepartmentValue,
-					)
-				: undefined;
-		const entries: string[] = [];
-
-		if (
-			effectiveDepartment !== undefined &&
-			effectiveDepartment !== currentDepartment
-		) {
-			entries.push(
-				`Department: ${formatAdminValue(currentDepartment)} -> ${formatAdminValue(
-					effectiveDepartment,
-				)}`,
-			);
-		}
-		if (
-			typeof request.changes.member_role === "string" &&
-			request.changes.member_role !== currentRole
-		) {
-			entries.push(`Role: ${currentRole} -> ${request.changes.member_role}`);
-		}
-		if (
-			typeof request.changes.member_status === "string" &&
-			request.changes.member_status !==
-				(member?.member_status || (member?.active ? "active" : "inactive"))
-		) {
-			entries.push(
-				`Status: ${getMemberStatusLabel(
-					member?.member_status || (member?.active ? "active" : "inactive"),
-				)} -> ${getMemberStatusLabel(request.changes.member_status)}`,
-			);
-		}
-		if (
-			typeof request.changes.degree === "string" &&
-			request.changes.degree !== (member?.degree ?? null)
-		) {
-			entries.push(
-				`Degree: ${formatAdminValue(member?.degree)} -> ${request.changes.degree}`,
-			);
-		}
-		if (
-			typeof request.changes.school === "string" &&
-			request.changes.school !== (member?.school ?? null)
-		) {
-			entries.push(
-				`School: ${formatAdminValue(member?.school)} -> ${request.changes.school}`,
-			);
-		}
-		if (
-			typeof request.changes.batch === "string" &&
-			request.changes.batch !== (member?.batch ?? null)
-		) {
-			entries.push(
-				`Batch: ${formatAdminValue(member?.batch)} -> ${request.changes.batch}`,
-			);
-		}
-
-		return entries.length > 0 ? entries.join(", ") : "No requested changes";
 	}
 
 	async function saveMemberChanges() {
@@ -393,94 +257,6 @@ export default function AdminDatabaseView() {
 		} catch (err: unknown) {
 			const errorMessage = err instanceof Error ? err.message : "Unknown error";
 			showToast(`Failed to update member: ${errorMessage}`, "error");
-		}
-	}
-
-	async function reviewChangeRequest(
-		requestId: string,
-		decision: "approved" | "rejected",
-	) {
-		try {
-			await reviewChangeRequestAsync({
-				requestId,
-				decision,
-			});
-			showToast(`Change request ${decision}`, "success");
-		} catch (err: unknown) {
-			const errorMessage = err instanceof Error ? err.message : "Unknown error";
-			showToast(`Failed to review request: ${errorMessage}`, "error");
-		}
-	}
-
-	async function reviewCertificateRequest(
-		requestId: string,
-		decision: "approved" | "rejected",
-	) {
-		try {
-			await reviewCertificateRequestAsync({
-				requestId,
-				decision,
-			});
-			showToast(`Certificate request ${decision}`, "success");
-		} catch (err: unknown) {
-			const errorMessage = err instanceof Error ? err.message : "Unknown error";
-			showToast(
-				`Failed to review certificate request: ${errorMessage}`,
-				"error",
-			);
-		}
-	}
-
-	function setJobRequestPending(
-		setter: Dispatch<SetStateAction<Set<string>>>,
-		requestId: string,
-		isPending: boolean,
-	) {
-		setter((currentIds) => {
-			const nextIds = new Set(currentIds);
-			if (isPending) {
-				nextIds.add(requestId);
-			} else {
-				nextIds.delete(requestId);
-			}
-			return nextIds;
-		});
-	}
-
-	async function reviewJobRequest(
-		requestId: string,
-		decision: "approved" | "rejected",
-	) {
-		setJobRequestPending(setReviewingJobRequestIds, requestId, true);
-		try {
-			await reviewJobRequestAsync({
-				requestId,
-				decision,
-			});
-			showToast(`Job request ${decision}`, "success");
-		} catch (err: unknown) {
-			const errorMessage = err instanceof Error ? err.message : "Unknown error";
-			showToast(`Failed to review job request: ${errorMessage}`, "error");
-		} finally {
-			setJobRequestPending(setReviewingJobRequestIds, requestId, false);
-		}
-	}
-
-	async function removeJobRequest(request: JobPostingRequest) {
-		const confirmed = window.confirm(
-			`Remove "${request.title}" from the job requests?`,
-		);
-		if (!confirmed) return;
-
-		setJobRequestPending(setRemovingJobRequestIds, request.id, true);
-		try {
-			await removeJobRequestAsync(request.id);
-			showToast("Job request removed", "success");
-		} catch (err: unknown) {
-			const errorMessage = err instanceof Error ? err.message : "Unknown error";
-			showToast(`Failed to remove job request: ${errorMessage}`, "error");
-		} finally {
-			setJobRequestPending(setRemovingJobRequestIds, request.id, false);
 		}
 	}
 
@@ -549,10 +325,6 @@ export default function AdminDatabaseView() {
 		URL.revokeObjectURL(url);
 	}
 
-	function closeExportMenu() {
-		setExportAnchorEl(null);
-	}
-
 	const editRoleNeedsDepartment = requiresDepartmentForMemberRole(editRole);
 	const editRoleIsExecutive = isExecutiveMemberRole(editRole);
 	const editEffectiveDepartment = resolveDepartmentForMemberRole(
@@ -598,309 +370,198 @@ export default function AdminDatabaseView() {
 			: `${filtered.length} member${filtered.length === 1 ? "" : "s"} match the current filters.`;
 
 	return (
-		<Box sx={{ py: 2 }}>
-			<GlassCard variant="elevated" sx={{ mb: 4, overflow: "hidden" }}>
-				<CardContent sx={{ p: { xs: 3, md: 4 } }}>
-					<Box
-						sx={{
-							display: "flex",
-							justifyContent: "space-between",
-							alignItems: { xs: "flex-start", md: "center" },
-							flexDirection: { xs: "column", md: "row" },
-							gap: 3,
-						}}
-					>
-						<Box sx={{ maxWidth: 680 }}>
-							<Typography variant="h3" sx={{ mb: 1.25 }}>
-								Admin Workspace
-							</Typography>
-							<Typography variant="body1" color="text.secondary">
+		<div>
+			<GlassCard variant="elevated" className="mb-8 overflow-hidden">
+				<div className="p-6 md:p-8">
+					<div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+						<div className="max-w-[680px]">
+							<h1 className="mb-2.5 text-3xl font-bold">Admin Workspace</h1>
+							<p className="text-muted-foreground">
 								Review membership records, agreement status, and banking data.
-							</Typography>
-						</Box>
-					</Box>
+							</p>
+						</div>
+					</div>
 
-					<Grid container spacing={1.5} sx={{ mt: 0.5 }}>
-						<Grid size={{ xs: 12, sm: 6, xl: 3 }}>
-							<MetricCard
-								icon={<PeopleAltOutlinedIcon fontSize="small" />}
-								label="Total members"
-								value={stats.total}
-							/>
-						</Grid>
-						<Grid size={{ xs: 12, sm: 6, xl: 3 }}>
-							<MetricCard
-								icon={<VerifiedUserOutlinedIcon fontSize="small" />}
-								label="Active members"
-								value={stats.active}
-							/>
-						</Grid>
-						<Grid size={{ xs: 12, sm: 6, xl: 3 }}>
-							<MetricCard
-								icon={<AccountBalanceOutlinedIcon fontSize="small" />}
-								label="SEPA accepted"
-								value={stats.sepaAccepted}
-							/>
-						</Grid>
-						<Grid size={{ xs: 12, sm: 6, xl: 3 }}>
-							<MetricCard
-								icon={<ShieldOutlinedIcon fontSize="small" />}
-								label="Privacy accepted"
-								value={stats.privacyAccepted}
-							/>
-						</Grid>
-					</Grid>
-				</CardContent>
+					<div className="mt-1 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+						<MetricCard
+							icon={<Users className="size-4" />}
+							label="Total members"
+							value={stats.total}
+						/>
+						<MetricCard
+							icon={<ShieldCheck className="size-4" />}
+							label="Active members"
+							value={stats.active}
+						/>
+						<MetricCard
+							icon={<Landmark className="size-4" />}
+							label="SEPA accepted"
+							value={stats.sepaAccepted}
+						/>
+						<MetricCard
+							icon={<Shield className="size-4" />}
+							label="Privacy accepted"
+							value={stats.privacyAccepted}
+						/>
+					</div>
+				</div>
 			</GlassCard>
-
-			<PendingRequestPanels
-				changeRequests={changeRequests}
-				certificateRequests={certificateRequests}
-				jobRequests={jobRequests}
-				getMemberDisplayName={getMemberDisplayName}
-				formatRequestedChanges={formatRequestedChanges}
-				onReviewChangeRequest={reviewChangeRequest}
-				onReviewCertificateRequest={reviewCertificateRequest}
-				onReviewJobRequest={reviewJobRequest}
-				onRemoveJobRequest={removeJobRequest}
-				onViewCertificateRequest={setCertificateRequestBeingViewed}
-				isReviewingChangeRequest={isReviewingChangeRequest}
-				isReviewingCertificateRequest={isReviewingCertificateRequest}
-				reviewingJobRequestIds={reviewingJobRequestIds}
-				removingJobRequestIds={removingJobRequestIds}
-			/>
 
 			<DepartmentPermissionsCard />
 
-			<GlassCard sx={{ mb: 3 }}>
-				<CardContent sx={{ p: 3 }}>
-					<Grid container spacing={2}>
-						<Grid size={{ xs: 12, lg: 5 }}>
-							<TextField
-								size="small"
-								label="Search members"
-								placeholder="Name, email, phone, IBAN, department..."
-								value={filters.search}
-								onChange={(event) =>
-									setFilters((currentValue) => ({
-										...currentValue,
-										search: event.target.value,
-									}))
-								}
-								slotProps={{
-									input: {
-										startAdornment: (
-											<InputAdornment position="start">
-												<SearchIcon fontSize="small" />
-											</InputAdornment>
-										),
-									},
-								}}
-							/>
-						</Grid>
+			<GlassCard className="mb-6">
+				<div className="p-6">
+					<div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+						<div className="lg:col-span-5">
+							<div className="grid gap-1.5">
+								<Label htmlFor="admin-search">Search members</Label>
+								<div className="relative">
+									<Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+									<Input
+										id="admin-search"
+										className="pl-9"
+										placeholder="Name, email, phone, IBAN, department..."
+										value={filters.search}
+										onChange={(event) =>
+											setFilters((currentValue) => ({
+												...currentValue,
+												search: event.target.value,
+											}))
+										}
+									/>
+								</div>
+							</div>
+						</div>
 
-						<Grid size={{ xs: 12, sm: 4, lg: 2 }}>
-							<TextField
-								select
-								size="small"
-								label="SEPA mandate"
-								value={filters.mandateAgreed}
-								onChange={(event) =>
-									setFilters((currentValue) => ({
-										...currentValue,
-										mandateAgreed: event.target.value,
-									}))
-								}
-								slotProps={{
-									inputLabel: { shrink: true },
-									select: getSelectProps(BOOLEAN_FILTER_OPTIONS),
-								}}
-							>
-								{BOOLEAN_FILTER_OPTIONS.map((option) => (
-									<MenuItem key={option.value} value={option.value}>
-										{option.label}
-									</MenuItem>
-								))}
-							</TextField>
-						</Grid>
+						<FilterSelect
+							className="sm:col-span-4 lg:col-span-2"
+							label="SEPA mandate"
+							value={filters.mandateAgreed}
+							onValueChange={(value) =>
+								setFilters((currentValue) => ({
+									...currentValue,
+									mandateAgreed: value,
+								}))
+							}
+							options={BOOLEAN_FILTER_OPTIONS}
+						/>
 
-						<Grid size={{ xs: 12, sm: 4, lg: 2 }}>
-							<TextField
-								select
-								size="small"
-								label="Data privacy"
-								value={filters.dataPrivacyNoticeAgreed}
-								onChange={(event) =>
-									setFilters((currentValue) => ({
-										...currentValue,
-										dataPrivacyNoticeAgreed: event.target.value,
-									}))
-								}
-								slotProps={{
-									inputLabel: { shrink: true },
-									select: getSelectProps(BOOLEAN_FILTER_OPTIONS),
-								}}
-							>
-								{BOOLEAN_FILTER_OPTIONS.map((option) => (
-									<MenuItem key={option.value} value={option.value}>
-										{option.label}
-									</MenuItem>
-								))}
-							</TextField>
-						</Grid>
+						<FilterSelect
+							className="sm:col-span-4 lg:col-span-2"
+							label="Data privacy"
+							value={filters.dataPrivacyNoticeAgreed}
+							onValueChange={(value) =>
+								setFilters((currentValue) => ({
+									...currentValue,
+									dataPrivacyNoticeAgreed: value,
+								}))
+							}
+							options={BOOLEAN_FILTER_OPTIONS}
+						/>
 
-						<Grid size={{ xs: 12, sm: 4, lg: 2 }}>
-							<TextField
-								select
-								size="small"
-								label="Privacy policy"
-								value={filters.privacyAgreed}
-								onChange={(event) =>
-									setFilters((currentValue) => ({
-										...currentValue,
-										privacyAgreed: event.target.value,
-									}))
-								}
-								slotProps={{
-									inputLabel: { shrink: true },
-									select: getSelectProps(BOOLEAN_FILTER_OPTIONS),
-								}}
-							>
-								{BOOLEAN_FILTER_OPTIONS.map((option) => (
-									<MenuItem key={option.value} value={option.value}>
-										{option.label}
-									</MenuItem>
-								))}
-							</TextField>
-						</Grid>
+						<FilterSelect
+							className="sm:col-span-4 lg:col-span-2"
+							label="Privacy policy"
+							value={filters.privacyAgreed}
+							onValueChange={(value) =>
+								setFilters((currentValue) => ({
+									...currentValue,
+									privacyAgreed: value,
+								}))
+							}
+							options={BOOLEAN_FILTER_OPTIONS}
+						/>
 
-						<Grid size={{ xs: 12, sm: 4, lg: 2 }}>
-							<TextField
-								select
-								size="small"
-								label="Member state"
-								value={filters.active}
-								onChange={(event) =>
-									setFilters((currentValue) => ({
-										...currentValue,
-										active: event.target.value,
-									}))
-								}
-								slotProps={{
-									inputLabel: { shrink: true },
-									select: getSelectProps(ACTIVE_FILTER_OPTIONS),
-								}}
-							>
-								{ACTIVE_FILTER_OPTIONS.map((option) => (
-									<MenuItem key={option.value} value={option.value}>
-										{option.label}
-									</MenuItem>
-								))}
-							</TextField>
-						</Grid>
-					</Grid>
+						<FilterSelect
+							className="sm:col-span-4 lg:col-span-2"
+							label="Member state"
+							value={filters.active}
+							onValueChange={(value) =>
+								setFilters((currentValue) => ({
+									...currentValue,
+									active: value,
+								}))
+							}
+							options={ACTIVE_FILTER_OPTIONS}
+						/>
+					</div>
 
-					<Stack
-						direction={{ xs: "column", md: "row" }}
-						spacing={1.5}
-						sx={{ mt: 2.5, justifyContent: "space-between" }}
-					>
-						<Box />
+					<div className="mt-6 flex flex-col justify-between gap-3 md:flex-row">
+						<div />
 
-						<Stack direction={{ xs: "column", sm: "row" }} spacing={1.5}>
+						<div className="flex flex-col gap-3 sm:flex-row">
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button type="button" disabled={filtered.length === 0}>
+										<Download className="size-4" />
+										Export
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="start" className="min-w-[180px]">
+									<DropdownMenuItem onSelect={() => exportToCsv()}>
+										Export as CSV
+									</DropdownMenuItem>
+									<DropdownMenuItem onSelect={() => exportToExcel()}>
+										Export as Excel
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
 							<Button
 								type="button"
-								variant="contained"
-								startIcon={<DownloadIcon />}
-								onClick={(event) => setExportAnchorEl(event.currentTarget)}
-								disabled={filtered.length === 0}
-							>
-								Export
-							</Button>
-							<Button
-								type="button"
-								variant="outlined"
-								startIcon={<EmailOutlinedIcon />}
+								variant="outline"
 								onClick={downloadEmails}
 								disabled={filtered.length === 0}
 							>
+								<Mail className="size-4" />
 								Download emails
 							</Button>
-						</Stack>
-					</Stack>
-
-					<Popover
-						open={Boolean(exportAnchorEl)}
-						anchorEl={exportAnchorEl}
-						onClose={closeExportMenu}
-						anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
-						transformOrigin={{ vertical: "top", horizontal: "left" }}
-					>
-						<MenuList sx={{ minWidth: 180 }}>
-							<MenuItem
-								onClick={() => {
-									exportToCsv();
-									closeExportMenu();
-								}}
-							>
-								Export as CSV
-							</MenuItem>
-							<MenuItem
-								onClick={() => {
-									exportToExcel();
-									closeExportMenu();
-								}}
-							>
-								Export as Excel
-							</MenuItem>
-						</MenuList>
-					</Popover>
-				</CardContent>
+						</div>
+					</div>
+				</div>
 			</GlassCard>
 
-			<GlassCard variant="elevated" sx={{ mb: 3, overflow: "hidden" }}>
-				<CardContent sx={{ px: 3, pt: 3, pb: 2 }}>
-					<Typography variant="h6" component="h2">
-						Members
-					</Typography>
-					<Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+			<GlassCard variant="elevated" className="mb-6 overflow-hidden">
+				<div className="px-6 pt-6 pb-4">
+					<h2 className="text-lg font-semibold">Members</h2>
+					<p className="mt-0.5 text-sm text-muted-foreground">
 						{memberLoadingMessage}
-					</Typography>
-				</CardContent>
-				<TableContainer
-					sx={{
-						overflowX: "auto",
-						overflowY: "visible",
-					}}
-				>
-					<Table size="small" sx={{ minWidth: 1620 }}>
-						<TableHead>
+					</p>
+				</div>
+				<div className="w-full overflow-x-auto">
+					<Table className="min-w-[1620px]">
+						<TableHeader>
 							<TableRow>
-								{sortableColumns.map((column) => (
-									<TableCell
-										key={column.key}
-										sx={{
-											minWidth: column.width,
-											backgroundColor:
-												theme.palette.mode === "light"
-													? alpha(theme.palette.background.paper, 0.98)
-													: alpha(theme.palette.background.paper, 0.94),
-											borderBottom: `1px solid ${theme.palette.divider}`,
-										}}
-									>
-										<TableSortLabel
-											active={sortBy === column.key}
-											direction={
-												sortBy === column.key && !sortAsc ? "desc" : "asc"
-											}
-											onClick={() => handleSortChange(column.key)}
+								{sortableColumns.map((column) => {
+									const isActive = sortBy === column.key;
+									const SortIcon = !isActive
+										? ChevronsUpDown
+										: sortAsc
+											? ChevronUp
+											: ChevronDown;
+									return (
+										<TableHead
+											key={column.key}
+											className="border-b bg-card"
+											style={{ minWidth: column.width }}
 										>
-											{column.label}
-										</TableSortLabel>
-									</TableCell>
-								))}
+											<button
+												type="button"
+												onClick={() => handleSortChange(column.key)}
+												className={cn(
+													"inline-flex items-center gap-1 font-medium",
+													isActive
+														? "text-foreground"
+														: "text-muted-foreground",
+												)}
+											>
+												{column.label}
+												<SortIcon className="size-4" />
+											</button>
+										</TableHead>
+									);
+								})}
 							</TableRow>
-						</TableHead>
+						</TableHeader>
 
 						<TableBody>
 							{filtered.map((row) => {
@@ -915,146 +576,85 @@ export default function AdminDatabaseView() {
 								return (
 									<TableRow
 										key={row.user_id}
-										hover
-										sx={{
-											opacity: memberStatus === "active" ? 1 : 0.84,
-											transition:
-												"background-color 180ms ease, opacity 180ms ease",
-											"&:hover": {
-												backgroundColor:
-													theme.palette.mode === "light"
-														? alpha(theme.palette.primary.main, 0.04)
-														: alpha(theme.palette.primary.main, 0.08),
-											},
-											"& td": {
-												borderBottom: `1px solid ${alpha(
-													theme.palette.divider,
-													0.9,
-												)}`,
-											},
-										}}
+										className={cn(
+											memberStatus !== "active" && "opacity-[0.84]",
+										)}
 									>
 										<TableCell>
-											<Stack direction="row" spacing={1.5} alignItems="center">
+											<div className="flex flex-row items-center gap-3">
 												<Button
 													type="button"
-													size="small"
-													variant="text"
+													variant="ghost"
+													size="icon-sm"
 													onClick={() => openMemberEditor(row)}
 													aria-label={`Edit member ${fullName}`}
-													sx={{
-														minWidth: 0,
-														p: 0.75,
-														borderRadius: 999,
-														color: theme.palette.primary.main,
-														"&:hover": {
-															backgroundColor: alpha(
-																theme.palette.primary.main,
-																0.08,
-															),
-														},
-													}}
+													className="rounded-full text-brand"
 												>
-													<EditOutlinedIcon fontSize="small" />
+													<Pencil className="size-4" />
 												</Button>
-												<Avatar
-													src={row.avatar_url || undefined}
-													alt={fullName}
-													sx={{
-														width: 44,
-														height: 44,
-														bgcolor:
-															theme.palette.mode === "light"
-																? alpha(theme.palette.text.primary, 0.06)
-																: alpha(theme.palette.common.white, 0.08),
-														color: theme.palette.text.primary,
-														fontWeight: 700,
-													}}
-												>
-													{getAdminMemberInitials(row)}
+												<Avatar className="size-11 bg-muted">
+													<AvatarImage
+														src={proxiedAvatarUrl(row.avatar_url)}
+														alt={fullName}
+													/>
+													<AvatarFallback className="bg-muted font-bold text-foreground">
+														{getAdminMemberInitials(row)}
+													</AvatarFallback>
 												</Avatar>
-												<Box sx={{ minWidth: 0 }}>
-													<Typography
-														sx={{
-															fontWeight: 700,
-															lineHeight: 1.3,
-															overflow: "hidden",
-															textOverflow: "ellipsis",
-															whiteSpace: "nowrap",
-														}}
-													>
+												<div className="min-w-0">
+													<p className="overflow-hidden font-bold leading-tight text-ellipsis whitespace-nowrap">
 														{fullName}
-													</Typography>
-													<Typography
-														variant="body2"
-														color="text.secondary"
-														sx={{
-															overflow: "hidden",
-															textOverflow: "ellipsis",
-															whiteSpace: "nowrap",
-														}}
-													>
+													</p>
+													<p className="overflow-hidden text-sm text-muted-foreground text-ellipsis whitespace-nowrap">
 														{row.email}
-													</Typography>
-												</Box>
-											</Stack>
+													</p>
+												</div>
+											</div>
 										</TableCell>
 
 										<TableCell>
-											{getOperationalDepartment(row.department) || "Not set"}
+											{getOperationalDepartment(row.department) || "—"}
 										</TableCell>
 										<TableCell>{row.member_role || "Member"}</TableCell>
 										<TableCell>
 											{row.board_role === BOARD_MEMBER_ROLE ? (
-												<Chip
-													size="small"
-													label={BOARD_MEMBER_ROLE}
-													variant="outlined"
-													sx={{
-														fontWeight: 600,
-														color: theme.palette.primary.main,
-														borderColor: alpha(
-															theme.palette.primary.main,
-															0.24,
-														),
-														backgroundColor: alpha(
-															theme.palette.primary.main,
-															0.08,
-														),
-													}}
-												/>
+												<Badge variant="accent" className="font-semibold">
+													{BOARD_MEMBER_ROLE}
+												</Badge>
 											) : (
-												"Not set"
+												"—"
 											)}
 										</TableCell>
-										<TableCell>{row.phone || "Not provided"}</TableCell>
+										<TableCell>{row.phone || "—"}</TableCell>
 										<TableCell>
 											{isLinkedinProfileUrl(row.linkedin_profile_url) ? (
 												<Button
-													size="small"
-													component="a"
-													href={row.linkedin_profile_url.trim()}
-													target="_blank"
-													rel="noopener noreferrer"
-													sx={{ minWidth: 0, px: 1, color: "primary.main" }}
-													startIcon={<LinkedInIcon fontSize="small" />}
+													variant="ghost"
+													size="sm"
+													asChild
+													className="px-2 text-brand"
 												>
-													View
+													<a
+														href={row.linkedin_profile_url.trim()}
+														target="_blank"
+														rel="noopener noreferrer"
+													>
+														<ExternalLink className="size-4" />
+														View
+													</a>
 												</Button>
 											) : (
 												"—"
 											)}
 										</TableCell>
 										<TableCell>{row.public_location || "—"}</TableCell>
-										<TableCell sx={{ fontFamily: "monospace" }}>
-											{row.sepa?.iban || "Not provided"}
+										<TableCell className="font-mono">
+											{row.sepa?.iban || "—"}
 										</TableCell>
-										<TableCell sx={{ fontFamily: "monospace" }}>
-											{row.sepa?.bic || "Not provided"}
+										<TableCell className="font-mono">
+											{row.sepa?.bic || "—"}
 										</TableCell>
-										<TableCell>
-											{row.sepa?.bank_name || "Not provided"}
-										</TableCell>
+										<TableCell>{row.sepa?.bank_name || "—"}</TableCell>
 										<TableCell>
 											<AgreementChip accepted={sepaAccepted} />
 										</TableCell>
@@ -1065,31 +665,14 @@ export default function AdminDatabaseView() {
 											<AgreementChip accepted={dataPrivacyNoticeAccepted} />
 										</TableCell>
 										<TableCell>
-											<Chip
-												size="small"
-												label={getMemberStatusLabel(memberStatus)}
-												color={
-													memberStatus === "active" ? "success" : "default"
-												}
+											<Badge
 												variant={
-													memberStatus === "active" ? "filled" : "outlined"
+													memberStatus === "active" ? "accent" : "neutral"
 												}
-												sx={{
-													fontWeight: 600,
-													backgroundColor:
-														memberStatus === "active"
-															? alpha(theme.palette.success.main, 0.14)
-															: alpha(theme.palette.text.secondary, 0.08),
-													color:
-														memberStatus === "active"
-															? theme.palette.success.main
-															: theme.palette.text.secondary,
-													borderColor: alpha(
-														theme.palette.text.secondary,
-														0.18,
-													),
-												}}
-											/>
+												className="font-semibold"
+											>
+												{getMemberStatusLabel(memberStatus)}
+											</Badge>
 										</TableCell>
 									</TableRow>
 								);
@@ -1098,688 +681,335 @@ export default function AdminDatabaseView() {
 							{filtered.length === 0 && (
 								<TableRow>
 									<TableCell colSpan={sortableColumns.length}>
-										<Box sx={{ py: 7, textAlign: "center" }}>
-											<Typography sx={{ fontWeight: 700, mb: 1 }}>
+										<div className="py-14 text-center">
+											<p className="mb-1 font-bold">
 												No members match the current filters
-											</Typography>
-											<Typography color="text.secondary">
+											</p>
+											<p className="text-muted-foreground">
 												Try broadening the search or resetting the agreement
 												filters.
-											</Typography>
-										</Box>
+											</p>
+										</div>
 									</TableCell>
 								</TableRow>
 							)}
 						</TableBody>
 					</Table>
-				</TableContainer>
+				</div>
 			</GlassCard>
 
 			<Dialog
-				open={Boolean(certificateRequestBeingViewed)}
-				onClose={() => setCertificateRequestBeingViewed(null)}
-				maxWidth="md"
-				fullWidth
-			>
-				<DialogTitle>
-					{certificateRequestBeingViewed
-						? `Engagement certificate request for ${getMemberDisplayName(
-								certificateRequestBeingViewed.user_id,
-							)}`
-						: "Engagement certificate request"}
-				</DialogTitle>
-				<DialogContent dividers>
-					<Stack spacing={2}>
-						{certificateRequestBeingViewed?.engagements.map(
-							(engagement, index) => (
-								<Box key={String(engagement.id ?? index)}>
-									<Typography sx={{ fontWeight: 700, mb: 1 }}>
-										Engagement {index + 1}
-									</Typography>
-									<Stack spacing={1}>
-										<CertificateDetailRow
-											label="Start Date"
-											value={engagement.startDate}
-										/>
-										<CertificateDetailRow
-											label="End Date"
-											value={
-												engagement.isStillActive === true
-													? "Still active"
-													: engagement.endDate
-											}
-										/>
-										<CertificateDetailRow
-											label="Weekly Hours"
-											value={
-												typeof engagement.weeklyHours === "string" &&
-												engagement.weeklyHours.trim()
-													? `${engagement.weeklyHours} hours`
-													: null
-											}
-										/>
-										<CertificateDetailRow
-											label="Department"
-											value={engagement.department}
-										/>
-										<CertificateDetailRow
-											label="Leadership"
-											value={formatCertificateLeadership(engagement)}
-										/>
-										<CertificateDetailRow
-											label="Tasks / Responsibilities"
-											value={engagement.tasksDescription}
-											preserveWhitespace
-										/>
-									</Stack>
-									{index <
-										(certificateRequestBeingViewed?.engagements.length ?? 0) -
-											1 && <Divider sx={{ mt: 2 }} />}
-								</Box>
-							),
-						)}
-					</Stack>
-				</DialogContent>
-				<DialogActions>
-					<Button
-						type="button"
-						variant="text"
-						onClick={() => setCertificateRequestBeingViewed(null)}
-					>
-						Close
-					</Button>
-				</DialogActions>
-			</Dialog>
-
-			<Dialog
 				open={Boolean(memberBeingEdited)}
-				onClose={() => {
-					if (!isSavingMember) {
+				onOpenChange={(open) => {
+					if (!open && !isSavingMember) {
 						setMemberBeingEdited(null);
 					}
 				}}
-				maxWidth="sm"
-				fullWidth
 			>
-				<DialogTitle>Edit member</DialogTitle>
-				<DialogContent>
-					<Stack spacing={2} sx={{ pt: 1 }}>
-						<Typography color="text.secondary">
+				<DialogContent className="sm:max-w-xl">
+					<DialogHeader>
+						<DialogTitle>Edit member</DialogTitle>
+					</DialogHeader>
+					<div className="flex flex-col gap-4 pt-1">
+						<p className="text-muted-foreground">
 							{memberBeingEdited
 								? `Update ${memberBeingEdited.given_name} ${memberBeingEdited.surname}.`
 								: ""}
-						</Typography>
+						</p>
 						{/* ── LinkedIn & Professional ── */}
-						<Typography
-							variant="subtitle2"
-							color="text.secondary"
-							sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
-						>
-							<LinkedInIcon fontSize="small" sx={{ color: "primary.main" }} />
+						<p className="flex items-center gap-1 text-sm font-medium text-muted-foreground">
+							<Link2 className="size-4 text-brand" />
 							LinkedIn & Professional
-						</Typography>
-						<TextField
-							label="LinkedIn Profile URL"
-							placeholder="https://linkedin.com/in/your-profile"
-							value={editLinkedinUrl}
-							onChange={(e) => setEditLinkedinUrl(e.target.value)}
-							error={isEditLinkedinUrlInvalid}
-							helperText={
-								isEditLinkedinUrlInvalid
-									? "Use a LinkedIn profile URL like https://linkedin.com/in/name."
-									: undefined
-							}
-							size="small"
-						/>
-						<TextField
-							label="Public location"
-							placeholder="Munich, Germany"
-							value={editLocation}
-							onChange={(e) => setEditLocation(e.target.value)}
-							helperText="Shown on the member profile; separate from address fields."
-							size="small"
-						/>
-						<Divider />
+						</p>
+						<div className="grid gap-1.5">
+							<Label htmlFor="edit-linkedin">LinkedIn Profile URL</Label>
+							<Input
+								id="edit-linkedin"
+								placeholder="https://linkedin.com/in/your-profile"
+								value={editLinkedinUrl}
+								onChange={(e) => setEditLinkedinUrl(e.target.value)}
+								aria-invalid={isEditLinkedinUrlInvalid}
+							/>
+							{isEditLinkedinUrlInvalid && (
+								<p className="text-xs text-destructive">
+									Use a LinkedIn profile URL like https://linkedin.com/in/name.
+								</p>
+							)}
+						</div>
+						<div className="grid gap-1.5">
+							<Label htmlFor="edit-location">Public location</Label>
+							<Input
+								id="edit-location"
+								placeholder="Munich, Germany"
+								value={editLocation}
+								onChange={(e) => setEditLocation(e.target.value)}
+							/>
+							<p className="text-xs text-muted-foreground">
+								Shown on the member profile; separate from address fields.
+							</p>
+						</div>
+						<Separator />
 						{/* ── Org fields ── */}
-						<TextField
-							select
-							label="Batch"
-							value={editBatch}
-							onChange={(event) => setEditBatch(event.target.value)}
-							helperText="Member's TUM.ai joining semester."
-						>
-							<MenuItem value="">None</MenuItem>
-							{BATCH_OPTIONS.map((batch) => (
-								<MenuItem key={batch} value={batch}>
-									{batch}
-								</MenuItem>
-							))}
-						</TextField>
-						<TextField
-							select
-							label="Department"
-							value={editDepartment}
-							onChange={(event) => {
-								setEditDepartment(event.target.value);
-								if (event.target.value !== "Research") {
-									setEditResearchProjectId("");
+						<div className="grid gap-1.5">
+							<Label htmlFor="edit-batch">Batch</Label>
+							<Select
+								value={editBatch || NONE_VALUE}
+								onValueChange={(value) =>
+									setEditBatch(value === NONE_VALUE ? "" : value)
 								}
-							}}
-							disabled={editRoleIsExecutive}
-							error={isMissingRequiredDepartment}
-							helperText={
-								editRoleIsExecutive
+							>
+								<SelectTrigger
+									id="edit-batch"
+									aria-label="Batch"
+									className="w-full"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={NONE_VALUE}>None</SelectItem>
+									{BATCH_OPTIONS.map((batch) => (
+										<SelectItem key={batch} value={batch}>
+											{batch}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-xs text-muted-foreground">
+								Member's TUM.ai joining semester.
+							</p>
+						</div>
+						<div className="grid gap-1.5">
+							<Label htmlFor="edit-department">Department</Label>
+							<Select
+								value={editDepartment || NONE_VALUE}
+								onValueChange={(value) => {
+									const nextValue = value === NONE_VALUE ? "" : value;
+									setEditDepartment(nextValue);
+									if (nextValue !== "Research") {
+										setEditResearchProjectId("");
+									}
+								}}
+								disabled={editRoleIsExecutive}
+							>
+								<SelectTrigger
+									id="edit-department"
+									aria-label="Department"
+									aria-invalid={isMissingRequiredDepartment}
+									className="w-full"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={NONE_VALUE}>None</SelectItem>
+									{DEPARTMENTS.map((department) => (
+										<SelectItem key={department} value={department}>
+											{department}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p
+								className={cn(
+									"text-xs",
+									isMissingRequiredDepartment
+										? "text-destructive"
+										: "text-muted-foreground",
+								)}
+							>
+								{editRoleIsExecutive
 									? "President and Vice-President are not assigned to a department."
 									: isMissingRequiredDepartment
 										? "Select a department for Member and Team Lead roles."
 										: isPreservingMissingRequiredDepartment
 											? "No department assigned yet; keep the role unchanged to save this profile update."
-											: "Operational home. Board membership is assigned separately."
-							}
-						>
-							<MenuItem value="">None</MenuItem>
-							{DEPARTMENTS.map((department) => (
-								<MenuItem key={department} value={department}>
-									{department}
-								</MenuItem>
-							))}
-						</TextField>
+											: "Operational home. Board membership is assigned separately."}
+							</p>
+						</div>
 						{editIsResearchDepartment && (
-							<TextField
-								select
-								label="Research project"
-								value={editResearchProjectSelectValue}
-								onChange={(event) =>
-									setEditResearchProjectId(event.target.value)
-								}
-								disabled={isLoadingResearchProjects}
-								helperText="Research project assignment for org chart grouping."
-							>
-								<MenuItem value="">No project selected</MenuItem>
-								{researchProjectOptions.map((project) => (
-									<MenuItem key={project.id} value={project.id}>
-										{project.title}
-									</MenuItem>
-								))}
-							</TextField>
+							<div className="grid gap-1.5">
+								<Label htmlFor="edit-research-project">Research project</Label>
+								<Select
+									value={editResearchProjectSelectValue || NONE_VALUE}
+									onValueChange={(value) =>
+										setEditResearchProjectId(value === NONE_VALUE ? "" : value)
+									}
+									disabled={isLoadingResearchProjects}
+								>
+									<SelectTrigger
+										id="edit-research-project"
+										aria-label="Research project"
+										className="w-full"
+									>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value={NONE_VALUE}>
+											No project selected
+										</SelectItem>
+										{researchProjectOptions.map((project) => (
+											<SelectItem key={project.id} value={project.id}>
+												{project.title}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+								<p className="text-xs text-muted-foreground">
+									Research project assignment for org chart grouping.
+								</p>
+							</div>
 						)}
-						<TextField
-							select
-							label="Role"
-							value={editRole}
-							onChange={(event) => {
-								const nextRole = event.target.value;
-								setEditRole(nextRole);
-								if (isExecutiveMemberRole(nextRole)) {
-									setEditDepartment("");
-									setEditResearchProjectId("");
-								}
-							}}
-						>
-							{MEMBER_ROLES.map((role) => (
-								<MenuItem key={role} value={role}>
-									{role}
-								</MenuItem>
-							))}
-						</TextField>
-						<Box>
-							<FormControlLabel
-								control={
-									<Checkbox
-										checked={editIsBoardMember}
-										onChange={(event) =>
-											setEditIsBoardMember(event.target.checked)
-										}
-									/>
-								}
-								label="Board member"
-							/>
-							<Typography variant="caption" color="text.secondary">
+						<div className="grid gap-1.5">
+							<Label htmlFor="edit-role">Role</Label>
+							<Select
+								value={editRole}
+								onValueChange={(nextRole) => {
+									setEditRole(nextRole);
+									if (isExecutiveMemberRole(nextRole)) {
+										setEditDepartment("");
+										setEditResearchProjectId("");
+									}
+								}}
+							>
+								<SelectTrigger
+									id="edit-role"
+									aria-label="Role"
+									className="w-full"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{MEMBER_ROLES.map((role) => (
+										<SelectItem key={role} value={role}>
+											{role}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div>
+							<div className="flex items-center gap-2">
+								<Checkbox
+									id="edit-board-member"
+									checked={editIsBoardMember}
+									onCheckedChange={(checked) =>
+										setEditIsBoardMember(checked === true)
+									}
+								/>
+								<Label htmlFor="edit-board-member">Board member</Label>
+							</div>
+							<p className="text-xs text-muted-foreground">
 								Additional responsibility. It does not change the department or
 								the internal team lead/member role.
-							</Typography>
-						</Box>
-						<TextField
-							select
-							label="Status"
-							value={editStatus}
-							onChange={(event) => setEditStatus(event.target.value)}
+							</p>
+						</div>
+						<div className="grid gap-1.5">
+							<Label htmlFor="edit-status">Status</Label>
+							<Select value={editStatus} onValueChange={setEditStatus}>
+								<SelectTrigger
+									id="edit-status"
+									aria-label="Status"
+									className="w-full"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{MEMBER_STATUSES.map((status) => (
+										<SelectItem key={status} value={status}>
+											{getMemberStatusLabel(status)}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="grid gap-1.5">
+							<Label htmlFor="edit-access">Access</Label>
+							<Select
+								value={editAccessRole}
+								onValueChange={(value) =>
+									setEditAccessRole(value as "user" | "admin")
+								}
+							>
+								<SelectTrigger
+									id="edit-access"
+									aria-label="Access"
+									className="w-full"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="user">User</SelectItem>
+									<SelectItem value="admin">Admin</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					</div>
+					<DialogFooter>
+						<Button
+							type="button"
+							variant="ghost"
+							onClick={() => setMemberBeingEdited(null)}
+							disabled={isSavingMember}
 						>
-							{MEMBER_STATUSES.map((status) => (
-								<MenuItem key={status} value={status}>
-									{getMemberStatusLabel(status)}
-								</MenuItem>
-							))}
-						</TextField>
-						<TextField
-							select
-							label="Access"
-							value={editAccessRole}
-							onChange={(event) =>
-								setEditAccessRole(event.target.value as "user" | "admin")
-							}
+							Cancel
+						</Button>
+						<Button
+							type="button"
+							onClick={saveMemberChanges}
+							disabled={isMemberSaveDisabled}
 						>
-							<MenuItem value="user">User</MenuItem>
-							<MenuItem value="admin">Admin</MenuItem>
-						</TextField>
-					</Stack>
+							{isSavingMember ? "Saving..." : "Save member changes"}
+						</Button>
+					</DialogFooter>
 				</DialogContent>
-				<DialogActions>
-					<Button
-						type="button"
-						variant="text"
-						onClick={() => setMemberBeingEdited(null)}
-						disabled={isSavingMember}
-					>
-						Cancel
-					</Button>
-					<Button
-						type="button"
-						variant="contained"
-						onClick={saveMemberChanges}
-						disabled={isMemberSaveDisabled}
-					>
-						{isSavingMember ? "Saving..." : "Save member changes"}
-					</Button>
-				</DialogActions>
 			</Dialog>
-		</Box>
+		</div>
 	);
 }
 
-interface PendingRequestPanelsProps {
-	changeRequests: MemberChangeRequest[];
-	certificateRequests: EngagementCertificateRequest[];
-	jobRequests: JobPostingRequest[];
-	getMemberDisplayName: (userId: string) => string;
-	formatRequestedChanges: (request: MemberChangeRequest) => string;
-	onReviewChangeRequest: (
-		requestId: string,
-		decision: "approved" | "rejected",
-	) => void;
-	onReviewCertificateRequest: (
-		requestId: string,
-		decision: "approved" | "rejected",
-	) => void;
-	onReviewJobRequest: (
-		requestId: string,
-		decision: "approved" | "rejected",
-	) => void;
-	onRemoveJobRequest: (request: JobPostingRequest) => void;
-	onViewCertificateRequest: (request: EngagementCertificateRequest) => void;
-	isReviewingChangeRequest: boolean;
-	isReviewingCertificateRequest: boolean;
-	reviewingJobRequestIds: ReadonlySet<string>;
-	removingJobRequestIds: ReadonlySet<string>;
+interface FilterSelectProps {
+	className?: string;
+	label: string;
+	value: string;
+	onValueChange: (value: string) => void;
+	options: ReadonlyArray<{ label: string; value: string }>;
 }
 
-function PendingRequestPanels({
-	changeRequests,
-	certificateRequests,
-	jobRequests,
-	getMemberDisplayName,
-	formatRequestedChanges,
-	onReviewChangeRequest,
-	onReviewCertificateRequest,
-	onReviewJobRequest,
-	onRemoveJobRequest,
-	onViewCertificateRequest,
-	isReviewingChangeRequest,
-	isReviewingCertificateRequest,
-	reviewingJobRequestIds,
-	removingJobRequestIds,
-}: PendingRequestPanelsProps): ReactElement {
-	const theme = useTheme();
-	const pendingChangeRequests = changeRequests.filter(
-		(request) => request.status === "pending",
-	);
-	const pendingCertificateRequests = certificateRequests.filter(
-		(request) => request.status === "pending",
-	);
-	const pendingJobRequests = jobRequests.filter(
-		(request) => request.status === "pending",
-	);
-	const requestBackground =
-		theme.palette.mode === "light"
-			? "rgba(154, 100, 217, 0.06)"
-			: "rgba(27, 0, 73, 0.36)";
-
+function FilterSelect({
+	className,
+	label,
+	value,
+	onValueChange,
+	options,
+}: FilterSelectProps): ReactElement {
+	const selectedLabel =
+		options.find((option) => option.value === value)?.label ?? "All";
 	return (
-		<Grid container spacing={3} sx={{ mb: 3 }}>
-			<Grid size={{ xs: 12, xl: 4 }}>
-				<GlassCard sx={{ height: "100%" }}>
-					<CardContent sx={{ p: 3 }}>
-						<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-							Member Change Requests
-						</Typography>
-						<Stack spacing={1.5}>
-							{pendingChangeRequests.length === 0 ? (
-								<Typography color="text.secondary">
-									No pending member change requests.
-								</Typography>
-							) : (
-								pendingChangeRequests.map((request) => {
-									const memberName = getMemberDisplayName(request.user_id);
-									return (
-										<Box
-											key={request.id}
-											sx={{
-												p: 2,
-												borderRadius: 3,
-												backgroundColor: requestBackground,
-											}}
-										>
-											<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-												Change request for {memberName}
-											</Typography>
-											<Typography variant="body2" color="text.secondary">
-												Member: {memberName}
-											</Typography>
-											{request.reason && (
-												<Typography
-													variant="body2"
-													color="text.secondary"
-													sx={{ mt: 0.5 }}
-												>
-													Reason: {request.reason}
-												</Typography>
-											)}
-											<Typography variant="body2" sx={{ mt: 1 }}>
-												Requested changes: {formatRequestedChanges(request)}
-											</Typography>
-											<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
-												<Button
-													type="button"
-													variant="contained"
-													size="small"
-													onClick={() =>
-														onReviewChangeRequest(request.id, "approved")
-													}
-													disabled={isReviewingChangeRequest}
-													aria-label={`Approve change request for ${memberName}`}
-												>
-													Approve
-												</Button>
-												<Button
-													type="button"
-													variant="outlined"
-													size="small"
-													onClick={() =>
-														onReviewChangeRequest(request.id, "rejected")
-													}
-													disabled={isReviewingChangeRequest}
-													aria-label={`Reject change request for ${memberName}`}
-												>
-													Reject
-												</Button>
-											</Stack>
-										</Box>
-									);
-								})
-							)}
-						</Stack>
-					</CardContent>
-				</GlassCard>
-			</Grid>
-
-			<Grid size={{ xs: 12, xl: 4 }}>
-				<GlassCard sx={{ height: "100%" }}>
-					<CardContent sx={{ p: 3 }}>
-						<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-							Engagement Certificate Requests
-						</Typography>
-						<Stack spacing={1.5}>
-							{pendingCertificateRequests.length === 0 ? (
-								<Typography color="text.secondary">
-									No pending engagement certificate requests.
-								</Typography>
-							) : (
-								pendingCertificateRequests.map((request) => {
-									const memberName = getMemberDisplayName(request.user_id);
-									return (
-										<Box
-											key={request.id}
-											sx={{
-												p: 2,
-												borderRadius: 3,
-												backgroundColor: requestBackground,
-											}}
-										>
-											<Typography sx={{ fontWeight: 700, mb: 0.5 }}>
-												Engagement certificate request for {memberName}
-											</Typography>
-											<Typography variant="body2" color="text.secondary">
-												Member: {memberName}
-											</Typography>
-											<Typography variant="body2" sx={{ mt: 1 }}>
-												Submitted engagements: {request.engagements.length}
-											</Typography>
-											<Stack direction="row" spacing={1.5} sx={{ mt: 2 }}>
-												<Button
-													type="button"
-													variant="text"
-													size="small"
-													onClick={() => onViewCertificateRequest(request)}
-													aria-label={`View engagement certificate details for ${memberName}`}
-												>
-													View details
-												</Button>
-												<Button
-													type="button"
-													variant="contained"
-													size="small"
-													onClick={() =>
-														onReviewCertificateRequest(request.id, "approved")
-													}
-													disabled={isReviewingCertificateRequest}
-													aria-label={`Approve engagement certificate request for ${memberName}`}
-												>
-													Approve
-												</Button>
-												<Button
-													type="button"
-													variant="outlined"
-													size="small"
-													onClick={() =>
-														onReviewCertificateRequest(request.id, "rejected")
-													}
-													disabled={isReviewingCertificateRequest}
-													aria-label={`Reject engagement certificate request for ${memberName}`}
-												>
-													Reject
-												</Button>
-											</Stack>
-										</Box>
-									);
-								})
-							)}
-						</Stack>
-					</CardContent>
-				</GlassCard>
-			</Grid>
-
-			<Grid size={{ xs: 12, xl: 4 }}>
-				<GlassCard sx={{ height: "100%" }}>
-					<CardContent sx={{ p: 3 }}>
-						<Typography variant="h6" component="h2" sx={{ mb: 2 }}>
-							Job Posting Requests
-						</Typography>
-						<Stack spacing={1.5}>
-							{pendingJobRequests.length === 0 ? (
-								<Typography color="text.secondary">
-									No pending job posting requests.
-								</Typography>
-							) : (
-								pendingJobRequests.map((request) => {
-									const isPartnerPortalRequest =
-										request.source === "partner_portal";
-									const requesterName = isPartnerPortalRequest
-										? "Partner Portal"
-										: getMemberDisplayName(request.user_id);
-									const safeExternalUrl = getSafeHttpUrl(request.external_url);
-									const isJobRequestActionPending =
-										reviewingJobRequestIds.has(request.id) ||
-										removingJobRequestIds.has(request.id);
-									return (
-										<Box
-											key={request.id}
-											sx={{
-												p: 2,
-												borderRadius: 3,
-												backgroundColor: requestBackground,
-											}}
-										>
-											<Stack
-												direction="row"
-												spacing={1}
-												alignItems="center"
-												useFlexGap
-												flexWrap="wrap"
-												sx={{ mb: 0.5 }}
-											>
-												<WorkOutlineIcon color="primary" fontSize="small" />
-												<Typography sx={{ fontWeight: 700 }}>
-													{request.title}
-												</Typography>
-												{isPartnerPortalRequest && (
-													<Chip
-														label="Partner Portal"
-														size="small"
-														color="primary"
-														variant="outlined"
-													/>
-												)}
-											</Stack>
-											<Typography variant="body2" color="text.secondary">
-												{isPartnerPortalRequest ? "Submitted via" : "Member"}:{" "}
-												{requesterName}
-											</Typography>
-											<Typography variant="body2" color="text.secondary">
-												{request.organization_name} ·{" "}
-												{adminJobTypeLabels[request.job_type] ??
-													request.job_type}{" "}
-												· {request.location}
-											</Typography>
-											<Typography variant="body2" color="text.secondary">
-												Contact: {request.contact_name} ({request.contact_email}
-												)
-											</Typography>
-											<Typography
-												variant="body2"
-												sx={{
-													mt: 1,
-													display: "-webkit-box",
-													WebkitLineClamp: 3,
-													WebkitBoxOrient: "vertical",
-													overflow: "hidden",
-												}}
-											>
-												{request.description_markdown}
-											</Typography>
-											<Stack
-												direction="row"
-												spacing={1.5}
-												useFlexGap
-												flexWrap="wrap"
-												sx={{ mt: 2 }}
-											>
-												{safeExternalUrl && (
-													<Button
-														component="a"
-														href={safeExternalUrl}
-														target="_blank"
-														rel="noopener noreferrer"
-														variant="text"
-														size="small"
-														endIcon={<OpenInNewIcon />}
-													>
-														Open posting
-													</Button>
-												)}
-												<Button
-													type="button"
-													variant="contained"
-													size="small"
-													onClick={() =>
-														onReviewJobRequest(request.id, "approved")
-													}
-													disabled={isJobRequestActionPending}
-													aria-label={`Approve job posting request for ${requesterName}`}
-												>
-													Approve
-												</Button>
-												<Button
-													type="button"
-													variant="outlined"
-													size="small"
-													onClick={() =>
-														onReviewJobRequest(request.id, "rejected")
-													}
-													disabled={isJobRequestActionPending}
-													aria-label={`Reject job posting request for ${requesterName}`}
-												>
-													Reject
-												</Button>
-												<Button
-													type="button"
-													variant="outlined"
-													color="error"
-													size="small"
-													onClick={() => onRemoveJobRequest(request)}
-													disabled={isJobRequestActionPending}
-													aria-label={`Remove job posting request for ${requesterName}`}
-												>
-													Remove
-												</Button>
-											</Stack>
-										</Box>
-									);
-								})
-							)}
-						</Stack>
-					</CardContent>
-				</GlassCard>
-			</Grid>
-		</Grid>
+		<div className={className}>
+			<div className="grid gap-1.5">
+				<Label>{label}</Label>
+				<Select
+					value={value || ALL_VALUE}
+					onValueChange={(next) =>
+						onValueChange(next === ALL_VALUE ? "" : next)
+					}
+				>
+					<SelectTrigger aria-label={label} className="w-full">
+						<SelectValue>{selectedLabel}</SelectValue>
+					</SelectTrigger>
+					<SelectContent>
+						{options.map((option) => (
+							<SelectItem
+								key={option.value || ALL_VALUE}
+								value={option.value || ALL_VALUE}
+							>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+		</div>
 	);
-}
-
-function formatAdminValue(value: unknown): string {
-	if (typeof value === "string") {
-		const trimmed = value.trim();
-		return trimmed || "Not set";
-	}
-
-	return value === null || value === undefined ? "Not set" : String(value);
-}
-
-function getSafeHttpUrl(value?: string | null): string | null {
-	if (!value) return null;
-	try {
-		const url = new URL(value);
-		return url.protocol === "https:" || url.protocol === "http:" ? value : null;
-	} catch {
-		return null;
-	}
-}
-
-function formatCertificateLeadership(
-	engagement: Record<string, unknown>,
-): string {
-	const roles: string[] = [];
-
-	if (engagement.isTeamLead === true) {
-		roles.push("Team Lead");
-	}
-
-	if (typeof engagement.specialRole === "string") {
-		const specialRole = engagement.specialRole.trim();
-		if (specialRole) {
-			roles.push(specialRole);
-		}
-	}
-
-	return roles.length > 0 ? roles.join(", ") : "Member";
 }
 
 interface MetricCardProps {
@@ -1788,112 +1018,31 @@ interface MetricCardProps {
 	value: number;
 }
 
-interface CertificateDetailRowProps {
-	label: string;
-	value: unknown;
-	preserveWhitespace?: boolean;
-}
-
-function CertificateDetailRow({
-	label,
-	value,
-	preserveWhitespace = false,
-}: CertificateDetailRowProps) {
-	return (
-		<Box>
-			<Typography variant="caption" color="text.secondary">
-				{label}
-			</Typography>
-			<Typography
-				sx={{ whiteSpace: preserveWhitespace ? "pre-wrap" : "normal" }}
-			>
-				{formatAdminValue(value)}
-			</Typography>
-		</Box>
-	);
-}
-
 function MetricCard({ icon, label, value }: MetricCardProps) {
-	const theme = useTheme();
-
 	return (
-		<Box
-			sx={{
-				p: 2.25,
-				borderRadius: 3,
-				backgroundColor:
-					theme.palette.mode === "light"
-						? alpha(theme.palette.primary.main, 0.06)
-						: alpha(theme.palette.primary.main, 0.12),
-				border: `1px solid ${alpha(theme.palette.primary.main, 0.14)}`,
-				display: "flex",
-				alignItems: "center",
-				gap: 1.5,
-			}}
-		>
-			<Box
-				sx={{
-					width: 40,
-					height: 40,
-					borderRadius: 2.5,
-					display: "grid",
-					placeItems: "center",
-					backgroundColor:
-						theme.palette.mode === "light"
-							? alpha(theme.palette.primary.main, 0.1)
-							: alpha(theme.palette.common.white, 0.08),
-					color: theme.palette.primary.main,
-					flexShrink: 0,
-				}}
-			>
+		<InfoBox variant="brand" className="flex items-center gap-3 p-4">
+			<div className="grid size-10 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand">
 				{icon}
-			</Box>
-			<Box>
-				<Typography variant="caption" color="text.secondary">
-					{label}
-				</Typography>
-				<Typography variant="h5">{value}</Typography>
-			</Box>
-		</Box>
+			</div>
+			<div>
+				<p className="text-xs text-muted-foreground">{label}</p>
+				<p className="text-2xl font-semibold">{value}</p>
+			</div>
+		</InfoBox>
 	);
 }
 
 function AgreementChip({ accepted }: { accepted: boolean }) {
-	const theme = useTheme();
-
+	const label = accepted ? "Accepted" : "Not accepted";
 	return (
-		<Chip
-			size="small"
-			label={accepted ? "Accepted" : "Not accepted"}
-			variant={accepted ? "filled" : "outlined"}
-			sx={{
-				fontWeight: 600,
-				backgroundColor: accepted
-					? alpha(theme.palette.primary.main, 0.14)
-					: alpha(theme.palette.warning.main, 0.12),
-				color: accepted
-					? theme.palette.primary.main
-					: theme.palette.warning.main,
-				borderColor: accepted
-					? alpha(theme.palette.primary.main, 0.16)
-					: alpha(theme.palette.warning.main, 0.22),
-			}}
-		/>
+		<span role="img" title={label} aria-label={label} className="inline-flex">
+			{accepted ? (
+				<Check className="size-4 text-brand" aria-hidden="true" />
+			) : (
+				<X className="size-4 text-muted-foreground" aria-hidden="true" />
+			)}
+		</span>
 	);
-}
-
-function getSelectProps(
-	options: ReadonlyArray<{ label: string; value: string }>,
-): {
-	displayEmpty: true;
-	renderValue: (selected: unknown) => string;
-} {
-	return {
-		displayEmpty: true,
-		renderValue: (selected) =>
-			options.find((option) => option.value === String(selected))?.label ??
-			"All",
-	};
 }
 
 function rowsToCsv(rows: Array<Record<string, string>>): string {
@@ -1924,4 +1073,59 @@ function escapeCsvCell(value: string): string {
 		return `"${normalized.replaceAll('"', '""')}"`;
 	}
 	return normalized;
+}
+
+export function AdminDatabaseSkeleton() {
+	return (
+		<SkeletonRegion label="Loading admin workspace">
+			<GlassCard variant="elevated" className="mb-8 overflow-hidden">
+				<div className="p-6 md:p-8">
+					<div className="max-w-[680px] space-y-2.5">
+						<Skeleton className="h-9 w-64" />
+						<Skeleton className="h-4 w-[28rem] max-w-full" />
+					</div>
+					<div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+						{Array.from({ length: 4 }).map((_, i) => (
+							<div
+								// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+								key={i}
+								className="flex items-center gap-3 rounded-lg border p-4"
+							>
+								<Skeleton className="size-10 shrink-0 rounded-lg" />
+								<div className="space-y-1.5">
+									<Skeleton className="h-3 w-24" />
+									<Skeleton className="h-6 w-12" />
+								</div>
+							</div>
+						))}
+					</div>
+				</div>
+			</GlassCard>
+
+			<GlassCard variant="elevated" className="mb-6 overflow-hidden">
+				<div className="flex items-center gap-6 border-b bg-muted/40 px-6 py-3">
+					{Array.from({ length: 8 }).map((_, i) => (
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						<Skeleton key={i} className="h-4 flex-1" />
+					))}
+				</div>
+				{Array.from({ length: 8 }).map((_, row) => (
+					<div
+						// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+						key={row}
+						className="flex items-center gap-6 border-b px-6 py-4 last:border-b-0"
+					>
+						<div className="flex flex-1 items-center gap-3">
+							<Skeleton className="size-9 shrink-0 rounded-full" />
+							<Skeleton className="h-4 flex-1" />
+						</div>
+						{Array.from({ length: 6 }).map((_, col) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+							<Skeleton key={col} className="h-4 flex-1" />
+						))}
+					</div>
+				))}
+			</GlassCard>
+		</SkeletonRegion>
+	);
 }

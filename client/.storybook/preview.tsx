@@ -1,42 +1,30 @@
-import CssBaseline from "@mui/material/CssBaseline";
-import { ThemeProvider } from "@mui/material/styles";
 import type { Decorator, Preview } from "@storybook/react-vite";
 import { type ReactNode, useEffect } from "react";
-import getAppTheme, {
-	type AppColorMode,
-	getPreferredColorMode,
-} from "../src/theme";
-// Tailwind v4 + shadcn tokens + Manrope font. Required so migrated shadcn
-// components render with their styles inside Storybook.
+// Tailwind v4 + shadcn tokens + Manrope font. Required so shadcn components
+// render with their styles inside Storybook.
 import "../src/index.css";
 
 function ThemeWrapper({
 	mode,
 	children,
 }: {
-	mode: AppColorMode;
+	mode: "light" | "dark";
 	children: ReactNode;
 }) {
-	// Keep the shadcn `.dark` token set in sync with the MUI color mode, mirroring
-	// what App.tsx does in the real app.
+	// Drive the shadcn `.dark` token set from the toolbar, and paint the canvas
+	// with the shadcn surface tokens (Storybook's canvas is white by default, so
+	// without this the `.dark` near-white foreground would render white-on-white).
 	useEffect(() => {
 		document.documentElement.classList.toggle("dark", mode === "dark");
+		document.body.style.backgroundColor = "var(--background)";
+		document.body.style.color = "var(--foreground)";
 	}, [mode]);
 
-	return (
-		<ThemeProvider theme={getAppTheme(mode)}>
-			<CssBaseline />
-			{children}
-		</ThemeProvider>
-	);
+	return <div className="bg-background text-foreground">{children}</div>;
 }
 
-// Wrap every story in the MUI theme so MUI-based components keep rendering
-// correctly while the app migrates to shadcn/ui. The toolbar switches both the
-// MUI theme and the shadcn `.dark` tokens together.
 const withTheme: Decorator = (Story, context) => {
-	const mode: AppColorMode =
-		context.globals.theme === "dark" ? "dark" : "light";
+	const mode = context.globals.theme === "dark" ? "dark" : "light";
 	return (
 		<ThemeWrapper mode={mode}>
 			<Story />
@@ -73,7 +61,7 @@ const preview: Preview = {
 			},
 		},
 	},
-	initialGlobals: { theme: getPreferredColorMode() },
+	initialGlobals: { theme: "light" },
 	decorators: [withTheme],
 };
 

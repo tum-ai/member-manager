@@ -1,70 +1,78 @@
-import DarkModeOutlinedIcon from "@mui/icons-material/DarkModeOutlined";
-import LightModeOutlinedIcon from "@mui/icons-material/LightModeOutlined";
 import {
-	Box,
-	Button,
-	Container,
-	IconButton,
-	Paper,
-	Tooltip,
-	Typography,
-	useTheme,
-} from "@mui/material";
-import { alpha, styled } from "@mui/material/styles";
+	FileSignature,
+	Moon,
+	Network,
+	Receipt,
+	ShieldCheck,
+	Sun,
+} from "lucide-react";
+import { useTheme } from "next-themes";
 import { useState } from "react";
+import { SlackIcon } from "@/components/icons/SlackIcon";
+import { Button } from "@/components/ui/button";
+import { InfoBox } from "@/components/ui/info-box";
+import { Separator } from "@/components/ui/separator";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { getSlackRedirectUrl } from "../../lib/authRedirect";
 import { supabase } from "../../lib/supabaseClient";
-import type { AppColorMode } from "../../theme";
 
-const AuthCard = styled(Paper)(({ theme }) => ({
-	padding: theme.spacing(5),
-	display: "flex",
-	flexDirection: "column",
-	alignItems: "center",
-	gap: theme.spacing(3),
-	borderRadius: 28,
-	background:
-		theme.palette.mode === "light"
-			? "linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(250, 248, 252, 1) 100%)"
-			: alpha(theme.palette.background.paper, 0.82),
-	border: "none",
-	backdropFilter: "blur(12px)",
-	boxShadow:
-		theme.palette.mode === "light"
-			? "0 22px 56px rgba(15, 23, 42, 0.12)"
-			: "0 18px 42px rgba(6, 4, 14, 0.2)",
-	width: "100%",
-	maxWidth: 440,
-	[theme.breakpoints.down("sm")]: {
-		padding: theme.spacing(4),
+const FEATURES = [
+	{
+		icon: FileSignature,
+		title: "Contracts & signatures",
+		desc: "Draft, sign, and track membership contracts in one place.",
 	},
-}));
+	{
+		icon: Receipt,
+		title: "Reimbursements",
+		desc: "Submit expenses and follow their approval status.",
+	},
+	{
+		icon: Network,
+		title: "Org charts & profiles",
+		desc: "Find members, teams, and project structures.",
+	},
+	{
+		icon: ShieldCheck,
+		title: "Certificates & admin",
+		desc: "Engagement certificates and admin tooling.",
+	},
+] as const;
 
-interface AuthProps {
-	colorMode: AppColorMode;
-	onToggleColorMode: () => void;
+function isLocalSupabaseHostname(hostname: string): boolean {
+	return (
+		hostname === "127.0.0.1" ||
+		hostname === "localhost" ||
+		// Private LAN ranges, so a local Supabase reached via the machine's
+		// network IP (e.g. when testing on a phone) still counts as local.
+		/^10\./.test(hostname) ||
+		/^192\.168\./.test(hostname) ||
+		/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)
+	);
 }
 
 function isLocalSupabaseProject(): boolean {
 	try {
 		const supabaseUrl = new URL(import.meta.env.VITE_SUPABASE_URL);
-		return (
-			import.meta.env.DEV &&
-			(supabaseUrl.hostname === "127.0.0.1" ||
-				supabaseUrl.hostname === "localhost")
-		);
+		return import.meta.env.DEV && isLocalSupabaseHostname(supabaseUrl.hostname);
 	} catch {
 		return false;
 	}
 }
 
-export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
+export default function Auth() {
 	const [message, setMessage] = useState("");
 	const [localLoginInProgress, setLocalLoginInProgress] = useState<
 		"admin" | "regular" | null
 	>(null);
 
-	const theme = useTheme();
+	const { resolvedTheme, setTheme } = useTheme();
+	const isDark = resolvedTheme === "dark";
 	const showLocalAdminLogin = isLocalSupabaseProject();
 
 	const signInWithSlack = async () => {
@@ -107,153 +115,170 @@ export default function Auth({ colorMode, onToggleColorMode }: AuthProps) {
 	};
 
 	return (
-		<Container
-			maxWidth={false}
-			sx={{
-				display: "flex",
-				justifyContent: "center",
-				alignItems: "center",
-				minHeight: "100vh",
-				px: { xs: 2, md: 4 },
-				py: { xs: 4, md: 6 },
-				position: "relative",
-				overflow: "hidden",
-				backgroundColor: theme.palette.background.default,
-			}}
-		>
-			<Box
-				aria-hidden
-				sx={{
-					position: "absolute",
-					inset: 0,
-					background:
-						theme.palette.mode === "light"
-							? "linear-gradient(to top right, rgba(154, 100, 217, 0.08) 0%, transparent 34%)"
-							: "radial-gradient(circle at 88% 16%, rgba(154, 100, 217, 0.16), transparent 18%), radial-gradient(circle at 12% 36%, rgba(96, 165, 250, 0.12), transparent 22%)",
-				}}
-			/>
+		<div className="relative min-h-screen bg-background">
+			<TooltipProvider>
+				<Tooltip>
+					<TooltipTrigger asChild>
+						<Button
+							variant="outline"
+							size="icon"
+							onClick={() => setTheme(isDark ? "light" : "dark")}
+							className="absolute top-5 right-5 z-20 md:top-7 md:right-7"
+							aria-label={
+								isDark ? "Switch to light mode" : "Switch to night mode"
+							}
+						>
+							{isDark ? <Sun /> : <Moon />}
+						</Button>
+					</TooltipTrigger>
+					<TooltipContent>
+						{isDark ? "Switch to light mode" : "Switch to night mode"}
+					</TooltipContent>
+				</Tooltip>
+			</TooltipProvider>
 
-			<Tooltip
-				title={
-					colorMode === "light"
-						? "Switch to night mode"
-						: "Switch to light mode"
-				}
-			>
-				<IconButton
-					onClick={onToggleColorMode}
-					sx={{
-						position: "absolute",
-						top: { xs: 18, md: 28 },
-						right: { xs: 18, md: 28 },
-						zIndex: 2,
-						backgroundColor:
-							theme.palette.mode === "light"
-								? alpha(theme.palette.background.paper, 0.9)
-								: alpha(theme.palette.background.paper, 0.18),
-						border: `1px solid ${theme.palette.divider}`,
-						color: theme.palette.text.primary,
-						"&:hover": {
-							backgroundColor:
-								theme.palette.mode === "light"
-									? theme.palette.background.paper
-									: alpha(theme.palette.background.paper, 0.28),
-						},
-					}}
-				>
-					{colorMode === "light" ? (
-						<DarkModeOutlinedIcon fontSize="small" />
-					) : (
-						<LightModeOutlinedIcon fontSize="small" />
-					)}
-				</IconButton>
-			</Tooltip>
-
-			<AuthCard sx={{ position: "relative", zIndex: 1 }}>
-				<Box
+			<div className="grid min-h-screen lg:grid-cols-2">
+				<section
 					data-testid="auth-logo-surface"
-					sx={{
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "center",
-						width: "100%",
-						maxWidth: 240,
-						px: 2.5,
-						py: 1.75,
-						borderRadius: 3,
+					className="relative hidden flex-col justify-between overflow-hidden p-10 text-white lg:flex xl:p-14"
+					style={{
 						background:
 							"linear-gradient(135deg, rgba(27, 0, 73, 0.98) 0%, rgba(82, 53, 115, 0.98) 100%)",
-						boxShadow:
-							theme.palette.mode === "light"
-								? "0 14px 30px rgba(27, 0, 73, 0.18)"
-								: "0 14px 30px rgba(6, 4, 14, 0.28)",
 					}}
 				>
+					<div
+						aria-hidden
+						className="pointer-events-none absolute -top-24 -right-24 size-96 rounded-full bg-white/10 blur-3xl"
+					/>
+
 					<img
 						src="/img/tum_ai_logo_new.svg"
 						alt="TUM.ai Logo"
-						style={{ width: 168, display: "block" }}
+						className="relative h-9 w-auto"
 					/>
-				</Box>
-				<Typography variant="h4" component="h1" align="center">
-					Member Manager
-				</Typography>
-				<Button
-					variant="contained"
-					color="primary"
-					onClick={signInWithSlack}
-					fullWidth
-					sx={{ height: 52, mt: 1 }}
-				>
-					Continue with Slack
-				</Button>
-				{showLocalAdminLogin && (
-					<Box sx={{ width: "100%", display: "grid", gap: 1.5 }}>
-						<Button
-							variant="outlined"
-							color="primary"
-							onClick={() => signInWithLocalUser("admin", "admin@example.com")}
-							disabled={localLoginInProgress !== null}
-							fullWidth
-							sx={{ height: 48 }}
-						>
-							{localLoginInProgress === "admin"
-								? "Signing in..."
-								: "Continue as local admin"}
-						</Button>
-						<Button
-							variant="outlined"
-							color="primary"
-							onClick={() =>
-								signInWithLocalUser("regular", "regular-member@example.com")
-							}
-							disabled={localLoginInProgress !== null}
-							fullWidth
-							sx={{ height: 48 }}
-						>
-							{localLoginInProgress === "regular"
-								? "Signing in..."
-								: "Continue as regular user"}
-						</Button>
-					</Box>
-				)}
 
-				{message && (
-					<Typography
-						color="error"
-						align="center"
-						sx={{
-							px: 2,
-							py: 1.5,
-							borderRadius: 2.5,
-							backgroundColor: "rgba(232, 122, 149, 0.08)",
-							border: "1px solid rgba(232, 122, 149, 0.22)",
-						}}
-					>
-						{message}
-					</Typography>
-				)}
-			</AuthCard>
-		</Container>
+					<div className="relative max-w-md">
+						<h2 className="text-3xl font-bold leading-tight tracking-tight xl:text-4xl">
+							The internal platform for TUM.ai members.
+						</h2>
+						<p className="mt-4 text-base text-white/70">
+							One place for your profile, contracts, reimbursements,
+							certificates, and the people you work with.
+						</p>
+
+						<ul className="mt-10 space-y-5">
+							{FEATURES.map(({ icon: Icon, title, desc }) => (
+								<li key={title} className="flex items-start gap-4">
+									<span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/15">
+										<Icon className="size-5 text-white" />
+									</span>
+									<div>
+										<p className="font-semibold">{title}</p>
+										<p className="text-sm text-white/65">{desc}</p>
+									</div>
+								</li>
+							))}
+						</ul>
+					</div>
+
+					<p className="relative text-sm text-white/50">
+						TUM.ai Member Manager
+					</p>
+				</section>
+
+				<section className="flex items-center justify-center px-4 py-12 md:px-8">
+					<div className="w-full max-w-sm">
+						<div className="mb-8 flex flex-col items-center gap-4 lg:hidden">
+							<img
+								src="/img/tum_ai_logo_mark_light.svg"
+								alt="TUM.ai"
+								className="h-12 w-auto dark:hidden"
+							/>
+							<img
+								src="/img/tum_ai_logo_mark_dark.svg"
+								alt="TUM.ai"
+								className="hidden h-12 w-auto dark:block"
+							/>
+						</div>
+
+						<div className="space-y-2 text-center lg:text-left">
+							<h1 className="text-2xl font-bold tracking-tight">
+								Sign in to Member Manager
+							</h1>
+							<p className="text-sm text-muted-foreground">
+								Use your TUM.ai Slack account to continue.
+							</p>
+						</div>
+
+						<div className="mt-8 space-y-4">
+							<Button
+								size="lg"
+								className="h-12 w-full text-base"
+								onClick={signInWithSlack}
+							>
+								<SlackIcon className="size-5" />
+								Continue with Slack
+							</Button>
+
+							{showLocalAdminLogin && (
+								<>
+									<div className="flex items-center gap-3">
+										<Separator className="flex-1" />
+										<span className="text-xs uppercase tracking-wider text-muted-foreground">
+											Local dev
+										</span>
+										<Separator className="flex-1" />
+									</div>
+
+									<div className="grid gap-3">
+										<Button
+											variant="outline"
+											className="h-11"
+											onClick={() =>
+												signInWithLocalUser("admin", "admin@example.com")
+											}
+											disabled={localLoginInProgress !== null}
+										>
+											{localLoginInProgress === "admin"
+												? "Signing in..."
+												: "Continue as local admin"}
+										</Button>
+										<Button
+											variant="outline"
+											className="h-11"
+											onClick={() =>
+												signInWithLocalUser(
+													"regular",
+													"regular-member@example.com",
+												)
+											}
+											disabled={localLoginInProgress !== null}
+										>
+											{localLoginInProgress === "regular"
+												? "Signing in..."
+												: "Continue as regular user"}
+										</Button>
+									</div>
+								</>
+							)}
+
+							{message && (
+								<InfoBox
+									role="alert"
+									variant="destructive"
+									className="px-4 py-3 text-center text-sm text-destructive"
+								>
+									{message}
+								</InfoBox>
+							)}
+						</div>
+
+						<p className="mt-8 text-center text-xs text-muted-foreground lg:text-left">
+							By continuing you agree to TUM.ai's internal usage guidelines.
+						</p>
+					</div>
+				</section>
+			</div>
+		</div>
 	);
 }

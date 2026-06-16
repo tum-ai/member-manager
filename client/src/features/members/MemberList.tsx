@@ -1,31 +1,30 @@
-import LinkedInIcon from "@mui/icons-material/LinkedIn";
-import LocationOnIcon from "@mui/icons-material/LocationOn";
-import SearchIcon from "@mui/icons-material/Search";
-import {
-	Avatar,
-	Box,
-	CardContent,
-	Chip,
-	CircularProgress,
-	FormControl,
-	Grid,
-	IconButton,
-	InputAdornment,
-	InputLabel,
-	MenuItem,
-	Select,
-	TextField,
-	Tooltip,
-	Typography,
-	useTheme,
-} from "@mui/material";
-import { alpha } from "@mui/material/styles";
+import { MapPin, Search } from "lucide-react";
+import type * as React from "react";
 import { useMemo, useState } from "react";
 
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "@/components/ui/tooltip";
 import GlassCard from "../../components/ui/GlassCard";
-import { useInnovationProjects } from "../../hooks/useInnovationProjects";
 import { useMembersListData } from "../../hooks/useMembersListData";
-import { useResearchProjects } from "../../hooks/useResearchProjects";
+import { proxiedAvatarUrl } from "../../lib/avatarUrl";
 import {
 	BOARD_MEMBER_ROLE,
 	DEGREE_TYPES,
@@ -41,7 +40,22 @@ import {
 	splitDegree,
 } from "../../lib/memberMetadata";
 import type { Member } from "../../types";
-import OrgChartView from "./OrgChartView";
+
+const ALL_VALUE = "__all__";
+
+function LinkedinIcon(props: React.SVGProps<SVGSVGElement>) {
+	return (
+		<svg
+			viewBox="0 0 24 24"
+			fill="currentColor"
+			aria-hidden="true"
+			focusable="false"
+			{...props}
+		>
+			<path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.225 0z" />
+		</svg>
+	);
+}
 
 function getInitials(member: Member): string {
 	const first = member.given_name?.charAt(0) || "";
@@ -74,8 +88,6 @@ function isBoardOnlyMember(member: Member): boolean {
 
 export default function MemberList() {
 	const { members, isLoading, error } = useMembersListData();
-	const { researchProjects } = useResearchProjects();
-	const { innovationProjects } = useInnovationProjects();
 	const [search, setSearch] = useState("");
 	const [department, setDepartment] = useState("");
 	const [role, setRole] = useState("");
@@ -164,204 +176,197 @@ export default function MemberList() {
 	]);
 
 	if (isLoading) {
-		return (
-			<Box
-				sx={{
-					display: "flex",
-					justifyContent: "center",
-					alignItems: "center",
-					minHeight: "60vh",
-					gap: 2,
-				}}
-			>
-				<CircularProgress size={24} />
-				<Typography color="text.secondary">Loading members...</Typography>
-			</Box>
-		);
+		return <MemberListSkeleton />;
 	}
 
 	if (error) {
 		return (
-			<Box sx={{ textAlign: "center", py: 8 }}>
-				<Typography color="error">
+			<div className="py-16 text-center">
+				<p className="text-destructive">
 					Failed to load members. Please try again later.
-				</Typography>
-			</Box>
+				</p>
+			</div>
 		);
 	}
 
 	return (
-		<Box sx={{ py: 2 }}>
-			{filtered.length > 0 && (
-				<OrgChartView
-					members={filtered}
-					researchProjects={researchProjects ?? []}
-					innovationProjects={innovationProjects ?? []}
-				/>
-			)}
-
-			<GlassCard variant="elevated" sx={{ mb: 4, overflow: "hidden" }}>
-				<CardContent sx={{ p: { xs: 3, md: 4 } }}>
-					<Box
-						sx={{
-							display: "flex",
-							justifyContent: "space-between",
-							alignItems: { xs: "flex-start", md: "center" },
-							flexDirection: { xs: "column", md: "row" },
-							gap: 3,
-						}}
-					>
-						<Box sx={{ maxWidth: 620 }}>
-							<Typography variant="h3" sx={{ mb: 1.5 }}>
-								All Members
-							</Typography>
-							<Typography variant="body1" color="text.secondary">
+		<div>
+			<GlassCard variant="elevated" className="mb-8 overflow-hidden">
+				<div className="p-6 md:p-8">
+					<div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+						<div className="max-w-[620px]">
+							<h2 className="mb-1.5 text-2xl font-bold">All Members</h2>
+							<p className="text-muted-foreground">
 								Browse the TUM.ai member and alumni network and search across
 								profiles.
-							</Typography>
-						</Box>
+							</p>
+						</div>
 
-						<Box sx={{ width: "100%", maxWidth: 340 }}>
-							<TextField
-								size="small"
-								placeholder="Search members..."
-								value={search}
-								onChange={(e) => setSearch(e.target.value)}
-								slotProps={{
-									input: {
-										startAdornment: (
-											<InputAdornment position="start">
-												<SearchIcon fontSize="small" />
-											</InputAdornment>
-										),
-									},
-								}}
-								fullWidth
-							/>
-						</Box>
-					</Box>
+						<div className="w-full max-w-[340px]">
+							<div className="relative">
+								<Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+								<Input
+									placeholder="Search members..."
+									value={search}
+									onChange={(e) => setSearch(e.target.value)}
+									className="pl-9"
+								/>
+							</div>
+						</div>
+					</div>
 
-					<Box
-						sx={{
-							mt: 3,
-							display: "flex",
-							flexWrap: "wrap",
-							gap: 2,
-							alignItems: "center",
-						}}
-					>
-						<FormControl size="small" sx={{ minWidth: 220 }}>
-							<InputLabel id="member-list-department-label">
-								Department
-							</InputLabel>
+					<div className="mt-6 flex flex-wrap items-end gap-4">
+						<div className="grid gap-1.5">
+							<Label htmlFor="member-list-department">Department</Label>
 							<Select
-								labelId="member-list-department-label"
-								value={department}
-								label="Department"
-								onChange={(e) => setDepartment(e.target.value)}
+								value={department || ALL_VALUE}
+								onValueChange={(value) =>
+									setDepartment(value === ALL_VALUE ? "" : value)
+								}
 							>
-								<MenuItem value="">All</MenuItem>
-								{DEPARTMENTS.map((item) => (
-									<MenuItem key={item} value={item}>
-										{item}
-									</MenuItem>
-								))}
-							</Select>
-						</FormControl>
-
-						<FormControl size="small" sx={{ minWidth: 220 }}>
-							<InputLabel id="member-list-role-label">Role</InputLabel>
-							<Select
-								labelId="member-list-role-label"
-								value={role}
-								label="Role"
-								onChange={(e) => setRole(e.target.value)}
-							>
-								<MenuItem value="">All</MenuItem>
-								{MEMBER_ROLES.filter((item) => item !== "Alumni").map(
-									(item) => (
-										<MenuItem key={item} value={item}>
+								<SelectTrigger
+									id="member-list-department"
+									aria-label="Department"
+									className="min-w-[220px]"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={ALL_VALUE}>All</SelectItem>
+									{DEPARTMENTS.map((item) => (
+										<SelectItem key={item} value={item}>
 											{item}
-										</MenuItem>
-									),
-								)}
+										</SelectItem>
+									))}
+								</SelectContent>
 							</Select>
-						</FormControl>
+						</div>
 
-						<FormControl size="small" sx={{ minWidth: 180 }}>
-							<InputLabel id="member-list-status-label">Status</InputLabel>
+						<div className="grid gap-1.5">
+							<Label htmlFor="member-list-role">Role</Label>
 							<Select
-								labelId="member-list-status-label"
-								value={memberStatus}
-								label="Status"
-								onChange={(e) => setMemberStatus(e.target.value)}
+								value={role || ALL_VALUE}
+								onValueChange={(value) =>
+									setRole(value === ALL_VALUE ? "" : value)
+								}
 							>
-								<MenuItem value="">All</MenuItem>
-								<MenuItem value="active">Active</MenuItem>
-								<MenuItem value="alumni">Alumni</MenuItem>
+								<SelectTrigger
+									id="member-list-role"
+									aria-label="Role"
+									className="min-w-[220px]"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={ALL_VALUE}>All</SelectItem>
+									{MEMBER_ROLES.filter(
+										(item) => (item as string) !== "Alumni",
+									).map((item) => (
+										<SelectItem key={item} value={item}>
+											{item}
+										</SelectItem>
+									))}
+								</SelectContent>
 							</Select>
-						</FormControl>
+						</div>
 
-						<FormControl size="small" sx={{ minWidth: 220 }}>
-							<InputLabel id="member-list-degree-label">Degree</InputLabel>
+						<div className="grid gap-1.5">
+							<Label htmlFor="member-list-status">Status</Label>
 							<Select
-								labelId="member-list-degree-label"
-								value={degreeType}
-								label="Degree"
-								onChange={(e) => setDegreeType(e.target.value)}
+								value={memberStatus || ALL_VALUE}
+								onValueChange={(value) =>
+									setMemberStatus(value === ALL_VALUE ? "" : value)
+								}
 							>
-								<MenuItem value="">All</MenuItem>
-								{DEGREE_TYPES.map((item) => (
-									<MenuItem key={item} value={item}>
-										{item}
-									</MenuItem>
-								))}
+								<SelectTrigger
+									id="member-list-status"
+									aria-label="Status"
+									className="min-w-[180px]"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={ALL_VALUE}>All</SelectItem>
+									<SelectItem value="active">Active</SelectItem>
+									<SelectItem value="alumni">Alumni</SelectItem>
+								</SelectContent>
 							</Select>
-						</FormControl>
+						</div>
 
-						<FormControl size="small" sx={{ minWidth: 240 }}>
-							<InputLabel id="member-list-program-label">
-								Major / Program
-							</InputLabel>
+						<div className="grid gap-1.5">
+							<Label htmlFor="member-list-degree">Degree</Label>
 							<Select
-								labelId="member-list-program-label"
-								value={degreeProgram}
-								label="Major / Program"
-								onChange={(e) => setDegreeProgram(e.target.value)}
+								value={degreeType || ALL_VALUE}
+								onValueChange={(value) =>
+									setDegreeType(value === ALL_VALUE ? "" : value)
+								}
 							>
-								<MenuItem value="">All</MenuItem>
-								{degreePrograms.map((item) => (
-									<MenuItem key={item} value={item}>
-										{item}
-									</MenuItem>
-								))}
+								<SelectTrigger
+									id="member-list-degree"
+									aria-label="Degree"
+									className="min-w-[220px]"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={ALL_VALUE}>All</SelectItem>
+									{DEGREE_TYPES.map((item) => (
+										<SelectItem key={item} value={item}>
+											{item}
+										</SelectItem>
+									))}
+								</SelectContent>
 							</Select>
-						</FormControl>
+						</div>
 
-						<Typography variant="body2" color="text.secondary">
+						<div className="grid gap-1.5">
+							<Label htmlFor="member-list-program">Major / Program</Label>
+							<Select
+								value={degreeProgram || ALL_VALUE}
+								onValueChange={(value) =>
+									setDegreeProgram(value === ALL_VALUE ? "" : value)
+								}
+							>
+								<SelectTrigger
+									id="member-list-program"
+									aria-label="Major / Program"
+									className="min-w-[240px]"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={ALL_VALUE}>All</SelectItem>
+									{degreePrograms.map((item) => (
+										<SelectItem key={item} value={item}>
+											{item}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+
+						<p className="text-sm text-muted-foreground">
 							{filtered.length} member profile
 							{filtered.length !== 1 ? "s" : ""}
-						</Typography>
-					</Box>
-				</CardContent>
+						</p>
+					</div>
+				</div>
 			</GlassCard>
 
 			{filtered.length === 0 ? (
-				<GlassCard sx={{ textAlign: "center", py: 8 }}>
-					<Typography color="text.secondary">
+				<GlassCard className="py-16 text-center">
+					<p className="text-muted-foreground">
 						{search ? "No members match your search." : "No members found."}
-					</Typography>
+					</p>
 				</GlassCard>
 			) : (
-				<Grid container spacing={2}>
+				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
 					{filtered.map((member) => (
-						<Grid key={member.user_id} size={{ xs: 12, sm: 6, md: 4 }}>
-							<MemberCard member={member} />
-						</Grid>
+						<MemberCard key={member.user_id} member={member} />
 					))}
-				</Grid>
+				</div>
 			)}
-		</Box>
+		</div>
 	);
 }
 
@@ -370,7 +375,6 @@ interface MemberCardProps {
 }
 
 function MemberCard({ member }: MemberCardProps) {
-	const theme = useTheme();
 	const fullName = `${member.given_name} ${member.surname}`.trim();
 	const displayName = fullName || member.email || "Unnamed Member";
 	const operationalDepartment = getOperationalDepartment(member.department);
@@ -386,156 +390,158 @@ function MemberCard({ member }: MemberCardProps) {
 		: null;
 
 	return (
-		<GlassCard variant="interactive">
-			<CardContent sx={{ p: 2.5 }}>
-				<Box sx={{ display: "flex", gap: 2, alignItems: "flex-start" }}>
-					<Avatar
-						src={member.avatar_url || undefined}
-						alt={displayName}
-						sx={{
-							width: 56,
-							height: 56,
-							bgcolor:
-								theme.palette.mode === "light"
-									? alpha(theme.palette.text.primary, 0.06)
-									: alpha(theme.palette.common.white, 0.08),
-							color: theme.palette.text.primary,
-							fontSize: 18,
-							fontWeight: 700,
-							flexShrink: 0,
-							boxShadow: "none",
-						}}
-					>
-						{getInitials(member)}
+		<GlassCard variant="interactive" className="h-full">
+			<div className="p-5">
+				<div className="flex items-start gap-4">
+					<Avatar className="size-14 shrink-0 bg-muted text-foreground">
+						<AvatarImage
+							src={proxiedAvatarUrl(member.avatar_url)}
+							alt={displayName}
+						/>
+						<AvatarFallback className="bg-muted text-lg font-bold text-foreground">
+							{getInitials(member)}
+						</AvatarFallback>
 					</Avatar>
-					<Box sx={{ minWidth: 0, flex: 1 }}>
-						<Typography
-							variant="subtitle1"
-							sx={{
-								fontWeight: 700,
-								lineHeight: 1.3,
-								overflow: "hidden",
-								textOverflow: "ellipsis",
-								whiteSpace: "nowrap",
-							}}
-						>
+					<div className="min-w-0 flex-1">
+						<p className="truncate text-base font-bold leading-snug">
 							{displayName}
-						</Typography>
+						</p>
 
 						{showMemberRole && (
-							<Typography
-								variant="body2"
-								color="primary"
-								sx={{ lineHeight: 1.4 }}
-							>
+							<p className="text-sm leading-snug text-brand">
 								{member.member_role}
-							</Typography>
+							</p>
 						)}
 
 						{operationalDepartment && (
-							<Typography
-								variant="body2"
-								color="text.secondary"
-								sx={{ lineHeight: 1.4 }}
-							>
+							<p className="text-sm leading-snug text-muted-foreground">
 								{operationalDepartment}
-							</Typography>
+							</p>
 						)}
-					</Box>
+					</div>
 					{linkedinProfileUrl && (
-						<Tooltip title="View LinkedIn profile" arrow>
-							<IconButton
-								aria-label="View LinkedIn profile"
-								href={linkedinProfileUrl}
-								target="_blank"
-								rel="noopener noreferrer"
-								size="small"
-								sx={{
-									color: "primary.main",
-									alignSelf: "flex-start",
-									mt: -0.5,
-									mr: -0.5,
-									"&:hover": {
-										backgroundColor: alpha(theme.palette.primary.main, 0.08),
-									},
-								}}
-							>
-								<LinkedInIcon fontSize="small" />
-							</IconButton>
-						</Tooltip>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<Button
+										asChild
+										variant="ghost"
+										size="icon"
+										className="-mt-1 -mr-1 shrink-0 self-start text-brand hover:bg-brand/10"
+									>
+										<a
+											aria-label="View LinkedIn profile"
+											href={linkedinProfileUrl}
+											target="_blank"
+											rel="noopener noreferrer"
+										>
+											<LinkedinIcon className="size-4" />
+										</a>
+									</Button>
+								</TooltipTrigger>
+								<TooltipContent>View LinkedIn profile</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					)}
-				</Box>
+				</div>
 
-				<Box sx={{ mt: 2, display: "flex", flexWrap: "wrap", gap: 0.75 }}>
+				<div className="mt-4 flex flex-wrap gap-1.5">
 					{status !== "active" && (
-						<Chip
-							label={getMemberStatusLabel(status)}
-							size="small"
-							variant="outlined"
-						/>
+						<Badge variant="outline">{getMemberStatusLabel(status)}</Badge>
 					)}
 					{boardBadgeLabel && (
-						<Chip label={boardBadgeLabel} size="small" variant="outlined" />
+						<Badge variant="outline">{boardBadgeLabel}</Badge>
 					)}
-					{member.batch && (
-						<Chip label={member.batch} size="small" variant="outlined" />
-					)}
+					{member.batch && <Badge variant="outline">{member.batch}</Badge>}
 					{educationEntries.map((entry) => (
-						<Chip
+						<Badge
 							key={`${entry.degree}-${entry.school}`}
-							label={[entry.degree, entry.school].filter(Boolean).join(" · ")}
-							size="small"
-							variant="outlined"
-							sx={{
-								maxWidth: "100%",
-								"& .MuiChip-label": {
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-								},
-							}}
-						/>
+							variant="outline"
+							className="max-w-full overflow-hidden"
+						>
+							<span className="overflow-hidden text-ellipsis">
+								{[entry.degree, entry.school].filter(Boolean).join(" · ")}
+							</span>
+						</Badge>
 					))}
-				</Box>
+				</div>
 
 				{member.public_location && (
-					<Box
-						sx={{
-							mt: 2,
-							pt: 1.5,
-							borderTop: `1px solid ${
-								theme.palette.mode === "light"
-									? alpha(theme.palette.text.primary, 0.06)
-									: alpha(theme.palette.common.white, 0.08)
-							}`,
-							display: "flex",
-							flexDirection: "column",
-							gap: 0.75,
-						}}
-					>
-						<Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-							<LocationOnIcon
-								sx={{
-									fontSize: 16,
-									color: theme.palette.text.secondary,
-									opacity: 0.75,
-								}}
-							/>
-							<Typography
-								variant="body2"
-								color="text.secondary"
-								sx={{
-									fontSize: "0.825rem",
-									overflow: "hidden",
-									textOverflow: "ellipsis",
-									whiteSpace: "nowrap",
-								}}
-							>
+					<div className="mt-4 flex flex-col gap-1.5 border-t pt-3">
+						<div className="flex items-center gap-2">
+							<MapPin className="size-4 text-muted-foreground opacity-75" />
+							<p className="truncate text-[0.825rem] text-muted-foreground">
 								{member.public_location}
-							</Typography>
-						</Box>
-					</Box>
+							</p>
+						</div>
+					</div>
 				)}
-			</CardContent>
+			</div>
+		</GlassCard>
+	);
+}
+
+// Filter selects mirror the live widths: department, role, status, degree, program.
+const FILTER_WIDTHS = [
+	"w-[220px]",
+	"w-[220px]",
+	"w-[180px]",
+	"w-[220px]",
+	"w-[240px]",
+];
+
+export function MemberListSkeleton() {
+	return (
+		<SkeletonRegion label="Loading members">
+			<GlassCard variant="elevated" className="mb-8 overflow-hidden">
+				<div className="p-6 md:p-8">
+					<div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+						<div className="max-w-[620px] space-y-2">
+							<Skeleton className="h-7 w-44" />
+							<Skeleton className="h-4 w-96 max-w-full" />
+						</div>
+						<Skeleton className="h-9 w-full max-w-[340px] rounded-md" />
+					</div>
+
+					<div className="mt-6 flex flex-wrap items-end gap-4">
+						{FILTER_WIDTHS.map((width) => (
+							<div key={width} className="grid gap-1.5">
+								<Skeleton className="h-4 w-20" />
+								<Skeleton className={`h-9 max-w-full rounded-md ${width}`} />
+							</div>
+						))}
+						<Skeleton className="h-4 w-28" />
+					</div>
+				</div>
+			</GlassCard>
+
+			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+				{Array.from({ length: 9 }).map((_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+					<MemberCardSkeleton key={i} />
+				))}
+			</div>
+		</SkeletonRegion>
+	);
+}
+
+function MemberCardSkeleton() {
+	return (
+		<GlassCard className="h-full">
+			<div className="p-5">
+				<div className="flex items-start gap-4">
+					<Skeleton className="size-14 shrink-0 rounded-full" />
+					<div className="min-w-0 flex-1 space-y-2">
+						<Skeleton className="h-5 w-3/4" />
+						<Skeleton className="h-4 w-1/2" />
+						<Skeleton className="h-4 w-2/3" />
+					</div>
+				</div>
+				<div className="mt-4 flex flex-wrap gap-1.5">
+					<Skeleton className="h-5 w-16 rounded-full" />
+					<Skeleton className="h-5 w-24 rounded-full" />
+				</div>
+			</div>
 		</GlassCard>
 	);
 }

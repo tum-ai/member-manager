@@ -1,10 +1,8 @@
-import { ThemeProvider } from "@mui/material";
 import type { User } from "@supabase/supabase-js";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import getAppTheme from "../../theme";
 import EngagementCertificatePage from "./EngagementCertificatePage";
 
 const { submitRequestAsync, showToast } = vi.hoisted(() => ({
@@ -54,11 +52,9 @@ const mockUser = {
 
 function renderPage() {
 	return render(
-		<ThemeProvider theme={getAppTheme("light")}>
-			<MemoryRouter>
-				<EngagementCertificatePage user={mockUser} />
-			</MemoryRouter>
-		</ThemeProvider>,
+		<MemoryRouter>
+			<EngagementCertificatePage user={mockUser} />
+		</MemoryRouter>,
 	);
 }
 

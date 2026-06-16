@@ -29,3 +29,58 @@ export function buildSelfServiceMemberUpdatePayload(
 
 	return selfServiceValues;
 }
+
+interface ProfileCompletenessInput {
+	member: Partial<MemberSchema>;
+	linkedin: { linkedin_profile_url?: string; public_location?: string };
+	sepa: {
+		iban?: string;
+		bank_name?: string;
+		mandate_agreed?: boolean;
+		privacy_agreed?: boolean;
+		data_privacy_notice_agreed?: boolean;
+	};
+}
+
+// Share of "key" profile fields a member has filled in, as an integer 0–100.
+// Drives the completeness meter in the profile sidebar.
+export function computeProfileCompleteness({
+	member,
+	linkedin,
+	sepa,
+}: ProfileCompletenessInput): number {
+	const textFields = [
+		member.given_name,
+		member.surname,
+		member.date_of_birth,
+		member.street,
+		member.number,
+		member.postal_code,
+		member.city,
+		member.country,
+		member.batch,
+		// Study/education: a real degree counts; an explicit "None" serializes to
+		// "" (EducationFields NONE_VALUE) and so does not count — same trim rule
+		// as every other select-backed field below.
+		member.degree,
+		// department and member_role are admin-managed (stripped from
+		// self-service updates), so a member can never fill them in — excluded
+		// from completeness so a fully-filled editable profile reaches 100%.
+		linkedin.linkedin_profile_url,
+		linkedin.public_location,
+		sepa.iban,
+		sepa.bank_name,
+	];
+	const booleanFields = [
+		sepa.mandate_agreed,
+		sepa.privacy_agreed,
+		sepa.data_privacy_notice_agreed,
+	];
+
+	const total = textFields.length + booleanFields.length;
+	const filled =
+		textFields.filter((value) => Boolean(value?.trim())).length +
+		booleanFields.filter(Boolean).length;
+
+	return Math.round((filled / total) * 100);
+}

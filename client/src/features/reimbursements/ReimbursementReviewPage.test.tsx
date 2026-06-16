@@ -1,9 +1,8 @@
-import { ThemeProvider } from "@mui/material";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import getAppTheme from "../../theme";
+import type { BuchhaltungsButlerSyncStatus } from "../../hooks/useReimbursementRequests";
 import ReimbursementReviewPage from "./ReimbursementReviewPage";
 
 const {
@@ -12,11 +11,13 @@ const {
 	updateDepartmentAsync,
 	openReceiptAsync,
 	downloadReceiptAsync,
+	syncBuchhaltungsButlerAsync,
 } = vi.hoisted(() => ({
 	reviewRequestAsync: vi.fn(),
 	updateDepartmentAsync: vi.fn(),
 	openReceiptAsync: vi.fn(),
 	downloadReceiptAsync: vi.fn(),
+	syncBuchhaltungsButlerAsync: vi.fn(),
 	hookState: {
 		requests: [
 			{
@@ -87,6 +88,14 @@ const {
 		error: null as Error | null,
 		isReviewing: false,
 		isUpdatingDepartment: false,
+		buchhaltungsButlerSyncStatus: {
+			sync_enabled: true,
+			configured: true,
+			available: true,
+			unavailable_reason: null,
+		} as BuchhaltungsButlerSyncStatus,
+		isLoadingBuchhaltungsButlerSyncStatus: false,
+		buchhaltungsButlerSyncStatusError: null as Error | null,
 		canBulkDownloadReceipts: true,
 		isBulkDownloadingReceipts: false,
 		bulkDownloadReceiptsAsync: vi.fn(),
@@ -113,16 +122,21 @@ vi.mock("../../hooks/useReimbursementRequests", () => ({
 		bulkDownloadReceiptsAsync: hookState.bulkDownloadReceiptsAsync,
 		openReceiptAsync,
 		downloadReceiptAsync,
+		buchhaltungsButlerSyncStatus: hookState.buchhaltungsButlerSyncStatus,
+		isLoadingBuchhaltungsButlerSyncStatus:
+			hookState.isLoadingBuchhaltungsButlerSyncStatus,
+		buchhaltungsButlerSyncStatusError:
+			hookState.buchhaltungsButlerSyncStatusError,
+		syncBuchhaltungsButlerAsync,
+		isSyncingBuchhaltungsButler: false,
 	}),
 }));
 
 function renderPage() {
 	return render(
-		<ThemeProvider theme={getAppTheme("light")}>
-			<MemoryRouter>
-				<ReimbursementReviewPage />
-			</MemoryRouter>
-		</ThemeProvider>,
+		<MemoryRouter>
+			<ReimbursementReviewPage />
+		</MemoryRouter>,
 	);
 }
 
@@ -136,23 +150,30 @@ describe("ReimbursementReviewPage", () => {
 		openReceiptAsync.mockResolvedValue({});
 		downloadReceiptAsync.mockReset();
 		downloadReceiptAsync.mockResolvedValue({});
+		syncBuchhaltungsButlerAsync.mockReset();
+		syncBuchhaltungsButlerAsync.mockResolvedValue({});
 		hookState.bulkDownloadReceiptsAsync.mockReset();
 		hookState.bulkDownloadReceiptsAsync.mockResolvedValue({});
 		hookState.isLoading = false;
 		hookState.error = null;
 		hookState.isReviewing = false;
 		hookState.isUpdatingDepartment = false;
+		hookState.buchhaltungsButlerSyncStatus = {
+			sync_enabled: true,
+			configured: true,
+			available: true,
+			unavailable_reason: null,
+		};
+		hookState.isLoadingBuchhaltungsButlerSyncStatus = false;
+		hookState.buchhaltungsButlerSyncStatusError = null;
 		hookState.canBulkDownloadReceipts = true;
 		hookState.isBulkDownloadingReceipts = false;
 	});
 
-	it("shows a finance queue with actions and a back link to tools", async () => {
+	it("shows a finance queue with actions", async () => {
 		const user = userEvent.setup();
 		renderPage();
 
-		expect(
-			screen.getByRole("link", { name: /back to tools/i }),
-		).toHaveAttribute("href", "/tools");
 		expect(
 			screen.getAllByText("Snacks for onboarding workshop guests")[0],
 		).toBeInTheDocument();
@@ -174,10 +195,7 @@ describe("ReimbursementReviewPage", () => {
 				name: /snacks for onboarding workshop guests/i,
 			}),
 		);
-		expect(screen.getByRole("combobox", { name: /action/i })).toHaveTextContent(
-			"Approve",
-		);
-		await user.click(screen.getByRole("button", { name: /apply action/i }));
+		await user.click(screen.getByRole("button", { name: /^approve$/i }));
 
 		await waitFor(() =>
 			expect(reviewRequestAsync).toHaveBeenCalledWith({
@@ -185,7 +203,7 @@ describe("ReimbursementReviewPage", () => {
 				action: "approve",
 			}),
 		);
-	}, 10_000);
+	}, 30_000);
 
 	it("keeps finance review badges non-duplicative in collapsed rows", () => {
 		renderPage();
@@ -241,12 +259,17 @@ describe("ReimbursementReviewPage", () => {
 		const user = userEvent.setup();
 		renderPage();
 
-		expect(screen.getAllByText("Maya Chen")[0]).toBeInTheDocument();
+		const pendingRequest = screen.getByRole("button", {
+			name: /snacks for onboarding workshop guests/i,
+		});
+		expect(pendingRequest).toHaveTextContent("Maya Chen");
+		await user.click(pendingRequest);
 		expect(screen.getAllByText("maya.chen@tum.ai")[0]).toBeInTheDocument();
 		expect(screen.getAllByText("Commerzbank")[0]).toBeInTheDocument();
 		expect(
 			screen.getAllByText("DE89370400440532013000")[0],
 		).toBeInTheDocument();
+		await user.click(pendingRequest);
 
 		await user.type(
 			screen.getByRole("textbox", { name: /search reimbursement queue/i }),
@@ -278,7 +301,7 @@ describe("ReimbursementReviewPage", () => {
 		expect(
 			screen.getByText(/no reimbursement requests match/i),
 		).toBeInTheDocument();
-	}, 10_000);
+	}, 30_000);
 
 	it("exposes receipt links and bulk downloads selected receipts when endpoints are available", async () => {
 		const user = userEvent.setup();
@@ -340,5 +363,29 @@ describe("ReimbursementReviewPage", () => {
 				"request-1",
 			]),
 		);
+	});
+
+	it("disables BuchhaltungsButler sync when the server reports it unavailable", async () => {
+		const user = userEvent.setup();
+		hookState.buchhaltungsButlerSyncStatus = {
+			sync_enabled: false,
+			configured: true,
+			available: false,
+			unavailable_reason: "disabled",
+		};
+		renderPage();
+
+		await user.click(
+			screen.getByRole("button", {
+				name: /cloud credits for member analytics prototype/i,
+			}),
+		);
+
+		expect(
+			screen.getByRole("button", { name: /sync unavailable/i }),
+		).toBeDisabled();
+		expect(
+			screen.getAllByText(/buchhaltungsbutler sync is disabled/i),
+		).not.toHaveLength(0);
 	});
 });

@@ -141,7 +141,9 @@ Three test runners, each in its natural place:
 | `tsx --test` | `server/test/**/*.test.ts` | Fastify routes, middleware, encryption, unit helpers |
 | Vitest | `client/src/**/__tests__/*` | React components and hooks |
 
-Run all: `pnpm test`. Run one workspace: `pnpm --filter @member-manager/server test` or `pnpm --filter @member-manager/client test`.
+Run all: `pnpm test`. Run one workspace: `pnpm --filter @member-manager/server test` or `pnpm --filter @member-manager/client test`. Add coverage with `pnpm test:coverage` (enforces the ratcheting floor — see below).
+
+End-to-end smoke tests live in `e2e/` (Playwright). Run them against a running local stack: start `pnpm dev:local` in one terminal, then `pnpm test:e2e` (or `pnpm test:e2e:ui`). The login screen's "Continue as local admin" button only appears in dev mode against local Supabase, which is what the specs drive.
 
 Verification tests that hit a running local stack live in `scripts/verify-*.test.mjs`. They skip silently if Supabase isn't reachable, so they're safe to run by default.
 
@@ -170,10 +172,34 @@ pnpm gate
 That expands to:
 
 ```bash
-pnpm lint && pnpm test && pnpm build
+pnpm lint && pnpm typecheck && pnpm test && pnpm build
 ```
 
 Run `pnpm gate` manually before PRs, deploys, or risky changes. CI runs the full gate for pull requests and pushes to `main`.
+
+## CI gates and ratcheting
+
+CI (`.github/workflows/`) runs each gate as its own job so failures are isolated. The toolchain setup (pnpm + Node + install + `build:shared`) is shared via the `./.github/actions/setup` composite action.
+
+| Job (workflow) | Command | Notes |
+| --- | --- | --- |
+| Lint | `pnpm lint` | Biome |
+| Typecheck | `pnpm typecheck` | `tsc --noEmit` per package |
+| Build | `pnpm build` | |
+| Test | `pnpm test:coverage` | Vitest (client) + c8 (server), coverage uploaded to Codecov |
+| Workflow Lint | actionlint + zizmor | zizmor is advisory for now |
+| Spell Check | `crate-ci/typos` | config in `_typos.toml` |
+| E2E (`e2e.yml`) | `pnpm test:e2e` | Playwright smoke vs a real local Supabase stack |
+| Dependency Review (`dependency-review.yml`) | — | fails on high-severity advisories |
+| CodeQL (`codeql.yml`) | — | JS/TS security scan, also weekly |
+| PR Title (`pr-title.yml`) | — | Conventional-Commit title |
+
+Two gates are designed to **ratchet** — tighten over time, never loosen:
+
+- **Coverage floor.** Thresholds live in `client/vite.config.ts` (`test.coverage.thresholds`) and the server `test:coverage` script (`c8 --lines/--functions/--branches`). They sit just below current coverage so CI fails on a regression. When coverage rises, raise the numbers in the same PR. Never lower them to make a build pass — add tests instead.
+- **Biome rules.** `biome.json` enables `recommended` plus a set of stricter, already-clean rules. To tighten further, probe a candidate rule (`pnpm exec biome lint --only=<group>/<rule> client/src server/src shared/src`), and if it is clean (or auto-fixable with `pnpm lint:apply`), promote it to `"error"` in `biome.json`. Fix violations; don't disable rules.
+
+E2E is not a required merge check yet — let it stabilize across a few runs first, then add it to branch protection. Required status checks are configured in the GitHub repo settings (not in this repo).
 
 ## Schema migrations
 

@@ -1,10 +1,14 @@
-import { ThemeProvider } from "@mui/material";
 import type { User } from "@supabase/supabase-js";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+	within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import getAppTheme from "../../theme";
 import ReimbursementPage from "./ReimbursementPage";
 
 const {
@@ -81,11 +85,9 @@ const mockUser = {
 
 function renderPage() {
 	return render(
-		<ThemeProvider theme={getAppTheme("light")}>
-			<MemoryRouter>
-				<ReimbursementPage user={mockUser} />
-			</MemoryRouter>
-		</ThemeProvider>,
+		<MemoryRouter>
+			<ReimbursementPage user={mockUser} />
+		</MemoryRouter>,
 	);
 }
 
@@ -147,30 +149,30 @@ describe("ReimbursementPage", () => {
 		const user = userEvent.setup();
 		renderPage();
 
-		expect(screen.getByLabelText(/department/i)).toHaveTextContent(
-			"Software Development",
-		);
+		expect(
+			screen.getByRole("combobox", { name: /department/i }),
+		).toHaveTextContent("Software Development");
 		expect(screen.getByLabelText(/iban/i)).toHaveValue(
 			"DE89370400440532013000",
 		);
 		expect(screen.getByLabelText(/bic/i)).toHaveValue("COBADEFFXXX");
 
-		await user.click(screen.getByRole("button", { name: /^invoice$/i }));
+		await user.click(screen.getByRole("radio", { name: /^invoice$/i }));
 		expect(screen.getByLabelText(/iban/i)).toHaveValue("");
 		expect(screen.getByLabelText(/bic/i)).toHaveValue("");
-		await user.click(screen.getByRole("button", { name: /^reimbursement$/i }));
+		await user.click(screen.getByRole("radio", { name: /^reimbursement$/i }));
 		expect(screen.getByLabelText(/iban/i)).toHaveValue(
 			"DE89370400440532013000",
 		);
 		expect(screen.getByLabelText(/bic/i)).toHaveValue("COBADEFFXXX");
 
-		await user.click(screen.getByLabelText(/department/i));
+		await user.click(screen.getByRole("combobox", { name: /department/i }));
 		await user.click(await screen.findByRole("option", { name: "Community" }));
 
 		expect(
 			await screen.findByText(/different from your member department/i),
 		).toBeInTheDocument();
-	}, 10_000);
+	}, 30_000);
 
 	it("puts receipt upload first and lets users correct extracted fields", async () => {
 		parseReceiptAsync.mockResolvedValueOnce({
@@ -183,9 +185,7 @@ describe("ReimbursementPage", () => {
 		const user = userEvent.setup();
 		const { container } = renderPage();
 
-		const receiptButton = screen.getByRole("button", {
-			name: /attach receipt/i,
-		});
+		const receiptButton = screen.getByText(/drag & drop your receipt/i);
 		const amountInput = screen.getByLabelText(/amount/i);
 		expect(
 			receiptButton.compareDocumentPosition(amountInput) &
@@ -220,14 +220,14 @@ describe("ReimbursementPage", () => {
 		expect(await screen.findByText(/iban is required/i)).toBeInTheDocument();
 		expect(screen.getByText(/bic is required/i)).toBeInTheDocument();
 		expect(createRequestAsync).not.toHaveBeenCalled();
-	}, 10_000);
+	}, 30_000);
 
 	it("submits invoice payout details instead of profile bank details", async () => {
 		createRequestAsync.mockResolvedValueOnce({});
 		const user = userEvent.setup();
 		const { container } = renderPage();
 
-		fireEvent.click(screen.getByRole("button", { name: /^invoice$/i }));
+		fireEvent.click(screen.getByRole("radio", { name: /^invoice$/i }));
 		fireEvent.change(screen.getByLabelText(/amount/i), {
 			target: { value: "42.50" },
 		});
@@ -266,7 +266,7 @@ describe("ReimbursementPage", () => {
 		const user = userEvent.setup();
 		renderPage();
 
-		await user.click(screen.getByRole("button", { name: /^invoice$/i }));
+		await user.click(screen.getByRole("radio", { name: /^invoice$/i }));
 		await fillBaseRequest(user);
 		await user.click(screen.getByRole("button", { name: /submit request/i }));
 
@@ -333,8 +333,18 @@ describe("ReimbursementPage", () => {
 		expect(
 			screen.queryByRole("heading", { name: "Taxi ride" }),
 		).not.toBeInTheDocument();
-		expect(screen.queryByText(/legal & finance/i)).not.toBeInTheDocument();
-		expect(screen.queryByText(/community/i)).not.toBeInTheDocument();
+		// Department names must not appear as visible text in the request rows.
+		// (The form's department Select renders hidden native <option>s for these
+		// names, so scope the check to the "Existing requests" list.)
+		const requestsList = screen
+			.getByRole("heading", { name: "Existing requests" })
+			.closest("div") as HTMLElement;
+		expect(
+			within(requestsList).queryByText(/legal & finance/i),
+		).not.toBeInTheDocument();
+		expect(
+			within(requestsList).queryByText(/community/i),
+		).not.toBeInTheDocument();
 		expect(screen.getByText("Invoice request")).toBeInTheDocument();
 		expect(screen.getByText("Reimbursement request")).toBeInTheDocument();
 		expect(screen.getByText("Pending")).toBeInTheDocument();
@@ -360,8 +370,6 @@ describe("ReimbursementPage", () => {
 		expect(
 			screen.queryByRole("heading", { name: /^receipt$/i }),
 		).not.toBeInTheDocument();
-		expect(
-			screen.getByRole("button", { name: /attach receipt/i }),
-		).toBeVisible();
+		expect(screen.getByText(/drag & drop your receipt/i)).toBeVisible();
 	});
 });

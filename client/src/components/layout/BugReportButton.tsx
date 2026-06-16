@@ -1,25 +1,18 @@
-import BugReportOutlinedIcon from "@mui/icons-material/BugReportOutlined";
-import CloseIcon from "@mui/icons-material/Close";
-import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
-import {
-	Box,
-	Button,
-	CircularProgress,
-	Dialog,
-	DialogActions,
-	DialogContent,
-	DialogContentText,
-	DialogTitle,
-	IconButton,
-	Stack,
-	TextField,
-	Typography,
-	useTheme,
-} from "@mui/material";
-import { alpha } from "@mui/material/styles";
 import type { User } from "@supabase/supabase-js";
+import { Bug, ImageIcon, Loader2, X } from "lucide-react";
 import { type ClipboardEvent, useState } from "react";
 import { useLocation } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "../../contexts/ToastContext";
 import { apiClient } from "../../lib/apiClient";
 
@@ -56,7 +49,6 @@ function getUserAgent(): string {
 export default function BugReportButton({
 	user,
 }: BugReportButtonProps): JSX.Element {
-	const theme = useTheme();
 	const location = useLocation();
 	const { showToast } = useToast();
 	const [isOpen, setIsOpen] = useState(false);
@@ -113,11 +105,11 @@ export default function BugReportButton({
 		reader.readAsDataURL(file);
 	}
 
-	function handleClose(): void {
-		if (isSubmitting) {
+	function handleOpenChange(open: boolean): void {
+		if (!open && isSubmitting) {
 			return;
 		}
-		setIsOpen(false);
+		setIsOpen(open);
 	}
 
 	async function handleSubmit(): Promise<void> {
@@ -156,151 +148,106 @@ export default function BugReportButton({
 	}
 
 	return (
-		<Box sx={{ display: "flex", justifyContent: "center" }}>
+		<div className="flex justify-center">
 			<Button
 				type="button"
-				size="small"
-				startIcon={<BugReportOutlinedIcon fontSize="small" />}
+				variant="ghost"
+				size="sm"
 				onClick={() => setIsOpen(true)}
 				aria-label="Report a bug"
-				sx={{
-					color: theme.palette.text.secondary,
-					opacity: 0.42,
-					px: 1.25,
-					py: 0.5,
-					minWidth: 0,
-					fontSize: "0.78rem",
-					borderRadius: 999,
-					backgroundColor: "transparent",
-					"&:hover": {
-						opacity: 1,
-						color: theme.palette.primary.main,
-						backgroundColor: alpha(theme.palette.primary.main, 0.08),
-					},
-					"&:focus-visible": {
-						opacity: 1,
-						outline: `2px solid ${alpha(theme.palette.primary.main, 0.6)}`,
-						outlineOffset: 2,
-					},
-				}}
+				className="text-xs text-muted-foreground opacity-60 hover:opacity-100"
 			>
+				<Bug className="size-4" />
 				Report a bug
 			</Button>
 
-			<Dialog
-				open={isOpen}
-				onClose={handleClose}
-				fullWidth
-				maxWidth="sm"
-				PaperProps={{
-					sx: {
-						borderRadius: 4,
-						backgroundColor:
-							theme.palette.mode === "light"
-								? alpha(theme.palette.background.paper, 0.98)
-								: alpha(theme.palette.background.paper, 0.96),
-						backdropFilter: "blur(20px)",
-					},
-				}}
-			>
-				<DialogTitle>Report a bug</DialogTitle>
-				<DialogContent onPaste={handlePaste}>
-					<Stack spacing={2.5} sx={{ pt: 0.5 }}>
-						<DialogContentText>
+			<Dialog open={isOpen} onOpenChange={handleOpenChange}>
+				<DialogContent className="sm:max-w-lg">
+					<DialogHeader>
+						<DialogTitle>Report a bug</DialogTitle>
+						<DialogDescription>
 							Send a short note to the Member Manager team. We’ll include your
 							current page and account so we can reproduce it faster.
-						</DialogContentText>
-						<TextField
-							label="What went wrong?"
-							value={message}
-							onChange={(event) => setMessage(event.target.value)}
-							multiline
-							minRows={4}
-							required
-							inputProps={{ maxLength: 2000 }}
-							helperText={`${trimmedMessage.length}/2000 · minimum 5 characters`}
-							autoFocus
-						/>
-						<TextField
-							label="Steps to reproduce (optional)"
-							value={stepsToReproduce}
-							onChange={(event) => setStepsToReproduce(event.target.value)}
-							multiline
-							minRows={3}
-							inputProps={{ maxLength: 2000 }}
-							helperText={
-								user?.email
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="grid gap-5" onPaste={handlePaste}>
+						<div className="grid gap-2">
+							<Label htmlFor="bug-message">What went wrong?</Label>
+							<Textarea
+								id="bug-message"
+								value={message}
+								onChange={(event) => setMessage(event.target.value)}
+								rows={4}
+								required
+								maxLength={2000}
+								autoFocus
+							/>
+							<p className="text-xs text-muted-foreground">
+								{trimmedMessage.length}/2000 · minimum 5 characters
+							</p>
+						</div>
+
+						<div className="grid gap-2">
+							<Label htmlFor="bug-steps">Steps to reproduce (optional)</Label>
+							<Textarea
+								id="bug-steps"
+								value={stepsToReproduce}
+								onChange={(event) => setStepsToReproduce(event.target.value)}
+								rows={3}
+								maxLength={2000}
+							/>
+							<p className="text-xs text-muted-foreground">
+								{user?.email
 									? `Submitting as ${user.email}`
-									: "Submitting securely"
-							}
-						/>
+									: "Submitting securely"}
+							</p>
+						</div>
+
 						{imageDataUrl ? (
-							<Box
-								sx={{
-									position: "relative",
-									alignSelf: "flex-start",
-									maxWidth: "100%",
-									borderRadius: 2,
-									overflow: "hidden",
-									border: `1px solid ${theme.palette.divider}`,
-								}}
-							>
-								<Box
-									component="img"
+							<div className="relative max-w-full self-start overflow-hidden rounded-lg border">
+								<img
 									src={imageDataUrl}
 									alt="Attached screenshot"
-									sx={{ display: "block", maxWidth: "100%", maxHeight: 220 }}
+									className="block max-h-56 max-w-full"
 								/>
-								<IconButton
-									size="small"
+								<Button
+									type="button"
+									variant="secondary"
+									size="icon-sm"
 									onClick={() => setImageDataUrl(null)}
 									disabled={isSubmitting}
 									aria-label="Remove attached image"
-									sx={{
-										position: "absolute",
-										top: 6,
-										right: 6,
-										backgroundColor: alpha("#000000", 0.55),
-										color: "#FFFFFF",
-										"&:hover": { backgroundColor: alpha("#000000", 0.72) },
-									}}
+									className="absolute top-1.5 right-1.5"
 								>
-									<CloseIcon fontSize="small" />
-								</IconButton>
-							</Box>
+									<X />
+								</Button>
+							</div>
 						) : (
-							<Stack
-								direction="row"
-								spacing={0.75}
-								alignItems="center"
-								sx={{ color: "text.secondary" }}
-							>
-								<ImageOutlinedIcon fontSize="small" />
-								<Typography variant="caption">
+							<div className="flex items-center gap-1.5 text-muted-foreground">
+								<ImageIcon className="size-4" />
+								<span className="text-xs">
 									Tip: paste a screenshot (Ctrl/Cmd+V) to attach it.
-								</Typography>
-							</Stack>
+								</span>
+							</div>
 						)}
-					</Stack>
+					</div>
+
+					<DialogFooter>
+						<Button
+							variant="ghost"
+							onClick={() => handleOpenChange(false)}
+							disabled={isSubmitting}
+						>
+							Cancel
+						</Button>
+						<Button onClick={handleSubmit} disabled={!canSubmit}>
+							{isSubmitting && <Loader2 className="size-4 animate-spin" />}
+							{isSubmitting ? "Sending" : "Send report"}
+						</Button>
+					</DialogFooter>
 				</DialogContent>
-				<DialogActions sx={{ px: 3, pb: 3 }}>
-					<Button onClick={handleClose} disabled={isSubmitting} color="inherit">
-						Cancel
-					</Button>
-					<Button
-						onClick={handleSubmit}
-						disabled={!canSubmit}
-						variant="contained"
-						startIcon={
-							isSubmitting ? (
-								<CircularProgress size={16} color="inherit" />
-							) : null
-						}
-					>
-						{isSubmitting ? "Sending" : "Send report"}
-					</Button>
-				</DialogActions>
 			</Dialog>
-		</Box>
+		</div>
 	);
 }

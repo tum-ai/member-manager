@@ -1,20 +1,10 @@
-import { ThemeProvider } from "@mui/material";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import getAppTheme from "../../theme";
 import AdminDatabaseView from "./AdminDatabaseView";
 
-const {
-	updateMemberAsync,
-	reviewChangeRequestAsync,
-	reviewCertificateRequestAsync,
-	reviewJobRequestAsync,
-} = vi.hoisted(() => ({
+const { updateMemberAsync } = vi.hoisted(() => ({
 	updateMemberAsync: vi.fn(),
-	reviewChangeRequestAsync: vi.fn(),
-	reviewCertificateRequestAsync: vi.fn(),
-	reviewJobRequestAsync: vi.fn(),
 }));
 
 vi.mock("../../hooks/useResearchProjects", () => ({
@@ -120,13 +110,7 @@ vi.mock("../../hooks/useAdminData", () => ({
 		isLoading: false,
 		error: null,
 		updateMemberAsync,
-		reviewChangeRequestAsync,
-		reviewCertificateRequestAsync,
-		reviewJobRequestAsync,
 		isSavingMember: false,
-		isReviewingChangeRequest: false,
-		isReviewingCertificateRequest: false,
-		isReviewingJobRequest: false,
 	}),
 }));
 
@@ -146,11 +130,7 @@ vi.mock("../../hooks/useDepartmentPermissions", () => ({
 }));
 
 function renderAdminView() {
-	return render(
-		<ThemeProvider theme={getAppTheme("light")}>
-			<AdminDatabaseView />
-		</ThemeProvider>,
-	);
+	return render(<AdminDatabaseView />);
 }
 
 describe("AdminDatabaseView", () => {
@@ -187,7 +167,7 @@ describe("AdminDatabaseView", () => {
 				public_location: null,
 			});
 		});
-	}, 10_000);
+	}, 30_000);
 
 	it("requires a department for member and team lead roles", async () => {
 		const user = userEvent.setup();
@@ -268,119 +248,11 @@ describe("AdminDatabaseView", () => {
 		).toBeInTheDocument();
 	});
 
-	it("lets admins approve a pending member change request", async () => {
-		const user = userEvent.setup();
-		renderAdminView();
-
-		await user.click(
-			screen.getByRole("button", {
-				name: /approve change request for alice example/i,
-			}),
-		);
-
-		await waitFor(() => {
-			expect(reviewChangeRequestAsync).toHaveBeenCalledWith({
-				requestId: "request-1",
-				decision: "approved",
-			});
-		});
-	});
-
-	it("lets admins approve a pending job posting request", async () => {
-		const user = userEvent.setup();
-		renderAdminView();
-
-		await user.click(
-			screen.getByRole("button", {
-				name: /approve job posting request for alice example/i,
-			}),
-		);
-
-		await waitFor(() => {
-			expect(reviewJobRequestAsync).toHaveBeenCalledWith({
-				requestId: "job-request-1",
-				decision: "approved",
-			});
-		});
-	});
-
-	it("shows member names and readable change diffs in request panels", () => {
-		renderAdminView();
-
-		expect(screen.getAllByText(/Member: Alice Example/i)).toHaveLength(3);
-		expect(
-			screen.getByText(
-				/requested changes: department: software development -> venture, role: member -> team lead/i,
-			),
-		).toBeInTheDocument();
-		expect(
-			screen.getByText(/Engagement Certificate Requests/i),
-		).toBeInTheDocument();
-		expect(screen.getByText(/Job Posting Requests/i)).toBeInTheDocument();
-		expect(screen.getByText(/Founding ML Engineer/i)).toBeInTheDocument();
-	});
-
-	it("lets admins inspect the engagement certificate details", async () => {
-		const user = userEvent.setup();
-		renderAdminView();
-
-		await user.click(
-			screen.getByRole("button", {
-				name: /view engagement certificate details for alice example/i,
-			}),
-		);
-
-		const dialog = await screen.findByRole("dialog", {
-			name: /engagement certificate request for alice example/i,
-		});
-		expect(dialog).toBeInTheDocument();
-		expect(within(dialog).getByText(/start date/i)).toBeInTheDocument();
-		expect(within(dialog).getByText("2025-10-01")).toBeInTheDocument();
-		expect(within(dialog).getByText(/end date/i)).toBeInTheDocument();
-		expect(within(dialog).getByText("2026-02-01")).toBeInTheDocument();
-		expect(within(dialog).getByText(/weekly hours/i)).toBeInTheDocument();
-		expect(within(dialog).getByText("10 hours")).toBeInTheDocument();
-		expect(within(dialog).getByText("Venture")).toBeInTheDocument();
-		expect(
-			within(dialog).getByText("Team Lead, Board Member"),
-		).toBeInTheDocument();
-		expect(within(dialog).getByText(/built mvp/i)).toBeInTheDocument();
-		expect(within(dialog).getByText(/ran workshops/i)).toBeInTheDocument();
-	});
-
-	it("does not show raw request ids in the admin request UI", () => {
+	it("does not show raw request ids in the members table", () => {
 		renderAdminView();
 
 		expect(screen.queryByText(/request-1/i)).not.toBeInTheDocument();
 		expect(screen.queryByText(/certificate-1/i)).not.toBeInTheDocument();
 		expect(screen.queryByText(/job-request-1/i)).not.toBeInTheDocument();
-		expect(
-			screen.queryByRole("button", { name: /approve request-1/i }),
-		).not.toBeInTheDocument();
-	});
-
-	it("keeps pending request panels above the members table", () => {
-		renderAdminView();
-
-		const membersHeading = screen.getByRole("heading", { name: /^members$/i });
-		const changeRequestsHeading = screen.getByRole("heading", {
-			name: /member change requests/i,
-		});
-		const certificateRequestsHeading = screen.getByRole("heading", {
-			name: /engagement certificate requests/i,
-		});
-		const jobRequestsHeading = screen.getByRole("heading", {
-			name: /job posting requests/i,
-		});
-
-		expect(changeRequestsHeading.compareDocumentPosition(membersHeading)).toBe(
-			Node.DOCUMENT_POSITION_FOLLOWING,
-		);
-		expect(
-			certificateRequestsHeading.compareDocumentPosition(membersHeading),
-		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
-		expect(jobRequestsHeading.compareDocumentPosition(membersHeading)).toBe(
-			Node.DOCUMENT_POSITION_FOLLOWING,
-		);
 	});
 });

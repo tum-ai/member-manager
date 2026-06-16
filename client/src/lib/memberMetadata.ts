@@ -7,6 +7,7 @@ import { DEGREE_TYPES } from "./constants";
 export {
 	buildMemberNameSearchText,
 	getMemberStatusLabel,
+	isActiveMember,
 	isExecutiveMemberRole,
 	MEMBER_STATUSES,
 	type MemberStatus,

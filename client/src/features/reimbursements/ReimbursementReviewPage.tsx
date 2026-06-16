@@ -1,6 +1,8 @@
-import { Alert, Box, CircularProgress, Stack, Typography } from "@mui/material";
 import type React from "react";
 import { useMemo, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Skeleton } from "@/components/ui/skeleton";
+import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { useToast } from "../../contexts/ToastContext";
 import {
 	type ReimbursementRequest,
@@ -72,6 +74,9 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		isBulkDownloadingReceipts,
 		openReceiptAsync,
 		downloadReceiptAsync,
+		buchhaltungsButlerSyncStatus,
+		isLoadingBuchhaltungsButlerSyncStatus,
+		buchhaltungsButlerSyncStatusError,
 		syncBuchhaltungsButlerAsync,
 		isSyncingBuchhaltungsButler,
 		updateDepartmentAsync,
@@ -253,25 +258,56 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		<ToolPageShell
 			title="Finance Review"
 			description="Review reimbursement and invoice requests, then mark approved requests as paid."
-			maxWidth={1440}
 		>
 			{isLoading && (
-				<Stack direction="row" spacing={1.5} alignItems="center">
-					<CircularProgress size={22} />
-					<Typography color="text.secondary">
-						Loading reimbursement queue...
-					</Typography>
-				</Stack>
+				<SkeletonRegion
+					label="Loading reimbursement queue"
+					className="grid gap-5"
+				>
+					<div className="flex flex-wrap items-end gap-4 rounded-xl border bg-card p-5">
+						<Skeleton className="h-9 flex-1 rounded-md" />
+						<Skeleton className="h-9 w-40 rounded-md" />
+						<Skeleton className="h-9 w-40 rounded-md" />
+					</div>
+					<div className="grid gap-4">
+						{Array.from({ length: 3 }).map((_, i) => (
+							<div
+								// biome-ignore lint/suspicious/noArrayIndexKey: static placeholders
+								key={i}
+								className="space-y-3 rounded-xl border bg-card p-5"
+							>
+								<div className="flex items-start justify-between gap-3">
+									<div className="min-w-0 flex-1 space-y-1.5">
+										<Skeleton className="h-5 w-48" />
+										<Skeleton className="h-4 w-32" />
+									</div>
+									<Skeleton className="h-5 w-20" />
+								</div>
+								<div className="flex gap-1.5">
+									<Skeleton className="h-5 w-24 rounded-full" />
+									<Skeleton className="h-5 w-20 rounded-full" />
+								</div>
+								<Skeleton className="h-4 w-3/4" />
+								<div className="flex gap-2 pt-1">
+									<Skeleton className="h-9 w-24 rounded-md" />
+									<Skeleton className="h-9 w-24 rounded-md" />
+								</div>
+							</div>
+						))}
+					</div>
+				</SkeletonRegion>
 			)}
 
 			{error && (
-				<Alert severity="error">
-					Legal & Finance members and admins can access this review queue.
+				<Alert variant="destructive">
+					<AlertDescription>
+						Legal & Finance members and admins can access this review queue.
+					</AlertDescription>
 				</Alert>
 			)}
 
 			{!isLoading && !error && (
-				<Box sx={{ display: "grid", gap: 2.5 }}>
+				<div className="grid gap-5">
 					<ReimbursementReviewControls
 						search={search}
 						onSearchChange={setSearch}
@@ -323,10 +359,17 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 						hasBulkDownload={canBulkDownloadReceipts}
 						isUpdatingDepartment={isUpdatingDepartment}
 						onReceiptOpen={handleReceiptOpen}
+						buchhaltungsButlerSyncStatus={buchhaltungsButlerSyncStatus}
+						isLoadingBuchhaltungsButlerSyncStatus={
+							isLoadingBuchhaltungsButlerSyncStatus
+						}
+						hasBuchhaltungsButlerSyncStatusError={Boolean(
+							buchhaltungsButlerSyncStatusError,
+						)}
 						onBuchhaltungsButlerSync={handleBuchhaltungsButlerSync}
 						isSyncingBuchhaltungsButler={isSyncingBuchhaltungsButler}
 					/>
-				</Box>
+				</div>
 			)}
 		</ToolPageShell>
 	);

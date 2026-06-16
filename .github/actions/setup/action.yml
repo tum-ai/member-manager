@@ -1,0 +1,24 @@
+name: Setup toolchain
+description: Install pnpm + Node from .nvmrc, install dependencies, and build the shared package.
+
+runs:
+  using: composite
+  steps:
+    - name: Setup pnpm
+      uses: pnpm/action-setup@v6
+      with:
+        version: 10
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v6
+      with:
+        node-version-file: '.nvmrc'
+        cache: 'pnpm'
+
+    - name: Install dependencies
+      shell: bash
+      run: pnpm install --frozen-lockfile
+
+    - name: Build shared package
+      shell: bash
+      run: pnpm build:shared

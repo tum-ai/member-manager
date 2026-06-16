@@ -1,13 +1,15 @@
+import { useEffect, useId, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
-	Box,
-	Button,
-	Grid,
-	MenuItem,
-	TextField,
-	Typography,
-	useTheme,
-} from "@mui/material";
-import { useEffect, useRef, useState } from "react";
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 import {
 	DEGREE_PROGRAM_CUSTOM_OPTION,
 	DEGREE_PROGRAM_PRESETS,
@@ -22,6 +24,14 @@ import {
 	serializeEducationEntries,
 	splitDegree,
 } from "../../lib/memberMetadata";
+
+// Radix Select forbids empty-string item values, so an empty selection is
+// represented by this sentinel and mapped back to "" at the boundary.
+const NONE_VALUE = "__none__";
+const toSelectValue = (value: string): string =>
+	value === "" ? NONE_VALUE : value;
+const fromSelectValue = (value: string): string =>
+	value === NONE_VALUE ? "" : value;
 
 interface EducationFieldsProps {
 	degreeValue?: string | null;
@@ -57,7 +67,7 @@ export default function EducationFields({
 	schoolValue,
 	onChange,
 }: EducationFieldsProps): JSX.Element {
-	const theme = useTheme();
+	const fieldId = useId();
 	const lastCommittedValues = useRef({
 		degree: degreeValue ?? "",
 		school: schoolValue ?? "",
@@ -112,17 +122,17 @@ export default function EducationFields({
 	};
 
 	return (
-		<Grid size={12}>
-			<Box sx={{ display: "grid", gap: 2 }}>
-				<Box>
-					<Typography variant="subtitle2" color="text.secondary">
+		<div className="col-span-full">
+			<div className="grid gap-4">
+				<div>
+					<p className="text-sm font-medium text-muted-foreground">
 						Current studies
-					</Typography>
-					<Typography variant="body2" color="text.secondary">
+					</p>
+					<p className="text-sm text-muted-foreground">
 						Add every current degree program separately if you study more than
 						one program.
-					</Typography>
-				</Box>
+					</p>
+				</div>
 
 				{entries.map((entry, index) => {
 					const { type, program } = splitDegree(entry.degree);
@@ -146,47 +156,52 @@ export default function EducationFields({
 							: isPresetSchool
 								? entry.school
 								: SCHOOL_CUSTOM_OPTION;
+					const degreeId = `${fieldId}-degree-${entry.id}`;
+					const programId = `${fieldId}-program-${entry.id}`;
+					const customProgramId = `${fieldId}-custom-program-${entry.id}`;
+					const schoolId = `${fieldId}-school-${entry.id}`;
+					const customSchoolId = `${fieldId}-custom-school-${entry.id}`;
 
 					return (
-						<Box
+						<div
 							key={entry.id}
-							sx={{
-								p: 2,
-								borderRadius: 3,
-								backgroundColor:
-									theme.palette.mode === "light"
-										? "rgba(154, 100, 217, 0.06)"
-										: "rgba(24, 17, 47, 0.72)",
-							}}
+							className={cn(index > 0 && "border-t border-border pt-4")}
 						>
-							<Grid container spacing={2}>
-								<Grid size={{ xs: 12, sm: 6 }}>
-									<TextField
-										select
-										label="Degree"
-										value={type}
-										onChange={(event) =>
+							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+								<div className="grid gap-1.5">
+									<Label htmlFor={degreeId}>Degree</Label>
+									<Select
+										value={toSelectValue(type)}
+										onValueChange={(value) =>
 											updateEntry(index, {
-												degree: joinDegree(event.target.value, program),
+												degree: joinDegree(fromSelectValue(value), program),
 											})
 										}
 									>
-										<MenuItem value="">None</MenuItem>
-										{DEGREE_TYPES.map((degreeType) => (
-											<MenuItem key={degreeType} value={degreeType}>
-												{degreeType}
-											</MenuItem>
-										))}
-									</TextField>
-								</Grid>
+										<SelectTrigger
+											id={degreeId}
+											className="w-full"
+											aria-label="Degree"
+										>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value={NONE_VALUE}>None</SelectItem>
+											{DEGREE_TYPES.map((degreeType) => (
+												<SelectItem key={degreeType} value={degreeType}>
+													{degreeType}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</div>
 
-								<Grid size={{ xs: 12, sm: 6 }}>
-									<TextField
-										select
-										label="Program"
-										value={selectedProgramOption}
-										onChange={(event) => {
-											const chosen = event.target.value;
+								<div className="grid gap-1.5">
+									<Label htmlFor={programId}>Program</Label>
+									<Select
+										value={toSelectValue(selectedProgramOption)}
+										onValueChange={(rawChosen) => {
+											const chosen = fromSelectValue(rawChosen);
 											if (chosen === DEGREE_PROGRAM_CUSTOM_OPTION) {
 												setCustomProgramRows((current) => ({
 													...current,
@@ -202,22 +217,32 @@ export default function EducationFields({
 											updateEntry(index, { degree: joinDegree(type, chosen) });
 										}}
 									>
-										<MenuItem value="">None</MenuItem>
-										{DEGREE_PROGRAM_PRESETS.map((preset) => (
-											<MenuItem key={preset} value={preset}>
-												{preset}
-											</MenuItem>
-										))}
-										<MenuItem value={DEGREE_PROGRAM_CUSTOM_OPTION}>
-											Other (custom)
-										</MenuItem>
-									</TextField>
-								</Grid>
+										<SelectTrigger
+											id={programId}
+											className="w-full"
+											aria-label="Program"
+										>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value={NONE_VALUE}>None</SelectItem>
+											{DEGREE_PROGRAM_PRESETS.map((preset) => (
+												<SelectItem key={preset} value={preset}>
+													{preset}
+												</SelectItem>
+											))}
+											<SelectItem value={DEGREE_PROGRAM_CUSTOM_OPTION}>
+												Other (custom)
+											</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
 
 								{selectedProgramOption === DEGREE_PROGRAM_CUSTOM_OPTION && (
-									<Grid size={12}>
-										<TextField
-											label="Custom program name"
+									<div className="col-span-full grid gap-1.5">
+										<Label htmlFor={customProgramId}>Custom program name</Label>
+										<Input
+											id={customProgramId}
 											value={program}
 											onChange={(event) =>
 												updateEntry(index, {
@@ -225,16 +250,15 @@ export default function EducationFields({
 												})
 											}
 										/>
-									</Grid>
+									</div>
 								)}
 
-								<Grid size={12}>
-									<TextField
-										select
-										label="School / University"
-										value={selectedSchoolOption}
-										onChange={(event) => {
-											const chosen = event.target.value;
+								<div className="col-span-full grid gap-1.5">
+									<Label htmlFor={schoolId}>School / University</Label>
+									<Select
+										value={toSelectValue(selectedSchoolOption)}
+										onValueChange={(rawChosen) => {
+											const chosen = fromSelectValue(rawChosen);
 											if (chosen === SCHOOL_CUSTOM_OPTION) {
 												setCustomSchoolRows((current) => ({
 													...current,
@@ -250,57 +274,69 @@ export default function EducationFields({
 											updateEntry(index, { school: chosen });
 										}}
 									>
-										<MenuItem value="">None</MenuItem>
-										{SCHOOL_PRESETS.map((preset) => (
-											<MenuItem key={preset} value={preset}>
-												{preset}
-											</MenuItem>
-										))}
-										<MenuItem value={SCHOOL_CUSTOM_OPTION}>
-											Other (custom)
-										</MenuItem>
-									</TextField>
-								</Grid>
+										<SelectTrigger
+											id={schoolId}
+											className="w-full"
+											aria-label="School / University"
+										>
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value={NONE_VALUE}>None</SelectItem>
+											{SCHOOL_PRESETS.map((preset) => (
+												<SelectItem key={preset} value={preset}>
+													{preset}
+												</SelectItem>
+											))}
+											<SelectItem value={SCHOOL_CUSTOM_OPTION}>
+												Other (custom)
+											</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
 
 								{selectedSchoolOption === SCHOOL_CUSTOM_OPTION && (
-									<Grid size={12}>
-										<TextField
-											label="Custom school / university"
+									<div className="col-span-full grid gap-1.5">
+										<Label htmlFor={customSchoolId}>
+											Custom school / university
+										</Label>
+										<Input
+											id={customSchoolId}
 											value={entry.school}
 											onChange={(event) =>
 												updateEntry(index, { school: event.target.value })
 											}
 										/>
-									</Grid>
+									</div>
 								)}
-							</Grid>
+							</div>
 
 							{entries.length > 1 && (
 								<Button
-									variant="text"
+									variant="ghost"
 									onClick={() => removeEntry(index)}
-									sx={{ mt: 1.5 }}
+									className="mt-3"
 								>
 									Remove study
 								</Button>
 							)}
-						</Box>
+						</div>
 					);
 				})}
 
 				<Button
-					variant="outlined"
+					variant="outline"
 					onClick={() =>
 						setEntries((current) => [
 							...current,
 							createEditableEducationEntry(),
 						])
 					}
-					sx={{ justifySelf: "flex-start" }}
+					className="justify-self-start"
 				>
 					Add another study
 				</Button>
-			</Box>
-		</Grid>
+			</div>
+		</div>
 	);
 }
