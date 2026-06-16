@@ -90,7 +90,10 @@ export default function ProjectsView({
 							<AccordionItem
 								key={project.id}
 								value={project.id}
-								className="rounded-xl border bg-card px-5"
+								// Each project is a standalone card; cancel the base
+								// accordion's `last:border-b-0` so the last card keeps a
+								// complete outline (visible in light mode).
+								className="rounded-xl border bg-card px-5 last:border-b"
 							>
 								<AccordionTrigger className="py-4 hover:no-underline">
 									<div className="pr-1 text-left">

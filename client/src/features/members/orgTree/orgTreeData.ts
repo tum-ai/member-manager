@@ -123,7 +123,7 @@ export function buildOrgTree(members: Member[]): OrgTreeNode[] {
 			kind: "board",
 			title: "Executive Board",
 			board: seats,
-			memberCount: members.length,
+			memberCount: seats.length,
 		},
 	];
 

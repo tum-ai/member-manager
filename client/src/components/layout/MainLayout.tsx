@@ -407,15 +407,6 @@ export default function MainLayout({
 				<header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
 					<SidebarTrigger className="-ml-1" />
 					<ThemeToggleButton />
-					<Button
-						variant="ghost"
-						size="sm"
-						onClick={onLogout}
-						className="gap-2"
-					>
-						<LogOut />
-						<span className="hidden sm:inline">Sign out</span>
-					</Button>
 				</header>
 
 				<main className="mx-auto w-full max-w-7xl min-w-0 flex-1 px-4 py-6 md:px-6 md:py-8">

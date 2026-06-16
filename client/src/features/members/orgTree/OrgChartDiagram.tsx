@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { useToast } from "../../../contexts/ToastContext";
 import type { OrgTreeNode } from "./orgTreeData";
 import {
 	getNodeSize,
@@ -33,6 +34,7 @@ const MOBILE_BREAKPOINT = 640;
 export default function OrgChartDiagram({ nodes }: OrgChartDiagramProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const chartRef = useRef<OrgChart<ChartDatum> | null>(null);
+	const { showToast } = useToast();
 
 	// fit() computes its transform from the container's size, so it is a no-op
 	// (leaving the tree clipped at native scale) while the container still has
@@ -165,17 +167,34 @@ export default function OrgChartDiagram({ nodes }: OrgChartDiagramProps) {
 			},
 		},
 		{
+			// Collapse to department level: members hide, but the board and every
+			// department stay visible (rather than collapsing down to the board alone).
 			label: "Collapse all",
 			icon: ChevronsDownUp,
 			action: () => {
-				chartRef.current?.collapseAll();
+				const chart = chartRef.current;
+				if (!chart) return;
+				for (const datum of chart.data() ?? []) {
+					chart.setExpanded(
+						datum.id,
+						datum.kind === "board" || datum.kind === "department",
+					);
+				}
+				chart.render();
 				fitChart();
 			},
 		},
 		{
 			label: "Export PNG",
 			icon: Download,
-			action: () => chartRef.current?.exportImg({ full: true }),
+			action: () => {
+				try {
+					chartRef.current?.exportImg({ full: true });
+				} catch (error) {
+					console.error("Org tree PNG export failed", error);
+					showToast("Couldn't export the org tree as PNG.", "error");
+				}
+			},
 		},
 	];
 

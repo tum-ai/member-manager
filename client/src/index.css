@@ -158,8 +158,9 @@
 	--destructive: oklch(0.704 0.191 22.216);
 	--border: oklch(1 0 0 / 10%);
 	--input: oklch(1 0 0 / 15%);
-	/* Purple ring + lightened brand purple so it reads on dark. */
-	--ring: #9a64d9;
+	/* Single lightened brand purple, used everywhere (ring, brand, sidebar) so
+	 * the sidebar and main view never show two different purples on dark. */
+	--ring: #b98ee6;
 	--brand: #b98ee6;
 	--brand-foreground: oklch(0.205 0 0);
 	--chart-1: oklch(0.7 0.17 305);
@@ -169,12 +170,12 @@
 	--chart-5: oklch(0.82 0.1 300);
 	--sidebar: oklch(0.205 0 0);
 	--sidebar-foreground: oklch(0.985 0 0);
-	--sidebar-primary: #9a64d9;
-	--sidebar-primary-foreground: oklch(0.985 0 0);
+	--sidebar-primary: #b98ee6;
+	--sidebar-primary-foreground: oklch(0.205 0 0);
 	--sidebar-accent: oklch(0.3 0.05 305);
 	--sidebar-accent-foreground: oklch(0.9 0.05 305);
 	--sidebar-border: oklch(1 0 0 / 10%);
-	--sidebar-ring: #9a64d9;
+	--sidebar-ring: #b98ee6;
 }
 
 @theme inline {

@@ -2,13 +2,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
 	CalendarCheck,
 	CalendarDays,
+	CalendarPlus,
 	CalendarX,
 	CircleSlash,
 	Clock,
 	Pencil,
 	Search,
 	Send,
-	Sparkles,
 	Trash2,
 	Users,
 } from "lucide-react";
@@ -299,7 +299,7 @@ export default function TumaiDaysPage(): ReactElement {
 										{editingEventId ? (
 											<Pencil className="size-4" />
 										) : (
-											<Sparkles className="size-4" />
+											<CalendarPlus className="size-4" />
 										)}
 									</span>
 									<div className="leading-tight">
@@ -344,7 +344,7 @@ export default function TumaiDaysPage(): ReactElement {
 												createEventMutation.isPending ||
 												updateEventMutation.isPending
 											}
-											className="flex-grow bg-brand text-brand-foreground hover:bg-brand/90"
+											className="flex-grow"
 										>
 											<CalendarDays className="size-4" />
 											{editingEventId
@@ -379,7 +379,7 @@ export default function TumaiDaysPage(): ReactElement {
 										variant="ghost"
 										onClick={() => sendPendingMutation.mutate()}
 										disabled={sendPendingMutation.isPending}
-										className="text-brand hover:bg-brand/10 hover:text-brand"
+										className="text-muted-foreground"
 									>
 										<Send className="size-3.5" />
 										Check Scheduler
@@ -449,26 +449,17 @@ export default function TumaiDaysPage(): ReactElement {
 															</span>
 															<div className="mt-1.5 flex flex-row gap-2">
 																{isSent ? (
-																	<Badge
-																		variant="success"
-																		className="gap-1 text-[0.65rem]"
-																	>
+																	<Badge variant="success" className="gap-1">
 																		<Send className="size-2.5" />
 																		Sent {formatDate(event.sent_at as string)}
 																	</Badge>
 																) : isPast ? (
-																	<Badge
-																		variant="warning"
-																		className="gap-1 text-[0.65rem]"
-																	>
+																	<Badge variant="warning" className="gap-1">
 																		<span className="size-1.5 animate-pulse rounded-full bg-amber-500" />
 																		Pending Send
 																	</Badge>
 																) : (
-																	<Badge
-																		variant="accent"
-																		className="gap-1 text-[0.65rem]"
-																	>
+																	<Badge variant="accent" className="gap-1">
 																		<CalendarDays className="size-2.5" />
 																		Scheduled
 																	</Badge>
@@ -483,7 +474,7 @@ export default function TumaiDaysPage(): ReactElement {
 																			variant="ghost"
 																			size="icon-sm"
 																			onClick={(e) => handleStartEdit(event, e)}
-																			className="text-brand hover:text-brand"
+																			className="text-muted-foreground hover:text-foreground"
 																			aria-label="Edit Event"
 																		>
 																			<Pencil className="size-4" />
@@ -639,7 +630,7 @@ export default function TumaiDaysPage(): ReactElement {
 													>
 														{stat.value}
 													</p>
-													<span className="text-[0.7rem] text-muted-foreground">
+													<span className="text-xs text-muted-foreground">
 														{stat.label}
 													</span>
 												</div>
@@ -664,7 +655,7 @@ export default function TumaiDaysPage(): ReactElement {
 												/>
 											</div>
 										</div>
-										<div className="grid gap-2 sm:min-w-[160px]">
+										<div className="grid min-w-0 gap-2 sm:min-w-[160px]">
 											<Label htmlFor="rsvp-status-filter">
 												Response Status
 											</Label>

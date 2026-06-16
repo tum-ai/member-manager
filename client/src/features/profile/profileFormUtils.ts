@@ -59,8 +59,9 @@ export function computeProfileCompleteness({
 		member.city,
 		member.country,
 		member.batch,
-		member.department,
-		member.member_role,
+		// department and member_role are admin-managed (stripped from
+		// self-service updates), so a member can never fill them in — excluded
+		// from completeness so a fully-filled editable profile reaches 100%.
 		linkedin.linkedin_profile_url,
 		linkedin.public_location,
 		sepa.iban,
