@@ -9,6 +9,12 @@ const meta = {
 	component: Modal,
 	tags: ["autodocs"],
 	parameters: { layout: "centered" },
+	args: {
+		title: "Edit details",
+		onClose: () => {},
+		onConfirm: () => {},
+		children: null,
+	},
 } satisfies Meta<typeof Modal>;
 
 export default meta;

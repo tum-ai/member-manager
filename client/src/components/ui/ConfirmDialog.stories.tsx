@@ -9,6 +9,12 @@ const meta = {
 	component: ConfirmDialog,
 	tags: ["autodocs"],
 	parameters: { layout: "centered" },
+	args: {
+		open: false,
+		onOpenChange: () => {},
+		title: "Save changes?",
+		onConfirm: () => {},
+	},
 } satisfies Meta<typeof ConfirmDialog>;
 
 export default meta;

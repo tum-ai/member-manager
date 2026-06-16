@@ -1,5 +1,6 @@
 import { ExternalLink, FileText, RefreshCw } from "lucide-react";
 import type React from "react";
+import { useId } from "react";
 import {
 	Accordion,
 	AccordionContent,
@@ -318,7 +319,7 @@ function DepartmentEditor({
 	disabled: boolean;
 	onDepartmentChange: (department: string) => Promise<void>;
 }): React.ReactElement {
-	const labelId = `request-department-${department}`;
+	const labelId = useId();
 	return (
 		<div className="flex flex-col gap-1.5">
 			<Label htmlFor={labelId}>Request department</Label>
