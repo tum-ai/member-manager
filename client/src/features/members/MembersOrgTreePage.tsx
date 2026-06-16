@@ -1,11 +1,19 @@
+import { Navigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useMembersListData } from "../../hooks/useMembersListData";
 import OrgChartDiagram from "./orgTree/OrgChartDiagram";
 import { buildOrgTree } from "./orgTree/orgTreeData";
 
 export default function MembersOrgTreePage() {
+	const isMobile = useIsMobile();
 	const { members, isLoading, error } = useMembersListData();
+
+	// Org Tree is desktop-only; redirect mobile (incl. deep links) to Org Chart.
+	if (isMobile) {
+		return <Navigate to="/members/org-chart" replace />;
+	}
 
 	if (isLoading) {
 		return (

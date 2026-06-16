@@ -1,19 +1,25 @@
 import { render, screen } from "@testing-library/react";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Member } from "../../types";
 import MembersOrgTreePage from "./MembersOrgTreePage";
 
-const { membersState, diagramNodes } = vi.hoisted(() => ({
+const { membersState, diagramNodes, mobileState } = vi.hoisted(() => ({
 	membersState: {
 		members: [] as Member[],
 		isLoading: false,
 		error: null as Error | null,
 	},
 	diagramNodes: { current: null as unknown },
+	mobileState: { isMobile: false },
 }));
 
 vi.mock("../../hooks/useMembersListData", () => ({
 	useMembersListData: () => membersState,
+}));
+
+vi.mock("@/hooks/use-mobile", () => ({
+	useIsMobile: () => mobileState.isMobile,
 }));
 
 // d3-org-chart's SVG/zoom rendering is unreliable under jsdom — assert the page
@@ -51,6 +57,7 @@ describe("MembersOrgTreePage", () => {
 		membersState.isLoading = false;
 		membersState.error = null;
 		diagramNodes.current = null;
+		mobileState.isMobile = false;
 	});
 
 	it("shows a spinner while loading", () => {
@@ -77,5 +84,24 @@ describe("MembersOrgTreePage", () => {
 		const nodes = diagramNodes.current as { id: string }[];
 		expect(nodes.some((n) => n.id === "board")).toBe(true);
 		expect(nodes.some((n) => n.id === "dept:Marketing")).toBe(true);
+	});
+
+	it("redirects to the org chart on mobile", () => {
+		mobileState.isMobile = true;
+		render(
+			<MemoryRouter initialEntries={["/members/org-tree"]}>
+				<Routes>
+					<Route path="/members/org-tree" element={<MembersOrgTreePage />} />
+					<Route
+						path="/members/org-chart"
+						element={<div data-testid="org-chart-page" />}
+					/>
+				</Routes>
+			</MemoryRouter>,
+		);
+		expect(screen.getByTestId("org-chart-page")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("heading", { name: "Org Tree" }),
+		).not.toBeInTheDocument();
 	});
 });

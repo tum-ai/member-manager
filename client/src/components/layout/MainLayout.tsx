@@ -52,6 +52,7 @@ import {
 	SidebarProvider,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useToolAccess } from "../../hooks/useToolAccess";
 import {
 	TUM_AI_LOGO_MARK_DARK,
@@ -81,6 +82,7 @@ export default function MainLayout({
 	onLogout,
 }: MainLayoutProps) {
 	const location = useLocation();
+	const isMobile = useIsMobile();
 	const { permissions } = useToolAccess();
 
 	const showFinanceReview = permissions.includes("finance.review");
@@ -122,7 +124,15 @@ export default function MainLayout({
 	const memberItems: NavLeaf[] = [
 		{ label: "Browse", to: "/members", icon: Search },
 		{ label: "Org Chart", to: "/members/org-chart", icon: Network },
-		{ label: "Org Tree", to: "/members/org-tree", icon: Workflow },
+		...(isMobile
+			? []
+			: [
+					{
+						label: "Org Tree",
+						to: "/members/org-tree",
+						icon: Workflow,
+					} as NavLeaf,
+				]),
 		{ label: "Projects", to: "/members/projects", icon: FolderKanban },
 	];
 
