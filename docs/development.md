@@ -131,6 +131,45 @@ All seeded local accounts use password `password123`.
 
 Re-apply after edits: `pnpm supabase:reset`.
 
+## Frontend code standards
+
+Phase 0 of the client remediation effort. These are enforced (or scheduled to be) so structure holds before larger refactors land.
+
+### File size
+
+`scripts/check-file-size.mjs` (root script `pnpm check:filesize`, CI job "File Size Guardrail") enforces a per-file line budget for React surfaces:
+
+| Limit | Scope | Behaviour |
+| --- | --- | --- |
+| **700 lines (hard)** | `client/src/features/**/*.tsx`, `client/src/components/layout/**/*.tsx` | CI fails (exit 1) |
+| **400 lines (soft)** | same scope | prints a non-failing warning |
+
+Exempt entirely: `client/src/components/ui/**` (shadcn primitives), `*.d.ts`, `*.stories.tsx`, `*.test.ts`, `*.test.tsx`.
+
+A short **allowlist** in the script holds the files that already exceed 700 lines (`ProfilePage`, `AdminDatabaseView`, `ContractTemplatesPage`, `ContractSubmissionDetailPage`, `TumaiDaysPage`, `JobPostingsPage`, `ReimbursementPage`, `MemberForm`). These are suppressed from the hard-fail but print a backlog notice each run; they are tracked remediation debt (#189). When you split one below 700, delete it from the allowlist — never add new entries to dodge the gate.
+
+### Import / export conventions
+
+- Cross-folder imports use the `@/` path alias (e.g. `@/lib/constants`, `@/hooks/useAdminData`). Relative imports (`./`, `../`) are reserved for **within a single feature** (`client/src/features/<feature>/`).
+- The file-size script also flags relative imports that escape a feature directory. This is a **non-failing WARNING** for now (the current tree has many) — it documents the direction of travel, not a hard gate. Biome enforcement of the import boundary and named-export rules arrives in #183.
+- Prefer **named exports**. The two intentional exceptions are lazy-loaded route page components (default export for `React.lazy`) and Storybook stories (default export for the meta object).
+
+### Types location
+
+- Feature-local types live beside the feature in a `*Types.ts` file (e.g. `client/src/features/<feature>/<feature>Types.ts`).
+- Ambient and cross-feature types live in the central `client/src/types/` directory and are imported via `@/types`.
+
+### Test layers
+
+| Layer | Where | Tool |
+| --- | --- | --- |
+| Unit / hook | `client/src/**/__tests__/*` | Vitest |
+| Component / interaction | `client/src/**/__tests__/*` | Vitest + Testing Library |
+| Storybook play | `*.stories.tsx` | Storybook play functions |
+| End-to-end | `e2e/` | Playwright |
+
+See the "Testing layout" section below for the full runner matrix and commands.
+
 ## Testing layout
 
 Three test runners, each in its natural place:
@@ -187,6 +226,7 @@ CI (`.github/workflows/`) runs each gate as its own job so failures are isolated
 | Typecheck | `pnpm typecheck` | `tsc --noEmit` per package |
 | Build | `pnpm build` | |
 | Test | `pnpm test:coverage` | Vitest (client) + c8 (server), coverage uploaded to Codecov |
+| File Size Guardrail | `node scripts/check-file-size.mjs` | hard-fails >700-line feature/layout `.tsx` (see "Frontend code standards") |
 | Workflow Lint | actionlint + zizmor | zizmor is advisory for now |
 | Spell Check | `crate-ci/typos` | config in `_typos.toml` |
 | E2E (`e2e.yml`) | `pnpm test:e2e` | Playwright smoke vs a real local Supabase stack |
