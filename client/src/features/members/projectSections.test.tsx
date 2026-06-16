@@ -2,7 +2,11 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import type { InnovationProject, Member } from "../../types";
-import ProjectsView from "./ProjectsView";
+import { buildOrgChart } from "./orgChartUtils";
+import {
+	InnovationProjectsSection,
+	ResearchProjectsSection,
+} from "./projectSections";
 
 function buildMember(overrides: Partial<Member>): Member {
 	return {
@@ -24,62 +28,63 @@ function buildMember(overrides: Partial<Member>): Member {
 	};
 }
 
-describe("ProjectsView", () => {
+describe("ResearchProjectsSection", () => {
 	it("renders research projects with their members", () => {
-		render(
-			<ProjectsView
-				members={[
-					buildMember({
-						user_id: "research-lead",
-						given_name: "Lea",
-						surname: "Research",
-						department: "Research",
-						member_role: "Team Lead",
-						research_project_id: "project-a",
-					}),
-					buildMember({
-						user_id: "research-member",
-						given_name: "Riley",
-						surname: "Research",
-						department: "Research",
-						member_role: "Member",
-						research_project_id: "project-a",
-					}),
-				]}
-				researchProjects={[
-					{
-						id: "project-a",
-						title: "Alpha Research",
-						description: "Current project",
-						status: "ongoing",
-					},
-				]}
-			/>,
+		const chart = buildOrgChart(
+			[
+				buildMember({
+					user_id: "research-lead",
+					given_name: "Lea",
+					surname: "Research",
+					department: "Research",
+					member_role: "Team Lead",
+					research_project_id: "project-a",
+				}),
+				buildMember({
+					user_id: "research-member",
+					given_name: "Riley",
+					surname: "Research",
+					department: "Research",
+					member_role: "Member",
+					research_project_id: "project-a",
+				}),
+			],
+			[
+				{
+					id: "project-a",
+					title: "Alpha Research",
+					description: "Current project",
+					status: "ongoing",
+				},
+			],
+			[],
 		);
 
-		expect(
-			screen.getByRole("heading", { name: /projects/i }),
-		).toBeInTheDocument();
+		render(<ResearchProjectsSection projects={chart.researchProjects} />);
+
+		expect(screen.getByText("Research Projects")).toBeInTheDocument();
 		expect(screen.getByText("Alpha Research")).toBeInTheDocument();
 		expect(screen.getAllByText("Lea Research").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("Riley Research").length).toBeGreaterThan(0);
 	});
 
 	it("does not render unresolved internal research references as card titles", () => {
-		render(
-			<ProjectsView
-				members={[
-					buildMember({
-						user_id: "research-member",
-						given_name: "Riley",
-						surname: "Research",
-						department: "Research",
-						member_role: "Member",
-						research_project_id: "29b7306b-fd62-805d-8e47-fbe49a5443d4",
-					}),
-				]}
-			/>,
+		const chart = buildOrgChart(
+			[
+				buildMember({
+					user_id: "research-member",
+					given_name: "Riley",
+					surname: "Research",
+					department: "Research",
+					member_role: "Member",
+					research_project_id: "29b7306b-fd62-805d-8e47-fbe49a5443d4",
+				}),
+			],
+			[],
+			[],
 		);
+
+		render(<ResearchProjectsSection projects={chart.researchProjects} />);
 
 		expect(screen.getByText("Unmatched Research Project")).toBeInTheDocument();
 		expect(
@@ -87,7 +92,9 @@ describe("ProjectsView", () => {
 		).not.toBeInTheDocument();
 		expect(screen.getByText("Riley Research")).toBeInTheDocument();
 	});
+});
 
+describe("InnovationProjectsSection", () => {
 	it("renders innovation projects and expands details on click", async () => {
 		const user = userEvent.setup();
 		const innovationProjects: InnovationProject[] = [
@@ -101,30 +108,31 @@ describe("ProjectsView", () => {
 			},
 		];
 
-		render(
-			<ProjectsView
-				members={[
-					buildMember({
-						user_id: "innovation-lead",
-						given_name: "Iris",
-						surname: "Innovation",
-						department: "Marketing",
-						member_role: "Member",
-						innovation_project_id: "women-at-tumai",
-						innovation_project_role: "Lead",
-					}),
-					buildMember({
-						user_id: "innovation-member",
-						given_name: "Ivan",
-						surname: "Innovation",
-						department: "Software Development",
-						member_role: "Team Lead",
-						innovation_project_id: "women-at-tumai",
-					}),
-				]}
-				innovationProjects={innovationProjects}
-			/>,
+		const chart = buildOrgChart(
+			[
+				buildMember({
+					user_id: "innovation-lead",
+					given_name: "Iris",
+					surname: "Innovation",
+					department: "Marketing",
+					member_role: "Member",
+					innovation_project_id: "women-at-tumai",
+					innovation_project_role: "Lead",
+				}),
+				buildMember({
+					user_id: "innovation-member",
+					given_name: "Ivan",
+					surname: "Innovation",
+					department: "Software Development",
+					member_role: "Team Lead",
+					innovation_project_id: "women-at-tumai",
+				}),
+			],
+			[],
+			innovationProjects,
 		);
+
+		render(<InnovationProjectsSection projects={chart.innovationProjects} />);
 
 		expect(screen.getByText("Innovation Projects")).toBeInTheDocument();
 		expect(screen.getByText("Women@TUM.ai")).toBeInTheDocument();

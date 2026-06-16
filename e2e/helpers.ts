@@ -6,7 +6,7 @@ import { expect, type Page } from "@playwright/test";
 export async function loginAsLocalAdmin(page: Page): Promise<void> {
 	await page.goto("/");
 	await page.getByRole("button", { name: /continue as local admin/i }).click();
-	// The authenticated shell renders the persistent "Tools" sidebar group as a
-	// collapsible trigger button (shadcn sidebar).
-	await expect(page.getByRole("button", { name: "Tools" })).toBeVisible();
+	// The authenticated shell renders the persistent "Tools" sidebar section
+	// label (shadcn sidebar group label).
+	await expect(page.getByText("Tools", { exact: true })).toBeVisible();
 }
