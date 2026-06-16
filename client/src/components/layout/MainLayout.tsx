@@ -204,8 +204,8 @@ export default function MainLayout({
 					],
 				},
 				{
-					key: "engagement",
-					label: "Engagement",
+					key: "tools-community",
+					label: "Community",
 					icon: HeartHandshake,
 					items: [
 						{
