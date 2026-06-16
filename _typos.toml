@@ -13,6 +13,8 @@ extend-exclude = [
   "supabase/migrations/*contract*template*.sql",
   # Seeded demo data contains German names/strings.
   "supabase/seed.sql",
+  # German contract document prose used as Storybook fixtures.
+  "client/src/features/contracts/ContractDocumentPreview.stories.tsx",
 ]
 
 [default.extend-words]
