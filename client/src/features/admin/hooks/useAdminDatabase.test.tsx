@@ -3,6 +3,26 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminMember } from "@/features/admin/adminUtils";
 import { useAdminDatabase } from "./useAdminDatabase";
 
+const { addRow, addWorksheet, writeBuffer, Workbook } = vi.hoisted(() => {
+	const addRowFn = vi.fn();
+	const addWorksheetFn = vi.fn(() => ({ columns: [], addRow: addRowFn }));
+	const writeBufferFn = vi.fn(async () => new ArrayBuffer(8));
+	const WorkbookFn = vi.fn(function MockWorkbook(
+		this: Record<string, unknown>,
+	) {
+		this.addWorksheet = addWorksheetFn;
+		this.xlsx = { writeBuffer: writeBufferFn };
+	});
+	return {
+		addRow: addRowFn,
+		addWorksheet: addWorksheetFn,
+		writeBuffer: writeBufferFn,
+		Workbook: WorkbookFn,
+	};
+});
+
+vi.mock("exceljs", () => ({ Workbook }));
+
 const adminDataState: {
 	members: AdminMember[];
 	totalMembers: number;
@@ -39,6 +59,9 @@ function member(overrides: Partial<AdminMember>): AdminMember {
 
 describe("useAdminDatabase", () => {
 	beforeEach(() => {
+		addRow.mockClear();
+		addWorksheet.mockClear();
+		writeBuffer.mockClear();
 		adminDataState.members = [
 			member({ user_id: "1", surname: "Zeta", active: true }),
 			member({ user_id: "2", surname: "Alpha", active: false }),
@@ -88,6 +111,38 @@ describe("useAdminDatabase", () => {
 		act(() => result.current.setFilters((f) => ({ ...f, active: "inactive" })));
 
 		expect(result.current.filtered.map((m) => m.surname)).toEqual(["Alpha"]);
+	});
+
+	it("exports filtered members to an xlsx workbook and triggers a download", async () => {
+		const createObjectURL = vi.fn(() => "blob:members");
+		const revokeObjectURL = vi.fn();
+		const originalCreate = URL.createObjectURL;
+		const originalRevoke = URL.revokeObjectURL;
+		URL.createObjectURL = createObjectURL;
+		URL.revokeObjectURL = revokeObjectURL;
+		const clickSpy = vi
+			.spyOn(HTMLAnchorElement.prototype, "click")
+			.mockImplementation(() => {});
+
+		try {
+			const { result } = renderHook(() => useAdminDatabase());
+
+			await act(async () => {
+				await result.current.exportToExcel();
+			});
+
+			expect(addWorksheet).toHaveBeenCalledWith("Members");
+			// One addRow per filtered member.
+			expect(addRow).toHaveBeenCalledTimes(3);
+			expect(writeBuffer).toHaveBeenCalledOnce();
+			expect(clickSpy).toHaveBeenCalledOnce();
+			expect(createObjectURL).toHaveBeenCalledOnce();
+			expect(revokeObjectURL).toHaveBeenCalledWith("blob:members");
+		} finally {
+			clickSpy.mockRestore();
+			URL.createObjectURL = originalCreate;
+			URL.revokeObjectURL = originalRevoke;
+		}
 	});
 
 	it("reports the loading message variants", () => {

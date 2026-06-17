@@ -381,7 +381,7 @@ async function runPool(entries, worker, concurrency) {
 		async () => {
 			while (cursor < entries.length) {
 				const index = cursor++;
-				results[index] = await worker(entries[index], index);
+				results[index] = await worker(entries[index]);
 			}
 		},
 	);

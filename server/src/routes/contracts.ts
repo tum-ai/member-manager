@@ -212,10 +212,18 @@ function evaluateCondition(
 	}
 }
 
+// CONDITIONAL_REGEX has nested quantifiers, so unbounded input can trigger
+// polynomial-ReDoS backtracking. Cap the input length before matching; real
+// contract templates are far smaller than this.
+const MAX_CONDITIONAL_INPUT_LENGTH = 100_000;
+
 function applyInlineConditionals(
 	text: string,
 	formData: Record<string, unknown>,
 ): string {
+	if (text.length > MAX_CONDITIONAL_INPUT_LENGTH) {
+		return text;
+	}
 	return text.replace(
 		CONDITIONAL_REGEX,
 		(_full, variable, op, expected, thenText, elseText) => {
@@ -1792,78 +1800,84 @@ export async function contractRoutes(server: FastifyInstance) {
 		},
 	);
 
-	server.post("/webhooks/opensign", async (request, reply) => {
-		if (
-			!verifyOpenSignWebhookSignature(
-				request.body,
-				request.headers["x-webhook-signature"],
-			)
-		) {
-			return reply.status(401).send({ error: "Invalid webhook signature" });
-		}
+	server.post(
+		"/webhooks/opensign",
+		{ config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+		async (request, reply) => {
+			if (
+				!verifyOpenSignWebhookSignature(
+					request.body,
+					request.headers["x-webhook-signature"],
+				)
+			) {
+				return reply.status(401).send({ error: "Invalid webhook signature" });
+			}
 
-		const body = OpenSignWebhookSchema.parse(request.body);
-		if (!body.objectId) {
-			return reply.status(400).send({ error: "Missing OpenSign document id" });
-		}
+			const body = OpenSignWebhookSchema.parse(request.body);
+			if (!body.objectId) {
+				return reply
+					.status(400)
+					.send({ error: "Missing OpenSign document id" });
+			}
 
-		const event = body.event ?? "unknown";
-		const nowIso = new Date().toISOString();
-		const { data: current, error: currentError } = await getSupabase()
-			.from("contract_submissions")
-			.select("id, status")
-			.eq("opensign_document_id", body.objectId)
-			.maybeSingle();
-		if (currentError) {
-			request.log.error(
-				{ err: currentError },
-				"Failed to fetch OpenSign webhook submission",
-			);
-			throw createContractDatabaseError(currentError);
-		}
-		if (!current) {
-			request.log.warn(
-				{ openSignDocumentId: body.objectId, event },
-				"OpenSign webhook did not match a contract submission",
-			);
+			const event = body.event ?? "unknown";
+			const nowIso = new Date().toISOString();
+			const { data: current, error: currentError } = await getSupabase()
+				.from("contract_submissions")
+				.select("id, status")
+				.eq("opensign_document_id", body.objectId)
+				.maybeSingle();
+			if (currentError) {
+				request.log.error(
+					{ err: currentError },
+					"Failed to fetch OpenSign webhook submission",
+				);
+				throw createContractDatabaseError(currentError);
+			}
+			if (!current) {
+				request.log.warn(
+					{ openSignDocumentId: body.objectId, event },
+					"OpenSign webhook did not match a contract submission",
+				);
+				return { ok: true };
+			}
+
+			const update: Record<string, unknown> = {
+				opensign_status: event,
+				opensign_webhook_last_event: event,
+				opensign_webhook_received_at: nowIso,
+				updated_at: nowIso,
+			};
+			if (body.file) update.opensign_file_url = body.file;
+			const certificateUrl = body.certificateUrl ?? body.certificate;
+			if (certificateUrl) update.opensign_certificate_url = certificateUrl;
+
+			const canApplyOpenSignStatus = current.status === "sent_to_partner";
+			if (canApplyOpenSignStatus && isOpenSignCompletedEvent(event)) {
+				update.status = "partner_signed";
+				update.signed_at = nowIso;
+				update.signer_name = "OpenSign";
+				update.opensign_completed_at = nowIso;
+				update.opensign_error = null;
+			} else if (canApplyOpenSignStatus && isOpenSignFailureEvent(event)) {
+				update.status = "partner_comments";
+				update.opensign_error = `OpenSign document ${event}`;
+			}
+
+			const { error } = await getSupabase()
+				.from("contract_submissions")
+				.update(update)
+				.eq("id", current.id)
+				.select("id, status, opensign_status")
+				.maybeSingle();
+			if (error) {
+				request.log.error({ err: error }, "Failed to process OpenSign webhook");
+				throw createContractDatabaseError(error);
+			}
+
 			return { ok: true };
-		}
-
-		const update: Record<string, unknown> = {
-			opensign_status: event,
-			opensign_webhook_last_event: event,
-			opensign_webhook_received_at: nowIso,
-			updated_at: nowIso,
-		};
-		if (body.file) update.opensign_file_url = body.file;
-		const certificateUrl = body.certificateUrl ?? body.certificate;
-		if (certificateUrl) update.opensign_certificate_url = certificateUrl;
-
-		const canApplyOpenSignStatus = current.status === "sent_to_partner";
-		if (canApplyOpenSignStatus && isOpenSignCompletedEvent(event)) {
-			update.status = "partner_signed";
-			update.signed_at = nowIso;
-			update.signer_name = "OpenSign";
-			update.opensign_completed_at = nowIso;
-			update.opensign_error = null;
-		} else if (canApplyOpenSignStatus && isOpenSignFailureEvent(event)) {
-			update.status = "partner_comments";
-			update.opensign_error = `OpenSign document ${event}`;
-		}
-
-		const { error } = await getSupabase()
-			.from("contract_submissions")
-			.update(update)
-			.eq("id", current.id)
-			.select("id, status, opensign_status")
-			.maybeSingle();
-		if (error) {
-			request.log.error({ err: error }, "Failed to process OpenSign webhook");
-			throw createContractDatabaseError(error);
-		}
-
-		return { ok: true };
-	});
+		},
+	);
 
 	// ---------------------------------------------------------------------
 	// Public signing endpoints (no auth). Verified by signature_token only.

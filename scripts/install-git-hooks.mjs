@@ -64,7 +64,16 @@ export function installGitHooks({
 	const destination = resolve(hooksDir, "pre-commit");
 	const legacyPrePushMigration = getLegacyPrePushMigration(hooksDir);
 
-	if (existsSync(destination)) {
+	try {
+		// Atomic create-or-fail: the `wx` flag (O_CREAT | O_EXCL) closes the
+		// TOCTOU window between checking for and writing the hook.
+		writeFileSync(destination, source, { flag: "wx", mode: 0o755 });
+	} catch (error) {
+		if (error?.code !== "EEXIST") {
+			throw error;
+		}
+		// A hook already exists. Only re-install (idempotently) when it is
+		// byte-for-byte our managed hook; refuse to clobber a foreign one.
 		const existing = readFileSync(destination, "utf8");
 		if (existing !== source) {
 			throw new Error(
@@ -72,8 +81,6 @@ export function installGitHooks({
 			);
 		}
 	}
-
-	writeFileSync(destination, source);
 	chmodSync(destination, 0o755);
 
 	if (legacyPrePushMigration) {

@@ -2,6 +2,12 @@ packages:
   - "shared"
   - "client"
   - "server"
+overrides:
+  # esbuild < 0.28 has a low-severity advisory plus a withdrawn high; pin the
+  # patched release. Transitive via vite/storybook, dev-only.
+  esbuild: "0.28.1"
+  # dompurify < 3.4.9 has two low-severity advisories. Transitive via jspdf.
+  dompurify: "^3.4.9"
 allowBuilds:
   core-js: true
   esbuild: true

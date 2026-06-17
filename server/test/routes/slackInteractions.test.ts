@@ -105,6 +105,57 @@ describe("Slack interaction routes", async () => {
 		assert.strictEqual(response.statusCode, 401);
 	});
 
+	test("never fetches a non-Slack response_url (SSRF guard)", async () => {
+		resetDatabase();
+		process.env.SLACK_SIGNING_SECRET = "test-secret";
+		process.env.SLACK_BOT_TOKEN = "xoxb-test";
+
+		const fetchedUrls: string[] = [];
+		globalThis.fetch = (async (input) => {
+			const url = String(input);
+			fetchedUrls.push(url);
+			if (url === "https://slack.com/api/users.info") {
+				return new Response(
+					JSON.stringify({
+						ok: true,
+						user: { profile: { email: "admin@test.com" } },
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			return new Response("ok", { status: 200 });
+		}) as typeof fetch;
+
+		const signed = signedSlackPayload(
+			{
+				type: "block_actions",
+				user: { id: "UADMIN" },
+				response_url: "https://attacker.example.com/steal",
+				actions: [{ action_id: "tumai_day_rsvp_yes", value: "tumai-day-1" }],
+			},
+			"test-secret",
+		);
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/slack/interactions",
+			headers: signed.headers,
+			payload: signed.body,
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		// The RSVP is still persisted inline...
+		const row = mockDatabase.tumai_day_responses.find(
+			(r) => r.tumai_day_id === "tumai-day-1",
+		);
+		assert.strictEqual(row?.status, "yes");
+		// ...but the attacker-controlled host is never fetched.
+		assert.ok(
+			!fetchedUrls.some((url) => url.includes("attacker.example.com")),
+			"must not fetch a non-Slack response_url",
+		);
+	});
+
 	test("lets finance reviewers approve from Slack", async () => {
 		resetDatabase();
 		process.env.SLACK_SIGNING_SECRET = "test-secret";
@@ -114,7 +165,7 @@ describe("Slack interaction routes", async () => {
 		const delayedMessages: string[] = [];
 		globalThis.fetch = (async (input, init) => {
 			const url = String(input);
-			if (url === "https://hooks.slack.test/response") {
+			if (url === "https://hooks.slack.com/response") {
 				delayedMessages.push(
 					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
 				);
@@ -135,7 +186,7 @@ describe("Slack interaction routes", async () => {
 			{
 				type: "block_actions",
 				user: { id: "UADMIN" },
-				response_url: "https://hooks.slack.test/response",
+				response_url: "https://hooks.slack.com/response",
 				actions: [
 					{
 						action_id: "reimbursement_approve",
@@ -181,7 +232,7 @@ describe("Slack interaction routes", async () => {
 		const delayedMessages: string[] = [];
 		globalThis.fetch = (async (input, init) => {
 			const url = String(input);
-			if (url === "https://hooks.slack.test/response") {
+			if (url === "https://hooks.slack.com/response") {
 				delayedMessages.push(
 					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
 				);
@@ -225,7 +276,7 @@ describe("Slack interaction routes", async () => {
 			{
 				type: "block_actions",
 				user: { id: "UADMIN" },
-				response_url: "https://hooks.slack.test/response",
+				response_url: "https://hooks.slack.com/response",
 				actions: [
 					{
 						action_id: "reimbursement_approve_sync_bb",
@@ -267,7 +318,7 @@ describe("Slack interaction routes", async () => {
 		const delayedMessages: string[] = [];
 		globalThis.fetch = (async (input, init) => {
 			const url = String(input);
-			if (url === "https://hooks.slack.test/response") {
+			if (url === "https://hooks.slack.com/response") {
 				delayedMessages.push(
 					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
 				);
@@ -288,7 +339,7 @@ describe("Slack interaction routes", async () => {
 			{
 				type: "block_actions",
 				user: { id: "UADMIN" },
-				response_url: "https://hooks.slack.test/response",
+				response_url: "https://hooks.slack.com/response",
 				actions: [
 					{
 						action_id: "tumai_day_rsvp_yes",
@@ -324,7 +375,7 @@ describe("Slack interaction routes", async () => {
 		const delayedMessages: string[] = [];
 		globalThis.fetch = (async (input, init) => {
 			const url = String(input);
-			if (url === "https://hooks.slack.test/response") {
+			if (url === "https://hooks.slack.com/response") {
 				delayedMessages.push(
 					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
 				);
@@ -349,7 +400,7 @@ describe("Slack interaction routes", async () => {
 					callback_id: "tumai_day_rsvp_reason_modal",
 					private_metadata: JSON.stringify({
 						tumai_day_id: "tumai-day-1",
-						response_url: "https://hooks.slack.test/response",
+						response_url: "https://hooks.slack.com/response",
 					}),
 					state: {
 						values: {

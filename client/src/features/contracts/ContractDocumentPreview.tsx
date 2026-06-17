@@ -116,7 +116,7 @@ export function ContractDocumentPreview({
 			setScale(target / PAGE_WIDTH);
 		};
 		update();
-		const observer = new ResizeObserver(update);
+		const observer = new ResizeObserver(() => update());
 		observer.observe(element);
 		return () => observer.disconnect();
 	}, [pageMaxWidth]);
