@@ -27,7 +27,6 @@ const EXEMPT_PATTERNS = [
 // prints a backlog notice. Tracked as remediation backlog in #189.
 export const ALLOWLIST = [
 	"client/src/features/profile/ProfilePage.tsx",
-	"client/src/features/admin/AdminDatabaseView.tsx",
 	"client/src/features/contracts/ContractTemplatesPage.tsx",
 	"client/src/features/contracts/ContractSubmissionDetailPage.tsx",
 	"client/src/features/tools/TumaiDaysPage.tsx",
