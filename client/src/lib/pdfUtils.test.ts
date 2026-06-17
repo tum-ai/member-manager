@@ -64,7 +64,10 @@ afterEach(() => {
 
 describe("formatGermanDate", () => {
 	it("formats a valid ISO date in German long form", () => {
-		expect(formatGermanDate("2025-01-01")).toBe("1. Januar 2025");
+		// Use a local-time input (no trailing "Z") so the rendered day is
+		// timezone-stable: a bare "2025-01-01" parses as UTC midnight and would
+		// render "31. Dezember 2024" west of UTC.
+		expect(formatGermanDate("2025-01-01T12:00:00")).toBe("1. Januar 2025");
 	});
 
 	it.each([
