@@ -128,8 +128,12 @@ function CommandSeparator({
 	...props
 }: React.ComponentProps<typeof CommandPrimitive.Separator>) {
 	return (
+		// cmdk hardcodes role="separator" on this node. Inside the command list
+		// (role="listbox") a separator is a disallowed child (aria-required-children),
+		// so hide the purely-decorative divider from the accessibility tree.
 		<CommandPrimitive.Separator
 			data-slot="command-separator"
+			aria-hidden="true"
 			className={cn("-mx-1 h-px bg-border", className)}
 			{...props}
 		/>

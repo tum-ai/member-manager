@@ -12,6 +12,13 @@ const meta = {
 	argTypes: {
 		disabled: { control: "boolean" },
 	},
+	// The bare control stories below render a Checkbox with no associated label,
+	// so give them an accessible name to satisfy the button-name a11y rule.
+	// Stories that pair the checkbox with a <Label> override this with their own
+	// render and don't need it.
+	args: {
+		"aria-label": "Example checkbox",
+	},
 } satisfies Meta<typeof Checkbox>;
 
 export default meta;

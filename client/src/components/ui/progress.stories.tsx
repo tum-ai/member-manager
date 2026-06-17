@@ -10,8 +10,12 @@ const meta = {
 	argTypes: {
 		value: { control: { type: "range", min: 0, max: 100 } },
 	},
+	// A progressbar needs an accessible name (aria-progressbar-name). Real
+	// consumers label it for what it measures; the demo stories use a generic
+	// name. Stories with their own render set their own aria-label.
 	args: {
 		value: 60,
+		"aria-label": "Loading progress",
 	},
 } satisfies Meta<typeof Progress>;
 
@@ -26,11 +30,11 @@ export const Default: Story = {
 export const Values: Story = {
 	render: () => (
 		<div className="flex w-72 flex-col gap-4">
-			<Progress value={0} />
-			<Progress value={25} />
-			<Progress value={50} />
-			<Progress value={75} />
-			<Progress value={100} />
+			<Progress value={0} aria-label="0 percent complete" />
+			<Progress value={25} aria-label="25 percent complete" />
+			<Progress value={50} aria-label="50 percent complete" />
+			<Progress value={75} aria-label="75 percent complete" />
+			<Progress value={100} aria-label="100 percent complete" />
 		</div>
 	),
 };
@@ -44,6 +48,8 @@ export const Animated: Story = {
 			}, 800);
 			return () => clearInterval(timer);
 		}, []);
-		return <Progress value={value} className="w-72" />;
+		return (
+			<Progress value={value} className="w-72" aria-label="Loading progress" />
+		);
 	},
 };

@@ -45,15 +45,12 @@ const preview: Preview = {
 			// 'error' - run a11y checks and FAIL the test on any violation
 			// 'off' - skip a11y checks entirely
 			//
-			// Global default is 'todo': the a11y addon runs on every story and
-			// reports violations in the test output, but does not gate CI yet.
-			// ~16 of the 50 pre-existing display stories (checkbox/switch
-			// aria-checked, progress aria-progressbar-name, command/select/org-chart
-			// button-name) have real violations that must be fixed at the component
-			// level before global enforcement. Tracked as a follow-up. Stories that
-			// are already clean opt in to enforcement via a per-story/meta override,
-			// e.g. `parameters: { a11y: { test: "error" } }` (see Button, Modal).
-			test: "todo",
+			// Global default is 'error': the a11y addon runs on every story and
+			// FAILS the storybook-test CI job on any violation. A handful of stories
+			// narrow this with a documented per-story override that disables a single
+			// rule (e.g. a third-party chart that trips a false positive); see
+			// JobCard and OrgChartDiagram. New stories must be a11y-clean by default.
+			test: "error",
 		},
 	},
 	globalTypes: {
