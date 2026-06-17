@@ -7,6 +7,10 @@ paths: ["client/**"]
 - **Page → hook → sections.** `features/<domain>/*Page.tsx` is thin (~90 lines, default export OK
   here) and delegates to one `hooks/use*.ts`; presentational `components/*Section.tsx` are prop-driven.
   Exemplar: `client/src/features/tools/`.
+- **Feature folder layout** (target — older features still drift). Feature root: `*Page.tsx`,
+  `<domain>Types.ts`, `<domain>Utils.ts`, and optionally one feature-level shell/layout wrapper
+  (e.g. `features/tools/ToolPageShell.tsx`). Presentational sections → `components/`; logic →
+  `hooks/`. Shared code → `src/lib`/`src/hooks`/`src/components` via `@/`.
 - **File size**: `features/**/*.tsx` HARD-fails >700 lines, SOFT-warns >400 (`scripts/check-file-size.mjs`).
   Split into sections instead of growing a page.
 - **`@/` alias** to import across feature boundaries; relative imports only within one feature.

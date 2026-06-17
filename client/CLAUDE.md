@@ -5,12 +5,18 @@ Package: `@member-manager/client`.
 
 ## Module map
 
-- `src/features/<domain>/` — one folder per domain. Inside:
+- `src/features/<domain>/` — one folder per domain. Target layout (the convention to grow
+  toward — several older features still keep components/utils loose at the root). Inside:
   - `*Page.tsx` — thin route component (~90 lines, default export allowed here). Pulls everything
     from its hook, renders sections. Exemplar: `features/tools/TumaiDaysPage.tsx`.
+  - `<domain>Types.ts` / `<domain>Utils.ts` — feature-local types and pure helpers (+ their
+    `.test.ts`). Exemplars: `features/tools/tumaiDaysTypes.ts`, `tumaiDaysUtils.ts`.
   - `hooks/use*.ts` — all state/data/handlers: TanStack Query `useQuery`/`useMutation`, `useState`,
     toasts via `contexts/ToastContext` (`useToast()`). Exemplar: `features/tools/hooks/useTumaiDays.ts`.
-  - `components/*Section.tsx` / `*Panel.tsx` / `*Form.tsx` — presentational, prop-driven.
+  - `components/*.tsx` — presentational sections (`*Section`/`*Panel`/`*Form`/`*Card`), prop-driven.
+    A feature-level shell/layout wrapper may sit at the root (e.g. `features/tools/ToolPageShell.tsx`),
+    but individual sections belong in `components/`, not loose at the feature root.
+  - Cross-feature shared code goes in `src/lib`, `src/hooks`, or `src/components` (via `@/`), not here.
 - `src/components/ui/` — shadcn/radix primitives (exempt from size + default-export rules). Don't hand-roll.
 - `src/components/layout/`, `src/components/foundations/` — shell + design primitives.
 - `src/lib/apiClient.ts` — the only way to call the backend. `src/lib/queryClient.ts` — query client.
