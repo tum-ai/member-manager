@@ -86,11 +86,14 @@ const meta = {
 		layout: "fullscreen",
 		a11y: {
 			// d3-org-chart renders node cards as HTML inside SVG <foreignObject>.
-			// axe can't resolve the layered avatar-fallback backgrounds through that
-			// boundary and reports the muted-foreground initials as near-white text
-			// on the white page background (computed contrast ~1.03) — a false
-			// positive; the initials actually render on the muted avatar circle.
-			// Disabled only for this third-party chart; tracked in #207.
+			// axe cannot resolve background-color across that boundary: even with
+			// an explicit `background:var(--muted)` set directly on the initials
+			// element (see orgTreeNodeContent.ts), axe still reads the page white
+			// as the backdrop and reports the initials at ~1.04 contrast — a
+			// confirmed false positive (CI failed PR #233 this way in dark mode,
+			// where --foreground is near-white). The initials actually render on
+			// the muted avatar circle at >=14:1. Documented exemption for this
+			// third-party chart; tracked in #207.
 			config: { rules: [{ id: "color-contrast", enabled: false }] },
 		},
 	},
