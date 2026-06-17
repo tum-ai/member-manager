@@ -17,6 +17,8 @@ const REQUIRED_KEYS = ["API_URL", "ANON_KEY", "SERVICE_ROLE_KEY"];
 const DEFAULT_LOCAL_ENCRYPTION_KEY =
 	"local-dev-only-encryption-key-do-not-use-in-production";
 const DEFAULT_LOCAL_ADMIN_EMAILS = ["admin@example.com", "user@example.com"];
+const DEFAULT_PARTNER_PORTAL_JOBS_API_URL =
+	"http://localhost:3000/api/public/v1/jobs";
 const PRESERVED_OPTIONAL_SERVER_KEYS = [
 	"APP_BASE_URL",
 	"OPENAI_API_KEY",
@@ -116,11 +118,28 @@ export function buildServerEnv({
 	existingEnv,
 	port = 8787,
 	corsOrigin = "http://localhost:5173,http://127.0.0.1:5173",
+	partnerPortalJobsApiUrl,
+	partnerPortalJobsApiToken,
 }) {
 	const resolvedEncryptionKey =
 		extractExistingServerValue(existingEnv, "FIELD_ENCRYPTION_KEY") ??
 		encryptionKey ??
 		DEFAULT_LOCAL_ENCRYPTION_KEY;
+	const existingPartnerPortalJobsApiUrl = extractExistingServerValue(
+		existingEnv,
+		"PARTNER_PORTAL_JOBS_API_URL",
+	);
+	const existingPartnerPortalJobsApiToken = extractExistingServerValue(
+		existingEnv,
+		"PARTNER_PORTAL_JOBS_API_TOKEN",
+	);
+	const resolvedPartnerPortalJobsApiToken =
+		existingPartnerPortalJobsApiToken ?? partnerPortalJobsApiToken ?? null;
+	const resolvedPartnerPortalJobsApiUrl =
+		existingPartnerPortalJobsApiUrl ??
+		(resolvedPartnerPortalJobsApiToken
+			? (partnerPortalJobsApiUrl ?? DEFAULT_PARTNER_PORTAL_JOBS_API_URL)
+			: null);
 	const preservedLocalAdminEmails = extractExistingServerValue(
 		existingEnv,
 		"LOCAL_ADMIN_EMAILS",
@@ -145,6 +164,14 @@ export function buildServerEnv({
 		`ENABLE_LOCAL_ADMIN_BOOTSTRAP=${localAdminBootstrapFlag}`,
 		`LOCAL_ADMIN_EMAILS=${localAdminEmails}`,
 		...preservedOptionalServerLines(existingEnv),
+		...(resolvedPartnerPortalJobsApiUrl || resolvedPartnerPortalJobsApiToken
+			? [
+					"",
+					"# Partner Portal jobs API. Local auto-detect reads ../partnerportal/apps/web/.env.local.",
+					`PARTNER_PORTAL_JOBS_API_URL=${resolvedPartnerPortalJobsApiUrl ?? ""}`,
+					`PARTNER_PORTAL_JOBS_API_TOKEN=${resolvedPartnerPortalJobsApiToken ?? ""}`,
+				]
+			: []),
 		"",
 	].join("\n");
 }
@@ -163,6 +190,8 @@ export function writeEnvFiles({
 	serverEnvPath,
 	defaultEncryptionKey = DEFAULT_LOCAL_ENCRYPTION_KEY,
 	existingServerEnv,
+	partnerPortalJobsApiUrl,
+	partnerPortalJobsApiToken,
 }) {
 	mkdirSync(dirname(clientEnvPath), { recursive: true });
 	mkdirSync(dirname(serverEnvPath), { recursive: true });
@@ -177,6 +206,8 @@ export function writeEnvFiles({
 		serviceRoleKey: parsed.serviceRoleKey,
 		encryptionKey: defaultEncryptionKey,
 		existingEnv: existingServerEnv ?? readIfExists(serverEnvPath) ?? undefined,
+		partnerPortalJobsApiUrl,
+		partnerPortalJobsApiToken,
 	});
 
 	writeFileSync(clientEnvPath, clientEnv);
@@ -189,6 +220,10 @@ function runCli() {
 	const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 	const clientEnvPath = resolve(repoRoot, "client/.env.local");
 	const serverEnvPath = resolve(repoRoot, "server/.env.local");
+	const partnerPortalEnvPaths = [
+		resolve(repoRoot, "../partnerportal/apps/web/.env.local"),
+		resolve(repoRoot, "../partnerportal/.env.local"),
+	];
 
 	let raw;
 	try {
@@ -210,7 +245,9 @@ function runCli() {
 					npxError && typeof npxError === "object" && "stderr" in npxError
 						? String(npxError.stderr ?? "")
 						: "";
-				console.error(`Failed to run \`npx supabase status -o env\`.\n${stderr}`);
+				console.error(
+					`Failed to run \`npx supabase status -o env\`.\n${stderr}`,
+				);
 				process.exit(1);
 			}
 		} else {
@@ -231,7 +268,19 @@ function runCli() {
 	}
 
 	const parsed = parseSupabaseEnv(raw);
-	writeEnvFiles({ parsed, clientEnvPath, serverEnvPath });
+	const partnerPortalJobsApiToken =
+		partnerPortalEnvPaths
+			.map((path) =>
+				extractExistingServerValue(readIfExists(path), "MM_API_TOKEN"),
+			)
+			.find(Boolean) ?? null;
+	writeEnvFiles({
+		parsed,
+		clientEnvPath,
+		serverEnvPath,
+		partnerPortalJobsApiUrl: DEFAULT_PARTNER_PORTAL_JOBS_API_URL,
+		partnerPortalJobsApiToken,
+	});
 
 	const clientExisted = existsSync(clientEnvPath);
 	const serverExisted = existsSync(serverEnvPath);

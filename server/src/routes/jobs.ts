@@ -49,6 +49,32 @@ const PublicJobsResponseSchema = z.object({
 	next_cursor: z.string().nullable(),
 });
 
+const PartnerPortalJobRequestSchema = z.object({
+	id: z.string(),
+	source: z.literal("partner_portal").optional(),
+	user_id: z.string(),
+	status: z.enum(["pending", "approved", "rejected"]),
+	title: z.string(),
+	organization_name: z.string(),
+	logo_url: z.string().nullable().optional(),
+	description_markdown: z.string(),
+	call_to_action: z.string().nullable().optional(),
+	job_type: z.enum(PUBLIC_JOB_TYPES),
+	location: z.string(),
+	contact_name: z.string(),
+	contact_email: z.string(),
+	contact_role: z.string().nullable().optional(),
+	external_url: z.string().nullable().optional(),
+	expires_at: z.string().nullable().optional(),
+	published_at: z.string().nullable().optional(),
+	review_note: z.string().nullable().optional(),
+	created_at: z.string().optional(),
+});
+
+const PartnerPortalJobRequestsResponseSchema = z.array(
+	PartnerPortalJobRequestSchema,
+);
+
 function isHttpUrl(value: string): boolean {
 	if (!URL.canParse(value)) return false;
 	const url = new URL(value);
@@ -123,6 +149,8 @@ const ReviewJobRequestSchema = z.object({
 type PublicJob = z.infer<typeof PublicJobSchema>;
 type PublicJobsResponse = z.infer<typeof PublicJobsResponseSchema>;
 type PublicJobsQuery = z.infer<typeof PublicJobsQuerySchema>;
+type PartnerPortalJobRequest = z.infer<typeof PartnerPortalJobRequestSchema>;
+type ReviewJobRequest = z.infer<typeof ReviewJobRequestSchema>;
 
 type JobPostingRequestRow = {
 	id: string;
@@ -154,6 +182,7 @@ type JobsCursorState = {
 let hasLoggedPartnerConfigWarning = false;
 
 const MEMBER_MANAGER_JOBS_CURSOR_PREFIX = "mm:";
+const PARTNER_JOB_REQUEST_ID_PREFIX = "partner:";
 
 function getPartnerPortalJobsApiConfig(): { url: URL; token: string } | null {
 	const urlValue = process.env.PARTNER_PORTAL_JOBS_API_URL?.trim();
@@ -177,6 +206,25 @@ function warnOnceAboutPartnerConfig(
 	if (hasLoggedPartnerConfigWarning) return;
 	hasLoggedPartnerConfigWarning = true;
 	request.log.warn(message);
+}
+
+function partnerPortalInternalJobRequestsUrl(jobId?: string): URL | null {
+	const config = getPartnerPortalJobsApiConfig();
+	if (!config) return null;
+	const path = jobId
+		? `/api/internal/member-manager/job-requests/${encodeURIComponent(jobId)}`
+		: "/api/internal/member-manager/job-requests";
+	return new URL(path, config.url.origin);
+}
+
+function partnerJobRequestId(id: string): string {
+	return `${PARTNER_JOB_REQUEST_ID_PREFIX}${id}`;
+}
+
+function parsePartnerJobRequestId(id: string): string | null {
+	return id.startsWith(PARTNER_JOB_REQUEST_ID_PREFIX)
+		? id.slice(PARTNER_JOB_REQUEST_ID_PREFIX.length)
+		: null;
 }
 
 function isMissingJobPostingRequestsTable(error: unknown): boolean {
@@ -387,6 +435,198 @@ async function fetchPartnerJobs(
 	}
 }
 
+async function fetchPartnerJobRequests(
+	request: AuthenticatedRequest,
+): Promise<PartnerPortalJobRequest[]> {
+	let config: { url: URL; token: string } | null = null;
+	let upstreamUrl: URL | null = null;
+	try {
+		config = getPartnerPortalJobsApiConfig();
+		upstreamUrl = partnerPortalInternalJobRequestsUrl();
+	} catch (error) {
+		request.log.warn(
+			{ err: error },
+			"Partner Portal job request API config is invalid; serving member job requests only",
+		);
+		return [];
+	}
+
+	if (!config || !upstreamUrl) {
+		warnOnceAboutPartnerConfig(
+			request,
+			"Partner Portal jobs API is not configured; serving member jobs only",
+		);
+		return [];
+	}
+
+	try {
+		const response = await fetchWithTimeout(upstreamUrl, {
+			headers: {
+				accept: "application/json",
+				authorization: `Bearer ${config.token}`,
+			},
+		});
+
+		if (!response.ok) {
+			request.log.warn(
+				{ status: response.status },
+				"Partner Portal job request API returned an error; serving member job requests only",
+			);
+			return [];
+		}
+
+		const rows = PartnerPortalJobRequestsResponseSchema.parse(
+			await response.json(),
+		);
+		return rows.map((row) => ({
+			...row,
+			id: partnerJobRequestId(row.id),
+			source: "partner_portal" as const,
+		}));
+	} catch (error) {
+		request.log.warn(
+			{ err: error },
+			"Failed to load Partner Portal job requests; serving member job requests only",
+		);
+		return [];
+	}
+}
+
+async function reviewPartnerJobRequest(
+	request: AuthenticatedRequest,
+	partnerRequestId: string,
+	review: ReviewJobRequest,
+): Promise<{ statusCode: number; payload: unknown }> {
+	let config: { url: URL; token: string } | null = null;
+	let upstreamUrl: URL | null = null;
+	try {
+		config = getPartnerPortalJobsApiConfig();
+		upstreamUrl = partnerPortalInternalJobRequestsUrl(partnerRequestId);
+	} catch (error) {
+		request.log.warn(
+			{ err: error },
+			"Partner Portal job request API config is invalid",
+		);
+		return {
+			statusCode: 503,
+			payload: { error: "Partner Portal job reviews are not configured" },
+		};
+	}
+
+	if (!config || !upstreamUrl) {
+		return {
+			statusCode: 503,
+			payload: { error: "Partner Portal job reviews are not configured" },
+		};
+	}
+
+	try {
+		const response = await fetchWithTimeout(upstreamUrl, {
+			method: "PATCH",
+			headers: {
+				accept: "application/json",
+				authorization: `Bearer ${config.token}`,
+				"content-type": "application/json",
+			},
+			body: JSON.stringify(review),
+		});
+
+		if (response.ok) {
+			return { statusCode: 200, payload: { ok: true } };
+		}
+		if (response.status === 404) {
+			return { statusCode: 404, payload: { error: "Job request not found" } };
+		}
+		if (response.status === 409) {
+			return {
+				statusCode: 409,
+				payload: { error: "Job request could not be reviewed" },
+			};
+		}
+
+		request.log.warn(
+			{ status: response.status },
+			"Partner Portal job request review failed",
+		);
+		return {
+			statusCode: 502,
+			payload: { error: "Partner Portal job review failed" },
+		};
+	} catch (error) {
+		request.log.warn({ err: error }, "Failed to review Partner Portal job");
+		return {
+			statusCode: 502,
+			payload: { error: "Partner Portal job review failed" },
+		};
+	}
+}
+
+async function removePartnerJobRequest(
+	request: AuthenticatedRequest,
+	partnerRequestId: string,
+): Promise<{ statusCode: number; payload: unknown }> {
+	let config: { url: URL; token: string } | null = null;
+	let upstreamUrl: URL | null = null;
+	try {
+		config = getPartnerPortalJobsApiConfig();
+		upstreamUrl = partnerPortalInternalJobRequestsUrl(partnerRequestId);
+	} catch (error) {
+		request.log.warn(
+			{ err: error },
+			"Partner Portal job request API config is invalid",
+		);
+		return {
+			statusCode: 503,
+			payload: { error: "Partner Portal job removal is not configured" },
+		};
+	}
+
+	if (!config || !upstreamUrl) {
+		return {
+			statusCode: 503,
+			payload: { error: "Partner Portal job removal is not configured" },
+		};
+	}
+
+	try {
+		const response = await fetchWithTimeout(upstreamUrl, {
+			method: "DELETE",
+			headers: {
+				accept: "application/json",
+				authorization: `Bearer ${config.token}`,
+			},
+		});
+
+		if (response.ok) {
+			return { statusCode: 200, payload: { ok: true } };
+		}
+		if (response.status === 404) {
+			return { statusCode: 404, payload: { error: "Job request not found" } };
+		}
+		if (response.status === 409) {
+			return {
+				statusCode: 409,
+				payload: { error: "Job request could not be removed" },
+			};
+		}
+
+		request.log.warn(
+			{ status: response.status },
+			"Partner Portal job request removal failed",
+		);
+		return {
+			statusCode: 502,
+			payload: { error: "Partner Portal job removal failed" },
+		};
+	} catch (error) {
+		request.log.warn({ err: error }, "Failed to remove Partner Portal job");
+		return {
+			statusCode: 502,
+			payload: { error: "Partner Portal job removal failed" },
+		};
+	}
+}
+
 export async function jobRoutes(server: FastifyInstance) {
 	server.get("/jobs", { preHandler: authenticate }, async (request, _reply) => {
 		const user = (request as AuthenticatedRequest).user;
@@ -532,24 +772,39 @@ export async function jobRoutes(server: FastifyInstance) {
 		"/admin/job-requests",
 		{ preHandler: [authenticate, requireAdmin] },
 		async (request, _reply) => {
-			const { data, error } = await getSupabase()
+			const authenticatedRequest = request as AuthenticatedRequest;
+			const partnerRequestsPromise =
+				fetchPartnerJobRequests(authenticatedRequest);
+			const memberRequestsPromise = getSupabase()
 				.from("job_posting_requests")
 				.select("*")
 				.order("created_at", { ascending: false });
+
+			const [partnerRequests, { data, error }] = await Promise.all([
+				partnerRequestsPromise,
+				memberRequestsPromise,
+			]);
 
 			if (error) {
 				if (isMissingJobPostingRequestsTable(error)) {
 					request.log.warn(
 						{ err: error },
-						"Job posting requests table is not available; returning empty admin job request list",
+						"Job posting requests table is not available; returning Partner Portal job requests only",
 					);
-					return [];
+					return partnerRequests;
 				}
 				request.log.error({ err: error }, "Failed to list admin job requests");
 				throw new DatabaseError();
 			}
 
-			return data ?? [];
+			return [
+				...partnerRequests,
+				...((data ?? []) as JobPostingRequestRow[]),
+			].sort((left, right) => {
+				const leftTime = new Date(left.created_at ?? 0).getTime();
+				const rightTime = new Date(right.created_at ?? 0).getTime();
+				return rightTime - leftTime;
+			});
 		},
 	);
 
@@ -560,6 +815,16 @@ export async function jobRoutes(server: FastifyInstance) {
 			const user = (request as AuthenticatedRequest).user;
 			const { requestId } = request.params;
 			const review = ReviewJobRequestSchema.parse(request.body);
+			const partnerRequestId = parsePartnerJobRequestId(requestId);
+
+			if (partnerRequestId) {
+				const result = await reviewPartnerJobRequest(
+					request as AuthenticatedRequest,
+					partnerRequestId,
+					review,
+				);
+				return reply.status(result.statusCode).send(result.payload);
+			}
 
 			const { data: requestRow, error: fetchError } = await getSupabase()
 				.from("job_posting_requests")
@@ -617,6 +882,62 @@ export async function jobRoutes(server: FastifyInstance) {
 			}
 
 			return data;
+		},
+	);
+
+	server.delete<{ Params: { requestId: string } }>(
+		"/admin/job-requests/:requestId",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const { requestId } = request.params;
+			const partnerRequestId = parsePartnerJobRequestId(requestId);
+
+			if (partnerRequestId) {
+				const result = await removePartnerJobRequest(
+					request as AuthenticatedRequest,
+					partnerRequestId,
+				);
+				return reply.status(result.statusCode).send(result.payload);
+			}
+
+			const { data: existing, error: fetchError } = await getSupabase()
+				.from("job_posting_requests")
+				.select("id")
+				.eq("id", requestId)
+				.maybeSingle();
+
+			if (fetchError) {
+				if (isMissingJobPostingRequestsTable(fetchError)) {
+					return reply
+						.status(503)
+						.send({ error: "Job submissions are not available yet" });
+				}
+				request.log.error(
+					{ err: fetchError },
+					"Failed to fetch job request for removal",
+				);
+				throw new DatabaseError();
+			}
+			if (!existing) {
+				return reply.status(404).send({ error: "Job request not found" });
+			}
+
+			const { error } = await getSupabase()
+				.from("job_posting_requests")
+				.delete()
+				.eq("id", requestId);
+
+			if (error) {
+				if (isMissingJobPostingRequestsTable(error)) {
+					return reply
+						.status(503)
+						.send({ error: "Job submissions are not available yet" });
+				}
+				request.log.error({ err: error }, "Failed to remove job request");
+				throw new DatabaseError();
+			}
+
+			return { ok: true };
 		},
 	);
 }

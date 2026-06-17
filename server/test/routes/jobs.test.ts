@@ -190,6 +190,143 @@ describe("Job Routes", async () => {
 		});
 	});
 
+	test("lists pending Partner Portal jobs in the admin job request queue", async () => {
+		process.env.PARTNER_PORTAL_JOBS_API_URL =
+			"https://partnerportal.test/api/public/v1/jobs";
+		process.env.PARTNER_PORTAL_JOBS_API_TOKEN = "test-mm-token";
+
+		let requestedUrl = "";
+		let authorizationHeader = "";
+		globalThis.fetch = async (input, init) => {
+			requestedUrl = String(input);
+			authorizationHeader = String(
+				new Headers(init?.headers).get("authorization") ?? "",
+			);
+			return new Response(
+				JSON.stringify([
+					{
+						id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
+						source: "partner_portal",
+						user_id: "partner-user-1",
+						status: "pending",
+						title: "Partner AI Intern",
+						organization_name: "Example Partner",
+						logo_url: null,
+						description_markdown: "Support partner AI deployments.",
+						call_to_action: "Apply now",
+						job_type: "internship",
+						location: "Munich",
+						contact_name: "Dr. Example",
+						contact_email: "jobs@example.com",
+						contact_role: "Talent",
+						external_url: "https://example.com/jobs/ai-intern",
+						expires_at: null,
+						published_at: null,
+						review_note: null,
+						created_at: "2026-06-14T15:11:19.561Z",
+					},
+				]),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		};
+
+		const response = await app.inject({
+			method: "GET",
+			url: "/api/admin/job-requests",
+			headers: authHeaders(testTokens.admin),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(authorizationHeader, "Bearer test-mm-token");
+		assert.match(
+			requestedUrl,
+			/^https:\/\/partnerportal\.test\/api\/internal\/member-manager\/job-requests$/,
+		);
+		const payload = JSON.parse(response.payload);
+		assert.strictEqual(
+			payload[0].id,
+			"partner:8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
+		);
+		assert.strictEqual(payload[0].source, "partner_portal");
+		assert.strictEqual(payload[0].status, "pending");
+	});
+
+	test("reviews Partner Portal job requests through the internal API", async () => {
+		process.env.PARTNER_PORTAL_JOBS_API_URL =
+			"https://partnerportal.test/api/public/v1/jobs";
+		process.env.PARTNER_PORTAL_JOBS_API_TOKEN = "test-mm-token";
+
+		let requestedUrl = "";
+		let requestedMethod = "";
+		let requestedBody = "";
+		globalThis.fetch = async (input, init) => {
+			requestedUrl = String(input);
+			requestedMethod = String(init?.method ?? "GET");
+			requestedBody = String(init?.body ?? "");
+			assert.strictEqual(
+				new Headers(init?.headers).get("authorization"),
+				"Bearer test-mm-token",
+			);
+			return new Response(JSON.stringify({ ok: true }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		};
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: "/api/admin/job-requests/partner:8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
+			headers: authHeaders(testTokens.admin),
+			payload: {
+				decision: "approved",
+			},
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(requestedMethod, "PATCH");
+		assert.match(
+			requestedUrl,
+			/^https:\/\/partnerportal\.test\/api\/internal\/member-manager\/job-requests\/8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10$/,
+		);
+		assert.deepStrictEqual(JSON.parse(requestedBody), {
+			decision: "approved",
+		});
+	});
+
+	test("removes Partner Portal job requests through the internal API", async () => {
+		process.env.PARTNER_PORTAL_JOBS_API_URL =
+			"https://partnerportal.test/api/public/v1/jobs";
+		process.env.PARTNER_PORTAL_JOBS_API_TOKEN = "test-mm-token";
+
+		let requestedUrl = "";
+		let requestedMethod = "";
+		globalThis.fetch = async (input, init) => {
+			requestedUrl = String(input);
+			requestedMethod = String(init?.method ?? "GET");
+			assert.strictEqual(
+				new Headers(init?.headers).get("authorization"),
+				"Bearer test-mm-token",
+			);
+			return new Response(JSON.stringify({ ok: true }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		};
+
+		const response = await app.inject({
+			method: "DELETE",
+			url: "/api/admin/job-requests/partner:8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
+			headers: authHeaders(testTokens.admin),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(requestedMethod, "DELETE");
+		assert.match(
+			requestedUrl,
+			/^https:\/\/partnerportal\.test\/api\/internal\/member-manager\/job-requests\/8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10$/,
+		);
+	});
+
 	test("applies public job filters and limits to approved member jobs", async () => {
 		mockDatabase.job_posting_requests.push(
 			{
@@ -522,8 +659,15 @@ describe("Job Routes", async () => {
 			code: "PGRST205",
 			message: "Could not find the table 'public.job_posting_requests'",
 		};
-		globalThis.fetch = async () =>
-			new Response(
+		globalThis.fetch = async (input) => {
+			if (String(input).includes("/api/internal/member-manager/job-requests")) {
+				return new Response(JSON.stringify([]), {
+					status: 200,
+					headers: { "content-type": "application/json" },
+				});
+			}
+
+			return new Response(
 				JSON.stringify({
 					data: [
 						{
@@ -552,6 +696,7 @@ describe("Job Routes", async () => {
 				}),
 				{ status: 200, headers: { "content-type": "application/json" } },
 			);
+		};
 
 		const jobsResponse = await app.inject({
 			method: "GET",
@@ -717,6 +862,38 @@ describe("Job Routes", async () => {
 		});
 
 		assert.strictEqual(response.statusCode, 403);
+	});
+
+	test("lets admins remove member job requests", async () => {
+		mockDatabase.job_posting_requests.push({
+			id: "member-job-pending",
+			user_id: testUserIds.user,
+			status: "pending",
+			title: "AI Product Intern",
+			organization_name: "Example Lab",
+			logo_url: null,
+			description_markdown: "Support product research for AI tooling.",
+			call_to_action: "Apply now",
+			job_type: "internship",
+			location: "Remote",
+			contact_name: "Test User",
+			contact_email: "jobs@example.com",
+			contact_role: null,
+			external_url: null,
+			expires_at: null,
+			published_at: null,
+			created_at: "2026-06-10T10:00:00.000Z",
+		});
+
+		const response = await app.inject({
+			method: "DELETE",
+			url: "/api/admin/job-requests/member-job-pending",
+			headers: authHeaders(testTokens.admin),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.deepStrictEqual(JSON.parse(response.payload), { ok: true });
+		assert.strictEqual(mockDatabase.job_posting_requests.length, 0);
 	});
 
 	test("rejects non-http submitted job URLs", async () => {

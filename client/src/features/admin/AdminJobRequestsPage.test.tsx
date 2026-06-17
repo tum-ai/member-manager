@@ -3,8 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import AdminJobRequestsPage from "./AdminJobRequestsPage";
 
-const { reviewJobRequestAsync } = vi.hoisted(() => ({
+const { reviewJobRequestAsync, removeJobRequestAsync } = vi.hoisted(() => ({
 	reviewJobRequestAsync: vi.fn(),
+	removeJobRequestAsync: vi.fn(),
 }));
 
 vi.mock("../../hooks/useAdminData", () => ({
@@ -33,11 +34,30 @@ vi.mock("../../hooks/useAdminData", () => ({
 				contact_role: "Founder",
 				external_url: "https://example.com/jobs/ml",
 				expires_at: null,
+				source: "member_manager",
+			},
+			{
+				id: "job-request-2",
+				user_id: null,
+				status: "pending",
+				title: "Partner Data Scientist",
+				organization_name: "Partner Corp",
+				description_markdown: "Join our data team.",
+				call_to_action: "Apply now",
+				job_type: "full_time",
+				location: "Berlin",
+				contact_name: "Bob Partner",
+				contact_email: "bob@partner.com",
+				contact_role: "Recruiter",
+				external_url: "https://partner.com/jobs/ds",
+				expires_at: null,
+				source: "partner_portal",
 			},
 		],
 		isLoading: false,
 		error: null,
 		reviewJobRequestAsync,
+		removeJobRequestAsync,
 		isReviewingJobRequest: false,
 	}),
 }));
@@ -70,5 +90,32 @@ describe("AdminJobRequestsPage", () => {
 				decision: "approved",
 			});
 		});
+	});
+
+	it("labels partner portal submissions", () => {
+		render(<AdminJobRequestsPage />);
+
+		expect(screen.getByText("Partner Portal")).toBeInTheDocument();
+		expect(
+			screen.getByText(/Submitted via: Partner Portal/i),
+		).toBeInTheDocument();
+	});
+
+	it("removes a job request after confirmation", async () => {
+		const user = userEvent.setup();
+		const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+		render(<AdminJobRequestsPage />);
+
+		await user.click(
+			screen.getByRole("button", {
+				name: /remove job posting request for partner portal/i,
+			}),
+		);
+
+		await waitFor(() => {
+			expect(removeJobRequestAsync).toHaveBeenCalledWith("job-request-2");
+		});
+
+		confirmSpy.mockRestore();
 	});
 });

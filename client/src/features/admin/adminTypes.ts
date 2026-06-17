@@ -33,6 +33,7 @@ export interface EngagementCertificateRequest {
 
 export interface JobPostingRequest {
 	id: string;
+	source?: "member_manager" | "partner_portal";
 	user_id: string;
 	status: "pending" | "approved" | "rejected";
 	title: string;
