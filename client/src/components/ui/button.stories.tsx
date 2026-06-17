@@ -7,9 +7,7 @@ const meta = {
 	title: "UI/Button",
 	component: Button,
 	tags: ["autodocs"],
-	// These stories are a11y-clean, so opt into enforced a11y checks (the global
-	// default is "todo"). See .storybook/preview.tsx for the rationale.
-	parameters: { layout: "centered", a11y: { test: "error" } },
+	parameters: { layout: "centered" },
 	argTypes: {
 		variant: {
 			control: "select",

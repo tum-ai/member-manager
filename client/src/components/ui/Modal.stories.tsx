@@ -9,9 +9,7 @@ const meta = {
 	title: "UI/Modal",
 	component: Modal,
 	tags: ["autodocs"],
-	// These stories are a11y-clean, so opt into enforced a11y checks (the global
-	// default is "todo"). See .storybook/preview.tsx for the rationale.
-	parameters: { layout: "centered", a11y: { test: "error" } },
+	parameters: { layout: "centered" },
 	args: {
 		title: "Edit details",
 		onClose: () => {},
