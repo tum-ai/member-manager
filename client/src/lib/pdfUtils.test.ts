@@ -267,7 +267,7 @@ describe("downloadPdfBlob", () => {
 	it("opens a new tab on mobile devices", () => {
 		stubUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)");
 		const open = vi.fn(() => ({}) as Window);
-		window.open = open as unknown as typeof window.open;
+		vi.stubGlobal("open", open);
 
 		downloadPdfBlob(new Blob(["pdf"]), "file.pdf");
 
@@ -280,7 +280,7 @@ describe("downloadPdfBlob", () => {
 	it("treats touch-capable Macs (iPadOS) as mobile", () => {
 		stubUserAgent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)", 5);
 		const open = vi.fn(() => ({}) as Window);
-		window.open = open as unknown as typeof window.open;
+		vi.stubGlobal("open", open);
 
 		downloadPdfBlob(new Blob(["pdf"]), "file.pdf");
 
@@ -290,11 +290,12 @@ describe("downloadPdfBlob", () => {
 	it("falls back to an anchor when the popup is blocked on mobile", () => {
 		stubUserAgent("Mozilla/5.0 (Android 14; Mobile)");
 		const open = vi.fn(() => null);
-		window.open = open as unknown as typeof window.open;
+		vi.stubGlobal("open", open);
 		const anchor = document.createElement("a");
 		const click = vi.spyOn(anchor, "click").mockImplementation(() => {});
 		vi.spyOn(document, "createElement").mockReturnValueOnce(anchor);
 		const append = vi.spyOn(document.body, "appendChild");
+		const remove = vi.spyOn(document.body, "removeChild");
 
 		downloadPdfBlob(new Blob(["pdf"]), "file.pdf");
 
@@ -303,5 +304,6 @@ describe("downloadPdfBlob", () => {
 		expect(anchor.target).toBe("_blank");
 		expect(click).toHaveBeenCalledTimes(1);
 		expect(append).toHaveBeenCalledWith(anchor);
+		expect(remove).toHaveBeenCalledWith(anchor);
 	});
 });
