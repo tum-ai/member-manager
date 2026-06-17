@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { apiClient } from "../lib/apiClient";
-import type { ResearchProject } from "../types";
+import { apiClient } from "@/lib/apiClient";
+import type { ResearchProject } from "@/types";
 
 export function useResearchProjects() {
 	const {

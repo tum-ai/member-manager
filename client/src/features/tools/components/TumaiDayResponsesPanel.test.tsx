@@ -5,7 +5,7 @@ import type {
 	EventResponsesPayload,
 	RSVPResponse,
 	TumaiDayEvent,
-} from "../tumaiDaysTypes";
+} from "@/features/tools/tumaiDaysTypes";
 import { TumaiDayResponsesPanel } from "./TumaiDayResponsesPanel";
 
 const event: TumaiDayEvent = {

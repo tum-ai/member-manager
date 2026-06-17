@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { Member } from "../../types";
+import type { Member } from "@/types";
 import { OrgChartTeamCard, renderMembers } from "./orgChartShared";
 import { buildOrgChart } from "./orgChartUtils";
 

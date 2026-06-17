@@ -35,16 +35,16 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Textarea } from "@/components/ui/textarea";
-import { cn } from "@/lib/utils";
-import { useToast } from "../../contexts/ToastContext";
+import { useToast } from "@/contexts/ToastContext";
+import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import {
 	type JobPostingRequest,
 	type JobPostingRequestPayload,
 	type JobType,
 	type PartnerJob,
 	useJobs,
-} from "../../hooks/useJobs";
-import { ToolPageShell } from "../tools/ToolPageShell";
+} from "@/hooks/useJobs";
+import { cn } from "@/lib/utils";
 
 const jobTypeLabels: Record<JobType, string> = {
 	internship: "Internship",

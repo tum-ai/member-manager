@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildBatchOptions, getCurrentBatch } from "../../lib/constants";
+import { buildBatchOptions, getCurrentBatch } from "@/lib/constants";
 import { buildSelfServiceMemberUpdatePayload } from "./profileFormUtils";
 
 describe("ProfilePage", () => {

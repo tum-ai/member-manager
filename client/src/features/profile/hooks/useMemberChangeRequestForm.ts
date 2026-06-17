@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { useToast } from "../../../contexts/ToastContext";
+import { useToast } from "@/contexts/ToastContext";
+import { normalizeTextValue } from "@/features/profile/profileUtils";
 import {
 	type MemberChangeRequest,
 	useMemberChangeRequests,
-} from "../../../hooks/useMemberChangeRequests";
-import { normalizeTextValue } from "../profileUtils";
+} from "@/hooks/useMemberChangeRequests";
 
 export interface UseMemberChangeRequestFormResult {
 	requestedRole: string;

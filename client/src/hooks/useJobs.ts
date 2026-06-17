@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../lib/apiClient";
-import { fetchAllPartnerJobPages } from "../lib/jobs";
+import { apiClient } from "@/lib/apiClient";
+import { fetchAllPartnerJobPages } from "@/lib/jobs";
 
 export type JobType =
 	| "internship"

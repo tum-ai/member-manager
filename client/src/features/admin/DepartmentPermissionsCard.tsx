@@ -24,9 +24,9 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useToast } from "../../contexts/ToastContext";
-import { useDepartmentPermissions } from "../../hooks/useDepartmentPermissions";
-import { DEPARTMENTS } from "../../lib/constants";
+import { useToast } from "@/contexts/ToastContext";
+import { useDepartmentPermissions } from "@/hooks/useDepartmentPermissions";
+import { DEPARTMENTS } from "@/lib/constants";
 
 // Canonical-order serialization so we can compare the working draft against the
 // saved baseline regardless of how the permissions arrays happen to be ordered.

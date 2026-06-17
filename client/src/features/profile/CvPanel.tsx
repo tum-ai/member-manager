@@ -4,13 +4,13 @@ import { useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Spinner } from "@/components/ui/spinner";
-import { GlassCard } from "../../components/ui/GlassCard";
-import { useToast } from "../../contexts/ToastContext";
-import { useMemberCv } from "../../hooks/useMemberCv";
-import { downloadPdfBlob } from "../../lib/pdfUtils";
+import { useToast } from "@/contexts/ToastContext";
+import { useMemberCv } from "@/hooks/useMemberCv";
+import { downloadPdfBlob } from "@/lib/pdfUtils";
 
 const SOURCE_LABELS: Record<string, string> = {
 	application: "From application",

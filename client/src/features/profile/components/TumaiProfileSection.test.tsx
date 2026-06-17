@@ -2,9 +2,9 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useForm } from "react-hook-form";
 import { describe, expect, it } from "vitest";
-import { BATCH_OPTIONS } from "../../../lib/constants";
-import type { MemberSchema } from "../../../lib/schemas";
-import type { ResearchProject } from "../../../types";
+import { BATCH_OPTIONS } from "@/lib/constants";
+import type { MemberSchema } from "@/lib/schemas";
+import type { ResearchProject } from "@/types";
 import { TumaiProfileSection } from "./TumaiProfileSection";
 
 const ids = {

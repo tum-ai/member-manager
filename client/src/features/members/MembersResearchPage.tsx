@@ -1,5 +1,5 @@
-import { useMembersListData } from "../../hooks/useMembersListData";
-import { useResearchProjects } from "../../hooks/useResearchProjects";
+import { useMembersListData } from "@/hooks/useMembersListData";
+import { useResearchProjects } from "@/hooks/useResearchProjects";
 import { buildOrgChart } from "./orgChartUtils";
 import {
 	ProjectsEmptyState,

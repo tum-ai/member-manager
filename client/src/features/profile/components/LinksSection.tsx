@@ -3,10 +3,10 @@ import type { UseFormReturn } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
+import type { LinkedinSchema } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
-import { GlassCard } from "../../../components/ui/GlassCard";
-import type { LinkedinSchema } from "../../../lib/schemas";
 import { SectionHeading } from "./SectionHeading";
 
 interface LinksSectionProps {

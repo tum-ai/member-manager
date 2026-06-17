@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useForm } from "react-hook-form";
 import { describe, expect, it } from "vitest";
-import type { MemberSchema } from "../../../lib/schemas";
+import type { MemberSchema } from "@/lib/schemas";
 import { PersonalInfoSection } from "./PersonalInfoSection";
 
 const ids = {

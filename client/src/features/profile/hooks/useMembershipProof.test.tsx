@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Member } from "../../../types";
+import type { Member } from "@/types";
 import { useMembershipProof } from "./useMembershipProof";
 
 const showToast = vi.fn();

@@ -1,9 +1,9 @@
 import type { UseFormReturn } from "react-hook-form";
-import { Modal } from "../../../components/ui/Modal";
-import type { SepaSchema } from "../../../lib/schemas";
-import { DataPrivacyNotice } from "../../legal/DataPrivacyNotice";
-import { PrivacyPolicy } from "../../legal/PrivacyPolicy";
-import { SepaMandate } from "../../sepa/SepaMandate";
+import { Modal } from "@/components/ui/Modal";
+import { DataPrivacyNotice } from "@/features/legal/DataPrivacyNotice";
+import { PrivacyPolicy } from "@/features/legal/PrivacyPolicy";
+import { SepaMandate } from "@/features/sepa/SepaMandate";
+import type { SepaSchema } from "@/lib/schemas";
 
 interface ProfileAgreementModalsProps {
 	sepaForm: UseFormReturn<SepaSchema>;

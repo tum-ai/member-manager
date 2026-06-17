@@ -3,11 +3,11 @@ import type { UseFormReturn } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LinkButton } from "@/components/ui/link-button";
-import { GlassCard } from "../../../components/ui/GlassCard";
-import type { SepaSchema } from "../../../lib/schemas";
+import type { SepaSchema } from "@/lib/schemas";
 import { SectionHeading } from "./SectionHeading";
 
 interface SepaPanelProps {

@@ -4,13 +4,13 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
+import type { NavItem } from "@/features/profile/profileTypes";
+import { proxiedAvatarUrl } from "@/lib/avatarUrl";
+import { getMemberStatusLabel } from "@/lib/memberMetadata";
 import { cn } from "@/lib/utils";
-import { GlassCard } from "../../../components/ui/GlassCard";
-import { proxiedAvatarUrl } from "../../../lib/avatarUrl";
-import { getMemberStatusLabel } from "../../../lib/memberMetadata";
-import type { NavItem } from "../profileTypes";
 
 interface ProfileSidebarProps {
 	avatarUrl?: string | null;

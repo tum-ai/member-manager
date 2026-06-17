@@ -2,8 +2,8 @@ import { Briefcase, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Markdown } from "@/components/ui/markdown";
-import { useToast } from "../../contexts/ToastContext";
-import { useAdminData } from "../../hooks/useAdminData";
+import { useToast } from "@/contexts/ToastContext";
+import { useAdminData } from "@/hooks/useAdminData";
 import { AdminRequestsLayout } from "./AdminRequestsLayout";
 import {
 	adminJobTypeLabels,

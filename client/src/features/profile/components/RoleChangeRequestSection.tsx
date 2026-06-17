@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -18,10 +19,13 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { GlassCard } from "../../../components/ui/GlassCard";
-import type { MemberChangeRequest } from "../../../hooks/useMemberChangeRequests";
-import { DEPARTMENTS, MEMBER_ROLES } from "../../../lib/constants";
-import { fromSelectValue, NONE_VALUE, toSelectValue } from "../profileUtils";
+import {
+	fromSelectValue,
+	NONE_VALUE,
+	toSelectValue,
+} from "@/features/profile/profileUtils";
+import type { MemberChangeRequest } from "@/hooks/useMemberChangeRequests";
+import { DEPARTMENTS, MEMBER_ROLES } from "@/lib/constants";
 import { SectionHeading } from "./SectionHeading";
 
 interface RoleChangeRequestSectionProps {

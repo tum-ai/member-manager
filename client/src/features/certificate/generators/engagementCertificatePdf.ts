@@ -6,9 +6,9 @@ import {
 	formatGermanDate,
 	getTodayGermanDate,
 	PDF_COLORS,
-} from "../../../lib/pdfUtils";
-import type { EngagementSchema } from "../../../lib/schemas";
-import type { Member } from "../../../types";
+} from "@/lib/pdfUtils";
+import type { EngagementSchema } from "@/lib/schemas";
+import type { Member } from "@/types";
 
 export interface EngagementCertificateOptions {
 	president?: BoardMember;

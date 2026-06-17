@@ -1,5 +1,5 @@
-import { useInnovationProjects } from "../../hooks/useInnovationProjects";
-import { useMembersListData } from "../../hooks/useMembersListData";
+import { useInnovationProjects } from "@/hooks/useInnovationProjects";
+import { useMembersListData } from "@/hooks/useMembersListData";
 import { buildOrgChart } from "./orgChartUtils";
 import {
 	InnovationProjectsSection,

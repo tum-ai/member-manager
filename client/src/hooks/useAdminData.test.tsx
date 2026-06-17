@@ -1,7 +1,7 @@
 import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { HttpResponse, http, server } from "../test/mswServer";
-import { renderHookWithClient } from "../test/renderWithClient";
+import { HttpResponse, http, server } from "@/test/mswServer";
+import { renderHookWithClient } from "@/test/renderWithClient";
 import { useAdminData } from "./useAdminData";
 
 vi.mock("../lib/supabaseClient", () => ({

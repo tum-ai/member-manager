@@ -2,6 +2,7 @@ import { GraduationCap } from "lucide-react";
 import type { UseFormReturn } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -10,17 +11,16 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { GlassCard } from "../../../components/ui/GlassCard";
+import { EducationFields } from "@/features/profile/EducationFields";
 import {
-	BATCH_OPTIONS,
-	DEPARTMENTS,
-	MEMBER_ROLES,
-} from "../../../lib/constants";
-import { resolveDepartmentForMemberRole } from "../../../lib/memberMetadata";
-import type { MemberSchema } from "../../../lib/schemas";
-import type { ResearchProject } from "../../../types";
-import { EducationFields } from "../EducationFields";
-import { fromSelectValue, NONE_VALUE, toSelectValue } from "../profileUtils";
+	fromSelectValue,
+	NONE_VALUE,
+	toSelectValue,
+} from "@/features/profile/profileUtils";
+import { BATCH_OPTIONS, DEPARTMENTS, MEMBER_ROLES } from "@/lib/constants";
+import { resolveDepartmentForMemberRole } from "@/lib/memberMetadata";
+import type { MemberSchema } from "@/lib/schemas";
+import type { ResearchProject } from "@/types";
 import { SectionHeading } from "./SectionHeading";
 
 interface TumaiProfileSectionProps {

@@ -38,8 +38,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Textarea } from "@/components/ui/textarea";
+import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { cn } from "@/lib/utils";
-import { ToolPageShell } from "../tools/ToolPageShell";
 import {
 	type ContractConditionType,
 	type ContractTemplate,

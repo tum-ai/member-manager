@@ -1,8 +1,8 @@
 import { act, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { HttpResponse, http, server } from "../../../test/mswServer";
-import { renderHookWithClient } from "../../../test/renderWithClient";
-import type { TumaiDayEvent } from "../tumaiDaysTypes";
+import type { TumaiDayEvent } from "@/features/tools/tumaiDaysTypes";
+import { HttpResponse, http, server } from "@/test/mswServer";
+import { renderHookWithClient } from "@/test/renderWithClient";
 import { useTumaiDays } from "./useTumaiDays";
 
 const showToast = vi.fn();

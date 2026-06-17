@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Label } from "@/components/ui/label";
 import { LinkButton } from "@/components/ui/link-button";
 import {
@@ -21,9 +22,8 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { DEPARTMENTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { GlassCard } from "../../components/ui/GlassCard";
-import { DEPARTMENTS } from "../../lib/constants";
 import { ReimbursementReviewActions } from "./ReimbursementReviewActions";
 import {
 	formatReviewAmount,

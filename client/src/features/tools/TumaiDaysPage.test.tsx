@@ -1,8 +1,8 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { HttpResponse, http, server } from "../../test/mswServer";
-import { renderWithClient } from "../../test/renderWithClient";
+import { HttpResponse, http, server } from "@/test/mswServer";
+import { renderWithClient } from "@/test/renderWithClient";
 import TumaiDaysPage from "./TumaiDaysPage";
 import type { TumaiDayEvent } from "./tumaiDaysTypes";
 

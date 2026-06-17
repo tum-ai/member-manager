@@ -1,6 +1,6 @@
 import { act, renderHook } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AdminMember } from "../adminUtils";
+import type { AdminMember } from "@/features/admin/adminUtils";
 import { useAdminDatabase } from "./useAdminDatabase";
 
 const adminDataState: {

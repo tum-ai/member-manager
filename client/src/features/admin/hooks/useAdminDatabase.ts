@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import * as XLSX from "xlsx";
-import { useAdminData } from "../../../hooks/useAdminData";
-import { initialFilters } from "../adminDatabaseViewTypes";
-import { buildExportRows, rowsToCsv } from "../adminExportUtils";
+import { initialFilters } from "@/features/admin/adminDatabaseViewTypes";
+import { buildExportRows, rowsToCsv } from "@/features/admin/adminExportUtils";
 import {
 	type AdminFilters,
 	type AdminMember,
@@ -11,7 +10,8 @@ import {
 	hasMandateAgreement,
 	hasPrivacyAgreement,
 	sortAdminMembers,
-} from "../adminUtils";
+} from "@/features/admin/adminUtils";
+import { useAdminData } from "@/hooks/useAdminData";
 
 function triggerDownload(blob: Blob, filename: string) {
 	const url = URL.createObjectURL(blob);

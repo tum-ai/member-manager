@@ -1,17 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-import { useToast } from "../../../contexts/ToastContext";
-import { apiClient } from "../../../lib/apiClient";
+import { useToast } from "@/contexts/ToastContext";
 import type {
 	EventResponsesPayload,
 	ResponseStatusFilter,
 	TumaiDayEvent,
-} from "../tumaiDaysTypes";
+} from "@/features/tools/tumaiDaysTypes";
 import {
 	computeResponseRate,
 	filterResponses,
 	toLocalDateTimeInput,
-} from "../tumaiDaysUtils";
+} from "@/features/tools/tumaiDaysUtils";
+import { apiClient } from "@/lib/apiClient";
 
 export function useTumaiDays() {
 	const { showToast } = useToast();

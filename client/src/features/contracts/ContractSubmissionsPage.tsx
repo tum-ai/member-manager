@@ -22,8 +22,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { useCurrentUserIsAdmin } from "../../hooks/useCurrentUserIsAdmin";
-import { ToolPageShell } from "../tools/ToolPageShell";
+import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import {
 	CONTRACT_STATUS_LABELS,
 	getContractStatusLabel,

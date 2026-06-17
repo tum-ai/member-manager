@@ -6,8 +6,8 @@ import {
 	formatGermanDate,
 	getTodayGermanDate,
 	PDF_COLORS,
-} from "../../../lib/pdfUtils";
-import type { Member } from "../../../types";
+} from "@/lib/pdfUtils";
+import type { Member } from "@/types";
 
 export interface MembershipProofOptions {
 	president?: BoardMember;
