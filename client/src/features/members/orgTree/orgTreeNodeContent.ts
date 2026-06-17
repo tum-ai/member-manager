@@ -35,8 +35,8 @@ function avatarHtml(member: Member, size: number, isBoard = false): string {
 		"overflow:hidden;background:var(--muted);";
 	const fallback =
 		`<div style="position:absolute;inset:0;display:flex;align-items:center;` +
-		`justify-content:center;color:var(--muted-foreground);font-weight:600;` +
-		`font-size:${Math.round(size * 0.34)}px;">${initials}</div>`;
+		`justify-content:center;background:var(--muted);color:var(--foreground);` +
+		`font-weight:600;font-size:${Math.round(size * 0.34)}px;">${initials}</div>`;
 	const proxied = proxiedAvatarUrl(member.avatar_url);
 	const url = proxied ? escapeHtml(proxied) : "";
 	const img = url
