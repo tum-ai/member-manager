@@ -188,19 +188,24 @@ Verification tests that hit a running local stack live in `scripts/verify-*.test
 
 ## Local hooks and full gate
 
-Install the repo-managed Git hook once:
+Git hooks install automatically on `pnpm install` (via the `prepare` script). To (re)install manually:
 
 ```bash
 pnpm hooks:install
 ```
 
-This writes `.git/hooks/pre-commit`, which runs a fast staged-file Biome check:
+This writes two hooks:
+
+- `.git/hooks/pre-commit` — fast staged-file Biome check (`pnpm lint:staged`).
+- `.git/hooks/pre-push` — enforcing fast gate (`pnpm lint && pnpm typecheck`); bypass a one-off push with `git push --no-verify`.
+
+The installer is conservative: it refuses to overwrite a *custom* `pre-commit`/`pre-push` hook, but transparently upgrades the previous repo-managed pre-push hooks. It skips silently when there is no `.git` directory (CI, Git worktrees, tarball installs), so `pnpm install` never fails on hook setup.
+
+For a quick read-only environment check (Node vs `.nvmrc`, `.env.local` files, local Supabase reachability):
 
 ```bash
-pnpm lint:staged
+pnpm doctor
 ```
-
-The installer is intentionally conservative: it refuses to overwrite a custom existing `pre-commit` hook. If it finds the previous repo-managed full-gate `pre-push` hook, it disables it by moving it to `.git/hooks/pre-push.member-manager-full-gate.disabled`; custom `pre-push` hooks are left untouched.
 
 The full merge gate remains:
 
@@ -218,15 +223,16 @@ Run `pnpm gate` manually before PRs, deploys, or risky changes. CI runs the full
 
 ## CI gates and ratcheting
 
-CI (`.github/workflows/`) runs each gate as its own job so failures are isolated. The toolchain setup (pnpm + Node + install + `build:shared`) is shared via the `./.github/actions/setup` composite action.
+CI (`.github/workflows/`) runs each gate as its own job so failures are isolated. The toolchain setup (pnpm + Node + install + `build:shared`) is shared via the `./.github/actions/setup` composite action. `build`/`typecheck`/`lint`/`test` run through **Turborepo** (`turbo run …`) with the Vercel remote cache; see [deployment.md](./deployment.md#6-github-actions-secrets-turborepo-remote-cache) for the `TURBO_TOKEN`/`TURBO_TEAM` setup. The heavy jobs (E2E, Storybook, Supabase reset, Bundle Size) are **path-gated**: on a docs-only PR their expensive steps skip while the job still reports green, so branch protection is unaffected.
 
 | Job (workflow) | Command | Notes |
 | --- | --- | --- |
 | Lint | `pnpm lint` | Biome + file-size guardrail (`check-file-size.mjs`, hard-fails >700-line feature/layout `.tsx` — see "Frontend code standards") |
 | Typecheck | `pnpm typecheck` | `tsc --noEmit` per package |
 | Build | `pnpm build` | |
-| Test | `pnpm test:coverage` | Vitest (client) + c8 (server), coverage uploaded to Codecov |
-| Workflow Lint | actionlint + zizmor | zizmor is advisory for now |
+| Test | `pnpm test:coverage` | Vitest (client) + c8 (server) + `pnpm test:scripts` (includes seed↔fixture parity), coverage uploaded to Codecov |
+| Bundle Size | `node scripts/check-bundle-size.mjs` | gzip-measures built client JS against a budget; advisory (not a required check yet) |
+| Workflow Lint | actionlint + zizmor | zizmor is advisory: the workflow baseline still has unpinned-action / `pull_request_target` findings to address before it can be a hard gate |
 | Spell Check | `crate-ci/typos` | config in `_typos.toml` |
 | E2E (`e2e.yml`) | `pnpm test:e2e` | Playwright smoke vs a real local Supabase stack |
 | Dependency Review (`dependency-review.yml`) | — | fails on high-severity advisories |
