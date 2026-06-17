@@ -13,9 +13,12 @@ concurrency:
 
 # Turborepo remote cache (Vercel). Absent secrets (forks / before setup) simply
 # disable remote caching; turbo still runs every task locally, so CI stays green.
+# Only main may WRITE the shared cache (remote:rw); every PR is read-only
+# (remote:r) so a PR can never poison the cache that later runs trust.
 env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  TURBO_CACHE: ${{ github.ref == 'refs/heads/main' && 'remote:rw,local:rw' || 'remote:r,local:rw' }}
 
 jobs:
   # Detect whether a PR touches anything beyond docs / Supabase, so the heavy
