@@ -5,12 +5,18 @@ Package: `@member-manager/client`.
 
 ## Module map
 
-- `src/features/<domain>/` — one folder per domain. Inside:
+- `src/features/<domain>/` — one folder per domain. Target layout (the convention to grow
+  toward — several older features still keep components/utils loose at the root). Inside:
   - `*Page.tsx` — thin route component (~90 lines, default export allowed here). Pulls everything
     from its hook, renders sections. Exemplar: `features/tools/TumaiDaysPage.tsx`.
+  - `<domain>Types.ts` / `<domain>Utils.ts` — feature-local types and pure helpers (+ their
+    `.test.ts`). Exemplars: `features/tools/tumaiDaysTypes.ts`, `tumaiDaysUtils.ts`.
   - `hooks/use*.ts` — all state/data/handlers: TanStack Query `useQuery`/`useMutation`, `useState`,
     toasts via `contexts/ToastContext` (`useToast()`). Exemplar: `features/tools/hooks/useTumaiDays.ts`.
-  - `components/*Section.tsx` / `*Panel.tsx` / `*Form.tsx` — presentational, prop-driven.
+  - `components/*.tsx` — presentational sections (`*Section`/`*Panel`/`*Form`/`*Card`), prop-driven.
+    A feature-level shell/layout wrapper may sit at the root (e.g. `features/tools/ToolPageShell.tsx`),
+    but individual sections belong in `components/`, not loose at the feature root.
+  - Cross-feature shared code goes in `src/lib`, `src/hooks`, or `src/components` (via `@/`), not here.
 - `src/components/ui/` — shadcn/radix primitives (exempt from size + default-export rules). Don't hand-roll.
 - `src/components/layout/`, `src/components/foundations/` — shell + design primitives.
 - `src/lib/apiClient.ts` — the only way to call the backend. `src/lib/queryClient.ts` — query client.
@@ -29,6 +35,11 @@ Package: `@member-manager/client`.
 - **Responsive + dark mode are product requirements.** Mobile-first (`grid-cols-1 md:grid-cols-12`),
   dark-mode parity via next-themes. Not optional polish.
 - **Tests** — every hook/util gets a Vitest test; interactive components get a Storybook play + a11y story.
+- **New feature = both test layers.** Verify any new feature with Vitest unit/integration tests **and**
+  a Playwright E2E spec for its primary flow (`pnpm test:e2e`, see `e2e/CLAUDE.md`) before merging.
+- **Any functionality change ships with test changes** covering the new behaviour, in the same PR.
+- **Every bug fix adds a regression test.** A user-reported failure affecting functionality gets a
+  test reproducing that exact case (fails before the fix, passes after) so it can't silently return.
 
 ## Commands
 
