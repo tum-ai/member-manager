@@ -60,4 +60,72 @@ describe("DataPrivacyNotice", () => {
 
 		expect(onCheckChange).toHaveBeenLastCalledWith(false);
 	});
+
+	it("toggles each consent checkbox independently", async () => {
+		const user = userEvent.setup();
+		render(<DataPrivacyNotice dataPrivacyNoticeAgreed={false} />);
+
+		const [websiteProfile, eventPhotos, partnerSharing] =
+			screen.getAllByRole("checkbox");
+
+		await user.click(websiteProfile);
+		expect(websiteProfile).toBeChecked();
+		expect(eventPhotos).not.toBeChecked();
+		expect(partnerSharing).not.toBeChecked();
+
+		await user.click(partnerSharing);
+		expect(websiteProfile).toBeChecked();
+		expect(eventPhotos).not.toBeChecked();
+		expect(partnerSharing).toBeChecked();
+
+		await user.click(websiteProfile);
+		expect(websiteProfile).not.toBeChecked();
+		expect(eventPhotos).not.toBeChecked();
+		expect(partnerSharing).toBeChecked();
+	});
+
+	it("withholds full consent through every partial selection", async () => {
+		const user = userEvent.setup();
+		const onCheckChange = vi.fn();
+		render(
+			<DataPrivacyNotice
+				dataPrivacyNoticeAgreed={false}
+				onCheckChange={onCheckChange}
+			/>,
+		);
+
+		expect(onCheckChange).toHaveBeenLastCalledWith(false);
+
+		const checkboxes = screen.getAllByRole("checkbox");
+
+		await user.click(checkboxes[0]);
+		// One of three checked — not full consent.
+		expect(onCheckChange).toHaveBeenLastCalledWith(false);
+
+		await user.click(checkboxes[1]);
+		// Two of three checked — still not full consent.
+		expect(onCheckChange).toHaveBeenLastCalledWith(false);
+
+		expect(onCheckChange).not.toHaveBeenCalledWith(true);
+	});
+
+	it("round-trips full consent on and back off", async () => {
+		const user = userEvent.setup();
+		const onCheckChange = vi.fn();
+		render(
+			<DataPrivacyNotice
+				dataPrivacyNoticeAgreed={false}
+				onCheckChange={onCheckChange}
+			/>,
+		);
+
+		const checkboxes = screen.getAllByRole("checkbox");
+		for (const checkbox of checkboxes) {
+			await user.click(checkbox);
+		}
+		expect(onCheckChange).toHaveBeenLastCalledWith(true);
+
+		await user.click(checkboxes[1]);
+		expect(onCheckChange).toHaveBeenLastCalledWith(false);
+	});
 });

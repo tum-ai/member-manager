@@ -42,4 +42,43 @@ describe("PrivacyPolicy", () => {
 		rerender(<PrivacyPolicy privacyAgreed={true} />);
 		expect(screen.getByRole("checkbox")).toBeChecked();
 	});
+
+	it("fires the callback on mount with the initial agreed value", () => {
+		const onCheckChange = vi.fn();
+		render(
+			<PrivacyPolicy privacyAgreed={true} onCheckChange={onCheckChange} />,
+		);
+
+		expect(onCheckChange).toHaveBeenCalledWith(true);
+	});
+
+	it("reports false when toggled from checked to unchecked", async () => {
+		const user = userEvent.setup();
+		const onCheckChange = vi.fn();
+		render(
+			<PrivacyPolicy privacyAgreed={true} onCheckChange={onCheckChange} />,
+		);
+
+		expect(onCheckChange).toHaveBeenLastCalledWith(true);
+
+		await user.click(screen.getByRole("checkbox"));
+
+		expect(onCheckChange).toHaveBeenLastCalledWith(false);
+	});
+
+	it("toggles the checkbox when its associated label is clicked", async () => {
+		const user = userEvent.setup();
+		render(<PrivacyPolicy privacyAgreed={false} />);
+
+		const checkbox = screen.getByRole("checkbox", {
+			name: /i have read and agree to the privacy policy/i,
+		});
+		expect(checkbox).not.toBeChecked();
+
+		await user.click(
+			screen.getByText(/i have read and agree to the privacy policy/i),
+		);
+
+		expect(checkbox).toBeChecked();
+	});
 });
