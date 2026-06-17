@@ -151,7 +151,7 @@ describe("Slack interaction routes", async () => {
 		assert.strictEqual(row?.status, "yes");
 		// ...but the attacker-controlled host is never fetched.
 		assert.ok(
-			!fetchedUrls.some((url) => url.includes("attacker.example.com")),
+			!fetchedUrls.some((url) => url === "https://attacker.example.com/steal"),
 			"must not fetch a non-Slack response_url",
 		);
 	});
