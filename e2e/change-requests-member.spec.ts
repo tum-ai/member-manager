@@ -4,8 +4,10 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 // The member-facing role/department/status change request form lives on the
 // profile page (route "/") for non-admin users (see ProfilePage ->
 // RoleChangeRequestSection). The seeded regular member (user 006) has no
-// department and a single seeded REJECTED request, so before this test the
-// latest-request summary reads "Rejected".
+// department and a single seeded REJECTED request, so on a fresh seed the
+// latest-request summary reads "Rejected". The assertions below are re-run-safe
+// regardless (the API returns the newest request first, so the request created
+// here keeps "Pending" on top even when a prior run's pending request persists).
 
 async function gotoProfileRequestSection(page: Page): Promise<void> {
 	await loginAsLocalMember(page);

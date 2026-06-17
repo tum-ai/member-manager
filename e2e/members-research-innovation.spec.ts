@@ -31,7 +31,15 @@ test.describe("members research + innovation", () => {
 		page,
 	}) => {
 		await loginAsLocalMember(page);
+
+		// Await the (live, best-effort) research fetch before asserting the error
+		// branch is absent — otherwise a late-arriving failure toast could render
+		// after the assertion already resolved (false negative).
+		const researchResponse = page.waitForResponse((response) =>
+			response.url().includes("/api/research-projects"),
+		);
 		await page.goto("/members/research");
+		await researchResponse;
 
 		await expect(
 			page.getByRole("heading", { name: "Research", exact: true }),

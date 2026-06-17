@@ -1,5 +1,6 @@
 import { createSign } from "node:crypto";
 import { fetchWithTimeout } from "./fetchWithTimeout.js";
+import { isLocalAdminBootstrapEnabled } from "./localAdmin.js";
 
 const GITHUB_API_BASE_URL = "https://api.github.com";
 const DEFAULT_BUG_REPORT_GITHUB_OWNER = "tum-ai";
@@ -315,9 +316,12 @@ export function setBugReportIssueCreator(creator: BugReportIssueCreator): void {
 }
 
 // Local/dev-only stub so the footer bug-report success path is exercisable
-// without GitHub App credentials. Gated by `isLocalAdminBootstrapEnabled()` in
-// `app.ts`, so it never installs in production. Performs no network call.
+// without GitHub App credentials. Performs no network call. The function
+// self-guards on `isLocalAdminBootstrapEnabled()` (defense in depth): even
+// though the only caller in `app.ts` is already gated, a future ungated caller
+// must not be able to replace the real GitHub creator in production.
 export function installLocalBugReportStub(): void {
+	if (!isLocalAdminBootstrapEnabled()) return;
 	setBugReportIssueCreator(async (payload) => ({
 		number: 1,
 		url: "https://local.invalid/issues/1",

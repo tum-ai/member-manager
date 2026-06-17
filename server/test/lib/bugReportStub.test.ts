@@ -13,13 +13,40 @@ const minimalPayload = {
 	message: "Something broke on the profile page.",
 };
 
-// Always restore the default creator so we never leak the stub into other
-// server suites that assert the real GitHub path throws without credentials.
+const savedEnv = {
+	SUPABASE_URL: process.env.SUPABASE_URL,
+	ENABLE_LOCAL_ADMIN_BOOTSTRAP: process.env.ENABLE_LOCAL_ADMIN_BOOTSTRAP,
+	NODE_ENV: process.env.NODE_ENV,
+};
+
+function setEnv(key: keyof typeof savedEnv, value: string | undefined): void {
+	if (value === undefined) {
+		delete process.env[key];
+	} else {
+		process.env[key] = value;
+	}
+}
+
+// `installLocalBugReportStub()` self-guards on `isLocalAdminBootstrapEnabled()`,
+// which requires a non-production NODE_ENV + the explicit bootstrap flag + a
+// loopback SUPABASE_URL.
+function enableLocalStack(): void {
+	setEnv("NODE_ENV", undefined);
+	setEnv("ENABLE_LOCAL_ADMIN_BOOTSTRAP", "true");
+	setEnv("SUPABASE_URL", "http://127.0.0.1:54321");
+}
+
+// Restore the default creator AND the env so the stub/flags never leak into
+// other server suites that assert the real GitHub path throws without creds.
 afterEach(() => {
 	resetBugReportIssueCreator();
+	setEnv("SUPABASE_URL", savedEnv.SUPABASE_URL);
+	setEnv("ENABLE_LOCAL_ADMIN_BOOTSTRAP", savedEnv.ENABLE_LOCAL_ADMIN_BOOTSTRAP);
+	setEnv("NODE_ENV", savedEnv.NODE_ENV);
 });
 
 test("installLocalBugReportStub resolves to a deterministic local issue without network", async () => {
+	enableLocalStack();
 	installLocalBugReportStub();
 
 	const issue = await createBugReportIssue(minimalPayload);
@@ -32,8 +59,22 @@ test("installLocalBugReportStub resolves to a deterministic local issue without 
 });
 
 test("resetBugReportIssueCreator restores the default creator (throws without GitHub env)", async () => {
+	enableLocalStack();
 	installLocalBugReportStub();
 	resetBugReportIssueCreator();
+
+	await assert.rejects(
+		() => createBugReportIssue(minimalPayload),
+		/GitHub App configuration is incomplete/,
+	);
+});
+
+test("installLocalBugReportStub is a no-op when the local stack gate is closed", async () => {
+	// Production gate closed: the stub must NOT replace the real creator, so the
+	// default (network) path stays active and throws without GitHub credentials.
+	setEnv("NODE_ENV", "production");
+
+	installLocalBugReportStub();
 
 	await assert.rejects(
 		() => createBugReportIssue(minimalPayload),

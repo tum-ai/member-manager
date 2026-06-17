@@ -15,8 +15,12 @@ test("a member uploads a CV and downloads it back", async ({ page }) => {
 	await loginAsLocalMember(page);
 	await page.goto("/");
 
-	const cvHeading = page.getByRole("heading", { name: "CV", exact: true });
-	await expect(cvHeading).toBeVisible();
+	// Scope to the CV card (CvPanel renders with id="cv") so the file-input and
+	// download selectors can't collide with a future avatar/photo uploader.
+	const cvCard = page.locator("#cv");
+	await expect(
+		cvCard.getByRole("heading", { name: "CV", exact: true }),
+	).toBeVisible();
 
 	// Note: we intentionally do NOT assert the "No CV on record yet" empty state.
 	// E2E global-setup verifies the seed but does NOT reset the shared local DB
@@ -33,7 +37,7 @@ test("a member uploads a CV and downloads it back", async ({ page }) => {
 			/\/api\/members\/[^/]+\/cv$/.test(response.url()) &&
 			response.request().method() === "POST",
 	);
-	await page.locator('input[type="file"]').setInputFiles(CV_FIXTURE);
+	await cvCard.locator('input[type="file"]').setInputFiles(CV_FIXTURE);
 	const uploadResponse = await uploaded;
 	expect(uploadResponse.status()).toBe(201);
 
@@ -43,14 +47,14 @@ test("a member uploads a CV and downloads it back", async ({ page }) => {
 	);
 
 	// The current-CV card now shows the member-upload source badge and filename.
-	await expect(page.getByText("Uploaded by you")).toBeVisible();
-	await expect(page.getByText("receipt.pdf", { exact: true })).toBeVisible();
+	await expect(cvCard.getByText("Uploaded by you")).toBeVisible();
+	await expect(cvCard.getByText("receipt.pdf", { exact: true })).toBeVisible();
 
 	// Downloading the current version emits a browser download named after the
 	// stored original filename.
 	const [download] = await Promise.all([
 		page.waitForEvent("download"),
-		page.getByRole("button", { name: "Download" }).click(),
+		cvCard.getByRole("button", { name: "Download" }).click(),
 	]);
 	expect(download.suggestedFilename()).toBe("receipt.pdf");
 });
