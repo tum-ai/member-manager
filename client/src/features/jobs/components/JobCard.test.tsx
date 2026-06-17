@@ -56,6 +56,35 @@ describe("JobCard", () => {
 		expect(await screen.findByRole("dialog")).toBeInTheDocument();
 	});
 
+	it("anchors the stretched overlay to the card root, not the description wrapper", () => {
+		// jsdom can't hit-test the `after:inset-0` overlay, so we guard the DOM
+		// structure instead: the overlay's containing block must be the GlassCard
+		// root so the whole card is clickable. If anyone re-introduces a positioned
+		// wrapper (`relative`) between the overlay button and the card root, the
+		// overlay would shrink to that wrapper and this test must fail.
+		render(<JobCard job={makeJob()} />);
+
+		const trigger = screen.getByRole("button", { name: /view details for/i });
+		// The overlay is implemented as the button's `after` pseudo-element.
+		expect(trigger).toHaveClass("after:absolute", "after:inset-0");
+
+		const cardRoot = document.querySelector<HTMLElement>(
+			'[data-slot="glass-card"]',
+		);
+		expect(cardRoot).not.toBeNull();
+		expect(cardRoot).toHaveClass("relative");
+
+		// Walk from the button up to the card root; no element in between may be a
+		// positioned containing block (`relative`), or it would capture inset-0.
+		let node = trigger.parentElement;
+		while (node && node !== cardRoot) {
+			expect(node).not.toHaveClass("relative");
+			node = node.parentElement;
+		}
+		// The card root is reached, so it is the overlay's containing block.
+		expect(node).toBe(cardRoot);
+	});
+
 	it("does not open the dialog when the Apply link is clicked", async () => {
 		const user = userEvent.setup();
 		render(<JobCard job={makeJob()} />);

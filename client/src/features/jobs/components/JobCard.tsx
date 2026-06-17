@@ -130,7 +130,7 @@ export function JobCard({ job }: { job: PartnerJob }): React.ReactElement {
 					<JobCardHeader job={job} />
 					<JobBadges job={job} />
 
-					<div className="relative">
+					<div>
 						<Markdown clampHeight="7.5rem" className="text-muted-foreground">
 							{job.description_markdown}
 						</Markdown>

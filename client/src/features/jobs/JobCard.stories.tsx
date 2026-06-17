@@ -123,5 +123,18 @@ export const OpensDetailDialog: Story = {
 		// detail dialog reuses the card heading rather than a DialogTitle).
 		await userEvent.keyboard("{Escape}");
 		await expect(body.queryByRole("dialog")).not.toBeInTheDocument();
+
+		// NOTE: the whole-card "click anywhere" contract depends on the stretched
+		// `after:inset-0` overlay being anchored to the GlassCard root (not the
+		// description wrapper). A real-browser hit-test on a NON-button region
+		// (e.g. the title heading) would be the ideal assertion, but the
+		// `test:storybook` runner (headless vitest browser) does not apply the
+		// compiled Tailwind utility CSS — `relative`, `after:absolute`,
+		// `after:inset-0` all compute as their unstyled defaults here, so a
+		// coordinate hit-test would never reach the overlay regardless of the
+		// markup. The overlay's containing block is therefore guarded structurally
+		// in `components/JobCard.test.tsx` ("anchors the stretched overlay to the
+		// card root"), which fails if a positioned wrapper is re-introduced
+		// between the overlay button and the card root.
 	},
 };
