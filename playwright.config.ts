@@ -12,7 +12,11 @@ export default defineConfig({
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
 	retries: process.env.CI ? 2 : 0,
-	workers: process.env.CI ? 1 : undefined,
+	// Serial everywhere (not just CI): several specs sign in as the same seeded
+	// users and mutate shared rows (agreements, SEPA, review queues), so parallel
+	// workers race and flake. Until the suite is isolated per worker (worker-scoped
+	// seeded accounts + runtime-created data), one worker keeps runs deterministic.
+	workers: 1,
 	reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",
 	// Fail fast if the deterministic DB seed (supabase/seed.sql) is not loaded,
 	// so the heavier flows have their fixtures guaranteed (see e2e/global-setup).

@@ -19,6 +19,8 @@ extend-exclude = [
 
 [default.extend-words]
 # Intentional test fixtures / identifiers, not misspellings.
+# Seeded member first name referenced by E2E specs (not "Lines").
+Ines = "Ines"
 Gti = "Gti"
 INSER = "INSER"
 # "PnS" (Partnerships & Sponsoring) tokenizes to "Pn".
