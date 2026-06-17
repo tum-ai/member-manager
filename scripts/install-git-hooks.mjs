@@ -1,12 +1,6 @@
 #!/usr/bin/env node
 
-import {
-	chmodSync,
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	writeFileSync,
-} from "node:fs";
+import { chmodSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -41,13 +35,20 @@ const UPGRADEABLE_PRE_PUSH_HOOKS = [
 
 function installHook(hooksDir, name, content, upgradeable) {
 	const destination = resolve(hooksDir, name);
-	if (existsSync(destination)) {
-		const existing = readFileSync(destination, "utf8");
-		if (existing !== content && !upgradeable.includes(existing)) {
-			throw new Error(
-				`Refusing to overwrite a custom .git/hooks/${name} hook.`,
-			);
-		}
+	// Read-then-act without a prior existsSync probe: avoids a check-then-use
+	// race and treats "absent" and "present" uniformly via the read result.
+	let existing = null;
+	try {
+		existing = readFileSync(destination, "utf8");
+	} catch {
+		existing = null;
+	}
+	if (
+		existing !== null &&
+		existing !== content &&
+		!upgradeable.includes(existing)
+	) {
+		throw new Error(`Refusing to overwrite a custom .git/hooks/${name} hook.`);
 	}
 	writeFileSync(destination, content);
 	chmodSync(destination, 0o755);
@@ -59,12 +60,20 @@ export function installGitHooks({
 	preCommitTemplate = PRE_COMMIT_TEMPLATE,
 	prePushTemplate = PRE_PUSH_TEMPLATE,
 } = {}) {
-	if (!existsSync(gitDir)) {
-		throw new Error("No .git directory found; run this from a git checkout.");
-	}
-
 	const hooksDir = resolve(gitDir, "hooks");
-	mkdirSync(hooksDir, { recursive: true });
+	// Create the hooks dir non-recursively (no existsSync probe → no race). This
+	// fails fast when .git is missing (ENOENT) or is a worktree gitdir file
+	// (ENOTDIR) instead of silently creating a bogus .git/hooks tree; an existing
+	// hooks dir (EEXIST) is the normal, fine case.
+	try {
+		mkdirSync(hooksDir);
+	} catch (error) {
+		if (error.code !== "EEXIST") {
+			throw new Error(
+				`No usable .git/hooks directory at ${gitDir} (${error.code ?? error.message}); run this from a git checkout.`,
+			);
+		}
+	}
 
 	const preCommit = installHook(
 		hooksDir,

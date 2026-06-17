@@ -2,9 +2,11 @@
 
 // `pnpm doctor` — quick local-environment health check for new contributors.
 // Verifies the running Node matches .nvmrc, the generated .env.local files
-// exist, and (when the stack is up) that local Supabase is reachable with a
-// working seed. Diagnostic only — it never mutates anything. Exits non-zero
-// when a hard check fails so it can gate setup scripts.
+// exist, and that the local Supabase stack is reachable. Diagnostic only — it
+// never mutates anything and never sends local file contents over the network.
+// Seed integrity (the fixtures the app/E2E rely on) is checked separately by
+// `pnpm test:scripts` (see check-seed-fixture-parity + verify-local-seed).
+// Exits non-zero when a hard check fails so it can gate setup scripts.
 
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -13,8 +15,6 @@ import { fileURLToPath } from "node:url";
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const SUPABASE_AUTH_HEALTH = "http://127.0.0.1:54321/auth/v1/health";
-const SUPABASE_TOKEN_URL =
-	"http://127.0.0.1:54321/auth/v1/token?grant_type=password";
 
 const LABELS = { pass: "PASS", warn: "WARN", fail: "FAIL" };
 
@@ -62,38 +62,10 @@ function readNvmrc(root) {
 	}
 }
 
-function readAnonKey(root) {
-	try {
-		const raw = readFileSync(resolve(root, "client/.env.local"), "utf8");
-		const match = raw.match(/^VITE_SUPABASE_ANON_KEY=(.+)$/m);
-		return match ? match[1].trim() : null;
-	} catch {
-		return null;
-	}
-}
-
 export async function supabaseReachable(url = SUPABASE_AUTH_HEALTH) {
 	try {
 		const response = await fetch(url, { signal: AbortSignal.timeout(2_000) });
 		return response.ok;
-	} catch {
-		return false;
-	}
-}
-
-async function seedSignInWorks(anonKey) {
-	try {
-		const response = await fetch(SUPABASE_TOKEN_URL, {
-			method: "POST",
-			headers: { apikey: anonKey, "Content-Type": "application/json" },
-			body: JSON.stringify({
-				email: "admin@example.com",
-				password: "password123",
-			}),
-			signal: AbortSignal.timeout(5_000),
-		});
-		const body = await response.json().catch(() => ({}));
-		return Boolean(body.access_token);
 	} catch {
 		return false;
 	}
@@ -126,19 +98,6 @@ export async function runDoctor({ root = repoRoot } = {}) {
 
 	if (await supabaseReachable()) {
 		line("pass", "Local Supabase reachable at 127.0.0.1:54321.");
-		const anonKey = readAnonKey(root);
-		if (anonKey && (await seedSignInWorks(anonKey))) {
-			line("pass", "Seed account admin@example.com can sign in.");
-		} else if (anonKey) {
-			// Supabase is up and the anon key is present, but the seeded account
-			// cannot sign in — a genuinely broken local auth setup. Fail hard so the
-			// quickstart's health check does not green-light it.
-			line(
-				"fail",
-				"Seed sign-in failed. Run `pnpm supabase:reset` to reload supabase/seed.sql.",
-			);
-			hardFailure = true;
-		}
 	} else {
 		line(
 			"warn",
@@ -149,7 +108,7 @@ export async function runDoctor({ root = repoRoot } = {}) {
 	console.log(
 		hardFailure
 			? "\nDoctor found problems. See the [FAIL] lines above."
-			: "\nDoctor: environment looks healthy.",
+			: "\nDoctor: environment looks healthy. Run `pnpm test:scripts` to verify the seed.",
 	);
 	return hardFailure ? 1 : 0;
 }

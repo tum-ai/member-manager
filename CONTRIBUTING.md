@@ -24,7 +24,7 @@ separately. Local URLs and the seeded test accounts are listed in the
 Stuck? Run the environment health check:
 
 ```bash
-pnpm doctor           # checks Node version, .env.local files, Supabase + seed
+pnpm doctor           # checks Node version, .env.local files, Supabase reachability
 ```
 
 It is read-only and prints the exact command to fix anything it flags. For env

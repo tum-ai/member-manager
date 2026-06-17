@@ -1,11 +1,10 @@
 // Parity guard: the E2E suite hard-codes seeded fixtures in e2e/helpers.ts
 // (seed accounts + a contract signing token). If supabase/seed.sql drifts from
-// those constants the suite breaks confusingly at runtime. This reads the same
-// constants the specs use and checks them against the live local stack.
-//
-// The constant-extraction test runs offline (so a rename is caught anywhere,
-// including the CI test job); the live checks skip when the stack isn't
-// reachable, matching verify-local-seed.test.mjs.
+// those constants the suite breaks confusingly at runtime. This compares the
+// two files directly — fully offline and deterministic, so it runs everywhere
+// (including the CI test job) without needing a live stack. Runtime checks that
+// the *running* DB is actually seeded live in e2e/global-setup.ts and
+// verify-local-seed.test.mjs.
 
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -14,7 +13,6 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SERVER_URL = process.env.E2E_SERVER_URL ?? "http://127.0.0.1:8787";
 
 export function extractSeedConstants(source) {
 	const grab = (name) => {
@@ -30,41 +28,8 @@ export function extractSeedConstants(source) {
 	};
 }
 
-function readHelpers() {
-	return readFileSync(resolve(repoRoot, "e2e/helpers.ts"), "utf8");
-}
-
-function readAnonKey() {
-	try {
-		const raw = readFileSync(resolve(repoRoot, "client/.env.local"), "utf8");
-		const match = raw.match(/^VITE_SUPABASE_ANON_KEY=(.+)$/m);
-		return match ? match[1].trim() : null;
-	} catch {
-		return null;
-	}
-}
-
-async function authHealth() {
-	try {
-		const response = await fetch("http://127.0.0.1:54321/auth/v1/health", {
-			signal: AbortSignal.timeout(2_000),
-		});
-		return response.ok;
-	} catch {
-		return false;
-	}
-}
-
-async function signInStatus(anonKey, email) {
-	const response = await fetch(
-		"http://127.0.0.1:54321/auth/v1/token?grant_type=password",
-		{
-			method: "POST",
-			headers: { apikey: anonKey, "Content-Type": "application/json" },
-			body: JSON.stringify({ email, password: "password123" }),
-		},
-	);
-	return response.status;
+function readRepoFile(relativePath) {
+	return readFileSync(resolve(repoRoot, relativePath), "utf8");
 }
 
 test("extractSeedConstants parses exported string constants", () => {
@@ -81,7 +46,7 @@ test("extractSeedConstants parses exported string constants", () => {
 });
 
 test("e2e/helpers.ts still exports the seed constants the parity check reads", () => {
-	const constants = extractSeedConstants(readHelpers());
+	const constants = extractSeedConstants(readRepoFile("e2e/helpers.ts"));
 	for (const [name, value] of Object.entries(constants)) {
 		assert.ok(
 			value,
@@ -90,46 +55,13 @@ test("e2e/helpers.ts still exports the seed constants the parity check reads", (
 	}
 });
 
-test("seeded accounts from e2e/helpers.ts can sign in", async (t) => {
-	if (!(await authHealth())) {
-		t.skip("local Supabase not reachable at 127.0.0.1:54321");
-		return;
-	}
-	const anonKey = readAnonKey();
-	if (!anonKey) {
-		t.skip("client/.env.local missing; run `pnpm setup:local` first");
-		return;
-	}
-
-	const { adminEmail, regularEmail } = extractSeedConstants(readHelpers());
-	for (const email of [adminEmail, regularEmail]) {
-		const status = await signInStatus(anonKey, email);
-		assert.equal(
-			status,
-			200,
-			`E2E seed account ${email} could not sign in (status ${status}). supabase/seed.sql has drifted from e2e/helpers.ts.`,
+test("supabase/seed.sql contains every fixture e2e/helpers.ts hard-codes", () => {
+	const constants = extractSeedConstants(readRepoFile("e2e/helpers.ts"));
+	const seed = readRepoFile("supabase/seed.sql");
+	for (const [name, value] of Object.entries(constants)) {
+		assert.ok(
+			value && seed.includes(value),
+			`supabase/seed.sql is missing "${value}" (${name} in e2e/helpers.ts). The seed has drifted from the E2E fixtures — update one to match the other.`,
 		);
 	}
-});
-
-test("seeded contract signing token from e2e/helpers.ts resolves", async (t) => {
-	const { signToken } = extractSeedConstants(readHelpers());
-
-	let response;
-	try {
-		response = await fetch(`${SERVER_URL}/api/contracts/sign/${signToken}`, {
-			signal: AbortSignal.timeout(3_000),
-		});
-	} catch {
-		t.skip(
-			`API not reachable at ${SERVER_URL}; run \`pnpm dev\` to check the token`,
-		);
-		return;
-	}
-
-	assert.notEqual(
-		response.status,
-		404,
-		`Seeded signing token ${signToken} not found — supabase/seed.sql has drifted from e2e/helpers.ts.`,
-	);
 });
