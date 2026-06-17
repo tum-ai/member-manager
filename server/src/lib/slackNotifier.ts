@@ -1,5 +1,6 @@
 import { getAuthEmail } from "./authEmails.js";
 import { fetchWithTimeout } from "./fetchWithTimeout.js";
+import { isLocalAdminBootstrapEnabled } from "./localAdmin.js";
 import { getSupabase } from "./supabase.js";
 
 const SLACK_API_BASE_URL = "https://slack.com/api";
@@ -695,6 +696,19 @@ export function setBugReportSlackNotifier(
 	notifier: BugReportSlackNotifier,
 ): void {
 	activeBugReportSlackNotifier = notifier;
+}
+
+// Local/dev-only: replace the bug-report Slack notifier with a no-op so a real
+// `SLACK_BOT_TOKEN` in `server/.env.local` can't push the stubbed
+// `local.invalid` issue (see `installLocalBugReportStub`) to the production
+// channel. Self-guards on `isLocalAdminBootstrapEnabled()` (defense in depth);
+// the gate is injected so tests cover both branches without mutating
+// `process.env` in the concurrent test runner.
+export function installLocalBugReportSlackStub(
+	isLocalStack: boolean = isLocalAdminBootstrapEnabled(),
+): void {
+	if (!isLocalStack) return;
+	setBugReportSlackNotifier(async () => {});
 }
 
 export function resetSlackNotifier(): void {
