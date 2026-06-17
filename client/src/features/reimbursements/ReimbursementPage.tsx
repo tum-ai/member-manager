@@ -23,15 +23,15 @@ import { cn } from "@/lib/utils";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
-import {
-	type CreateReimbursementRequestPayload,
-	type ReimbursementRequest,
-	type ReimbursementSubmissionType,
-	useReimbursementRequests,
-} from "../../hooks/useReimbursementRequests";
+import { useReimbursementRequests } from "../../hooks/useReimbursementRequests";
 import { useSepaData } from "../../hooks/useSepaData";
 import { DEPARTMENTS } from "../../lib/constants";
 import { ToolPageShell } from "../tools/ToolPageShell";
+import type {
+	CreateReimbursementRequestPayload,
+	ReimbursementRequest,
+	ReimbursementSubmissionType,
+} from "./reimbursementTypes";
 
 interface ReimbursementPageProps {
 	user: User;

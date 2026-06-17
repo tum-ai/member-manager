@@ -1,11 +1,9 @@
 import { waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import type { ReimbursementRequest } from "../features/reimbursements/reimbursementTypes";
 import { HttpResponse, http, server } from "../test/mswServer";
 import { renderHookWithClient } from "../test/renderWithClient";
-import {
-	type ReimbursementRequest,
-	useReimbursementRequests,
-} from "./useReimbursementRequests";
+import { useReimbursementRequests } from "./useReimbursementRequests";
 
 vi.mock("../lib/supabaseClient", () => ({
 	supabase: {

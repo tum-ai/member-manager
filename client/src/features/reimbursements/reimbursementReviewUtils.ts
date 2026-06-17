@@ -2,7 +2,7 @@ import type {
 	ReimbursementApprovalStatus,
 	ReimbursementPaymentStatus,
 	ReimbursementRequest,
-} from "../../hooks/useReimbursementRequests";
+} from "./reimbursementTypes";
 
 export const ALL_REIMBURSEMENT_REVIEW_FILTER = "all";
 export type ReimbursementReviewApprovalFilter =

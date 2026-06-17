@@ -1,6 +1,5 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import type { MemberChangeRequest } from "../../hooks/useAdminData";
 import {
 	CertificateDetailRow,
 	formatAdminValue,
@@ -9,6 +8,7 @@ import {
 	getMemberDisplayName,
 	getSafeHttpUrl,
 } from "./adminRequests";
+import type { MemberChangeRequest } from "./adminTypes";
 import type { AdminMember } from "./adminUtils";
 
 function member(overrides: Partial<AdminMember>): AdminMember {
