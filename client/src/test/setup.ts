@@ -33,6 +33,12 @@ if (!window.matchMedia) {
 
 if (!("ResizeObserver" in globalThis)) {
 	globalThis.ResizeObserver = class {
+		// Mirror the real ResizeObserver(callback) signature so callers passing a
+		// callback aren't flagged as supplying a superfluous constructor argument.
+		callback: ResizeObserverCallback;
+		constructor(callback: ResizeObserverCallback) {
+			this.callback = callback;
+		}
 		observe() {}
 		unobserve() {}
 		disconnect() {}
