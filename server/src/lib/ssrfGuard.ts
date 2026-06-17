@@ -2,6 +2,11 @@
 // user-controlled input MUST be validated against a host allowlist before the
 // request is made, so the endpoint can't be abused as an open proxy / SSRF
 // vector. Mirrors the allowlist style used in routes/avatarProxy.ts.
+//
+// Scope: this validates the URL's hostname/protocol, not the resolved IP, so it
+// does not by itself defend against DNS-rebinding to an internal address. That
+// is acceptable for the current allowlists (trusted CDNs / hooks.slack.com); if
+// the allowlist ever broadens to less-trusted hosts, add IP-pinning here.
 
 export interface SsrfGuardOptions {
 	// Exact hostnames that are permitted (case-insensitive).
