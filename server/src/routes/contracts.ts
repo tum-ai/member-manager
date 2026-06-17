@@ -180,8 +180,14 @@ const OpenSignWebhookSchema = z
 // =========================================================================
 
 const VARIABLE_REGEX = /\{\{([a-zA-Z0-9_]+)\}\}/g;
+// The THEN/ELSE block bodies allow plain text plus {{variable}} interpolations.
+// Both alternatives are disjoint on their first character ([^{}] never matches
+// "{", the interpolation branch always starts with "{"), and the interpolation
+// branch is fully bounded ({{word}}), so the outer "*" has no ambiguous nesting
+// and matching stays linear — no polynomial-ReDoS backtracking even on hostile,
+// schema-sized input.
 const CONDITIONAL_REGEX =
-	/\[(?:WENN|IF)\s+\{\{([a-zA-Z0-9_]+)\}\}\s*(=|!=|enthält|contains)\s*"([^"]*)"\s+(?:DANN|THEN)\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\}(?:\s+(?:SONST|ELSE)\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\})?\]/gi;
+	/\[(?:WENN|IF)\s+\{\{([a-zA-Z0-9_]+)\}\}\s*(=|!=|enthält|contains)\s*"([^"]*)"\s+(?:DANN|THEN)\s+\{((?:[^{}]|\{\{[a-zA-Z0-9_]+\}\})*)\}(?:\s+(?:SONST|ELSE)\s+\{((?:[^{}]|\{\{[a-zA-Z0-9_]+\}\})*)\})?\]/gi;
 
 function stringifyVariable(value: unknown): string {
 	if (value === null || value === undefined) return "";
@@ -212,18 +218,10 @@ function evaluateCondition(
 	}
 }
 
-// CONDITIONAL_REGEX has nested quantifiers, so unbounded input can trigger
-// polynomial-ReDoS backtracking. Cap the input length before matching; real
-// contract templates are far smaller than this.
-const MAX_CONDITIONAL_INPUT_LENGTH = 100_000;
-
 function applyInlineConditionals(
 	text: string,
 	formData: Record<string, unknown>,
 ): string {
-	if (text.length > MAX_CONDITIONAL_INPUT_LENGTH) {
-		return text;
-	}
 	return text.replace(
 		CONDITIONAL_REGEX,
 		(_full, variable, op, expected, thenText, elseText) => {
