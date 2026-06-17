@@ -76,20 +76,20 @@ export default defineConfig(({ mode }) => {
 					"src/vite-env.d.ts",
 				],
 				// Ratcheting floor: thresholds sit a safe margin (~2pt) below the
-				// measured baseline (stmts 55.95 / branch 50.10 / func 53.05 /
-				// lines 57.12) so an unrelated new file can't trip CI on the
+				// measured baseline (stmts 65.58 / branch 58.10 / func 59.81 /
+				// lines 66.85) so an unrelated new file can't trip CI on the
 				// global ratio. Raise these (never lower) as coverage improves.
-				// The Phase-5 (#186) / #204 target was ~55/50/55/55; MemberForm's
-				// split + tests, the PDF generators, and the legal/sepa/tools
-				// interaction tests lifted coverage to meet it for stmts/branches/
-				// lines. Functions trails (~53) because `contracts/*` remains
-				// untested (pending its rework); raising func to 55 waits on #204.
-				// See docs/development.md.
+				// The Phase-5 (#186) / #204 target was ~55/50/55/55 — now cleared
+				// on all four metrics: MemberForm's split + tests, the PDF
+				// generators, the legal/sepa/tools interaction tests, and the
+				// profile feature + standalone-hook test sweep (#204) lifted
+				// coverage well past target. `contracts/*` stays untested pending
+				// its rework, capping further gains. See docs/development.md.
 				thresholds: {
-					statements: 54,
-					branches: 48,
-					functions: 51,
-					lines: 55,
+					statements: 63,
+					branches: 56,
+					functions: 57,
+					lines: 64,
 				},
 			},
 		},
