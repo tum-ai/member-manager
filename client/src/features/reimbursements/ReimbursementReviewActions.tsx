@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 import type {
 	ReimbursementRequest,
 	ReimbursementReviewAction,
-} from "../../hooks/useReimbursementRequests";
+} from "./reimbursementTypes";
 
 interface ReimbursementReviewActionsProps {
 	request: ReimbursementRequest;

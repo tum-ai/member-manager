@@ -4,11 +4,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { useToast } from "../../contexts/ToastContext";
-import {
-	type ReimbursementRequest,
-	type ReimbursementReviewAction,
-	useReimbursementReview,
-} from "../../hooks/useReimbursementRequests";
+import { useReimbursementReview } from "../../hooks/useReimbursementRequests";
 import { ToolPageShell } from "../tools/ToolPageShell";
 import { ReimbursementReviewControls } from "./ReimbursementReviewControls";
 import { ReimbursementReviewQueue } from "./ReimbursementReviewQueue";
@@ -19,6 +15,10 @@ import {
 	type ReimbursementReviewApprovalFilter,
 	type ReimbursementReviewPaymentFilter,
 } from "./reimbursementReviewUtils";
+import type {
+	ReimbursementRequest,
+	ReimbursementReviewAction,
+} from "./reimbursementTypes";
 
 function getErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : "Unknown error";

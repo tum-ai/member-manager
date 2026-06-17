@@ -23,11 +23,6 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { GlassCard } from "../../components/ui/GlassCard";
-import type {
-	BuchhaltungsButlerSyncStatus,
-	ReimbursementRequest,
-	ReimbursementReviewAction,
-} from "../../hooks/useReimbursementRequests";
 import { DEPARTMENTS } from "../../lib/constants";
 import { ReimbursementReviewActions } from "./ReimbursementReviewActions";
 import {
@@ -42,6 +37,11 @@ import {
 	getReviewStage,
 	hasReceiptEndpoint,
 } from "./reimbursementReviewUtils";
+import type {
+	BuchhaltungsButlerSyncStatus,
+	ReimbursementRequest,
+	ReimbursementReviewAction,
+} from "./reimbursementTypes";
 
 interface ReimbursementReviewQueueProps {
 	requests: ReimbursementRequest[];
