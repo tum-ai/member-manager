@@ -67,6 +67,10 @@ export default defineConfig(({ mode }) => {
 				exclude: [
 					"src/**/*.d.ts",
 					"src/test/**",
+					// Test files: explicit so they can never count as covered source
+					// and inflate the ratio (vitest also excludes its test glob by
+					// default; measured totals are identical with/without this entry).
+					"src/**/*.test.{ts,tsx}",
 					"src/**/*.stories.{ts,tsx}",
 					"src/main.tsx",
 					"src/vite-env.d.ts",
