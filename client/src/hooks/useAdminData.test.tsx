@@ -268,7 +268,7 @@ describe("useAdminData", () => {
 		expect(calls.cert).toEqual({ decision: "approved" });
 	});
 
-	it("DELETEs a job request", async () => {
+	it("deletes a job request", async () => {
 		let method: string | null = null;
 		server.use(
 			http.get("/api/admin/members", () => membersPage(1, [], 0)),
