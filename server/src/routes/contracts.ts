@@ -1800,7 +1800,10 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.post(
 		"/webhooks/opensign",
-		{ config: { rateLimit: { max: 30, timeWindow: "1 minute" } } },
+		// Higher cap than other rate-limited routes: OpenSign can deliver a burst
+		// of signature events for bulk-signing, and dropping legitimate webhooks
+		// would silently stall contract status updates.
+		{ config: { rateLimit: { max: 100, timeWindow: "1 minute" } } },
 		async (request, reply) => {
 			if (
 				!verifyOpenSignWebhookSignature(
