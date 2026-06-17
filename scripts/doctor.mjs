@@ -130,10 +130,14 @@ export async function runDoctor({ root = repoRoot } = {}) {
 		if (anonKey && (await seedSignInWorks(anonKey))) {
 			line("pass", "Seed account admin@example.com can sign in.");
 		} else if (anonKey) {
+			// Supabase is up and the anon key is present, but the seeded account
+			// cannot sign in — a genuinely broken local auth setup. Fail hard so the
+			// quickstart's health check does not green-light it.
 			line(
-				"warn",
+				"fail",
 				"Seed sign-in failed. Run `pnpm supabase:reset` to reload supabase/seed.sql.",
 			);
+			hardFailure = true;
 		}
 	} else {
 		line(

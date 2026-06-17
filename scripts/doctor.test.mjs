@@ -33,7 +33,7 @@ test("nodeVersionStatus fails on a mismatched major", () => {
 	assert.match(status.message, /does not match/);
 });
 
-test("nodeVersionStatus warns when .nvmrc is unparseable", () => {
+test("nodeVersionStatus warns when .nvmrc cannot be parsed", () => {
 	const status = nodeVersionStatus("v24.3.0", "lts/*");
 	assert.equal(status.level, "warn");
 });
