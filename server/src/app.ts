@@ -47,7 +47,10 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 		timeWindow: "1 minute",
 		// Loopback callers (local dev + the E2E suite, which fires the whole suite
 		// from one host) would otherwise trip the per-IP limit and flake. Production
-		// traffic never originates from loopback, so it keeps the full limit.
+		// keeps the full limit (empty allowList). NOTE: `trustProxy` is intentionally
+		// left unset, so behind a reverse proxy `req.ip` is the proxy connection, not
+		// a forwarded client — real prod traffic never resolves to loopback here. If
+		// `trustProxy` is ever enabled, revisit this so prod can't appear loopback.
 		allowList:
 			process.env.NODE_ENV === "production" ? [] : ["127.0.0.1", "::1"],
 	});

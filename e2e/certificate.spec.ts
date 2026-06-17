@@ -23,6 +23,11 @@ import {
 //     "Proof of Membership" button instead. See the "membership proof" describe
 //     block. (Gap documented in issue #221 report.)
 
+// The whole file is serial: the "empty submission" describe must run before the
+// "request" describe submits and flips the shared regular member into the pending
+// state. File-level serial guarantees that order regardless of `fullyParallel`.
+test.describe.configure({ mode: "serial" });
+
 const CERTIFICATE_ROUTE = "/tools/engagement-certificate";
 
 // Fills the single (first) engagement card with deterministic, valid values.
@@ -55,8 +60,7 @@ test.describe("engagement certificate empty submission", () => {
 		await page.goto(CERTIFICATE_ROUTE);
 
 		// Start Date is a native `required` date input, so the browser blocks the
-		// submit and the POST is never sent. Assert no certificate request leaves
-		// the page within a short window.
+		// submit and the POST is never sent.
 		let posted = false;
 		page.on("request", (request) => {
 			if (
@@ -68,10 +72,18 @@ test.describe("engagement certificate empty submission", () => {
 		});
 
 		await page.getByRole("button", { name: "Submit for Approval" }).click();
-		await page.waitForTimeout(750);
-		expect(posted).toBe(false);
 
-		// Still on the form with the first engagement visible.
+		// Deterministic assertion (no fixed wait): the required Start Date is invalid
+		// because it is empty, which is exactly why the browser blocked the submit.
+		const startDate = page.getByLabel("Start Date").first();
+		await expect
+			.poll(() =>
+				startDate.evaluate((el) => (el as HTMLInputElement).validity.valid),
+			)
+			.toBe(false);
+
+		// No certificate request was sent, and we are still on the form.
+		expect(posted).toBe(false);
 		await expect(
 			page.getByRole("heading", { name: "Engagement #1" }),
 		).toBeVisible();

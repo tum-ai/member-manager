@@ -1,8 +1,38 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import type { FullConfig } from "@playwright/test";
 import { SEED_CONTRACT_SIGN_TOKEN } from "./helpers";
 
 const SERVER_URL = process.env.E2E_SERVER_URL ?? "http://127.0.0.1:8787";
 const CLIENT_URL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
+
+// Read a single KEY=value from a dotenv file (the same files the web servers
+// load). Returns undefined if the file is missing/unreadable or the key absent.
+// This is intentionally a tiny parser — we only need the Supabase URL.
+function readEnvFileValue(
+	relativePath: string,
+	key: string,
+): string | undefined {
+	let contents: string;
+	try {
+		contents = readFileSync(resolve(process.cwd(), relativePath), "utf8");
+	} catch {
+		return undefined;
+	}
+	for (const rawLine of contents.split("\n")) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith("#")) continue;
+		const eq = line.indexOf("=");
+		if (eq === -1 || line.slice(0, eq).trim() !== key) continue;
+		let value = line.slice(eq + 1).trim();
+		const quoted =
+			(value.startsWith('"') && value.endsWith('"')) ||
+			(value.startsWith("'") && value.endsWith("'"));
+		if (quoted) value = value.slice(1, -1);
+		return value;
+	}
+	return undefined;
+}
 
 // Loopback / link-local hostnames that denote a local, ephemeral stack.
 const LOCAL_HOST = /^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[?::1\]?)$/i;
@@ -22,7 +52,7 @@ function assertLocalTarget(label: string, raw: string | undefined): void {
 		host = undefined;
 	}
 	const looksRemote =
-		/supabase\.(?:co|in|net)/i.test(raw) ||
+		/supabase\.(?:co|in|net|com)/i.test(raw) ||
 		(host !== undefined && !LOCAL_HOST.test(host) && !host.endsWith(".local"));
 	if (looksRemote) {
 		throw new Error(
@@ -39,11 +69,27 @@ function assertLocalTarget(label: string, raw: string | undefined): void {
 function assertLocalStack(): void {
 	assertLocalTarget("E2E_BASE_URL (client)", CLIENT_URL);
 	assertLocalTarget("E2E_SERVER_URL (api)", SERVER_URL);
-	// The API server reads these; when they are also present in Playwright's env
-	// (e.g. CI's generated .env.local), verify them too as defence in depth.
+	// Also verify any Supabase/DB URL present in Playwright's own env.
 	assertLocalTarget("SUPABASE_URL", process.env.SUPABASE_URL);
 	assertLocalTarget("VITE_SUPABASE_URL", process.env.VITE_SUPABASE_URL);
 	assertLocalTarget("DATABASE_URL", process.env.DATABASE_URL);
+	// Critically, the web servers Playwright boots load their Supabase target from
+	// these dotenv files — NOT from Playwright's process env (which `setup:local`
+	// never exports into). A remote URL here with a local E2E_SERVER_URL would let
+	// the local API write straight into a hosted project, so validate the files the
+	// servers actually consume. (See Codex P1 on this guard.)
+	assertLocalTarget(
+		"server/.env.local SUPABASE_URL",
+		readEnvFileValue("server/.env.local", "SUPABASE_URL"),
+	);
+	assertLocalTarget(
+		"server/.env.local DATABASE_URL",
+		readEnvFileValue("server/.env.local", "DATABASE_URL"),
+	);
+	assertLocalTarget(
+		"client/.env.local VITE_SUPABASE_URL",
+		readEnvFileValue("client/.env.local", "VITE_SUPABASE_URL"),
+	);
 }
 
 // Deterministic-seed guard. The local Supabase stack loads supabase/seed.sql on
