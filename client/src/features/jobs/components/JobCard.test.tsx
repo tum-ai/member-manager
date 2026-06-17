@@ -95,4 +95,16 @@ describe("JobCard", () => {
 
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 	});
+
+	it("keeps the stacking context on the Apply anchor itself, not the wrapper", () => {
+		// The Apply anchor must carry `relative z-10` directly so it stacks above
+		// the card-wide overlay at every breakpoint. Its wrapper uses `sm:contents`
+		// (display: contents), which generates no box at sm+ and therefore cannot
+		// host a stacking context — so the positioning must live on the anchor.
+		// jsdom can't test paint order, so we assert the class contract here.
+		render(<JobCard job={makeJob()} />);
+
+		const applyLink = screen.getByRole("link", { name: /apply now/i });
+		expect(applyLink).toHaveClass("relative", "z-10");
+	});
 });

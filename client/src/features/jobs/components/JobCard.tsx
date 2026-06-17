@@ -149,10 +149,10 @@ export function JobCard({ job }: { job: PartnerJob }): React.ReactElement {
 
 					<div className="flex flex-col items-stretch justify-between gap-1.5 sm:flex-row sm:items-center">
 						<JobMeta job={job} />
-						<div className="relative z-10 flex sm:contents">
+						<div className="flex sm:contents">
 							<JobApplyButton
 								job={job}
-								className="self-stretch sm:self-center"
+								className="relative z-10 self-stretch sm:self-center"
 							/>
 						</div>
 					</div>
