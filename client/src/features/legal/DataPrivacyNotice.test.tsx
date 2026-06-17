@@ -3,6 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { DataPrivacyNotice } from "./DataPrivacyNotice";
 
+const consentNames = {
+	websiteProfile: /displaying my full name, photo, course of studies/i,
+	eventPhotos: /publishing photos of me taken in the context/i,
+	partnerSharing: /sharing my data \(including cv, photo/i,
+} as const;
+
+const getConsentCheckbox = (key: keyof typeof consentNames) =>
+	screen.getByRole("checkbox", { name: consentNames[key] });
+
 describe("DataPrivacyNotice", () => {
 	it("renders the three separate consent declarations", () => {
 		render(<DataPrivacyNotice dataPrivacyNoticeAgreed={false} />);
@@ -34,13 +43,12 @@ describe("DataPrivacyNotice", () => {
 
 		expect(onCheckChange).toHaveBeenLastCalledWith(false);
 
-		const checkboxes = screen.getAllByRole("checkbox");
-		await user.click(checkboxes[0]);
-		await user.click(checkboxes[1]);
+		await user.click(getConsentCheckbox("websiteProfile"));
+		await user.click(getConsentCheckbox("eventPhotos"));
 		// Two of three checked — still not fully consented.
 		expect(onCheckChange).toHaveBeenLastCalledWith(false);
 
-		await user.click(checkboxes[2]);
+		await user.click(getConsentCheckbox("partnerSharing"));
 		expect(onCheckChange).toHaveBeenLastCalledWith(true);
 	});
 
@@ -56,7 +64,7 @@ describe("DataPrivacyNotice", () => {
 
 		expect(onCheckChange).toHaveBeenLastCalledWith(true);
 
-		await user.click(screen.getAllByRole("checkbox")[0]);
+		await user.click(getConsentCheckbox("websiteProfile"));
 
 		expect(onCheckChange).toHaveBeenLastCalledWith(false);
 	});
@@ -65,8 +73,9 @@ describe("DataPrivacyNotice", () => {
 		const user = userEvent.setup();
 		render(<DataPrivacyNotice dataPrivacyNoticeAgreed={false} />);
 
-		const [websiteProfile, eventPhotos, partnerSharing] =
-			screen.getAllByRole("checkbox");
+		const websiteProfile = getConsentCheckbox("websiteProfile");
+		const eventPhotos = getConsentCheckbox("eventPhotos");
+		const partnerSharing = getConsentCheckbox("partnerSharing");
 
 		await user.click(websiteProfile);
 		expect(websiteProfile).toBeChecked();
@@ -84,7 +93,7 @@ describe("DataPrivacyNotice", () => {
 		expect(partnerSharing).toBeChecked();
 	});
 
-	it("withholds full consent through every partial selection", async () => {
+	it("never reports full consent while any item stays unchecked", async () => {
 		const user = userEvent.setup();
 		const onCheckChange = vi.fn();
 		render(
@@ -94,19 +103,16 @@ describe("DataPrivacyNotice", () => {
 			/>,
 		);
 
-		expect(onCheckChange).toHaveBeenLastCalledWith(false);
-
-		const checkboxes = screen.getAllByRole("checkbox");
-
-		await user.click(checkboxes[0]);
-		// One of three checked — not full consent.
-		expect(onCheckChange).toHaveBeenLastCalledWith(false);
-
-		await user.click(checkboxes[1]);
-		// Two of three checked — still not full consent.
-		expect(onCheckChange).toHaveBeenLastCalledWith(false);
+		// `allChecked` stays false across both clicks, so the effect never
+		// re-fires after its initial `false` — the callback must keep that value.
+		await user.click(getConsentCheckbox("websiteProfile"));
+		await user.click(getConsentCheckbox("eventPhotos"));
 
 		expect(onCheckChange).not.toHaveBeenCalledWith(true);
+		expect(onCheckChange).toHaveBeenLastCalledWith(false);
+		// Only the initial mount notification fired; partial toggles do not flip
+		// `allChecked`, so no further callbacks are emitted.
+		expect(onCheckChange).toHaveBeenCalledTimes(1);
 	});
 
 	it("round-trips full consent on and back off", async () => {
@@ -119,13 +125,12 @@ describe("DataPrivacyNotice", () => {
 			/>,
 		);
 
-		const checkboxes = screen.getAllByRole("checkbox");
-		for (const checkbox of checkboxes) {
-			await user.click(checkbox);
-		}
+		await user.click(getConsentCheckbox("websiteProfile"));
+		await user.click(getConsentCheckbox("eventPhotos"));
+		await user.click(getConsentCheckbox("partnerSharing"));
 		expect(onCheckChange).toHaveBeenLastCalledWith(true);
 
-		await user.click(checkboxes[1]);
+		await user.click(getConsentCheckbox("eventPhotos"));
 		expect(onCheckChange).toHaveBeenLastCalledWith(false);
 	});
 });
