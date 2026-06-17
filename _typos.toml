@@ -31,5 +31,6 @@ BA = "BA"
 # PNG / zlib technical terms in receipt image processing.
 Flate = "Flate"
 paeth = "paeth"
-# German month name inside a .docx filename referenced in docs.
+# German month names (date-formatting fixtures, .docx filename in docs).
 Februar = "Februar"
+Januar = "Januar"
