@@ -39,4 +39,39 @@ describe("SepaMandate", () => {
 		rerender(<SepaMandate sepaAgreed={true} />);
 		expect(screen.getByRole("checkbox")).toBeChecked();
 	});
+
+	it("fires the callback on mount with the initial agreed value", () => {
+		const onCheckChange = vi.fn();
+		render(<SepaMandate sepaAgreed={true} onCheckChange={onCheckChange} />);
+
+		expect(onCheckChange).toHaveBeenCalledWith(true);
+	});
+
+	it("reports false when toggled from checked to unchecked", async () => {
+		const user = userEvent.setup();
+		const onCheckChange = vi.fn();
+		render(<SepaMandate sepaAgreed={true} onCheckChange={onCheckChange} />);
+
+		expect(onCheckChange).toHaveBeenLastCalledWith(true);
+
+		await user.click(screen.getByRole("checkbox"));
+
+		expect(onCheckChange).toHaveBeenLastCalledWith(false);
+	});
+
+	it("toggles the checkbox when its associated label is clicked", async () => {
+		const user = userEvent.setup();
+		render(<SepaMandate sepaAgreed={false} />);
+
+		const checkbox = screen.getByRole("checkbox", {
+			name: /i have read and agree to the sepa mandate/i,
+		});
+		expect(checkbox).not.toBeChecked();
+
+		await user.click(
+			screen.getByText(/i have read and agree to the sepa mandate/i),
+		);
+
+		expect(checkbox).toBeChecked();
+	});
 });
