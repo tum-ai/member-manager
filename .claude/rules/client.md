@@ -25,3 +25,6 @@ paths: ["client/**"]
   `export type`, no non-null `!`.
 - **Tests**: hooks/utils → Vitest (jsdom + RTL + MSW `onUnhandledRequest:"error"`); interactive
   components → Storybook play + a11y story. Coverage in `vite.config.ts` ratchets up only.
+- **Always verify a new feature with both layers before merging**: Vitest unit/integration tests
+  for its hooks/utils/components, **and** a Playwright E2E spec covering the primary user flow
+  (`pnpm test:e2e`, see `e2e/CLAUDE.md`). A feature is not "done" until both pass green.

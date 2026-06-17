@@ -35,6 +35,8 @@ Package: `@member-manager/client`.
 - **Responsive + dark mode are product requirements.** Mobile-first (`grid-cols-1 md:grid-cols-12`),
   dark-mode parity via next-themes. Not optional polish.
 - **Tests** — every hook/util gets a Vitest test; interactive components get a Storybook play + a11y story.
+- **New feature = both test layers.** Verify any new feature with Vitest unit/integration tests **and**
+  a Playwright E2E spec for its primary flow (`pnpm test:e2e`, see `e2e/CLAUDE.md`) before merging.
 
 ## Commands
 
