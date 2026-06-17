@@ -11,13 +11,20 @@ export default defineConfig({
 	testDir: "./e2e",
 	fullyParallel: true,
 	forbidOnly: !!process.env.CI,
-	retries: process.env.CI ? 2 : 0,
+	// One retry on CI to absorb genuine boot/timing flakes. We deliberately do not
+	// retry more: specs mutate shared seeded rows and globalSetup's reset does not
+	// re-run between retries, so a retry re-runs against an already-mutated DB —
+	// extra attempts mask real breakage more than they recover from it.
+	retries: process.env.CI ? 1 : 0,
 	// Serial everywhere (not just CI): several specs sign in as the same seeded
 	// users and mutate shared rows (agreements, SEPA, review queues), so parallel
 	// workers race and flake. Until the suite is isolated per worker (worker-scoped
 	// seeded accounts + runtime-created data), one worker keeps runs deterministic.
 	workers: 1,
-	reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",
+	// `github` reporter annotates failed specs directly on the PR diff in CI.
+	reporter: process.env.CI
+		? [["github"], ["html", { open: "never" }], ["list"]]
+		: "list",
 	// Fail fast if the deterministic DB seed (supabase/seed.sql) is not loaded,
 	// so the heavier flows have their fixtures guaranteed (see e2e/global-setup).
 	globalSetup: "./e2e/global-setup.ts",

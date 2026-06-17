@@ -11,7 +11,38 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
+# Turborepo remote cache (Vercel). Absent secrets (forks / before setup) simply
+# disable remote caching; turbo still runs every task locally, so CI stays green.
+env:
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
 jobs:
+  # Detect whether a PR touches anything beyond docs / Supabase, so the heavy
+  # jobs (browser, Supabase stack, client build) can short-circuit on docs-only
+  # changes. Gating happens at the step level inside each job so the job still
+  # reports success to branch protection.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      supabase: ${{ steps.filter.outputs.supabase }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Filter changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+            supabase:
+              - 'supabase/**'
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
@@ -66,15 +97,43 @@ jobs:
   storybook-test:
     name: Storybook Test
     runs-on: ubuntu-latest
+    needs: changes
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
       - name: Setup toolchain
         uses: ./.github/actions/setup
+      - name: Cache Playwright browsers
+        if: needs.changes.outputs.code == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
       - name: Install Playwright Chromium
+        if: needs.changes.outputs.code == 'true'
         run: pnpm --filter @member-manager/client exec playwright install --with-deps chromium
       - name: Run Storybook interaction + a11y tests
+        if: needs.changes.outputs.code == 'true'
         run: pnpm --filter @member-manager/client run test:storybook
+
+  bundle-size:
+    name: Bundle Size
+    runs-on: ubuntu-latest
+    needs: changes
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Setup toolchain
+        if: needs.changes.outputs.code == 'true'
+        uses: ./.github/actions/setup
+      - name: Build client
+        if: needs.changes.outputs.code == 'true'
+        run: pnpm --filter @member-manager/client build
+      - name: Check gzipped bundle size
+        if: needs.changes.outputs.code == 'true'
+        run: node scripts/check-bundle-size.mjs
 
   # Aggregates the split jobs back under the legacy required-check name so
   # branch protection ("Lint / Build / Test") stays satisfied without a
@@ -82,7 +141,7 @@ jobs:
   required-checks:
     name: Lint / Build / Test
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, build, test, storybook-test]
+    needs: [changes, lint, typecheck, build, test, storybook-test]
     if: ${{ always() }}
     steps:
       - name: Verify required jobs succeeded
@@ -100,8 +159,9 @@ jobs:
       - name: Lint GitHub Actions workflows
         uses: raven-actions/actionlint@v2
       - name: Audit workflows with zizmor (advisory)
-        # Advisory for now: print findings without failing the build or posting
-        # a separate check. Promote to a hard gate once the baseline is clean.
+        # Advisory for now: the workflow baseline still has unpinned-action and
+        # pull_request_target findings (run `uvx zizmor .github/workflows`).
+        # Promote to a hard gate once those are pinned/addressed (separate PR).
         run: pipx run zizmor --no-progress .github/workflows || true
 
   spellcheck:
@@ -116,20 +176,24 @@ jobs:
   migrations:
     name: Supabase Migration Reset
     runs-on: ubuntu-latest
+    needs: changes
     timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
 
       - name: Setup Supabase CLI
+        if: needs.changes.outputs.supabase == 'true'
         uses: supabase/setup-cli@v2
         with:
           version: latest
 
       - name: Start local Supabase stack
+        if: needs.changes.outputs.supabase == 'true'
         run: supabase db start
 
       - name: Rebuild database from migrations
+        if: needs.changes.outputs.supabase == 'true'
         run: supabase db reset
 
   production-migration-drift:

@@ -1,4 +1,8 @@
 #!/bin/sh
 set -eu
 
-echo "[pre-push] No repo-managed pre-push checks. Run pnpm gate manually when needed."
+ROOT_DIR="$(git rev-parse --show-toplevel)"
+
+echo "[pre-push] Running fast gate (lint + typecheck). Skip with 'git push --no-verify'."
+pnpm --dir "$ROOT_DIR" lint
+pnpm --dir "$ROOT_DIR" typecheck

@@ -14,7 +14,9 @@ concurrency:
 jobs:
   e2e:
     # Stable check name surfaced to branch protection as "E2E / Playwright E2E".
-    # Do not rename without updating the required-check configuration.
+    # Do not rename without updating the required-check configuration. The job
+    # always runs (so the required check always reports); the expensive steps
+    # short-circuit on docs-only changes via the paths filter below.
     name: Playwright E2E
     runs-on: ubuntu-latest
     timeout-minutes: 25
@@ -22,28 +24,53 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v6
 
+      - name: Filter changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            code:
+              - '**'
+              - '!**/*.md'
+              - '!docs/**'
+
       - name: Setup Supabase CLI
+        if: steps.filter.outputs.code == 'true'
         uses: supabase/setup-cli@v2
         with:
           version: latest
 
       - name: Start local Supabase stack
+        if: steps.filter.outputs.code == 'true'
         run: supabase start
 
       - name: Setup toolchain
+        if: steps.filter.outputs.code == 'true'
         uses: ./.github/actions/setup
 
       - name: Generate local env files
+        if: steps.filter.outputs.code == 'true'
         run: pnpm setup:local
 
+      - name: Cache Playwright browsers
+        if: steps.filter.outputs.code == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
       - name: Install Playwright browsers
+        if: steps.filter.outputs.code == 'true'
         run: pnpm exec playwright install --with-deps chromium
 
       - name: Run Playwright E2E suite
+        if: steps.filter.outputs.code == 'true'
         run: pnpm test:e2e
 
       - name: Upload Playwright report
-        if: ${{ !cancelled() }}
+        if: ${{ !cancelled() && steps.filter.outputs.code == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
