@@ -72,15 +72,19 @@ export default defineConfig(({ mode }) => {
 					"src/vite-env.d.ts",
 				],
 				// Ratcheting floor: thresholds sit a safe margin (>1.5pt) below the
-				// measured baseline (stmts 36.98 / branch 36.76 / func 37.64 /
-				// lines 37.93) so an unrelated new file can't trip CI on the
+				// measured baseline (stmts 45.06 / branch 44.29 / func 47.56 /
+				// lines 46.08) so an unrelated new file can't trip CI on the
 				// global ratio. Raise these (never lower) as coverage improves.
+				// The Phase-5 issue (#186) target was ~55/50/55/55, but the still-
+				// untested `contracts/*` feature, MemberForm, and the PDF generators
+				// (all out of scope for #186) keep the global ratio below that; the
+				// floor is set as high as current coverage safely supports.
 				// See docs/development.md.
 				thresholds: {
-					statements: 35,
-					branches: 35,
-					functions: 36,
-					lines: 36,
+					statements: 43,
+					branches: 42,
+					functions: 45,
+					lines: 44,
 				},
 			},
 		},
