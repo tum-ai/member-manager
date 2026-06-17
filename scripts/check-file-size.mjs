@@ -26,7 +26,6 @@ const EXEMPT_PATTERNS = [
 // Current offenders (genuinely >700 lines). Exempt from hard-fail but each
 // prints a backlog notice. Tracked as remediation backlog in #189.
 export const ALLOWLIST = [
-	"client/src/features/profile/ProfilePage.tsx",
 	"client/src/features/admin/AdminDatabaseView.tsx",
 	"client/src/features/contracts/ContractTemplatesPage.tsx",
 	"client/src/features/contracts/ContractSubmissionDetailPage.tsx",
