@@ -314,6 +314,17 @@ export function setBugReportIssueCreator(creator: BugReportIssueCreator): void {
 	activeBugReportIssueCreator = creator;
 }
 
+// Local/dev-only stub so the footer bug-report success path is exercisable
+// without GitHub App credentials. Gated by `isLocalAdminBootstrapEnabled()` in
+// `app.ts`, so it never installs in production. Performs no network call.
+export function installLocalBugReportStub(): void {
+	setBugReportIssueCreator(async (payload) => ({
+		number: 1,
+		url: "https://local.invalid/issues/1",
+		title: buildBugReportIssueTitle(payload),
+	}));
+}
+
 export function resetBugReportIssueCreator(): void {
 	activeBugReportIssueCreator = defaultBugReportIssueCreator;
 	cachedInstallationToken = null;
