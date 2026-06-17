@@ -44,10 +44,10 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import GlassCard from "../../components/ui/GlassCard";
+import { GlassCard } from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { apiClient } from "../../lib/apiClient";
-import ToolPageShell from "./ToolPageShell";
+import { ToolPageShell } from "./ToolPageShell";
 
 interface TumaiDayEvent {
 	id: string;

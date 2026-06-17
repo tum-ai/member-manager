@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ToastProvider } from "../../../contexts/ToastContext";
 import type { Member } from "../../../types";
-import OrgChartDiagram from "./OrgChartDiagram";
+import { OrgChartDiagram } from "./OrgChartDiagram";
 import { buildOrgTree } from "./orgTreeData";
 
 function member(overrides: Partial<Member>): Member {

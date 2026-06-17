@@ -43,8 +43,8 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import GlassCard from "../../components/ui/GlassCard";
-import Modal from "../../components/ui/Modal";
+import { GlassCard } from "../../components/ui/GlassCard";
+import { Modal } from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
 import { useIsAdmin } from "../../hooks/useIsAdmin";
 import { useMemberChangeRequests } from "../../hooks/useMemberChangeRequests";
@@ -79,11 +79,11 @@ import {
 	sepaSchema,
 } from "../../lib/schemas";
 import { generateMembershipProofPdf } from "../certificate/generators/membershipProofPdf";
-import DataPrivacyNotice from "../legal/DataPrivacyNotice";
-import PrivacyPolicy from "../legal/PrivacyPolicy";
-import SepaMandate from "../sepa/SepaMandate";
-import CvPanel from "./CvPanel";
-import EducationFields from "./EducationFields";
+import { DataPrivacyNotice } from "../legal/DataPrivacyNotice";
+import { PrivacyPolicy } from "../legal/PrivacyPolicy";
+import { SepaMandate } from "../sepa/SepaMandate";
+import { CvPanel } from "./CvPanel";
+import { EducationFields } from "./EducationFields";
 import {
 	buildSelfServiceMemberUpdatePayload,
 	computeProfileCompleteness,

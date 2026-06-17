@@ -22,14 +22,14 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import GlassCard from "../../components/ui/GlassCard";
+import { GlassCard } from "../../components/ui/GlassCard";
 import type {
 	BuchhaltungsButlerSyncStatus,
 	ReimbursementRequest,
 	ReimbursementReviewAction,
 } from "../../hooks/useReimbursementRequests";
 import { DEPARTMENTS } from "../../lib/constants";
-import ReimbursementReviewActions from "./ReimbursementReviewActions";
+import { ReimbursementReviewActions } from "./ReimbursementReviewActions";
 import {
 	formatReviewAmount,
 	formatReviewDate,
@@ -68,7 +68,7 @@ interface ReimbursementReviewQueueProps {
 	isSyncingBuchhaltungsButler: boolean;
 }
 
-export default function ReimbursementReviewQueue({
+export function ReimbursementReviewQueue({
 	requests,
 	selectedIds,
 	onSelectionChange,

@@ -46,9 +46,7 @@ function getUserAgent(): string {
 	return window.navigator.userAgent;
 }
 
-export default function BugReportButton({
-	user,
-}: BugReportButtonProps): JSX.Element {
+export function BugReportButton({ user }: BugReportButtonProps): JSX.Element {
 	const location = useLocation();
 	const { showToast } = useToast();
 	const [isOpen, setIsOpen] = useState(false);

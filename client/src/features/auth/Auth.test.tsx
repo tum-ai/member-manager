@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { ThemeProvider } from "next-themes";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import Auth from "./Auth";
+import { Auth } from "./Auth";
 
 const signInWithOAuthMock = vi.hoisted(() => vi.fn());
 const signInWithPasswordMock = vi.hoisted(() => vi.fn());

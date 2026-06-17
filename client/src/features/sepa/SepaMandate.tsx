@@ -9,10 +9,7 @@ interface SepaMandateProps {
 	sepaAgreed: boolean;
 }
 
-export default function SepaMandate({
-	onCheckChange,
-	sepaAgreed,
-}: SepaMandateProps) {
+export function SepaMandate({ onCheckChange, sepaAgreed }: SepaMandateProps) {
 	const [checked, setChecked] = useState(!!sepaAgreed);
 
 	useEffect(() => {

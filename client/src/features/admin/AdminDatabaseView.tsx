@@ -34,7 +34,7 @@ import {
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { InfoBox } from "@/components/ui/info-box";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -90,7 +90,7 @@ import {
 	hasPrivacyAgreement,
 	sortAdminMembers,
 } from "./adminUtils";
-import DepartmentPermissionsCard from "./DepartmentPermissionsCard";
+import { DepartmentPermissionsCard } from "./DepartmentPermissionsCard";
 
 // Radix Select forbids an empty-string item value, so the editor's "clear"
 // options carry a sentinel that maps back to "" in the change handlers.
@@ -128,7 +128,7 @@ const sortableColumns: Array<{
 	{ key: "active", label: "Status", width: 140 },
 ];
 
-export default function AdminDatabaseView() {
+export function AdminDatabaseView() {
 	const { showToast } = useToast();
 	const {
 		members,

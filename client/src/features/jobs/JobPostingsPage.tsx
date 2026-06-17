@@ -20,7 +20,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Markdown } from "@/components/ui/markdown";
@@ -44,7 +44,7 @@ import {
 	type PartnerJob,
 	useJobs,
 } from "../../hooks/useJobs";
-import ToolPageShell from "../tools/ToolPageShell";
+import { ToolPageShell } from "../tools/ToolPageShell";
 
 const jobTypeLabels: Record<JobType, string> = {
 	internship: "Internship",

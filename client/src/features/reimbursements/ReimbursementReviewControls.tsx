@@ -10,7 +10,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import GlassCard from "../../components/ui/GlassCard";
+import { GlassCard } from "../../components/ui/GlassCard";
 import {
 	ALL_REIMBURSEMENT_REVIEW_FILTER,
 	type ReimbursementReviewApprovalFilter,
@@ -45,7 +45,7 @@ interface ReimbursementReviewControlsProps {
 	onBulkDownload: () => Promise<void>;
 }
 
-export default function ReimbursementReviewControls({
+export function ReimbursementReviewControls({
 	search,
 	onSearchChange,
 	departments,

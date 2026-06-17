@@ -7,7 +7,7 @@ import {
 import { type ReactElement, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import {
@@ -42,7 +42,7 @@ function serializeAssignments(assignments: DepartmentPermissionMap): string {
 	return JSON.stringify(normalized);
 }
 
-export default function DepartmentPermissionsCard(): ReactElement {
+export function DepartmentPermissionsCard(): ReactElement {
 	const { assignments, isLoading, saveAssignmentsAsync, isSaving } =
 		useDepartmentPermissions();
 	const { showToast } = useToast();

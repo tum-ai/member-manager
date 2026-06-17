@@ -7,7 +7,7 @@ interface OrgChartViewProps {
 	members: Member[];
 }
 
-export default function OrgChartView({
+export function OrgChartView({
 	members,
 }: OrgChartViewProps): JSX.Element | null {
 	const chart = buildOrgChart(members, [], []);

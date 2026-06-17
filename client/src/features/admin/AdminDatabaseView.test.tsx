@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import AdminDatabaseView from "./AdminDatabaseView";
+import { AdminDatabaseView } from "./AdminDatabaseView";
 
 const { updateMemberAsync } = vi.hoisted(() => ({
 	updateMemberAsync: vi.fn(),

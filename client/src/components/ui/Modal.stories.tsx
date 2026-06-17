@@ -3,7 +3,7 @@ import { useState } from "react";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import { Button } from "./button";
-import Modal from "./Modal";
+import { Modal } from "./Modal";
 
 const meta = {
 	title: "UI/Modal",

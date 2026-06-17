@@ -3,7 +3,7 @@ import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "../../../contexts/ToastContext";
-import MainLayout from "../MainLayout";
+import { MainLayout } from "../MainLayout";
 
 const toolAccessState = vi.hoisted(() => ({
 	permissions: [] as string[],

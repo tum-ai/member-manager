@@ -105,6 +105,6 @@ async function errorHandlerPlugin(server: FastifyInstance) {
 	);
 }
 
-export default fp(errorHandlerPlugin, {
+export const errorHandler = fp(errorHandlerPlugin, {
 	name: "error-handler",
 });

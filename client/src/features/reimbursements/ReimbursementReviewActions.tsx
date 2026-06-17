@@ -20,7 +20,7 @@ interface ReimbursementReviewActionsProps {
 	compact?: boolean;
 }
 
-export default function ReimbursementReviewActions({
+export function ReimbursementReviewActions({
 	request,
 	isReviewing,
 	rejectionReason,

@@ -92,7 +92,7 @@ const PAGE_STYLE_CSS = `
 }
 `;
 
-export default function ContractDocumentPreview({
+export function ContractDocumentPreview({
 	pages,
 	loading = false,
 	emptyLabel = "No preview available",

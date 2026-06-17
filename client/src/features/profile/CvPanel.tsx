@@ -7,7 +7,7 @@ import { CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Spinner } from "@/components/ui/spinner";
-import GlassCard from "../../components/ui/GlassCard";
+import { GlassCard } from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberCv } from "../../hooks/useMemberCv";
 import { downloadPdfBlob } from "../../lib/pdfUtils";
@@ -41,7 +41,7 @@ interface CvPanelProps {
 	className?: string;
 }
 
-export default function CvPanel({ userId, id, className }: CvPanelProps) {
+export function CvPanel({ userId, id, className }: CvPanelProps) {
 	const { showToast } = useToast();
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const [isDownloading, setIsDownloading] = useState(false);

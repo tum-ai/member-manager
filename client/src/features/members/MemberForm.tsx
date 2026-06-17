@@ -16,7 +16,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import Modal from "../../components/ui/Modal";
+import { Modal } from "../../components/ui/Modal";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
 import { useSepaData } from "../../hooks/useSepaData";
@@ -31,15 +31,15 @@ import type {
 	PrivacyUpdateEventDetail,
 	SepaUpdateEventDetail,
 } from "../../types";
-import DataPrivacyNotice from "../legal/DataPrivacyNotice";
-import PrivacyPolicy from "../legal/PrivacyPolicy";
-import SepaMandate from "../sepa/SepaMandate";
+import { DataPrivacyNotice } from "../legal/DataPrivacyNotice";
+import { PrivacyPolicy } from "../legal/PrivacyPolicy";
+import { SepaMandate } from "../sepa/SepaMandate";
 
 interface MemberFormProps {
 	user: User;
 }
 
-export default function MemberForm({ user }: MemberFormProps) {
+export function MemberForm({ user }: MemberFormProps) {
 	const { showToast } = useToast();
 	const [statusRequestMessage, setStatusRequestMessage] = useState("");
 	const [showSepaModal, setShowSepaModal] = useState(false);

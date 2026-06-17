@@ -6,7 +6,7 @@ import { Controller, useFieldArray, useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -35,7 +35,7 @@ import {
 	type EngagementSchema,
 	engagementFormSchema,
 } from "../../lib/schemas";
-import ToolPageShell from "../tools/ToolPageShell";
+import { ToolPageShell } from "../tools/ToolPageShell";
 import { generateEngagementCertificatePdf } from "./generators/engagementCertificatePdf";
 
 interface Props {
