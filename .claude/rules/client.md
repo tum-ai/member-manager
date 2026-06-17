@@ -28,3 +28,8 @@ paths: ["client/**"]
 - **Always verify a new feature with both layers before merging**: Vitest unit/integration tests
   for its hooks/utils/components, **and** a Playwright E2E spec covering the primary user flow
   (`pnpm test:e2e`, see `e2e/CLAUDE.md`). A feature is not "done" until both pass green.
+- **Any change to functionality ships with test changes** that exercise the new/changed behaviour —
+  update or add the relevant Vitest and/or E2E cases in the same PR.
+- **Every bug fix adds a regression test.** When a user bug report affects functionality, add a
+  test reproducing that exact failure case (it should fail before the fix, pass after) so it can't
+  silently return.

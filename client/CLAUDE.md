@@ -37,6 +37,9 @@ Package: `@member-manager/client`.
 - **Tests** — every hook/util gets a Vitest test; interactive components get a Storybook play + a11y story.
 - **New feature = both test layers.** Verify any new feature with Vitest unit/integration tests **and**
   a Playwright E2E spec for its primary flow (`pnpm test:e2e`, see `e2e/CLAUDE.md`) before merging.
+- **Any functionality change ships with test changes** covering the new behaviour, in the same PR.
+- **Every bug fix adds a regression test.** A user-reported failure affecting functionality gets a
+  test reproducing that exact case (fails before the fix, passes after) so it can't silently return.
 
 ## Commands
 
