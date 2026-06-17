@@ -6,3 +6,9 @@ dist
 
 *storybook.log
 storybook-static
+
+# Generated from the composite tsconfig (tsconfig.node.json) by `tsc --build`
+vite.config.js
+vite.config.d.ts
+vitest.storybook.config.js
+vitest.storybook.config.d.ts
