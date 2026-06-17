@@ -32,6 +32,8 @@ export function useAdminDatabase() {
 		isLoadingMoreMembers,
 		isRefreshingMembers,
 		error,
+		updateMemberAsync,
+		isSavingMember,
 	} = useAdminData();
 
 	const [filters, setFilters] = useState<AdminFilters>(initialFilters);
@@ -114,6 +116,8 @@ export function useAdminDatabase() {
 		exportToExcel,
 		downloadEmails,
 		memberLoadingMessage,
+		updateMemberAsync,
+		isSavingMember,
 	};
 }
 

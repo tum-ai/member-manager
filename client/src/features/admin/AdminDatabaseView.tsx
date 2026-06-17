@@ -25,9 +25,11 @@ export function AdminDatabaseView() {
 		exportToExcel,
 		downloadEmails,
 		memberLoadingMessage,
+		updateMemberAsync,
+		isSavingMember,
 	} = useAdminDatabase();
 
-	const editor = useAdminMemberEditor();
+	const editor = useAdminMemberEditor({ updateMemberAsync, isSavingMember });
 
 	if (isLoading) return <AdminDatabaseSkeleton />;
 	if (error)

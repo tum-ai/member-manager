@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useToast } from "../../../contexts/ToastContext";
-import { useAdminData } from "../../../hooks/useAdminData";
+import type { useAdminData } from "../../../hooks/useAdminData";
 import { useResearchProjects } from "../../../hooks/useResearchProjects";
 import { BOARD_MEMBER_ROLE } from "../../../lib/constants";
 import { isLinkedinProfileUrl } from "../../../lib/linkedin";
@@ -17,9 +17,16 @@ function getResolvedStatus(member: AdminMember): string {
 	return member.member_status || (member.active ? "active" : "inactive");
 }
 
-export function useAdminMemberEditor() {
+interface UseAdminMemberEditorParams {
+	updateMemberAsync: ReturnType<typeof useAdminData>["updateMemberAsync"];
+	isSavingMember: boolean;
+}
+
+export function useAdminMemberEditor({
+	updateMemberAsync,
+	isSavingMember,
+}: UseAdminMemberEditorParams) {
 	const { showToast } = useToast();
-	const { updateMemberAsync, isSavingMember } = useAdminData();
 	const { researchProjects, isLoading: isLoadingResearchProjects } =
 		useResearchProjects();
 

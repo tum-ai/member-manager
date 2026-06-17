@@ -8,10 +8,6 @@ const { updateMemberAsync, showToast } = vi.hoisted(() => ({
 	showToast: vi.fn(),
 }));
 
-vi.mock("../../../hooks/useAdminData", () => ({
-	useAdminData: () => ({ updateMemberAsync, isSavingMember: false }),
-}));
-
 vi.mock("../../../contexts/ToastContext", () => ({
 	useToast: () => ({ showToast }),
 }));
@@ -39,9 +35,15 @@ function member(overrides: Partial<AdminMember> = {}): AdminMember {
 	} as AdminMember;
 }
 
+function renderEditor() {
+	return renderHook(() =>
+		useAdminMemberEditor({ updateMemberAsync, isSavingMember: false }),
+	);
+}
+
 describe("useAdminMemberEditor", () => {
 	it("opens the editor seeded from the member", () => {
-		const { result } = renderHook(() => useAdminMemberEditor());
+		const { result } = renderEditor();
 
 		act(() => result.current.openMemberEditor(member()));
 
@@ -52,7 +54,7 @@ describe("useAdminMemberEditor", () => {
 	});
 
 	it("flags a missing required department after clearing it", () => {
-		const { result } = renderHook(() => useAdminMemberEditor());
+		const { result } = renderEditor();
 
 		act(() => result.current.openMemberEditor(member()));
 		act(() => result.current.setEditDepartment(""));
@@ -62,7 +64,7 @@ describe("useAdminMemberEditor", () => {
 	});
 
 	it("preserves a missing department when the role is unchanged", () => {
-		const { result } = renderHook(() => useAdminMemberEditor());
+		const { result } = renderEditor();
 
 		act(() => result.current.openMemberEditor(member({ department: null })));
 
@@ -71,7 +73,7 @@ describe("useAdminMemberEditor", () => {
 	});
 
 	it("disables save for an invalid LinkedIn URL", () => {
-		const { result } = renderHook(() => useAdminMemberEditor());
+		const { result } = renderEditor();
 
 		act(() => result.current.openMemberEditor(member()));
 		act(() => result.current.setEditLinkedinUrl("not-a-url"));
@@ -82,7 +84,7 @@ describe("useAdminMemberEditor", () => {
 
 	it("saves member changes with resolved fields and closes", async () => {
 		updateMemberAsync.mockResolvedValueOnce(undefined);
-		const { result } = renderHook(() => useAdminMemberEditor());
+		const { result } = renderEditor();
 
 		act(() => result.current.openMemberEditor(member()));
 		await act(async () => {
