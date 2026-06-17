@@ -2,7 +2,7 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
-import errorHandler from "./plugins/errorHandler.js";
+import { errorHandler } from "./plugins/errorHandler.js";
 import { adminRoutes } from "./routes/admin.js";
 import { avatarProxyRoutes } from "./routes/avatarProxy.js";
 import { bugReportRoutes } from "./routes/bugReports.js";

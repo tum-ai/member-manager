@@ -6,7 +6,7 @@ interface ToolPageShellProps {
 	children: React.ReactNode;
 }
 
-export default function ToolPageShell({
+export function ToolPageShell({
 	title,
 	description,
 	children,

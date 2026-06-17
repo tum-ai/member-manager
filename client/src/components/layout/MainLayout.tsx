@@ -64,7 +64,7 @@ import {
 	TUM_AI_LOGO_MARK_DARK,
 	TUM_AI_LOGO_MARK_LIGHT,
 } from "../../lib/branding";
-import BugReportButton from "./BugReportButton";
+import { BugReportButton } from "./BugReportButton";
 
 interface MainLayoutProps {
 	children: React.ReactNode;
@@ -117,7 +117,7 @@ const isLeafActive = (pathname: string, to: string) =>
 const isWithinPrefix = (pathname: string, prefix: string) =>
 	pathname === prefix || pathname.startsWith(`${prefix}/`);
 
-export default function MainLayout({
+export function MainLayout({
 	children,
 	user,
 	isAdmin = false,

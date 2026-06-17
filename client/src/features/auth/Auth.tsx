@@ -65,7 +65,7 @@ function isLocalSupabaseProject(): boolean {
 	}
 }
 
-export default function Auth() {
+export function Auth() {
 	const [message, setMessage] = useState("");
 	const [localLoginInProgress, setLocalLoginInProgress] = useState<
 		"admin" | "regular" | null

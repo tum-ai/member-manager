@@ -9,7 +9,7 @@ interface PrivacyPolicyProps {
 	privacyAgreed: boolean;
 }
 
-export default function PrivacyPolicy({
+export function PrivacyPolicy({
 	onCheckChange,
 	privacyAgreed,
 }: PrivacyPolicyProps) {

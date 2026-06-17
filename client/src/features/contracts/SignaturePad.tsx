@@ -6,7 +6,7 @@ interface SignaturePadProps {
 	height?: number;
 }
 
-export default function SignaturePad({
+export function SignaturePad({
 	onChange,
 	height = 180,
 }: SignaturePadProps): JSX.Element {

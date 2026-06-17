@@ -25,7 +25,7 @@ vi.mock("@/hooks/use-mobile", () => ({
 // d3-org-chart's SVG/zoom rendering is unreliable under jsdom — assert the page
 // wiring instead and capture the nodes the diagram would receive.
 vi.mock("./orgTree/OrgChartDiagram", () => ({
-	default: ({ nodes }: { nodes: unknown }) => {
+	OrgChartDiagram: ({ nodes }: { nodes: unknown }) => {
 		diagramNodes.current = nodes;
 		return <div data-testid="org-chart-diagram" />;
 	},

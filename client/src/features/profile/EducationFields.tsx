@@ -62,7 +62,7 @@ function getEditableEducationEntries(
 		: [createEditableEducationEntry()];
 }
 
-export default function EducationFields({
+export function EducationFields({
 	degreeValue,
 	schoolValue,
 	onChange,

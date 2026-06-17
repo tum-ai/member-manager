@@ -1,8 +1,8 @@
 import { Button } from "@/components/ui/button";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useAdminData } from "../../hooks/useAdminData";
-import AdminRequestsLayout from "./AdminRequestsLayout";
+import { AdminRequestsLayout } from "./AdminRequestsLayout";
 import { formatRequestedChanges, getMemberDisplayName } from "./adminRequests";
 
 export default function AdminChangeRequestsPage() {

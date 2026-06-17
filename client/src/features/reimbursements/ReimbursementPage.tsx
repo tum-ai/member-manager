@@ -20,7 +20,7 @@ import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
-import GlassCard from "../../components/ui/GlassCard";
+import { GlassCard } from "../../components/ui/GlassCard";
 import { useToast } from "../../contexts/ToastContext";
 import { useMemberData } from "../../hooks/useMemberData";
 import {
@@ -31,7 +31,7 @@ import {
 } from "../../hooks/useReimbursementRequests";
 import { useSepaData } from "../../hooks/useSepaData";
 import { DEPARTMENTS } from "../../lib/constants";
-import ToolPageShell from "../tools/ToolPageShell";
+import { ToolPageShell } from "../tools/ToolPageShell";
 
 interface ReimbursementPageProps {
 	user: User;

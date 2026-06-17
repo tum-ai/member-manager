@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -15,9 +15,9 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { useCurrentUserIsAdmin } from "../../hooks/useCurrentUserIsAdmin";
-import ToolPageShell from "../tools/ToolPageShell";
-import ContractDocumentPreview from "./ContractDocumentPreview";
-import DynamicForm, { isVisible } from "./DynamicForm";
+import { ToolPageShell } from "../tools/ToolPageShell";
+import { ContractDocumentPreview } from "./ContractDocumentPreview";
+import { DynamicForm, isVisible } from "./DynamicForm";
 import {
 	useContractPreview,
 	useContractSubmission,

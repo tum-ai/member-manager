@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import type { Member } from "../../types";
-import OrgChartView from "./OrgChartView";
+import { OrgChartView } from "./OrgChartView";
 
 function buildMember(overrides: Partial<Member>): Member {
 	return {

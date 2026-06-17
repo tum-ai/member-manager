@@ -39,7 +39,7 @@ function getInitialConsentState(agreed: boolean): Record<ConsentKey, boolean> {
 	};
 }
 
-export default function DataPrivacyNotice({
+export function DataPrivacyNotice({
 	dataPrivacyNoticeAgreed,
 	onCheckChange,
 }: DataPrivacyNoticeProps) {

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ReimbursementRequest } from "../../hooks/useReimbursementRequests";
-import ReimbursementReviewQueue from "./ReimbursementReviewQueue";
+import { ReimbursementReviewQueue } from "./ReimbursementReviewQueue";
 
 function makeRequest(
 	overrides: Partial<ReimbursementRequest> & { id: string },

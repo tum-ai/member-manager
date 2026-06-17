@@ -22,7 +22,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import GlassCard from "../../components/ui/GlassCard";
+import { GlassCard } from "../../components/ui/GlassCard";
 import { useMembersListData } from "../../hooks/useMembersListData";
 import { proxiedAvatarUrl } from "../../lib/avatarUrl";
 import {
@@ -86,7 +86,7 @@ function isBoardOnlyMember(member: Member): boolean {
 	);
 }
 
-export default function MemberList() {
+export function MemberList() {
 	const { members, isLoading, error } = useMembersListData();
 	const [search, setSearch] = useState("");
 	const [department, setDepartment] = useState("");

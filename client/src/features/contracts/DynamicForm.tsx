@@ -285,7 +285,7 @@ function fieldFor(
 	}
 }
 
-export default function DynamicForm({
+export function DynamicForm({
 	variables,
 	values,
 	onChange,

@@ -23,7 +23,7 @@ interface ConfirmDialogProps {
 
 // Styled replacement for window.confirm(). Keeps destructive confirmations on
 // the app's design system instead of a native browser dialog.
-export default function ConfirmDialog({
+export function ConfirmDialog({
 	open,
 	onOpenChange,
 	title,

@@ -18,7 +18,7 @@ const variantClasses: Record<NonNullable<GlassCardProps["variant"]>, string> = {
 // Clean, solid surface (the glassmorphism look was retired in the shadcn
 // migration). Kept as a shim under the same import path + `variant` prop so the
 // many consumers don't all need rewriting at once.
-export default function GlassCard({
+export function GlassCard({
 	children,
 	variant = "default",
 	className,

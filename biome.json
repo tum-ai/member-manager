@@ -21,11 +21,14 @@
 				"useDateNow": "error"
 			},
 			"style": {
+				"noDefaultExport": "error",
 				"noNonNullAssertion": "error",
 				"noUselessElse": "error",
 				"noYodaExpression": "error",
 				"useCollapsedElseIf": "error",
+				"useExportType": "error",
 				"useForOf": "error",
+				"useImportType": "error",
 				"useShorthandAssign": "error",
 				"useShorthandFunctionType": "error",
 				"useThrowNewError": "error",
@@ -36,6 +39,27 @@
 			}
 		}
 	},
+	"overrides": [
+		{
+			"includes": [
+				"**/*.stories.tsx",
+				"**/features/**/*Page.tsx",
+				"**/App.tsx",
+				"**/main.tsx",
+				"**/*.config.ts",
+				"**/*.config.mts",
+				"**/.storybook/**",
+				"**/api/**/*.ts"
+			],
+			"linter": {
+				"rules": {
+					"style": {
+						"noDefaultExport": "off"
+					}
+				}
+			}
+		}
+	],
 	"javascript": {
 		"formatter": {
 			"quoteStyle": "double"

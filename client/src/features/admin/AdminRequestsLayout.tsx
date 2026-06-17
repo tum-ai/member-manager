@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 
@@ -11,7 +11,7 @@ interface AdminRequestsLayoutProps {
 	children: ReactNode;
 }
 
-export default function AdminRequestsLayout({
+export function AdminRequestsLayout({
 	title,
 	description,
 	isLoading = false,
