@@ -45,6 +45,11 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 	await server.register(rateLimit, {
 		max: 100,
 		timeWindow: "1 minute",
+		// Loopback callers (local dev + the E2E suite, which fires the whole suite
+		// from one host) would otherwise trip the per-IP limit and flake. Production
+		// traffic never originates from loopback, so it keeps the full limit.
+		allowList:
+			process.env.NODE_ENV === "production" ? [] : ["127.0.0.1", "::1"],
 	});
 
 	const configuredCorsOrigins = process.env.CORS_ORIGIN?.split(",")
