@@ -62,7 +62,7 @@ test("isUrlAllowed honours custom allowed protocols", () => {
 	assert.strictEqual(isUrlAllowed("http://hooks.slack.com/x", opts), true);
 });
 
-test("isUrlAllowed returns false for unparseable input", () => {
+test("isUrlAllowed returns false for unparsable input", () => {
 	assert.strictEqual(
 		isUrlAllowed("not a url", { allowedHosts: ["hooks.slack.com"] }),
 		false,
