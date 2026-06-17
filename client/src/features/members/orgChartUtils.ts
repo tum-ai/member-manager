@@ -1,10 +1,10 @@
-import { BOARD_MEMBER_ROLE } from "../../lib/constants";
-import { getOperationalDepartment } from "../../lib/memberMetadata";
+import { BOARD_MEMBER_ROLE } from "@/lib/constants";
+import { getOperationalDepartment } from "@/lib/memberMetadata";
 import {
 	getResearchProjectFallbackTitle,
 	getResearchProjectReferences,
-} from "../../lib/researchProjects";
-import type { InnovationProject, Member, ResearchProject } from "../../types";
+} from "@/lib/researchProjects";
+import type { InnovationProject, Member, ResearchProject } from "@/types";
 
 export interface OrgChartDepartmentGroup {
 	department: string;

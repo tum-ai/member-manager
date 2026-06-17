@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
-import ContractDocumentPreview from "./ContractDocumentPreview";
-import SignaturePad from "./SignaturePad";
+import { ContractDocumentPreview } from "./ContractDocumentPreview";
+import { SignaturePad } from "./SignaturePad";
 import {
 	fetchPublicSignPayload,
 	type PublicSignPayload,

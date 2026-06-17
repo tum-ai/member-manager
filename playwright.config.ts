@@ -14,9 +14,15 @@ export default defineConfig({
 	retries: process.env.CI ? 2 : 0,
 	workers: process.env.CI ? 1 : undefined,
 	reporter: process.env.CI ? [["html", { open: "never" }], ["list"]] : "list",
+	// Fail fast if the deterministic DB seed (supabase/seed.sql) is not loaded,
+	// so the heavier flows have their fixtures guaranteed (see e2e/global-setup).
+	globalSetup: "./e2e/global-setup.ts",
 	use: {
 		baseURL: CLIENT_URL,
-		trace: "on-first-retry",
+		// Retain a trace for any failed test (not only first-retry) so the
+		// multi-step reimbursement and contract-signing flows stay debuggable from
+		// the uploaded CI artifact.
+		trace: "retain-on-failure",
 		screenshot: "only-on-failure",
 	},
 	projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],

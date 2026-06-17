@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../lib/apiClient";
-import type { SepaSchema } from "../lib/schemas";
-import type { Sepa } from "../types";
+import { apiClient } from "@/lib/apiClient";
+import type { SepaSchema } from "@/lib/schemas";
+import type { Sepa } from "@/types";
 
 export function useSepaData(userId: string) {
 	const queryClient = useQueryClient();

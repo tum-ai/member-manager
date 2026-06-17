@@ -28,7 +28,7 @@ const maxWidthClasses: Record<NonNullable<ModalProps["maxWidth"]>, string> = {
 
 // shadcn Dialog shim that preserves the previous MUI `Modal` API so its callers
 // (ProfilePage, MemberForm, …) stay unchanged.
-export default function Modal({
+export function Modal({
 	title,
 	onClose,
 	children,

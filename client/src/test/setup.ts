@@ -1,4 +1,16 @@
 import "@testing-library/jest-dom";
+import { afterAll, afterEach, beforeAll } from "vitest";
+import { server } from "./mswServer";
+
+// --- MSW: intercept `/api/*` requests in every test ---
+// `onUnhandledRequest: "error"` surfaces any request the suite forgot to mock,
+// so a hook hitting an unstubbed endpoint fails loudly instead of leaking to the
+// network. Tests register per-case handlers with `server.use(...)`; they're
+// cleared after each test. Files that stub `fetch` directly (e.g.
+// apiClient.test.ts) still work — that stub shadows MSW for that test.
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
+afterEach(() => server.resetHandlers());
+afterAll(() => server.close());
 
 // --- jsdom polyfills for Radix UI primitives (shadcn/ui) ---
 // jsdom doesn't implement these, and Radix's Select/Dialog/Dropdown/Tooltip and

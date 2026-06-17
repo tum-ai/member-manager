@@ -63,13 +63,26 @@ jobs:
           flags: unittests
           fail_ci_if_error: false
 
+  storybook-test:
+    name: Storybook Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+      - name: Setup toolchain
+        uses: ./.github/actions/setup
+      - name: Install Playwright Chromium
+        run: pnpm --filter @member-manager/client exec playwright install --with-deps chromium
+      - name: Run Storybook interaction + a11y tests
+        run: pnpm --filter @member-manager/client run test:storybook
+
   # Aggregates the split jobs back under the legacy required-check name so
   # branch protection ("Lint / Build / Test") stays satisfied without a
   # settings change. Fails if any dependency failed or was cancelled.
   required-checks:
     name: Lint / Build / Test
     runs-on: ubuntu-latest
-    needs: [lint, typecheck, build, test]
+    needs: [lint, typecheck, build, test, storybook-test]
     if: ${{ always() }}
     steps:
       - name: Verify required jobs succeeded

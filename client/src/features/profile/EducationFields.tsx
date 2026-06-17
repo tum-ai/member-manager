@@ -9,21 +9,21 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { cn } from "@/lib/utils";
 import {
 	DEGREE_PROGRAM_CUSTOM_OPTION,
 	DEGREE_PROGRAM_PRESETS,
 	DEGREE_TYPES,
 	SCHOOL_CUSTOM_OPTION,
 	SCHOOL_PRESETS,
-} from "../../lib/constants";
+} from "@/lib/constants";
 import {
 	type EducationEntry,
 	getEducationEntries,
 	joinDegree,
 	serializeEducationEntries,
 	splitDegree,
-} from "../../lib/memberMetadata";
+} from "@/lib/memberMetadata";
+import { cn } from "@/lib/utils";
 
 // Radix Select forbids empty-string item values, so an empty selection is
 // represented by this sentinel and mapped back to "" at the boundary.
@@ -62,7 +62,7 @@ function getEditableEducationEntries(
 		: [createEditableEducationEntry()];
 }
 
-export default function EducationFields({
+export function EducationFields({
 	degreeValue,
 	schoolValue,
 	onChange,

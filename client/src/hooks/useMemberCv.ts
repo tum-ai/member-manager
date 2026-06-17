@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../lib/apiClient";
-import { supabase } from "../lib/supabaseClient";
+import { apiClient } from "@/lib/apiClient";
+import { supabase } from "@/lib/supabaseClient";
 
 export interface MemberCvMetadata {
 	id: string;

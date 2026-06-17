@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -22,24 +23,23 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import GlassCard from "../../components/ui/GlassCard";
-import { useMembersListData } from "../../hooks/useMembersListData";
-import { proxiedAvatarUrl } from "../../lib/avatarUrl";
+import { useMembersListData } from "@/hooks/useMembersListData";
+import { proxiedAvatarUrl } from "@/lib/avatarUrl";
 import {
 	BOARD_MEMBER_ROLE,
 	DEGREE_TYPES,
 	DEPARTMENTS,
 	MEMBER_ROLES,
-} from "../../lib/constants";
-import { isLinkedinProfileUrl } from "../../lib/linkedin";
+} from "@/lib/constants";
+import { isLinkedinProfileUrl } from "@/lib/linkedin";
 import {
 	buildMemberNameSearchText,
 	getEducationEntries,
 	getMemberStatusLabel,
 	getOperationalDepartment,
 	splitDegree,
-} from "../../lib/memberMetadata";
-import type { Member } from "../../types";
+} from "@/lib/memberMetadata";
+import type { Member } from "@/types";
 
 const ALL_VALUE = "__all__";
 
@@ -86,7 +86,7 @@ function isBoardOnlyMember(member: Member): boolean {
 	);
 }
 
-export default function MemberList() {
+export function MemberList() {
 	const { members, isLoading, error } = useMembersListData();
 	const [search, setSearch] = useState("");
 	const [department, setDepartment] = useState("");

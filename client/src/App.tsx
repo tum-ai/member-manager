@@ -9,15 +9,15 @@ import {
 	Routes,
 	useLocation,
 } from "react-router-dom";
-import MainLayout from "./components/layout/MainLayout";
+import { MainLayout } from "./components/layout/MainLayout";
 import { Skeleton } from "./components/ui/skeleton";
 import { SkeletonRegion } from "./components/ui/skeleton-blocks";
 import { ToastProvider } from "./contexts/ToastContext";
 import AdminCertificateRequestsPage from "./features/admin/AdminCertificateRequestsPage";
 import AdminChangeRequestsPage from "./features/admin/AdminChangeRequestsPage";
-import AdminDatabaseView from "./features/admin/AdminDatabaseView";
+import { AdminDatabaseView } from "./features/admin/AdminDatabaseView";
 import AdminJobRequestsPage from "./features/admin/AdminJobRequestsPage";
-import Auth from "./features/auth/Auth";
+import { Auth } from "./features/auth/Auth";
 import EngagementCertificatePage from "./features/certificate/EngagementCertificatePage";
 import ContractFormPage from "./features/contracts/ContractFormPage";
 import ContractSignPage from "./features/contracts/ContractSignPage";
@@ -25,10 +25,11 @@ import ContractSubmissionDetailPage from "./features/contracts/ContractSubmissio
 import ContractSubmissionsPage from "./features/contracts/ContractSubmissionsPage";
 import ContractTemplatesPage from "./features/contracts/ContractTemplatesPage";
 import JobPostingsPage from "./features/jobs/JobPostingsPage";
-import MemberList from "./features/members/MemberList";
+import { MemberList } from "./features/members/MemberList";
+import MembersInnovationPage from "./features/members/MembersInnovationPage";
 import MembersOrgChartPage from "./features/members/MembersOrgChartPage";
 import MembersOrgTreePage from "./features/members/MembersOrgTreePage";
-import MembersProjectsPage from "./features/members/MembersProjectsPage";
+import MembersResearchPage from "./features/members/MembersResearchPage";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
 import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
@@ -185,7 +186,12 @@ export function AuthenticatedApp({
 				<Route path="/members" element={<MemberList />} />
 				<Route path="/members/org-chart" element={<MembersOrgChartPage />} />
 				<Route path="/members/org-tree" element={<MembersOrgTreePage />} />
-				<Route path="/members/projects" element={<MembersProjectsPage />} />
+				<Route path="/members/research" element={<MembersResearchPage />} />
+				<Route path="/members/innovation" element={<MembersInnovationPage />} />
+				<Route
+					path="/members/projects"
+					element={<Navigate to="/members/research" replace />}
+				/>
 				<Route
 					path="/tools/reimbursement"
 					element={<ReimbursementPage user={user} />}

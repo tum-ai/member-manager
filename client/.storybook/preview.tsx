@@ -41,10 +41,16 @@ const preview: Preview = {
 			},
 		},
 		a11y: {
-			// 'todo' - show a11y violations in the test UI only
-			// 'error' - fail CI on a11y violations
+			// 'todo' - run a11y checks and surface violations, without failing
+			// 'error' - run a11y checks and FAIL the test on any violation
 			// 'off' - skip a11y checks entirely
-			test: "todo",
+			//
+			// Global default is 'error': the a11y addon runs on every story and
+			// FAILS the storybook-test CI job on any violation. A handful of stories
+			// narrow this with a documented per-story override that disables a single
+			// rule (e.g. a third-party chart that trips a false positive); see
+			// JobCard and OrgChartDiagram. New stories must be a11y-clean by default.
+			test: "error",
 		},
 	},
 	globalTypes: {

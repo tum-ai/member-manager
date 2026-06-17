@@ -23,7 +23,7 @@ type Story = StoryObj<typeof meta>;
 export const Department: Story = {
 	render: () => (
 		<Select>
-			<SelectTrigger className="w-56">
+			<SelectTrigger className="w-56" aria-label="Department">
 				<SelectValue placeholder="Select a department" />
 			</SelectTrigger>
 			<SelectContent>

@@ -1,5 +1,5 @@
 import { Badge } from "@/components/ui/badge";
-import type { Member } from "../../types";
+import type { Member } from "@/types";
 import { OrgChartTeamCard, renderMembers } from "./orgChartShared";
 import { buildOrgChart } from "./orgChartUtils";
 
@@ -7,7 +7,7 @@ interface OrgChartViewProps {
 	members: Member[];
 }
 
-export default function OrgChartView({
+export function OrgChartView({
 	members,
 }: OrgChartViewProps): JSX.Element | null {
 	const chart = buildOrgChart(members, [], []);

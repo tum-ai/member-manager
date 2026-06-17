@@ -7,7 +7,7 @@ import {
 import { type ReactElement, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import {
@@ -24,9 +24,9 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useToast } from "../../contexts/ToastContext";
-import { useDepartmentPermissions } from "../../hooks/useDepartmentPermissions";
-import { DEPARTMENTS } from "../../lib/constants";
+import { useToast } from "@/contexts/ToastContext";
+import { useDepartmentPermissions } from "@/hooks/useDepartmentPermissions";
+import { DEPARTMENTS } from "@/lib/constants";
 
 // Canonical-order serialization so we can compare the working draft against the
 // saved baseline regardless of how the permissions arrays happen to be ordered.
@@ -42,7 +42,7 @@ function serializeAssignments(assignments: DepartmentPermissionMap): string {
 	return JSON.stringify(normalized);
 }
 
-export default function DepartmentPermissionsCard(): ReactElement {
+export function DepartmentPermissionsCard(): ReactElement {
 	const { assignments, isLoading, saveAssignmentsAsync, isSaving } =
 		useDepartmentPermissions();
 	const { showToast } = useToast();

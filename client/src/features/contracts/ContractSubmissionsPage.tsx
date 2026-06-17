@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Label } from "@/components/ui/label";
 import { LinkButton } from "@/components/ui/link-button";
 import {
@@ -22,8 +22,8 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { useCurrentUserIsAdmin } from "../../hooks/useCurrentUserIsAdmin";
-import ToolPageShell from "../tools/ToolPageShell";
+import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import {
 	CONTRACT_STATUS_LABELS,
 	getContractStatusLabel,

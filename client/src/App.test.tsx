@@ -24,7 +24,7 @@ vi.mock("./hooks/useToolAccess", () => ({
 }));
 
 vi.mock("./features/admin/AdminDatabaseView", () => ({
-	default: () => <div>Admin route</div>,
+	AdminDatabaseView: () => <div>Admin route</div>,
 }));
 
 vi.mock("./features/profile/ProfilePage", () => ({
@@ -32,7 +32,7 @@ vi.mock("./features/profile/ProfilePage", () => ({
 }));
 
 vi.mock("./features/members/MemberList", () => ({
-	default: () => <div>Members route</div>,
+	MemberList: () => <div>Members route</div>,
 }));
 
 vi.mock("./features/jobs/JobPostingsPage", () => ({

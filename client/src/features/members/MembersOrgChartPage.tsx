@@ -1,8 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
-import { useMembersListData } from "../../hooks/useMembersListData";
-import { isActiveMember } from "../../lib/memberMetadata";
-import OrgChartView from "./OrgChartView";
+import { useMembersListData } from "@/hooks/useMembersListData";
+import { isActiveMember } from "@/lib/memberMetadata";
+import { OrgChartView } from "./OrgChartView";
 
 export default function MembersOrgChartPage() {
 	const { members, isLoading, error } = useMembersListData();

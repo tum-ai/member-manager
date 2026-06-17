@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../lib/apiClient";
-import type { EngagementFormSchema } from "../lib/schemas";
+import { apiClient } from "@/lib/apiClient";
+import type { EngagementFormSchema } from "@/lib/schemas";
 
 export interface EngagementCertificateRequest {
 	id: string;

@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "../../../contexts/ToastContext";
+import { useToast } from "@/contexts/ToastContext";
 import type { OrgTreeNode } from "./orgTreeData";
 import {
 	getNodeSize,
@@ -31,7 +31,7 @@ type ChartDatum = OrgTreeNode & { _expanded?: boolean };
 // Tailwind's `sm` breakpoint. Below it we treat the layout as mobile.
 const MOBILE_BREAKPOINT = 640;
 
-export default function OrgChartDiagram({ nodes }: OrgChartDiagramProps) {
+export function OrgChartDiagram({ nodes }: OrgChartDiagramProps) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const chartRef = useRef<OrgChart<ChartDatum> | null>(null);
 	const { showToast } = useToast();

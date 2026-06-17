@@ -10,17 +10,18 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Markdown } from "@/components/ui/markdown";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "../../contexts/ToastContext";
-import { type JobPostingRequest, useAdminData } from "../../hooks/useAdminData";
-import AdminRequestsLayout from "./AdminRequestsLayout";
+import { useToast } from "@/contexts/ToastContext";
+import { useAdminData } from "@/hooks/useAdminData";
+import { AdminRequestsLayout } from "./AdminRequestsLayout";
 import {
 	adminJobTypeLabels,
 	getMemberDisplayName,
 	getSafeHttpUrl,
 } from "./adminRequests";
+import type { JobPostingRequest } from "./adminTypes";
 
 const CLAMP_HEIGHT_PX = 120;
 

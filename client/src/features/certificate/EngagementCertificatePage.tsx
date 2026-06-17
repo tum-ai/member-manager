@@ -6,7 +6,7 @@ import { Controller, useFieldArray, useForm } from "react-hook-form";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -21,21 +21,21 @@ import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 
-import { useToast } from "../../contexts/ToastContext";
-import { useEngagementCertificateRequests } from "../../hooks/useEngagementCertificateRequests";
-import { useMemberData } from "../../hooks/useMemberData";
+import { useToast } from "@/contexts/ToastContext";
+import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { useEngagementCertificateRequests } from "@/hooks/useEngagementCertificateRequests";
+import { useMemberData } from "@/hooks/useMemberData";
 import {
 	DEPARTMENTS,
 	ENGAGEMENT_SPECIAL_ROLES,
 	WEEKLY_HOURS_OPTIONS,
-} from "../../lib/constants";
-import { downloadPdfBlob, formatGermanDate } from "../../lib/pdfUtils";
+} from "@/lib/constants";
+import { downloadPdfBlob, formatGermanDate } from "@/lib/pdfUtils";
 import {
 	type EngagementFormSchema,
 	type EngagementSchema,
 	engagementFormSchema,
-} from "../../lib/schemas";
-import ToolPageShell from "../tools/ToolPageShell";
+} from "@/lib/schemas";
 import { generateEngagementCertificatePdf } from "./generators/engagementCertificatePdf";
 
 interface Props {

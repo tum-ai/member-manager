@@ -1,6 +1,6 @@
 import type { DepartmentPermissionMap } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../lib/apiClient";
+import { apiClient } from "@/lib/apiClient";
 
 // Stable reference returned while the query is loading so effects keyed on
 // `assignments` don't re-run on every render.

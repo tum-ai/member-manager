@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import BugReportButton from "../BugReportButton";
+import { BugReportButton } from "@/components/layout/BugReportButton";
 
 const { apiClientMock, showToastMock } = vi.hoisted(() => ({
 	apiClientMock: vi.fn(),

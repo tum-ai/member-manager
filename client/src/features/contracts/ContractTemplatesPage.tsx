@@ -2,7 +2,7 @@ import { PanelRight, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import ConfirmDialog from "@/components/ui/ConfirmDialog";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Collapsible,
@@ -17,7 +17,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Field } from "@/components/ui/field";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,8 +38,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Textarea } from "@/components/ui/textarea";
+import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { cn } from "@/lib/utils";
-import ToolPageShell from "../tools/ToolPageShell";
 import {
 	type ContractConditionType,
 	type ContractTemplate,

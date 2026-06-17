@@ -7,19 +7,17 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
-import GlassCard from "@/components/ui/GlassCard";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "../../contexts/ToastContext";
-import {
-	type EngagementCertificateRequest,
-	useAdminData,
-} from "../../hooks/useAdminData";
-import AdminRequestsLayout from "./AdminRequestsLayout";
+import { useToast } from "@/contexts/ToastContext";
+import { useAdminData } from "@/hooks/useAdminData";
+import { AdminRequestsLayout } from "./AdminRequestsLayout";
 import {
 	CertificateDetailRow,
 	formatCertificateLeadership,
 	getMemberDisplayName,
 } from "./adminRequests";
+import type { EngagementCertificateRequest } from "./adminTypes";
 
 export default function AdminCertificateRequestsPage() {
 	const { showToast } = useToast();

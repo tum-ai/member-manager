@@ -1,6 +1,7 @@
 import { Download, ListFilter, Search, X } from "lucide-react";
 import type React from "react";
 import { Button } from "@/components/ui/button";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -10,7 +11,6 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import GlassCard from "../../components/ui/GlassCard";
 import {
 	ALL_REIMBURSEMENT_REVIEW_FILTER,
 	type ReimbursementReviewApprovalFilter,
@@ -45,7 +45,7 @@ interface ReimbursementReviewControlsProps {
 	onBulkDownload: () => Promise<void>;
 }
 
-export default function ReimbursementReviewControls({
+export function ReimbursementReviewControls({
 	search,
 	onSearchChange,
 	departments,

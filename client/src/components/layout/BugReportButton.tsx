@@ -13,8 +13,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "../../contexts/ToastContext";
-import { apiClient } from "../../lib/apiClient";
+import { useToast } from "@/contexts/ToastContext";
+import { apiClient } from "@/lib/apiClient";
 
 interface BugReportButtonProps {
 	user: User | null;
@@ -46,9 +46,7 @@ function getUserAgent(): string {
 	return window.navigator.userAgent;
 }
 
-export default function BugReportButton({
-	user,
-}: BugReportButtonProps): JSX.Element {
+export function BugReportButton({ user }: BugReportButtonProps): JSX.Element {
 	const location = useLocation();
 	const { showToast } = useToast();
 	const [isOpen, setIsOpen] = useState(false);

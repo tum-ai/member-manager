@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Member } from "../../../types";
+import type { Member } from "@/types";
 import { buildOrgTree, type OrgTreeNode } from "./orgTreeData";
 
 function buildMember(overrides: Partial<Member>): Member {

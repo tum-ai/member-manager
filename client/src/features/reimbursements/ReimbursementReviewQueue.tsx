@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Label } from "@/components/ui/label";
 import { LinkButton } from "@/components/ui/link-button";
 import {
@@ -21,15 +22,9 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { DEPARTMENTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import GlassCard from "../../components/ui/GlassCard";
-import type {
-	BuchhaltungsButlerSyncStatus,
-	ReimbursementRequest,
-	ReimbursementReviewAction,
-} from "../../hooks/useReimbursementRequests";
-import { DEPARTMENTS } from "../../lib/constants";
-import ReimbursementReviewActions from "./ReimbursementReviewActions";
+import { ReimbursementReviewActions } from "./ReimbursementReviewActions";
 import {
 	formatReviewAmount,
 	formatReviewDate,
@@ -42,6 +37,11 @@ import {
 	getReviewStage,
 	hasReceiptEndpoint,
 } from "./reimbursementReviewUtils";
+import type {
+	BuchhaltungsButlerSyncStatus,
+	ReimbursementRequest,
+	ReimbursementReviewAction,
+} from "./reimbursementTypes";
 
 interface ReimbursementReviewQueueProps {
 	requests: ReimbursementRequest[];
@@ -68,7 +68,7 @@ interface ReimbursementReviewQueueProps {
 	isSyncingBuchhaltungsButler: boolean;
 }
 
-export default function ReimbursementReviewQueue({
+export function ReimbursementReviewQueue({
 	requests,
 	selectedIds,
 	onSelectionChange,

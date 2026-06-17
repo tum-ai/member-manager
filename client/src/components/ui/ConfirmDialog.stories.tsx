@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
 
 import { Button } from "./button";
-import ConfirmDialog from "./ConfirmDialog";
+import { ConfirmDialog } from "./ConfirmDialog";
 
 const meta = {
 	title: "UI/ConfirmDialog",

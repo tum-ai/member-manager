@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import ContractDocumentPreview from "./ContractDocumentPreview";
+import { ContractDocumentPreview } from "./ContractDocumentPreview";
 
 // Mirror the server's page HTML: each paragraph is a <p> whose wrapped lines
 // are joined by <br>, and paragraphs are separated by a counted blank line.

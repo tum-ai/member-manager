@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { Member } from "../../../types";
-import OrgChartDiagram from "./OrgChartDiagram";
+import { ToastProvider } from "@/contexts/ToastContext";
+import type { Member } from "@/types";
+import { OrgChartDiagram } from "./OrgChartDiagram";
 import { buildOrgTree } from "./orgTreeData";
 
 function member(overrides: Partial<Member>): Member {
@@ -81,7 +82,26 @@ const meta = {
 	title: "Members/OrgChartDiagram",
 	component: OrgChartDiagram,
 	tags: ["autodocs"],
-	parameters: { layout: "fullscreen" },
+	parameters: {
+		layout: "fullscreen",
+		a11y: {
+			// d3-org-chart renders node cards as HTML inside SVG <foreignObject>.
+			// axe can't resolve the layered avatar-fallback backgrounds through that
+			// boundary and reports the muted-foreground initials as near-white text
+			// on the white page background (computed contrast ~1.03) — a false
+			// positive; the initials actually render on the muted avatar circle.
+			// Disabled only for this third-party chart; tracked in #207.
+			config: { rules: [{ id: "color-contrast", enabled: false }] },
+		},
+	},
+	// OrgChartDiagram calls useToast(), so it must render inside a ToastProvider.
+	decorators: [
+		(Story) => (
+			<ToastProvider>
+				<Story />
+			</ToastProvider>
+		),
+	],
 } satisfies Meta<typeof OrgChartDiagram>;
 
 export default meta;

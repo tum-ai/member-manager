@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Member } from "../../types";
+import type { Member } from "@/types";
 import MembersOrgTreePage from "./MembersOrgTreePage";
 
 const { membersState, diagramNodes, mobileState } = vi.hoisted(() => ({
@@ -25,7 +25,7 @@ vi.mock("@/hooks/use-mobile", () => ({
 // d3-org-chart's SVG/zoom rendering is unreliable under jsdom — assert the page
 // wiring instead and capture the nodes the diagram would receive.
 vi.mock("./orgTree/OrgChartDiagram", () => ({
-	default: ({ nodes }: { nodes: unknown }) => {
+	OrgChartDiagram: ({ nodes }: { nodes: unknown }) => {
 		diagramNodes.current = nodes;
 		return <div data-testid="org-chart-diagram" />;
 	},

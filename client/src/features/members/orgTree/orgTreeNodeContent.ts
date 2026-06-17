@@ -1,10 +1,7 @@
-import { proxiedAvatarUrl } from "../../../lib/avatarUrl";
-import {
-	TUM_AI_LOGO_MARK_DARK,
-	TUM_AI_LOGO_MARK_LIGHT,
-} from "../../../lib/branding";
-import type { Member } from "../../../types";
-import { getDisplayName, getInitials } from "../orgChartShared";
+import { getDisplayName, getInitials } from "@/features/members/orgChartShared";
+import { proxiedAvatarUrl } from "@/lib/avatarUrl";
+import { TUM_AI_LOGO_MARK_DARK, TUM_AI_LOGO_MARK_LIGHT } from "@/lib/branding";
+import type { Member } from "@/types";
 import { isBoardMember, type OrgTreeNode } from "./orgTreeData";
 
 /** Escape for safe interpolation into HTML text and double-quoted attributes. */
