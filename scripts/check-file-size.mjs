@@ -30,7 +30,6 @@ export const ALLOWLIST = [
 	"client/src/features/contracts/ContractSubmissionDetailPage.tsx",
 	"client/src/features/jobs/JobPostingsPage.tsx",
 	"client/src/features/reimbursements/ReimbursementPage.tsx",
-	"client/src/features/members/MemberForm.tsx",
 ];
 
 /**
