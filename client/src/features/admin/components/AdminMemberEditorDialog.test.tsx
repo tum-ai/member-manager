@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import type { AdminMember } from "../adminUtils";
+import type { AdminMember } from "@/features/admin/adminUtils";
 import { AdminMemberEditorDialog } from "./AdminMemberEditorDialog";
 
 const member = {
