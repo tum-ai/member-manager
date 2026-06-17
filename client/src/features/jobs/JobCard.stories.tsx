@@ -8,7 +8,7 @@ const baseJob: PartnerJob = {
 	title: "Master Thesis – Robotics Perception",
 	partner: { name: "TUM Robotics Lab", logo_url: null },
 	logo_url: null,
-	description_markdown: `## Thesis opportunity
+	description_markdown: `# Thesis opportunity
 Develop perception models for **autonomous manipulation**.
 
 - 6 months
@@ -32,19 +32,6 @@ const meta = {
 	component: JobCard,
 	parameters: {
 		layout: "padded",
-		a11y: {
-			// nested-interactive is now enforced: the card uses a stretched-overlay
-			// button (#207) so the only interactive element spanning the card is a
-			// real <button>; the apply link sits beside it, not nested within it.
-			//
-			// heading-order stays disabled as a story-isolation artifact, NOT a
-			// JobCard defect: the demo markdown starts at "##" (rendered as <h4>)
-			// right after the card's <h2>, jumping h2 -> h4. In the real page the
-			// surrounding document supplies the intermediate heading levels.
-			config: {
-				rules: [{ id: "heading-order", enabled: false }],
-			},
-		},
 	},
 } satisfies Meta<typeof JobCard>;
 
