@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,14 +20,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { useToast } from "@/contexts/ToastContext";
+import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { useMemberData } from "@/hooks/useMemberData";
+import { useReimbursementRequests } from "@/hooks/useReimbursementRequests";
+import { useSepaData } from "@/hooks/useSepaData";
+import { DEPARTMENTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { GlassCard } from "../../components/ui/GlassCard";
-import { useToast } from "../../contexts/ToastContext";
-import { useMemberData } from "../../hooks/useMemberData";
-import { useReimbursementRequests } from "../../hooks/useReimbursementRequests";
-import { useSepaData } from "../../hooks/useSepaData";
-import { DEPARTMENTS } from "../../lib/constants";
-import { ToolPageShell } from "../tools/ToolPageShell";
 import type {
 	CreateReimbursementRequestPayload,
 	ReimbursementRequest,

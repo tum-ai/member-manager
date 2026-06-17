@@ -1,8 +1,8 @@
 import {
 	buildMemberNameSearchText,
 	getOperationalDepartment,
-} from "../../lib/memberMetadata";
-import type { Member, Sepa } from "../../types";
+} from "@/lib/memberMetadata";
+import type { Member, Sepa } from "@/types";
 
 export interface AdminMember extends Member {
 	sepa?: Partial<Sepa> | null;

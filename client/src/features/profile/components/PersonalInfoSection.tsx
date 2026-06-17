@@ -2,6 +2,7 @@ import { UserRound } from "lucide-react";
 import type { UseFormReturn } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -10,9 +11,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { GlassCard } from "../../../components/ui/GlassCard";
-import type { MemberSchema } from "../../../lib/schemas";
-import { fromSelectValue, NONE_VALUE, toSelectValue } from "../profileUtils";
+import {
+	fromSelectValue,
+	NONE_VALUE,
+	toSelectValue,
+} from "@/features/profile/profileUtils";
+import type { MemberSchema } from "@/lib/schemas";
 import { SectionHeading } from "./SectionHeading";
 
 interface PersonalInfoSectionProps {

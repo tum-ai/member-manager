@@ -8,6 +8,7 @@ import { CheckboxCard } from "@/components/ui/checkbox-card";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { LinkButton } from "@/components/ui/link-button";
+import { Modal } from "@/components/ui/Modal";
 import {
 	Select,
 	SelectContent,
@@ -16,24 +17,23 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { Modal } from "../../components/ui/Modal";
-import { useToast } from "../../contexts/ToastContext";
-import { useMemberData } from "../../hooks/useMemberData";
-import { useSepaData } from "../../hooks/useSepaData";
+import { useToast } from "@/contexts/ToastContext";
+import { DataPrivacyNotice } from "@/features/legal/DataPrivacyNotice";
+import { PrivacyPolicy } from "@/features/legal/PrivacyPolicy";
+import { SepaMandate } from "@/features/sepa/SepaMandate";
+import { useMemberData } from "@/hooks/useMemberData";
+import { useSepaData } from "@/hooks/useSepaData";
 import {
 	type MemberSchema,
 	memberSchema,
 	type SepaSchema,
 	sepaSchema,
-} from "../../lib/schemas";
+} from "@/lib/schemas";
 import type {
 	DataPrivacyNoticeUpdateEventDetail,
 	PrivacyUpdateEventDetail,
 	SepaUpdateEventDetail,
-} from "../../types";
-import { DataPrivacyNotice } from "../legal/DataPrivacyNotice";
-import { PrivacyPolicy } from "../legal/PrivacyPolicy";
-import { SepaMandate } from "../sepa/SepaMandate";
+} from "@/types";
 
 interface MemberFormProps {
 	user: User;

@@ -14,7 +14,7 @@ import {
 	ACTIVE_FILTER_OPTIONS,
 	type AdminFilters,
 	BOOLEAN_FILTER_OPTIONS,
-} from "../adminUtils";
+} from "@/features/admin/adminUtils";
 import { FilterSelect } from "./FilterSelect";
 
 interface AdminFilterBarProps {

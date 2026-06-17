@@ -1,4 +1,4 @@
-import type { MemberSchema } from "../../lib/schemas";
+import type { MemberSchema } from "@/lib/schemas";
 
 interface BuildSelfServiceMemberUpdatePayloadOptions {
 	includeAdminManagedFields?: boolean;

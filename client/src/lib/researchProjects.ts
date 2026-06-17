@@ -1,4 +1,4 @@
-import type { ResearchProject } from "../types";
+import type { ResearchProject } from "@/types";
 
 function normalizeResearchReference(value?: string | null): string {
 	return value?.trim().toLowerCase() ?? "";

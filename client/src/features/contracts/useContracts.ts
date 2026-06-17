@@ -1,6 +1,6 @@
 import type { ContractWorkflowStatus } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiBlob, apiClient } from "../../lib/apiClient";
+import { apiBlob, apiClient } from "@/lib/apiClient";
 
 export type ContractVariableDataType =
 	| "TEXT"

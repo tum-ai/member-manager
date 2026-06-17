@@ -59,11 +59,8 @@ import {
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useToolAccess } from "../../hooks/useToolAccess";
-import {
-	TUM_AI_LOGO_MARK_DARK,
-	TUM_AI_LOGO_MARK_LIGHT,
-} from "../../lib/branding";
+import { useToolAccess } from "@/hooks/useToolAccess";
+import { TUM_AI_LOGO_MARK_DARK, TUM_AI_LOGO_MARK_LIGHT } from "@/lib/branding";
 import { BugReportButton } from "./BugReportButton";
 
 interface MainLayoutProps {

@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
-import type { InnovationProject, Member } from "../../types";
+import type { InnovationProject, Member } from "@/types";
 import { buildOrgChart } from "./orgChartUtils";
 import {
 	InnovationProjectsSection,

@@ -2,22 +2,31 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { User } from "@supabase/supabase-js";
 import { useEffect } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
-import { useToast } from "../../../contexts/ToastContext";
-import { useIsAdmin } from "../../../hooks/useIsAdmin";
-import { useMemberData } from "../../../hooks/useMemberData";
-import { useResearchProjects } from "../../../hooks/useResearchProjects";
-import { useSepaData } from "../../../hooks/useSepaData";
-import { getCurrentBatch } from "../../../lib/constants";
+import { useToast } from "@/contexts/ToastContext";
+import {
+	buildSelfServiceMemberUpdatePayload,
+	computeProfileCompleteness,
+} from "@/features/profile/profileFormUtils";
+import {
+	extractSlackProfile,
+	normalizeSerializedTextValue,
+	normalizeTextValue,
+} from "@/features/profile/profileUtils";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useMemberData } from "@/hooks/useMemberData";
+import { useResearchProjects } from "@/hooks/useResearchProjects";
+import { useSepaData } from "@/hooks/useSepaData";
+import { getCurrentBatch } from "@/lib/constants";
 import {
 	isLinkedinProfileUrl,
 	normalizeLinkedinProfileUrl,
-} from "../../../lib/linkedin";
+} from "@/lib/linkedin";
 import {
 	getEducationEntries,
 	resolveDepartmentForMemberRole,
 	serializeEducationEntries,
-} from "../../../lib/memberMetadata";
-import { getResearchProjectSelectValue } from "../../../lib/researchProjects";
+} from "@/lib/memberMetadata";
+import { getResearchProjectSelectValue } from "@/lib/researchProjects";
 import {
 	type LinkedinSchema,
 	linkedinSchema,
@@ -25,17 +34,8 @@ import {
 	memberSchema,
 	type SepaSchema,
 	sepaSchema,
-} from "../../../lib/schemas";
-import type { ResearchProject } from "../../../types";
-import {
-	buildSelfServiceMemberUpdatePayload,
-	computeProfileCompleteness,
-} from "../profileFormUtils";
-import {
-	extractSlackProfile,
-	normalizeSerializedTextValue,
-	normalizeTextValue,
-} from "../profileUtils";
+} from "@/lib/schemas";
+import type { ResearchProject } from "@/types";
 
 export interface UseProfileFormResult {
 	memberForm: UseFormReturn<MemberSchema>;

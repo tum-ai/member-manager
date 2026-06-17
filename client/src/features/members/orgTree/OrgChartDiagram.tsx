@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { useToast } from "../../../contexts/ToastContext";
+import { useToast } from "@/contexts/ToastContext";
 import type { OrgTreeNode } from "./orgTreeData";
 import {
 	getNodeSize,

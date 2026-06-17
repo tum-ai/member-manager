@@ -1,10 +1,10 @@
 import { CalendarDays, CalendarPlus, Pencil } from "lucide-react";
 import type { ReactElement } from "react";
 import { Button } from "@/components/ui/button";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { GlassCard } from "../../../components/ui/GlassCard";
 
 interface TumaiDayEventFormProps {
 	agenda: string;

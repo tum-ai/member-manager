@@ -14,8 +14,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
-import { useCurrentUserIsAdmin } from "../../hooks/useCurrentUserIsAdmin";
-import { ToolPageShell } from "../tools/ToolPageShell";
+import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import { DynamicForm, isVisible } from "./DynamicForm";
 import {

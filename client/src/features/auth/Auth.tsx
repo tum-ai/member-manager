@@ -18,8 +18,8 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getSlackRedirectUrl } from "../../lib/authRedirect";
-import { supabase } from "../../lib/supabaseClient";
+import { getSlackRedirectUrl } from "@/lib/authRedirect";
+import { supabase } from "@/lib/supabaseClient";
 
 const FEATURES = [
 	{

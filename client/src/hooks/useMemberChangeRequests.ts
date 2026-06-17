@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../lib/apiClient";
+import { apiClient } from "@/lib/apiClient";
 
 export interface MemberChangeRequestPayload {
 	changes: {

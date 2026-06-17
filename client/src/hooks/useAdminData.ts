@@ -10,8 +10,8 @@ import type {
 	EngagementCertificateRequest,
 	JobPostingRequest,
 	MemberChangeRequest,
-} from "../features/admin/adminTypes";
-import { apiClient } from "../lib/apiClient";
+} from "@/features/admin/adminTypes";
+import { apiClient } from "@/lib/apiClient";
 
 const ADMIN_PAGE_SIZE = 200;
 

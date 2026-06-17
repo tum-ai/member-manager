@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import type { PartnerJob } from "../../hooks/useJobs";
+import type { PartnerJob } from "@/hooks/useJobs";
 import { JobCard } from "./JobPostingsPage";
 
 const baseJob: PartnerJob = {

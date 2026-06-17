@@ -3,6 +3,7 @@ import type { ReactElement } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
 	Tooltip,
@@ -10,10 +11,9 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import type { TumaiDayEvent } from "@/features/tools/tumaiDaysTypes";
+import { formatDate } from "@/features/tools/tumaiDaysUtils";
 import { cn } from "@/lib/utils";
-import { GlassCard } from "../../../components/ui/GlassCard";
-import type { TumaiDayEvent } from "../tumaiDaysTypes";
-import { formatDate } from "../tumaiDaysUtils";
 
 interface TumaiDayEventListProps {
 	events: TumaiDayEvent[];

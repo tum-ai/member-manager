@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "../lib/apiClient";
-import type { MemberRole } from "../lib/constants";
+import { apiClient } from "@/lib/apiClient";
+import type { MemberRole } from "@/lib/constants";
 
 export interface RoleHistoryEntry {
 	id: string;

@@ -1,6 +1,6 @@
 import type React from "react";
 import { useEffect, useState } from "react";
-import type { NavItem } from "../profileTypes";
+import type { NavItem } from "@/features/profile/profileTypes";
 
 interface UseProfileNavigationResult {
 	activeSection: string;

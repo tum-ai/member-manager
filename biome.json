@@ -41,6 +41,26 @@
 	},
 	"overrides": [
 		{
+			"includes": ["client/src/**"],
+			"linter": {
+				"rules": {
+					"style": {
+						"noRestrictedImports": {
+							"level": "error",
+							"options": {
+								"patterns": [
+									{
+										"group": ["../*", "../**"],
+										"message": "Use the @/ alias instead of parent-relative imports."
+									}
+								]
+							}
+						}
+					}
+				}
+			}
+		},
+		{
 			"includes": [
 				"**/*.stories.tsx",
 				"**/features/**/*Page.tsx",

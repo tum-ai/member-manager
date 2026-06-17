@@ -1,7 +1,7 @@
 import {
 	getMemberStatusLabel,
 	getOperationalDepartment,
-} from "../../lib/memberMetadata";
+} from "@/lib/memberMetadata";
 import {
 	type AdminMember,
 	hasDataPrivacyNoticeAgreement,

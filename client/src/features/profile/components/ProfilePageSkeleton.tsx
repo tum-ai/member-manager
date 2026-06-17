@@ -1,8 +1,8 @@
 import { CardContent } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { cn } from "@/lib/utils";
-import { GlassCard } from "../../../components/ui/GlassCard";
 
 function ProfileFieldSkeleton({ className }: { className?: string }) {
 	return (

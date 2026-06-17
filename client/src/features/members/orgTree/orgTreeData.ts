@@ -1,7 +1,7 @@
-import { BOARD_MEMBER_ROLE } from "../../../lib/constants";
-import { getOperationalDepartment } from "../../../lib/memberMetadata";
-import type { Member } from "../../../types";
-import { getDisplayName } from "../orgChartShared";
+import { getDisplayName } from "@/features/members/orgChartShared";
+import { BOARD_MEMBER_ROLE } from "@/lib/constants";
+import { getOperationalDepartment } from "@/lib/memberMetadata";
+import type { Member } from "@/types";
 
 export type OrgNodeKind = "board" | "department" | "person";
 

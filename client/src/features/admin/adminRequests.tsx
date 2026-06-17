@@ -1,8 +1,8 @@
-import { cn } from "@/lib/utils";
 import {
 	getMemberStatusLabel,
 	resolveDepartmentForMemberRole,
-} from "../../lib/memberMetadata";
+} from "@/lib/memberMetadata";
+import { cn } from "@/lib/utils";
 import type { MemberChangeRequest } from "./adminTypes";
 import type { AdminMember } from "./adminUtils";
 

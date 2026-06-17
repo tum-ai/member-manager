@@ -10,10 +10,10 @@ import type {
 	ReviewReimbursementRequestPayload,
 	SyncBuchhaltungsButlerPayload,
 	UpdateReimbursementDepartmentPayload,
-} from "../features/reimbursements/reimbursementTypes";
-import { apiClient } from "../lib/apiClient";
-import { readJsonErrorMessage } from "../lib/httpErrors";
-import { supabase } from "../lib/supabaseClient";
+} from "@/features/reimbursements/reimbursementTypes";
+import { apiClient } from "@/lib/apiClient";
+import { readJsonErrorMessage } from "@/lib/httpErrors";
+import { supabase } from "@/lib/supabaseClient";
 
 const REVIEW_RECEIPT_BULK_DOWNLOAD_URL =
 	"/api/reimbursements/review/receipts/bulk-download";

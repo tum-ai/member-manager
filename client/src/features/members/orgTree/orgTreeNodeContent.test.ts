@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Member } from "../../../types";
+import type { Member } from "@/types";
 import type { OrgTreeNode } from "./orgTreeData";
 import {
 	escapeHtml,

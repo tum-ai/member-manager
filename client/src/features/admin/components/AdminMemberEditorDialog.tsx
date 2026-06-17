@@ -18,19 +18,15 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { cn } from "@/lib/utils";
-import {
-	BATCH_OPTIONS,
-	DEPARTMENTS,
-	MEMBER_ROLES,
-} from "../../../lib/constants";
+import { NONE_VALUE } from "@/features/admin/adminDatabaseViewTypes";
+import type { useAdminMemberEditor } from "@/features/admin/hooks/useAdminMemberEditor";
+import { BATCH_OPTIONS, DEPARTMENTS, MEMBER_ROLES } from "@/lib/constants";
 import {
 	getMemberStatusLabel,
 	isExecutiveMemberRole,
 	MEMBER_STATUSES,
-} from "../../../lib/memberMetadata";
-import { NONE_VALUE } from "../adminDatabaseViewTypes";
-import type { useAdminMemberEditor } from "../hooks/useAdminMemberEditor";
+} from "@/lib/memberMetadata";
+import { cn } from "@/lib/utils";
 
 type AdminMemberEditorDialogProps = ReturnType<typeof useAdminMemberEditor>;
 

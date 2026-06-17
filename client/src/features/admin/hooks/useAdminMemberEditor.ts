@@ -1,17 +1,17 @@
 import { useState } from "react";
-import { useToast } from "../../../contexts/ToastContext";
-import type { useAdminData } from "../../../hooks/useAdminData";
-import { useResearchProjects } from "../../../hooks/useResearchProjects";
-import { BOARD_MEMBER_ROLE } from "../../../lib/constants";
-import { isLinkedinProfileUrl } from "../../../lib/linkedin";
+import { useToast } from "@/contexts/ToastContext";
+import type { AdminMember } from "@/features/admin/adminUtils";
+import type { useAdminData } from "@/hooks/useAdminData";
+import { useResearchProjects } from "@/hooks/useResearchProjects";
+import { BOARD_MEMBER_ROLE } from "@/lib/constants";
+import { isLinkedinProfileUrl } from "@/lib/linkedin";
 import {
 	getOperationalDepartment,
 	isExecutiveMemberRole,
 	requiresDepartmentForMemberRole,
 	resolveDepartmentForMemberRole,
-} from "../../../lib/memberMetadata";
-import { getResearchProjectSelectValue } from "../../../lib/researchProjects";
-import type { AdminMember } from "../adminUtils";
+} from "@/lib/memberMetadata";
+import { getResearchProjectSelectValue } from "@/lib/researchProjects";
 
 function getResolvedStatus(member: AdminMember): string {
 	return member.member_status || (member.active ? "active" : "inactive");

@@ -9,6 +9,7 @@ import {
 import type { ReactElement } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { GlassCard } from "@/components/ui/GlassCard";
 import { InfoBox } from "@/components/ui/info-box";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,14 +30,13 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { cn } from "@/lib/utils";
-import { GlassCard } from "../../../components/ui/GlassCard";
 import type {
 	EventResponsesPayload,
 	ResponseStatusFilter,
 	RSVPResponse,
 	TumaiDayEvent,
-} from "../tumaiDaysTypes";
+} from "@/features/tools/tumaiDaysTypes";
+import { cn } from "@/lib/utils";
 
 interface TumaiDayResponsesPanelProps {
 	selectedEventId: string | null;

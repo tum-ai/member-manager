@@ -17,15 +17,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
-import { proxiedAvatarUrl } from "@/lib/avatarUrl";
-import { cn } from "@/lib/utils";
-import { BOARD_MEMBER_ROLE } from "../../../lib/constants";
-import { isLinkedinProfileUrl } from "../../../lib/linkedin";
-import {
-	getMemberStatusLabel,
-	getOperationalDepartment,
-} from "../../../lib/memberMetadata";
-import { sortableColumns } from "../adminDatabaseViewTypes";
+import { sortableColumns } from "@/features/admin/adminDatabaseViewTypes";
 import {
 	type AdminMember,
 	type AdminSortKey,
@@ -33,7 +25,15 @@ import {
 	hasDataPrivacyNoticeAgreement,
 	hasMandateAgreement,
 	hasPrivacyAgreement,
-} from "../adminUtils";
+} from "@/features/admin/adminUtils";
+import { proxiedAvatarUrl } from "@/lib/avatarUrl";
+import { BOARD_MEMBER_ROLE } from "@/lib/constants";
+import { isLinkedinProfileUrl } from "@/lib/linkedin";
+import {
+	getMemberStatusLabel,
+	getOperationalDepartment,
+} from "@/lib/memberMetadata";
+import { cn } from "@/lib/utils";
 import { AgreementChip } from "./AgreementChip";
 
 interface AdminMembersTableProps {

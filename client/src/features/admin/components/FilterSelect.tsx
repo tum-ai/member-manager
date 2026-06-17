@@ -7,7 +7,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { ALL_VALUE } from "../adminDatabaseViewTypes";
+import { ALL_VALUE } from "@/features/admin/adminDatabaseViewTypes";
 
 interface FilterSelectProps {
 	className?: string;

@@ -9,8 +9,8 @@ import {
 } from "@/components/ui/dialog";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Separator } from "@/components/ui/separator";
-import { useToast } from "../../contexts/ToastContext";
-import { useAdminData } from "../../hooks/useAdminData";
+import { useToast } from "@/contexts/ToastContext";
+import { useAdminData } from "@/hooks/useAdminData";
 import { AdminRequestsLayout } from "./AdminRequestsLayout";
 import {
 	CertificateDetailRow,

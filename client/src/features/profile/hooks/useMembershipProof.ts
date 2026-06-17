@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { useToast } from "../../../contexts/ToastContext";
-import { downloadPdfBlob } from "../../../lib/pdfUtils";
-import type { Member } from "../../../types";
-import { generateMembershipProofPdf } from "../../certificate/generators/membershipProofPdf";
+import { useToast } from "@/contexts/ToastContext";
+import { generateMembershipProofPdf } from "@/features/certificate/generators/membershipProofPdf";
+import { downloadPdfBlob } from "@/lib/pdfUtils";
+import type { Member } from "@/types";
 
 interface UseMembershipProofResult {
 	isGeneratingPdf: boolean;

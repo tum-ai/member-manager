@@ -2,8 +2,8 @@ import type { User } from "@supabase/supabase-js";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import { ToastProvider } from "../../../contexts/ToastContext";
-import { MainLayout } from "../MainLayout";
+import { MainLayout } from "@/components/layout/MainLayout";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 const toolAccessState = vi.hoisted(() => ({
 	permissions: [] as string[],

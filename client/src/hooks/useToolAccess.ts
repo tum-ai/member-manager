@@ -1,6 +1,6 @@
 import type { Permission } from "@member-manager/shared";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "../lib/apiClient";
+import { apiClient } from "@/lib/apiClient";
 
 // The current user's effective tool permissions, resolved by the server from
 // their department (admins inherit everything). Used to gate tool visibility

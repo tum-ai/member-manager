@@ -35,10 +35,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/contexts/ToastContext";
+import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import { cn } from "@/lib/utils";
-import { useToast } from "../../contexts/ToastContext";
-import { useCurrentUserIsAdmin } from "../../hooks/useCurrentUserIsAdmin";
-import { ToolPageShell } from "../tools/ToolPageShell";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import {
 	getContractStatusLabel,
