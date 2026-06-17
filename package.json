@@ -21,6 +21,7 @@
 		"lint": "biome check api && pnpm -r run lint && pnpm check:filesize",
 		"lint:staged": "biome check --staged --no-errors-on-unmatched",
 		"lint:apply": "pnpm -r --parallel run lint:apply",
+		"doctor": "node scripts/doctor.mjs",
 		"hooks:install": "node scripts/install-git-hooks.mjs",
 		"setup:local": "node scripts/setup-local-env.mjs",
 		"supabase:start": "node scripts/supabase-start.mjs",

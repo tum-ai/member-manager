@@ -28,6 +28,7 @@ At a glance:
 
 More reading:
 
+- [CONTRIBUTING.md](./CONTRIBUTING.md) — new-contributor quickstart: prerequisites, first run, `pnpm doctor`, gate, and PR conventions
 - [docs/repo-structure.md](./docs/repo-structure.md) — full directory breakdown
 - [docs/development.md](./docs/development.md) — env precedence, dev modes, Slack OIDC, DNS quirks, testing, common failure modes
 - [docs/deployment.md](./docs/deployment.md) — Vercel env vars, Supabase dashboard config, Slack prod config, `FIELD_ENCRYPTION_KEY` warning
