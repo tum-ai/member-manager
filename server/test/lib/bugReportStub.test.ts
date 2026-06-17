@@ -5,7 +5,14 @@ import {
 	createBugReportIssue,
 	installLocalBugReportStub,
 	resetBugReportIssueCreator,
+	setBugReportIssueCreator,
 } from "../../src/lib/githubIssues.js";
+import {
+	installLocalBugReportSlackStub,
+	notifyBugReport,
+	resetSlackNotifier,
+	setBugReportSlackNotifier,
+} from "../../src/lib/slackNotifier.js";
 
 const minimalPayload = {
 	reporterUserId: "user-1",
@@ -13,41 +20,24 @@ const minimalPayload = {
 	message: "Something broke on the profile page.",
 };
 
-const savedEnv = {
-	SUPABASE_URL: process.env.SUPABASE_URL,
-	ENABLE_LOCAL_ADMIN_BOOTSTRAP: process.env.ENABLE_LOCAL_ADMIN_BOOTSTRAP,
-	NODE_ENV: process.env.NODE_ENV,
+const bugReportSlackPayload = {
+	issueNumber: 1,
+	issueUrl: "https://local.invalid/issues/1",
+	issueTitle: "Bug: local stub",
 };
 
-function setEnv(key: keyof typeof savedEnv, value: string | undefined): void {
-	if (value === undefined) {
-		delete process.env[key];
-	} else {
-		process.env[key] = value;
-	}
-}
-
-// `installLocalBugReportStub()` self-guards on `isLocalAdminBootstrapEnabled()`,
-// which requires a non-production NODE_ENV + the explicit bootstrap flag + a
-// loopback SUPABASE_URL.
-function enableLocalStack(): void {
-	setEnv("NODE_ENV", undefined);
-	setEnv("ENABLE_LOCAL_ADMIN_BOOTSTRAP", "true");
-	setEnv("SUPABASE_URL", "http://127.0.0.1:54321");
-}
-
-// Restore the default creator AND the env so the stub/flags never leak into
-// other server suites that assert the real GitHub path throws without creds.
+// The gate is passed explicitly to each installer, so these tests never mutate
+// shared `process.env` — `node --test` runs files concurrently in one process,
+// so an env toggle here would race other suites (rate-limit allowList, the real
+// Slack notifier tests, getSupabase()). We still restore the module-global
+// creator/notifier so nothing leaks across files.
 afterEach(() => {
 	resetBugReportIssueCreator();
-	setEnv("SUPABASE_URL", savedEnv.SUPABASE_URL);
-	setEnv("ENABLE_LOCAL_ADMIN_BOOTSTRAP", savedEnv.ENABLE_LOCAL_ADMIN_BOOTSTRAP);
-	setEnv("NODE_ENV", savedEnv.NODE_ENV);
+	resetSlackNotifier();
 });
 
-test("installLocalBugReportStub resolves to a deterministic local issue without network", async () => {
-	enableLocalStack();
-	installLocalBugReportStub();
+test("installLocalBugReportStub installs a deterministic local issue (no network) when local", async () => {
+	installLocalBugReportStub(true);
 
 	const issue = await createBugReportIssue(minimalPayload);
 
@@ -58,26 +48,45 @@ test("installLocalBugReportStub resolves to a deterministic local issue without 
 	});
 });
 
-test("resetBugReportIssueCreator restores the default creator (throws without GitHub env)", async () => {
-	enableLocalStack();
-	installLocalBugReportStub();
-	resetBugReportIssueCreator();
+test("installLocalBugReportStub leaves the active creator untouched when not local", async () => {
+	const sentinel = async () => ({
+		number: 99,
+		url: "https://sentinel.example/issues/99",
+		title: "sentinel",
+	});
+	setBugReportIssueCreator(sentinel);
 
-	await assert.rejects(
-		() => createBugReportIssue(minimalPayload),
-		/GitHub App configuration is incomplete/,
-	);
+	installLocalBugReportStub(false);
+
+	assert.deepStrictEqual(await createBugReportIssue(minimalPayload), {
+		number: 99,
+		url: "https://sentinel.example/issues/99",
+		title: "sentinel",
+	});
 });
 
-test("installLocalBugReportStub is a no-op when the local stack gate is closed", async () => {
-	// Production gate closed: the stub must NOT replace the real creator, so the
-	// default (network) path stays active and throws without GitHub credentials.
-	setEnv("NODE_ENV", "production");
+test("installLocalBugReportSlackStub suppresses bug-report Slack posts when local", async () => {
+	let posted = false;
+	setBugReportSlackNotifier(async () => {
+		posted = true;
+	});
 
-	installLocalBugReportStub();
+	// The local stub replaces the notifier with a no-op, so even a stubbed
+	// `local.invalid` issue is never pushed to Slack.
+	installLocalBugReportSlackStub(true);
+	await notifyBugReport(bugReportSlackPayload);
 
-	await assert.rejects(
-		() => createBugReportIssue(minimalPayload),
-		/GitHub App configuration is incomplete/,
-	);
+	assert.strictEqual(posted, false);
+});
+
+test("installLocalBugReportSlackStub leaves the active notifier untouched when not local", async () => {
+	let posted = false;
+	setBugReportSlackNotifier(async () => {
+		posted = true;
+	});
+
+	installLocalBugReportSlackStub(false);
+	await notifyBugReport(bugReportSlackPayload);
+
+	assert.strictEqual(posted, true);
 });

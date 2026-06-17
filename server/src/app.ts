@@ -4,6 +4,7 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import { installLocalBugReportStub } from "./lib/githubIssues.js";
 import { isLocalAdminBootstrapEnabled } from "./lib/localAdmin.js";
+import { installLocalBugReportSlackStub } from "./lib/slackNotifier.js";
 import { errorHandler } from "./plugins/errorHandler.js";
 import { adminRoutes } from "./routes/admin.js";
 import { avatarProxyRoutes } from "./routes/avatarProxy.js";
@@ -95,6 +96,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(avatarProxyRoutes);
 			if (isLocalAdminBootstrapEnabled()) {
 				installLocalBugReportStub();
+				installLocalBugReportSlackStub();
 			}
 			await api.register(bugReportRoutes);
 			await api.register(memberRoutes);

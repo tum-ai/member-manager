@@ -316,12 +316,16 @@ export function setBugReportIssueCreator(creator: BugReportIssueCreator): void {
 }
 
 // Local/dev-only stub so the footer bug-report success path is exercisable
-// without GitHub App credentials. Performs no network call. The function
-// self-guards on `isLocalAdminBootstrapEnabled()` (defense in depth): even
-// though the only caller in `app.ts` is already gated, a future ungated caller
-// must not be able to replace the real GitHub creator in production.
-export function installLocalBugReportStub(): void {
-	if (!isLocalAdminBootstrapEnabled()) return;
+// without GitHub App credentials. Performs no network call. Self-guards on
+// `isLocalAdminBootstrapEnabled()` (defense in depth): even though the only
+// caller in `app.ts` is already gated, a future ungated caller must not be able
+// to replace the real GitHub creator in production. The gate is an injected
+// parameter (defaulting to the env check) so tests can exercise both branches
+// without mutating shared `process.env` in the concurrent test runner.
+export function installLocalBugReportStub(
+	isLocalStack: boolean = isLocalAdminBootstrapEnabled(),
+): void {
+	if (!isLocalStack) return;
 	setBugReportIssueCreator(async (payload) => ({
 		number: 1,
 		url: "https://local.invalid/issues/1",
