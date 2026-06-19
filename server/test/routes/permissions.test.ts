@@ -38,6 +38,7 @@ describe("Permission Routes", async () => {
 			const data = JSON.parse(response.payload);
 			assert.deepStrictEqual([...data.permissions].sort(), [
 				"contracts.admin",
+				"contracts.create",
 				"finance.review",
 				"tumai_days.manage",
 			]);

@@ -1202,8 +1202,7 @@ export async function contractRoutes(server: FastifyInstance) {
 		async (request, _reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const isAdmin =
-				(await checkAdminRole(user.id)) ||
-				(await checkContractsAdmin(user.id));
+				(await checkAdminRole(user.id)) || (await checkContractsAdmin(user.id));
 			let query = getSupabase()
 				.from("contract_submissions")
 				.select(
@@ -1243,8 +1242,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				throw createContractDatabaseError(error);
 			}
 			const isAdmin =
-				(await checkAdminRole(user.id)) ||
-				(await checkContractsAdmin(user.id));
+				(await checkAdminRole(user.id)) || (await checkContractsAdmin(user.id));
 			if (!isAdmin && data.submitter_user_id !== user.id) {
 				return reply.status(403).send({ error: "Forbidden" });
 			}
@@ -1283,8 +1281,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				throw createContractDatabaseError(fetchError);
 			}
 			const isAdmin =
-				(await checkAdminRole(user.id)) ||
-				(await checkContractsAdmin(user.id));
+				(await checkAdminRole(user.id)) || (await checkContractsAdmin(user.id));
 			if (!isAdmin && submission.submitter_user_id !== user.id) {
 				return reply.status(403).send({ error: "Forbidden" });
 			}
@@ -1315,8 +1312,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				throw createContractDatabaseError(error);
 			}
 			const isAdmin =
-				(await checkAdminRole(user.id)) ||
-				(await checkContractsAdmin(user.id));
+				(await checkAdminRole(user.id)) || (await checkContractsAdmin(user.id));
 			if (!isAdmin && data.submitter_user_id !== user.id) {
 				return reply.status(403).send({ error: "Forbidden" });
 			}
