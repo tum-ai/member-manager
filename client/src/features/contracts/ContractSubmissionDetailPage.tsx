@@ -38,8 +38,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/contexts/ToastContext";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
-import { cn } from "@/lib/utils";
 import { useToolAccess } from "@/hooks/useToolAccess";
+import { cn } from "@/lib/utils";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import {
 	getContractStatusLabel,
@@ -311,43 +311,66 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 				</GlassCard>
 
 				<GlassCard className="p-6">
-					<Tabs defaultValue="edit">
-						<div className="mb-3 flex items-center justify-between gap-3">
-							<p className="text-base font-medium">Contract text</p>
-							<TabsList>
-								<TabsTrigger value="edit">Edit</TabsTrigger>
-								<TabsTrigger value="preview">Preview</TabsTrigger>
-							</TabsList>
-						</div>
-						<TabsContent value="edit">
-							<Textarea
-								rows={10}
-								className="max-h-[60vh] min-h-40 font-mono"
-								value={editedText}
-								onChange={(event) => setEditedText(event.target.value)}
-							/>
-						</TabsContent>
-						<TabsContent value="preview">
-							<div className="overflow-hidden rounded-md border">
-								<ContractDocumentPreview
-									pages={previewQuery.data?.pages}
-									loading={previewQuery.isLoading || previewQuery.isFetching}
-									maxHeight={{ xs: "60vh", lg: "70vh" }}
-									minHeight={360}
-									pageMaxWidth={640}
+					<p className="mb-3 text-base font-medium">Contract text</p>
+					{isContractsAdmin ? (
+						<>
+							<Tabs defaultValue="edit">
+								<div className="mb-3 flex items-center justify-between gap-3">
+									<TabsList>
+										<TabsTrigger value="edit">Edit</TabsTrigger>
+										<TabsTrigger value="preview">Preview</TabsTrigger>
+									</TabsList>
+								</div>
+								<TabsContent value="edit">
+									<Textarea
+										rows={10}
+										className="max-h-[60vh] min-h-40 font-mono"
+										value={editedText}
+										onChange={(event) => setEditedText(event.target.value)}
+									/>
+								</TabsContent>
+								<TabsContent value="preview">
+									<div className="overflow-hidden rounded-md border">
+										<ContractDocumentPreview
+											pages={previewQuery.data?.pages}
+											loading={
+												previewQuery.isLoading || previewQuery.isFetching
+											}
+											maxHeight={{ xs: "60vh", lg: "70vh" }}
+											minHeight={360}
+											pageMaxWidth={640}
+										/>
+									</div>
+								</TabsContent>
+							</Tabs>
+							<div className="mt-4 flex flex-col gap-1.5">
+								<Label htmlFor="internal-notes">Internal notes</Label>
+								<Textarea
+									id="internal-notes"
+									rows={2}
+									value={notes}
+									onChange={(event) => setNotes(event.target.value)}
 								/>
 							</div>
-						</TabsContent>
-					</Tabs>
-					<div className="mt-4 flex flex-col gap-1.5">
-						<Label htmlFor="internal-notes">Internal notes</Label>
-						<Textarea
-							id="internal-notes"
-							rows={2}
-							value={notes}
-							onChange={(event) => setNotes(event.target.value)}
-						/>
-					</div>
+						</>
+					) : (
+						<>
+							{submission.status === "inquiry" &&
+							submission.feedback_message ? (
+								<Alert className="mb-4">
+									<AlertDescription>
+										<strong>Feedback from L&amp;F:</strong>{" "}
+										{submission.feedback_message}
+									</AlertDescription>
+								</Alert>
+							) : null}
+							<pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap rounded-md bg-muted p-4 font-sans text-sm leading-relaxed">
+								{submission.admin_edited_text ??
+									submission.generated_contract_text ??
+									"No contract text available."}
+							</pre>
+						</>
+					)}
 				</GlassCard>
 
 				<GlassCard className="p-6">
@@ -377,17 +400,19 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								</RouterLink>
 							</Button>
 						) : null}
-						<Button
-							disabled={busy}
-							onClick={() =>
-								updateMutation.mutate({
-									admin_edited_text: editedText,
-									notes,
-								})
-							}
-						>
-							Save changes
-						</Button>
+						{isContractsAdmin ? (
+							<Button
+								disabled={busy}
+								onClick={() =>
+									updateMutation.mutate({
+										admin_edited_text: editedText,
+										notes,
+									})
+								}
+							>
+								Save changes
+							</Button>
+						) : null}
 						<Button
 							variant="outline"
 							disabled={busy || downloading}
@@ -410,191 +435,202 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 						</Button>
 					</div>
 
-					<Separator className="my-5" />
-
-					{/* Send to partner */}
-					<p className="mb-3 text-sm font-medium">Send to partner</p>
-					<div className="flex flex-col gap-4">
-						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="partner-email-subject">Email subject</Label>
-							<Input
-								id="partner-email-subject"
-								value={partnerEmailSubject}
-								onChange={(event) => setPartnerEmailSubject(event.target.value)}
-							/>
-						</div>
-						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="partner-email-message">Email message</Label>
-							<Textarea
-								id="partner-email-message"
-								value={partnerEmailMessage}
-								onChange={(event) => setPartnerEmailMessage(event.target.value)}
-								rows={2}
-							/>
-						</div>
-						<div className="flex flex-row flex-wrap gap-2">
-							<Button
-								disabled={busy}
-								onClick={() =>
-									updateMutation.mutate({
-										admin_edited_text: editedText,
-										notes,
-										send_to_partner: true,
-									})
-								}
-							>
-								Send to partner
-							</Button>
-							<Button
-								disabled={busy}
-								onClick={() =>
-									updateMutation.mutate({
-										admin_edited_text: editedText,
-										notes,
-										send_partner_email: true,
-										partner_email_subject: partnerEmailSubject,
-										partner_email_message: partnerEmailMessage,
-									})
-								}
-							>
-								Send email to partner
-							</Button>
-							<Button
-								disabled={busy}
-								onClick={() =>
-									updateMutation.mutate({
-										admin_edited_text: editedText,
-										notes,
-										send_opensign: true,
-									})
-								}
-							>
-								Send with OpenSign
-							</Button>
-						</div>
-						{signUrl ? (
-							<div className="flex flex-col gap-1.5">
-								<Label htmlFor="sign-url">Signing link (send to partner)</Label>
-								<div className="flex items-center gap-1">
-									<Input id="sign-url" value={signUrl} readOnly />
-									<CopyButton value={signUrl} />
-								</div>
-							</div>
-						) : null}
-					</div>
-
-					<Separator className="my-5" />
-
-					{/* Decision */}
-					<p className="mb-3 text-sm font-medium">Decision</p>
-					<div className="flex flex-col gap-4">
-						<div className="flex flex-col gap-1.5">
-							<Label htmlFor="clarification-message">
-								Clarification message
-							</Label>
-							<Textarea
-								id="clarification-message"
-								value={clarificationMessage}
-								onChange={(event) =>
-									setClarificationMessage(event.target.value)
-								}
-								rows={2}
-							/>
-						</div>
-						<div className="flex flex-row flex-wrap gap-2">
-							<Button
-								variant="outline"
-								className="border-amber-500 text-amber-600 hover:bg-amber-50 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/40"
-								disabled={busy}
-								onClick={() =>
-									updateMutation.mutate({
-										status: "inquiry",
-										notes,
-										feedback_message: clarificationMessage.trim() || null,
-									})
-								}
-							>
-								Request clarification
-							</Button>
-							<Button
-								variant="outline"
-								className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
-								disabled={busy}
-								onClick={() =>
-									updateMutation.mutate({
-										status: "rejected",
-										notes,
-									})
-								}
-							>
-								Reject
-							</Button>
-						</div>
-					</div>
-
-					{/* Activity */}
-					{submission.partner_email_sent_at ||
-					submission.partner_email_error ||
-					submission.clarification_email_sent_at ||
-					submission.clarification_email_error ||
-					submission.opensign_sent_at ||
-					submission.opensign_completed_at ||
-					submission.opensign_error ? (
+					{isContractsAdmin ? (
 						<>
 							<Separator className="my-5" />
-							<p className="mb-3 text-sm font-medium">Activity</p>
-							<div className="flex flex-col gap-2 rounded-md bg-muted/50 p-3">
-								{submission.partner_email_sent_at ? (
-									<ActivityRow tone="success">
-										Email sent to {submission.partner_email_recipient} at{" "}
-										{new Date(
-											submission.partner_email_sent_at,
-										).toLocaleString()}
-									</ActivityRow>
-								) : null}
-								{submission.partner_email_error ? (
-									<ActivityRow tone="error">
-										Last email error: {submission.partner_email_error}
-									</ActivityRow>
-								) : null}
-								{submission.clarification_email_sent_at ? (
-									<ActivityRow tone="success">
-										Clarification email sent to{" "}
-										{submission.clarification_email_recipient} at{" "}
-										{new Date(
-											submission.clarification_email_sent_at,
-										).toLocaleString()}
-									</ActivityRow>
-								) : null}
-								{submission.clarification_email_error ? (
-									<ActivityRow tone="error">
-										Clarification email error:{" "}
-										{submission.clarification_email_error}
-									</ActivityRow>
-								) : null}
-								{submission.opensign_sent_at ? (
-									<ActivityRow tone="success">
-										OpenSign document {submission.opensign_document_id} sent at{" "}
-										{new Date(submission.opensign_sent_at).toLocaleString()}
-										{submission.opensign_status
-											? ` (${submission.opensign_status})`
-											: ""}
-									</ActivityRow>
-								) : null}
-								{submission.opensign_completed_at ? (
-									<ActivityRow tone="success">
-										OpenSign completed at{" "}
-										{new Date(
-											submission.opensign_completed_at,
-										).toLocaleString()}
-									</ActivityRow>
-								) : null}
-								{submission.opensign_error ? (
-									<ActivityRow tone="error">
-										Last OpenSign error: {submission.opensign_error}
-									</ActivityRow>
+
+							{/* Send to partner */}
+							<p className="mb-3 text-sm font-medium">Send to partner</p>
+							<div className="flex flex-col gap-4">
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="partner-email-subject">Email subject</Label>
+									<Input
+										id="partner-email-subject"
+										value={partnerEmailSubject}
+										onChange={(event) =>
+											setPartnerEmailSubject(event.target.value)
+										}
+									/>
+								</div>
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="partner-email-message">Email message</Label>
+									<Textarea
+										id="partner-email-message"
+										value={partnerEmailMessage}
+										onChange={(event) =>
+											setPartnerEmailMessage(event.target.value)
+										}
+										rows={2}
+									/>
+								</div>
+								<div className="flex flex-row flex-wrap gap-2">
+									<Button
+										disabled={busy}
+										onClick={() =>
+											updateMutation.mutate({
+												admin_edited_text: editedText,
+												notes,
+												send_to_partner: true,
+											})
+										}
+									>
+										Send to partner
+									</Button>
+									<Button
+										disabled={busy}
+										onClick={() =>
+											updateMutation.mutate({
+												admin_edited_text: editedText,
+												notes,
+												send_partner_email: true,
+												partner_email_subject: partnerEmailSubject,
+												partner_email_message: partnerEmailMessage,
+											})
+										}
+									>
+										Send email to partner
+									</Button>
+									<Button
+										disabled={busy}
+										onClick={() =>
+											updateMutation.mutate({
+												admin_edited_text: editedText,
+												notes,
+												send_opensign: true,
+											})
+										}
+									>
+										Send with OpenSign
+									</Button>
+								</div>
+								{signUrl ? (
+									<div className="flex flex-col gap-1.5">
+										<Label htmlFor="sign-url">
+											Signing link (send to partner)
+										</Label>
+										<div className="flex items-center gap-1">
+											<Input id="sign-url" value={signUrl} readOnly />
+											<CopyButton value={signUrl} />
+										</div>
+									</div>
 								) : null}
 							</div>
+
+							<Separator className="my-5" />
+
+							{/* Decision */}
+							<p className="mb-3 text-sm font-medium">Decision</p>
+							<div className="flex flex-col gap-4">
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="clarification-message">
+										Clarification message
+									</Label>
+									<Textarea
+										id="clarification-message"
+										value={clarificationMessage}
+										onChange={(event) =>
+											setClarificationMessage(event.target.value)
+										}
+										rows={2}
+									/>
+								</div>
+								<div className="flex flex-row flex-wrap gap-2">
+									<Button
+										variant="outline"
+										className="border-amber-500 text-amber-600 hover:bg-amber-50 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/40"
+										disabled={busy}
+										onClick={() =>
+											updateMutation.mutate({
+												status: "inquiry",
+												notes,
+												feedback_message: clarificationMessage.trim() || null,
+											})
+										}
+									>
+										Request clarification
+									</Button>
+									<Button
+										variant="outline"
+										className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
+										disabled={busy}
+										onClick={() =>
+											updateMutation.mutate({
+												status: "rejected",
+												notes,
+											})
+										}
+									>
+										Reject
+									</Button>
+								</div>
+							</div>
+
+							{/* Activity */}
+							{submission.partner_email_sent_at ||
+							submission.partner_email_error ||
+							submission.clarification_email_sent_at ||
+							submission.clarification_email_error ||
+							submission.opensign_sent_at ||
+							submission.opensign_completed_at ||
+							submission.opensign_error ? (
+								<>
+									<Separator className="my-5" />
+									<p className="mb-3 text-sm font-medium">Activity</p>
+									<div className="flex flex-col gap-2 rounded-md bg-muted/50 p-3">
+										{submission.partner_email_sent_at ? (
+											<ActivityRow tone="success">
+												Email sent to {submission.partner_email_recipient} at{" "}
+												{new Date(
+													submission.partner_email_sent_at,
+												).toLocaleString()}
+											</ActivityRow>
+										) : null}
+										{submission.partner_email_error ? (
+											<ActivityRow tone="error">
+												Last email error: {submission.partner_email_error}
+											</ActivityRow>
+										) : null}
+										{submission.clarification_email_sent_at ? (
+											<ActivityRow tone="success">
+												Clarification email sent to{" "}
+												{submission.clarification_email_recipient} at{" "}
+												{new Date(
+													submission.clarification_email_sent_at,
+												).toLocaleString()}
+											</ActivityRow>
+										) : null}
+										{submission.clarification_email_error ? (
+											<ActivityRow tone="error">
+												Clarification email error:{" "}
+												{submission.clarification_email_error}
+											</ActivityRow>
+										) : null}
+										{submission.opensign_sent_at ? (
+											<ActivityRow tone="success">
+												OpenSign document {submission.opensign_document_id} sent
+												at{" "}
+												{new Date(submission.opensign_sent_at).toLocaleString()}
+												{submission.opensign_status
+													? ` (${submission.opensign_status})`
+													: ""}
+											</ActivityRow>
+										) : null}
+										{submission.opensign_completed_at ? (
+											<ActivityRow tone="success">
+												OpenSign completed at{" "}
+												{new Date(
+													submission.opensign_completed_at,
+												).toLocaleString()}
+											</ActivityRow>
+										) : null}
+										{submission.opensign_error ? (
+											<ActivityRow tone="error">
+												Last OpenSign error: {submission.opensign_error}
+											</ActivityRow>
+										) : null}
+									</div>
+								</>
+							) : null}
 						</>
 					) : null}
 
