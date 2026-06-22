@@ -1220,7 +1220,16 @@ export async function contractRoutes(server: FastifyInstance) {
 				);
 				throw createContractDatabaseError(error);
 			}
-			return data ?? [];
+			const rows = data ?? [];
+			if (isAdmin) {
+				return rows;
+			}
+			return rows.map((row) => {
+				const r = { ...(row as Record<string, unknown>) };
+				delete r.signature_token;
+				delete r.signature_token_expires_at;
+				return r;
+			});
 		},
 	);
 
@@ -1245,6 +1254,13 @@ export async function contractRoutes(server: FastifyInstance) {
 				(await checkAdminRole(user.id)) || (await checkContractsAdmin(user.id));
 			if (!isAdmin && data.submitter_user_id !== user.id) {
 				return reply.status(403).send({ error: "Forbidden" });
+			}
+			if (!isAdmin) {
+				const creatorData = { ...(data as Record<string, unknown>) };
+				delete creatorData.signature_token;
+				delete creatorData.signature_token_expires_at;
+				delete creatorData.notes;
+				return creatorData;
 			}
 			return data;
 		},
