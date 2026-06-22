@@ -83,13 +83,31 @@ export interface CreateReimbursementRequestPayload {
 	payment_bic?: string | null;
 	receipt_filename: string;
 	receipt_mime_type: string;
-	receipt_base64: string;
+	receipt_base64?: string | null;
+	receipt_storage_bucket?: string | null;
+	receipt_storage_path?: string | null;
+	receipt_size_bytes?: number | null;
 }
 
 export interface ParseReimbursementReceiptPayload {
 	receipt_filename: string;
 	receipt_mime_type: string;
-	receipt_base64: string;
+	receipt_base64?: string | null;
+	receipt_storage_bucket?: string | null;
+	receipt_storage_path?: string | null;
+}
+
+export interface CreateReceiptUploadUrlPayload {
+	receipt_filename: string;
+	receipt_mime_type: string;
+	receipt_size_bytes: number;
+}
+
+export interface ReceiptUploadResult {
+	bucket: string;
+	path: string;
+	token: string;
+	signed_url: string;
 }
 
 export interface ParsedReimbursementReceipt {

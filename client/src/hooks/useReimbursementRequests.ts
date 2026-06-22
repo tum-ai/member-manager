@@ -1,9 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
 	BuchhaltungsButlerSyncStatus,
+	CreateReceiptUploadUrlPayload,
 	CreateReimbursementRequestPayload,
 	ParsedReimbursementReceipt,
 	ParseReimbursementReceiptPayload,
+	ReceiptUploadResult,
 	ReimbursementRequest,
 	ReimbursementReviewIntegrationsResponse,
 	ReimbursementReviewResponse,
@@ -17,6 +19,18 @@ import { supabase } from "@/lib/supabaseClient";
 
 const REVIEW_RECEIPT_BULK_DOWNLOAD_URL =
 	"/api/reimbursements/review/receipts/bulk-download";
+
+export interface UploadReceiptFileInput {
+	file: File;
+}
+
+export interface UploadedReceiptFile {
+	fileName: string;
+	mimeType: string;
+	sizeBytes: number;
+	storageBucket: string;
+	storagePath: string;
+}
 
 function normalizeReviewResponse(
 	response: ReimbursementRequest[] | ReimbursementReviewResponse | undefined,
@@ -134,12 +148,47 @@ export function useReimbursementRequests(userId: string) {
 		},
 	});
 
+	const receiptUploadMutation = useMutation({
+		mutationFn: async ({ file }: UploadReceiptFileInput) => {
+			const uploadUrl = await apiClient<ReceiptUploadResult>(
+				"/api/reimbursements/receipt-upload-url",
+				{
+					method: "POST",
+					body: JSON.stringify({
+						receipt_filename: file.name,
+						receipt_mime_type: file.type,
+						receipt_size_bytes: file.size,
+					} satisfies CreateReceiptUploadUrlPayload),
+				},
+			);
+
+			const { error } = await supabase.storage
+				.from(uploadUrl.bucket)
+				.uploadToSignedUrl(uploadUrl.path, uploadUrl.token, file, {
+					contentType: file.type,
+				});
+			if (error) {
+				throw new Error(error.message || "Receipt upload failed");
+			}
+
+			return {
+				fileName: file.name,
+				mimeType: file.type,
+				sizeBytes: file.size,
+				storageBucket: uploadUrl.bucket,
+				storagePath: uploadUrl.path,
+			} satisfies UploadedReceiptFile;
+		},
+	});
+
 	return {
 		requests: requests ?? [],
 		isLoading,
 		error,
 		createRequestAsync: createMutation.mutateAsync,
 		isCreating: createMutation.isPending,
+		uploadReceiptAsync: receiptUploadMutation.mutateAsync,
+		isUploadingReceipt: receiptUploadMutation.isPending,
 		parseReceiptAsync: parseReceiptMutation.mutateAsync,
 		isParsingReceipt: parseReceiptMutation.isPending,
 	};

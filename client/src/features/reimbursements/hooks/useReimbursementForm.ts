@@ -8,7 +8,6 @@ import {
 	type FormValues,
 	getErrorMessage,
 	MAX_RECEIPT_BYTES,
-	readFileAsBase64,
 	sortRequestsByDateDesc,
 	validateForm,
 } from "@/features/reimbursements/reimbursementSubmitUtils";
@@ -28,6 +27,8 @@ export function useReimbursementForm(userId: string) {
 		error,
 		createRequestAsync,
 		isCreating,
+		uploadReceiptAsync,
+		isUploadingReceipt,
 		parseReceiptAsync,
 		isParsingReceipt,
 	} = useReimbursementRequests(userId);
@@ -64,7 +65,8 @@ export function useReimbursementForm(userId: string) {
 		}));
 	}, [memberDepartment, profileIban, profileBic]);
 
-	const isReceiptBusy = isReadingReceipt || isParsingReceipt;
+	const isReceiptBusy =
+		isReadingReceipt || isUploadingReceipt || isParsingReceipt;
 
 	const setField = <Key extends keyof FormValues>(
 		field: Key,
@@ -124,11 +126,13 @@ export function useReimbursementForm(userId: string) {
 
 		setIsReadingReceipt(true);
 		try {
-			const base64 = await readFileAsBase64(file);
+			const uploadedReceipt = await uploadReceiptAsync({ file });
 			const nextReceipt = {
-				fileName: file.name,
-				mimeType: file.type,
-				base64,
+				fileName: uploadedReceipt.fileName,
+				mimeType: uploadedReceipt.mimeType,
+				sizeBytes: uploadedReceipt.sizeBytes,
+				storageBucket: uploadedReceipt.storageBucket,
+				storagePath: uploadedReceipt.storagePath,
 			};
 			setField("receipt", nextReceipt);
 			setErrors((current) => ({ ...current, receiptFile: undefined }));
@@ -137,7 +141,8 @@ export function useReimbursementForm(userId: string) {
 				const parsedReceipt = await parseReceiptAsync({
 					receipt_filename: nextReceipt.fileName,
 					receipt_mime_type: nextReceipt.mimeType,
-					receipt_base64: nextReceipt.base64,
+					receipt_storage_bucket: nextReceipt.storageBucket,
+					receipt_storage_path: nextReceipt.storagePath,
 				});
 
 				setValues((current) => ({
@@ -166,7 +171,7 @@ export function useReimbursementForm(userId: string) {
 		} catch (readError) {
 			setErrors((current) => ({
 				...current,
-				receiptFile: getErrorMessage(readError),
+				receiptFile: `Could not upload receipt: ${getErrorMessage(readError)}`,
 			}));
 		} finally {
 			setIsReadingReceipt(false);
@@ -212,7 +217,9 @@ export function useReimbursementForm(userId: string) {
 			payment_bic: values.paymentBic.trim(),
 			receipt_filename: values.receipt?.fileName ?? "",
 			receipt_mime_type: values.receipt?.mimeType ?? "",
-			receipt_base64: values.receipt?.base64 ?? "",
+			receipt_storage_bucket: values.receipt?.storageBucket ?? "",
+			receipt_storage_path: values.receipt?.storagePath ?? "",
+			receipt_size_bytes: values.receipt?.sizeBytes ?? null,
 		};
 
 		try {
