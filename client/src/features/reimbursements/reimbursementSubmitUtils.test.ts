@@ -150,7 +150,13 @@ describe("validateForm", () => {
 			department: "Community",
 			paymentIban: "DE89370400440532013000",
 			paymentBic: "COBADEFFXXX",
-			receipt: { fileName: "r.pdf", mimeType: "application/pdf", base64: "x" },
+			receipt: {
+				fileName: "r.pdf",
+				mimeType: "application/pdf",
+				sizeBytes: 123,
+				storageBucket: "reimbursement-receipts",
+				storagePath: "user-123/r.pdf",
+			},
 			...overrides,
 		};
 	}

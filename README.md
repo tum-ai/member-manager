@@ -173,6 +173,7 @@ Private reimbursement APIs:
 
 - `GET /api/reimbursements`
 - `POST /api/reimbursements`
+- `POST /api/reimbursements/receipt-upload-url`
 - `POST /api/reimbursements/parse-receipt`
 - `POST /api/reimbursements/process-receipt`
 - `GET /api/reimbursements/review`

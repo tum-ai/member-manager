@@ -6,7 +6,9 @@ import type {
 export interface ReceiptState {
 	fileName: string;
 	mimeType: string;
-	base64: string;
+	sizeBytes: number;
+	storageBucket: string;
+	storagePath: string;
 }
 
 export interface FormValues {

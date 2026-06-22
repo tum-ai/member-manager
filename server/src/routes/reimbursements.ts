@@ -15,8 +15,19 @@ import { fetchWithTimeout } from "../lib/fetchWithTimeout.js";
 import {
 	processReceiptFile,
 	sanitizeReceiptFilename,
-	stripDataUrlPrefix,
 } from "../lib/receiptProcessing.js";
+import {
+	ALLOWED_REIMBURSEMENT_RECEIPT_MIME_TYPES,
+	createReceiptSignedUrl,
+	createReceiptUploadUrl,
+	decodeReceiptBase64,
+	downloadStoredReceipt,
+	estimateBase64Bytes,
+	MAX_REIMBURSEMENT_RECEIPT_BYTES,
+	REIMBURSEMENT_RECEIPT_BUCKET,
+	removeStoredReceipt,
+	stripReceiptDataUrlPrefix,
+} from "../lib/reimbursementReceipts.js";
 import {
 	decryptRecordSafely,
 	encryptRecord,
@@ -35,14 +46,6 @@ import {
 } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
-const ALLOWED_RECEIPT_MIME_TYPES = new Set([
-	"application/pdf",
-	"image/jpeg",
-	"image/jpg",
-	"image/png",
-]);
-
-const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
 const BB_PENDING_SYNC_FRESHNESS_MS = 10 * 60 * 1000;
 const OPENAI_CHAT_COMPLETIONS_URL =
 	"https://api.openai.com/v1/chat/completions";
@@ -108,12 +111,8 @@ function validateOptionalIban(value: string | null | undefined): string | null {
 	return normalized;
 }
 
-function estimateBase64Bytes(value: string): number {
-	return (value.length * 3) / 4;
-}
-
 function buildDataUrl(base64: string, mimeType: string): string {
-	return `data:${mimeType};base64,${stripDataUrlPrefix(base64)}`;
+	return `data:${mimeType};base64,${stripReceiptDataUrlPrefix(base64)}`;
 }
 
 function isPdfMimeType(mimeType: string): boolean {
@@ -207,10 +206,13 @@ const CreateReimbursementSchema = z
 		receipt_filename: z.string().trim().min(1).max(255).optional().nullable(),
 		receipt_mime_type: z.string().trim().min(1).max(120).optional().nullable(),
 		receipt_base64: z.string().trim().optional().nullable(),
+		receipt_storage_bucket: z.string().trim().max(120).optional().nullable(),
+		receipt_storage_path: z.string().trim().max(500).optional().nullable(),
+		receipt_size_bytes: z.number().int().positive().optional().nullable(),
 	})
 	.superRefine((body, context) => {
 		if (
-			!body.receipt_base64 ||
+			(!body.receipt_base64 && !body.receipt_storage_path) ||
 			!body.receipt_filename ||
 			!body.receipt_mime_type
 		) {
@@ -246,7 +248,7 @@ const CreateReimbursementSchema = z
 			}
 			if (
 				body.receipt_mime_type &&
-				!ALLOWED_RECEIPT_MIME_TYPES.has(body.receipt_mime_type)
+				!ALLOWED_REIMBURSEMENT_RECEIPT_MIME_TYPES.has(body.receipt_mime_type)
 			) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
@@ -255,8 +257,8 @@ const CreateReimbursementSchema = z
 				});
 			}
 			if (
-				estimateBase64Bytes(stripDataUrlPrefix(body.receipt_base64)) >
-				MAX_RECEIPT_BYTES
+				estimateBase64Bytes(stripReceiptDataUrlPrefix(body.receipt_base64)) >
+				MAX_REIMBURSEMENT_RECEIPT_BYTES
 			) {
 				context.addIssue({
 					code: z.ZodIssueCode.custom,
@@ -265,13 +267,54 @@ const CreateReimbursementSchema = z
 				});
 			}
 		}
+
+		if (body.receipt_storage_path) {
+			if (
+				body.receipt_storage_bucket &&
+				body.receipt_storage_bucket !== REIMBURSEMENT_RECEIPT_BUCKET
+			) {
+				context.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "Unsupported receipt storage bucket",
+					path: ["receipt_storage_bucket"],
+				});
+			}
+			if (
+				body.receipt_size_bytes &&
+				body.receipt_size_bytes > MAX_REIMBURSEMENT_RECEIPT_BYTES
+			) {
+				context.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "Receipt file is too large",
+					path: ["receipt_size_bytes"],
+				});
+			}
+		}
 	});
 
-const ParseReimbursementReceiptSchema = z.object({
+const CreateReceiptUploadUrlSchema = z.object({
 	receipt_filename: z.string().trim().min(1).max(255),
 	receipt_mime_type: z.string().trim().min(1).max(120),
-	receipt_base64: z.string().trim().min(1),
+	receipt_size_bytes: z.number().int().positive(),
 });
+
+const ParseReimbursementReceiptSchema = z
+	.object({
+		receipt_filename: z.string().trim().min(1).max(255),
+		receipt_mime_type: z.string().trim().min(1).max(120),
+		receipt_base64: z.string().trim().optional().nullable(),
+		receipt_storage_bucket: z.string().trim().max(120).optional().nullable(),
+		receipt_storage_path: z.string().trim().max(500).optional().nullable(),
+	})
+	.superRefine((body, context) => {
+		if (!body.receipt_base64 && !body.receipt_storage_path) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Receipt is required",
+				path: ["receipt_base64"],
+			});
+		}
+	});
 
 const ProcessReimbursementReceiptSchema = z.object({
 	fileBase64: z.string().trim().min(1),
@@ -342,8 +385,16 @@ function withoutReceiptPayload(row: ReimbursementRow): ReimbursementRow {
 
 function hasReceiptPayload(row: ReimbursementRow): boolean {
 	return (
-		typeof row.receipt_base64 === "string" &&
-		stripDataUrlPrefix(row.receipt_base64).trim().length > 0
+		(typeof row.receipt_base64 === "string" &&
+			stripReceiptDataUrlPrefix(row.receipt_base64).trim().length > 0) ||
+		Boolean(normalizeMaybeString(row.receipt_storage_path))
+	);
+}
+
+function receiptStorageBucket(row: ReimbursementRow): string {
+	return (
+		normalizeMaybeString(row.receipt_storage_bucket) ??
+		REIMBURSEMENT_RECEIPT_BUCKET
 	);
 }
 
@@ -381,11 +432,24 @@ function contentDispositionFilename(row: ReimbursementRow): string {
 	return sanitizeReceiptFilename(filename) || "receipt.pdf";
 }
 
-function decodeReceiptBuffer(row: ReimbursementRow): Buffer {
-	return Buffer.from(
-		stripDataUrlPrefix(String(row.receipt_base64 ?? "")),
-		"base64",
+async function loadReceiptBuffer(row: ReimbursementRow): Promise<Buffer> {
+	const storagePath = normalizeMaybeString(row.receipt_storage_path);
+	if (storagePath) {
+		return await downloadStoredReceipt({
+			bucket: receiptStorageBucket(row),
+			path: storagePath,
+			expectedMimeType: normalizeMaybeString(row.receipt_mime_type),
+		});
+	}
+
+	return decodeReceiptBase64(
+		String(row.receipt_base64 ?? ""),
+		normalizeMaybeString(row.receipt_mime_type),
 	);
+}
+
+async function loadReceiptBase64(row: ReimbursementRow): Promise<string> {
+	return (await loadReceiptBuffer(row)).toString("base64");
 }
 
 function getRequesterName(row: ReimbursementRow): string | null {
@@ -790,7 +854,7 @@ export async function syncApprovedReimbursementToBuchhaltungsButler({
 
 	try {
 		const upload = await uploadBuchhaltungsButlerReceipt({
-			fileBase64: String(existingRequest.receipt_base64 ?? ""),
+			fileBase64: await loadReceiptBase64(existingRequest),
 			fileName: contentDispositionFilename(existingRequest),
 			date: String(existingRequest.date ?? ""),
 			amount: normalizeAmount(existingRequest.amount),
@@ -888,15 +952,15 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				});
 			}
 
-			if (!ALLOWED_RECEIPT_MIME_TYPES.has(mimeType)) {
+			if (!ALLOWED_REIMBURSEMENT_RECEIPT_MIME_TYPES.has(mimeType)) {
 				return reply.status(400).send({
 					error: "Unsupported receipt type. Upload a PDF, JPG, or PNG.",
 				});
 			}
 
 			if (
-				estimateBase64Bytes(stripDataUrlPrefix(body.fileBase64)) >
-				MAX_RECEIPT_BYTES
+				estimateBase64Bytes(stripReceiptDataUrlPrefix(body.fileBase64)) >
+				MAX_REIMBURSEMENT_RECEIPT_BYTES
 			) {
 				return reply.status(400).send({ error: "Receipt file is too large" });
 			}
@@ -920,9 +984,26 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 	);
 
 	server.post(
+		"/reimbursements/receipt-upload-url",
+		{ preHandler: authenticate },
+		async (request, _reply) => {
+			const user = (request as AuthenticatedRequest).user;
+			const body = CreateReceiptUploadUrlSchema.parse(request.body);
+
+			return await createReceiptUploadUrl({
+				userId: user.id,
+				filename: body.receipt_filename,
+				mimeType: body.receipt_mime_type,
+				sizeBytes: body.receipt_size_bytes,
+			});
+		},
+	);
+
+	server.post(
 		"/reimbursements/parse-receipt",
 		{ preHandler: authenticate },
 		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
 			const body = ParseReimbursementReceiptSchema.parse(request.body);
 			const apiKey = process.env.OPENAI_API_KEY?.trim();
 
@@ -933,20 +1014,44 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				});
 			}
 
-			if (!ALLOWED_RECEIPT_MIME_TYPES.has(body.receipt_mime_type)) {
+			if (
+				!ALLOWED_REIMBURSEMENT_RECEIPT_MIME_TYPES.has(body.receipt_mime_type)
+			) {
 				return reply.status(400).send({
 					error: "Unsupported receipt type. Upload a PDF, JPG, or PNG.",
 				});
 			}
 
+			if (body.receipt_storage_path) {
+				if (body.receipt_storage_bucket !== REIMBURSEMENT_RECEIPT_BUCKET) {
+					return reply
+						.status(400)
+						.send({ error: "Unsupported receipt storage bucket" });
+				}
+				if (!body.receipt_storage_path.startsWith(`${user.id}/`)) {
+					return reply
+						.status(400)
+						.send({ error: "Receipt upload does not belong to this user." });
+				}
+			}
+
+			const receiptBase64 = body.receipt_storage_path
+				? (
+						await loadReceiptBuffer({
+							receipt_storage_bucket: body.receipt_storage_bucket,
+							receipt_storage_path: body.receipt_storage_path,
+							receipt_mime_type: body.receipt_mime_type,
+						})
+					).toString("base64")
+				: stripReceiptDataUrlPrefix(String(body.receipt_base64 ?? ""));
 			if (
-				estimateBase64Bytes(stripDataUrlPrefix(body.receipt_base64)) >
-				MAX_RECEIPT_BYTES
+				!body.receipt_storage_path &&
+				estimateBase64Bytes(receiptBase64) > MAX_REIMBURSEMENT_RECEIPT_BYTES
 			) {
 				return reply.status(400).send({ error: "Receipt file is too large" });
 			}
 
-			const dataUrl = buildDataUrl(body.receipt_base64, body.receipt_mime_type);
+			const dataUrl = buildDataUrl(receiptBase64, body.receipt_mime_type);
 			const documentContent = isPdfMimeType(body.receipt_mime_type)
 				? {
 						type: "file",
@@ -1122,7 +1227,9 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			const { requestId } = request.params;
 			const { data, error } = await getSupabase()
 				.from("reimbursements")
-				.select("id, receipt_filename, receipt_mime_type, receipt_base64")
+				.select(
+					"id, receipt_filename, receipt_mime_type, receipt_base64, receipt_storage_bucket, receipt_storage_path",
+				)
 				.eq("id", requestId)
 				.single();
 
@@ -1142,7 +1249,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			const mimeType =
 				normalizeMaybeString(reimbursement.receipt_mime_type) ??
 				"application/pdf";
-			if (!ALLOWED_RECEIPT_MIME_TYPES.has(mimeType)) {
+			if (!ALLOWED_REIMBURSEMENT_RECEIPT_MIME_TYPES.has(mimeType)) {
 				return reply.status(415).send({ error: "Unsupported receipt type" });
 			}
 
@@ -1151,6 +1258,18 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				: "inline";
 			const filename = contentDispositionFilename(reimbursement);
 
+			const storagePath = normalizeMaybeString(
+				reimbursement.receipt_storage_path,
+			);
+			if (storagePath) {
+				const signedUrl = await createReceiptSignedUrl({
+					bucket: receiptStorageBucket(reimbursement),
+					path: storagePath,
+					download: disposition === "attachment" ? filename : undefined,
+				});
+				return reply.redirect(signedUrl);
+			}
+
 			reply
 				.type(mimeType)
 				.header("Cache-Control", "private, max-age=300")
@@ -1158,7 +1277,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					"Content-Disposition",
 					`${disposition}; filename="${filename}"`,
 				);
-			return reply.send(decodeReceiptBuffer(reimbursement));
+			return reply.send(await loadReceiptBuffer(reimbursement));
 		},
 	);
 
@@ -1171,7 +1290,9 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 
 			const { data, error } = await getSupabase()
 				.from("reimbursements")
-				.select("id, receipt_filename, receipt_mime_type, receipt_base64")
+				.select(
+					"id, receipt_filename, receipt_mime_type, receipt_base64, receipt_storage_bucket, receipt_storage_path",
+				)
 				.in("id", requestIds);
 
 			if (error) {
@@ -1187,7 +1308,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				const filename = sanitizeReceiptFilename(
 					`${String(row.id ?? "receipt")}_${contentDispositionFilename(row)}`,
 				);
-				zip.file(filename, decodeReceiptBuffer(row));
+				zip.file(filename, await loadReceiptBuffer(row));
 			}
 
 			const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
@@ -1342,6 +1463,37 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			const user = (request as AuthenticatedRequest).user;
 			const body = CreateReimbursementSchema.parse(request.body);
 			const paymentIban = validateOptionalIban(body.payment_iban);
+			const receiptStoragePath = normalizeMaybeString(
+				body.receipt_storage_path,
+			);
+			const receiptStorageBucket = receiptStoragePath
+				? (normalizeMaybeString(body.receipt_storage_bucket) ??
+					REIMBURSEMENT_RECEIPT_BUCKET)
+				: null;
+
+			if (receiptStoragePath) {
+				if (receiptStorageBucket !== REIMBURSEMENT_RECEIPT_BUCKET) {
+					return reply
+						.status(400)
+						.send({ error: "Unsupported receipt storage bucket" });
+				}
+				if (!receiptStoragePath.startsWith(`${user.id}/`)) {
+					return reply
+						.status(400)
+						.send({ error: "Receipt upload does not belong to this user." });
+				}
+				try {
+					await downloadStoredReceipt({
+						bucket: receiptStorageBucket,
+						path: receiptStoragePath,
+						expectedMimeType: body.receipt_mime_type,
+					});
+				} catch {
+					return reply.status(400).send({
+						error: "Receipt upload was not found. Upload the receipt again.",
+					});
+				}
+			}
 
 			const reimbursement = encryptRecord(
 				{
@@ -1356,8 +1508,11 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					receipt_filename: body.receipt_filename?.trim() || null,
 					receipt_mime_type: body.receipt_mime_type?.trim() || null,
 					receipt_base64: body.receipt_base64
-						? stripDataUrlPrefix(body.receipt_base64)
+						? stripReceiptDataUrlPrefix(body.receipt_base64)
 						: null,
+					receipt_storage_bucket: receiptStorageBucket,
+					receipt_storage_path: receiptStoragePath,
+					receipt_size_bytes: body.receipt_size_bytes ?? null,
 					status: "requested",
 					approval_status: "pending",
 					payment_status: "to_be_paid",
@@ -1375,6 +1530,12 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				.single();
 
 			if (error) {
+				if (receiptStoragePath && receiptStorageBucket) {
+					await removeStoredReceipt({
+						bucket: receiptStorageBucket,
+						path: receiptStoragePath,
+					});
+				}
 				request.log.error({ err: error }, "Failed to create reimbursement");
 				throw createReimbursementDatabaseError(error);
 			}

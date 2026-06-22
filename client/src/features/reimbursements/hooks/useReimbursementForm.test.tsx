@@ -41,6 +41,11 @@ vi.mock("../../../lib/supabaseClient", () => ({
 			}),
 			signOut: vi.fn(),
 		},
+		storage: {
+			from: vi.fn(() => ({
+				uploadToSignedUrl: vi.fn().mockResolvedValue({ data: {}, error: null }),
+			})),
+		},
 	},
 }));
 
@@ -74,6 +79,16 @@ describe("useReimbursementForm", () => {
 			bic: "COBADEFFXXX",
 		};
 		server.use(http.get("/api/reimbursements", () => HttpResponse.json([])));
+		server.use(
+			http.post("/api/reimbursements/receipt-upload-url", () =>
+				HttpResponse.json({
+					bucket: "reimbursement-receipts",
+					path: "user-123/receipt.pdf",
+					token: "upload-token",
+					signed_url: "https://storage.example/upload",
+				}),
+			),
+		);
 	});
 
 	it("prefills department and bank details from profile data", async () => {
@@ -269,6 +284,9 @@ describe("useReimbursementForm", () => {
 		expect(sent?.description).toBe("Snacks");
 		expect(sent?.submission_type).toBe("reimbursement");
 		expect(sent?.receipt_filename).toBe("receipt.pdf");
+		expect(sent?.receipt_storage_bucket).toBe("reimbursement-receipts");
+		expect(sent?.receipt_storage_path).toBe("user-123/receipt.pdf");
+		expect(sent?.receipt_size_bytes).toBe(8);
 		expect(showToast).toHaveBeenCalledWith(
 			"Reimbursement request submitted.",
 			"success",

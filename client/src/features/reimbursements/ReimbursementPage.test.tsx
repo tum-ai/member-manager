@@ -13,6 +13,7 @@ import ReimbursementPage from "./ReimbursementPage";
 
 const {
 	createRequestAsync,
+	uploadReceiptAsync,
 	parseReceiptAsync,
 	showToast,
 	hookState,
@@ -20,6 +21,7 @@ const {
 	sepaState,
 } = vi.hoisted(() => ({
 	createRequestAsync: vi.fn(),
+	uploadReceiptAsync: vi.fn(),
 	parseReceiptAsync: vi.fn(),
 	showToast: vi.fn(),
 	hookState: {
@@ -27,6 +29,7 @@ const {
 		isLoading: false,
 		error: null as Error | null,
 		isCreating: false,
+		isUploadingReceipt: false,
 		isParsingReceipt: false,
 	},
 	memberState: {
@@ -59,6 +62,8 @@ vi.mock("../../hooks/useReimbursementRequests", () => ({
 		error: hookState.error,
 		createRequestAsync,
 		isCreating: hookState.isCreating,
+		uploadReceiptAsync,
+		isUploadingReceipt: hookState.isUploadingReceipt,
 		parseReceiptAsync,
 		isParsingReceipt: hookState.isParsingReceipt,
 	}),
@@ -118,6 +123,14 @@ async function fillBaseRequest(user: ReturnType<typeof userEvent.setup>) {
 describe("ReimbursementPage", () => {
 	beforeEach(() => {
 		createRequestAsync.mockReset();
+		uploadReceiptAsync.mockReset();
+		uploadReceiptAsync.mockResolvedValue({
+			fileName: "receipt.pdf",
+			mimeType: "application/pdf",
+			sizeBytes: 8,
+			storageBucket: "reimbursement-receipts",
+			storagePath: "user-123/receipt.pdf",
+		});
 		parseReceiptAsync.mockReset();
 		parseReceiptAsync.mockResolvedValue({});
 		showToast.mockReset();
@@ -125,6 +138,7 @@ describe("ReimbursementPage", () => {
 		hookState.isLoading = false;
 		hookState.error = null;
 		hookState.isCreating = false;
+		hookState.isUploadingReceipt = false;
 		hookState.isParsingReceipt = false;
 		memberState.member = {
 			user_id: "user-123",
@@ -254,6 +268,8 @@ describe("ReimbursementPage", () => {
 				payment_bic: "INGDDEFFXXX",
 				receipt_filename: "receipt.pdf",
 				receipt_mime_type: "application/pdf",
+				receipt_storage_bucket: "reimbursement-receipts",
+				receipt_storage_path: "user-123/receipt.pdf",
 			}),
 		);
 		expect(showToast).toHaveBeenCalledWith(

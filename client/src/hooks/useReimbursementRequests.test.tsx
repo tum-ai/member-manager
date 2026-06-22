@@ -20,6 +20,11 @@ vi.mock("../lib/supabaseClient", () => ({
 			}),
 			signOut: vi.fn(),
 		},
+		storage: {
+			from: vi.fn(() => ({
+				uploadToSignedUrl: vi.fn().mockResolvedValue({ data: {}, error: null }),
+			})),
+		},
 	},
 }));
 
@@ -68,7 +73,9 @@ describe("useReimbursementRequests", () => {
 			submission_type: "reimbursement",
 			receipt_filename: "r.pdf",
 			receipt_mime_type: "application/pdf",
-			receipt_base64: "AAAA",
+			receipt_storage_bucket: "reimbursement-receipts",
+			receipt_storage_path: "user-1/r.pdf",
+			receipt_size_bytes: 123,
 		});
 
 		await waitFor(() => expect(body).not.toBeNull());
@@ -104,6 +111,46 @@ describe("useReimbursementRequests", () => {
 
 		expect(parsed).toBe(true);
 		expect(out.amount).toBe(10);
+	});
+
+	it("creates a signed upload URL and uploads the receipt to storage", async () => {
+		let body: unknown = null;
+		server.use(
+			http.get("/api/reimbursements", () => HttpResponse.json([])),
+			http.post(
+				"/api/reimbursements/receipt-upload-url",
+				async ({ request }) => {
+					body = await request.json();
+					return HttpResponse.json({
+						bucket: "reimbursement-receipts",
+						path: "user-1/r.pdf",
+						token: "upload-token",
+						signed_url: "https://storage.example/upload",
+					});
+				},
+			),
+		);
+
+		const { result } = renderHookWithClient(() =>
+			useReimbursementRequests("user-1"),
+		);
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		const uploaded = await result.current.uploadReceiptAsync({
+			file: new File(["%PDF-1.4"], "r.pdf", { type: "application/pdf" }),
+		});
+
+		expect(body).toEqual({
+			receipt_filename: "r.pdf",
+			receipt_mime_type: "application/pdf",
+			receipt_size_bytes: 8,
+		});
+		expect(uploaded).toMatchObject({
+			fileName: "r.pdf",
+			mimeType: "application/pdf",
+			storageBucket: "reimbursement-receipts",
+			storagePath: "user-1/r.pdf",
+		});
 	});
 
 	it("surfaces the query error when the fetch fails", async () => {
