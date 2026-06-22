@@ -121,6 +121,10 @@ const MemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => v || null),
+	reimbursement_slack_notifications_enabled: z
+		.boolean()
+		.optional()
+		.default(false),
 });
 
 const UpdateMemberSchema = z.object({
@@ -161,6 +165,7 @@ const UpdateMemberSchema = z.object({
 		.string()
 		.nullish()
 		.transform((v) => (v === undefined ? undefined : v || null)),
+	reimbursement_slack_notifications_enabled: z.boolean().optional(),
 	// LinkedIn fields — member-editable
 	linkedin_profile_url: optionalLinkedInProfileUrlSchema,
 	public_location: optionalTrimmedTextSchema,

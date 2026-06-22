@@ -12,6 +12,7 @@ const ids = {
 	department: "department",
 	role: "role",
 	researchProject: "research-project",
+	reimbursementNotifications: "reimbursement-notifications",
 };
 
 const researchProjects: ResearchProject[] = [
@@ -97,5 +98,19 @@ describe("TumaiProfileSection", () => {
 		await user.click(await screen.findByRole("option", { name: batch }));
 
 		expect(screen.getByLabelText(/batch/i)).toHaveTextContent(batch);
+	});
+
+	it("lets members opt in to reimbursement Slack DMs", async () => {
+		const user = userEvent.setup();
+		render(<Harness />);
+
+		const toggle = screen.getByRole("switch", {
+			name: /reimbursement slack dms/i,
+		});
+		expect(toggle).not.toBeChecked();
+
+		await user.click(toggle);
+
+		expect(toggle).toBeChecked();
 	});
 });

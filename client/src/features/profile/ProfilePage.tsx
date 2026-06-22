@@ -148,6 +148,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								department: `${fieldId}-department`,
 								role: `${fieldId}-role`,
 								researchProject: `${fieldId}-research-project`,
+								reimbursementNotifications: `${fieldId}-reimbursement-notifications`,
 							}}
 						/>
 

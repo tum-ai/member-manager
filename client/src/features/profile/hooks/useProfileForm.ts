@@ -110,6 +110,7 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			member_role: "",
 			degree: "",
 			school: "",
+			reimbursement_slack_notifications_enabled: false,
 		},
 	});
 
@@ -156,6 +157,8 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			research_project_id: existing.research_project_id || "",
 			degree: existing.degree || "",
 			school: existing.school || "",
+			reimbursement_slack_notifications_enabled:
+				existing.reimbursement_slack_notifications_enabled ?? false,
 		});
 
 		// Populate LinkedIn form from DB data
