@@ -127,6 +127,7 @@ export function MainLayout({
 
 	const showFinanceReview = permissions.includes("finance.review");
 	const showTumaiDays = permissions.includes("tumai_days.manage");
+	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
 
 	const pathname = location.pathname;
 
@@ -177,7 +178,12 @@ export function MainLayout({
 							to: "/contracts/submissions",
 							icon: ScrollText,
 						},
-						{ label: "Templates", to: "/contracts/templates", icon: Settings },
+						{
+							label: "Templates",
+							to: "/contracts/templates",
+							icon: Settings,
+							visible: isContractsAdmin,
+						},
 					],
 				},
 				{

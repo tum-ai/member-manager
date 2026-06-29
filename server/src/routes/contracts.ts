@@ -2,7 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { enrichContractFormData } from "@member-manager/shared";
 import type { FastifyInstance, FastifyReply } from "fastify";
 import { z } from "zod";
-import { checkAdminRole } from "../lib/auth.js";
+import { checkAdminRole, checkContractsAdmin } from "../lib/auth.js";
 import { getAuthEmail } from "../lib/authEmails.js";
 import {
 	isContractEmailConfigured,
@@ -17,6 +17,7 @@ import {
 	authenticate,
 	requireBoardMember,
 	requireContractsAdmin,
+	requireContractsCreate,
 } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -946,7 +947,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get(
 		"/contracts/templates",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, _reply) => {
 			const { data, error } = await getSupabase()
 				.from("contract_templates")
@@ -964,7 +965,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get<{ Params: { id: string } }>(
 		"/contracts/templates/:id",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
 			try {
 				const result = await fetchTemplateWithChildren(request.params.id);
@@ -982,7 +983,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.post<{ Params: { id: string } }>(
 		"/contracts/templates/:id/preview",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
 			const body = PreviewBodySchema.parse(request.body);
 			const formData = enrichContractFormData(body.form_data);
@@ -1203,15 +1204,21 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get(
 		"/contracts/submissions",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, _reply) => {
 			const user = (request as AuthenticatedRequest).user;
-			const { data, error } = await getSupabase()
+			const isAdmin =
+				(await checkAdminRole(user.id)) || (await checkContractsAdmin(user.id));
+			let query = getSupabase()
 				.from("contract_submissions")
 				.select(
 					"id, template_id, submitter_user_id, status, submitted_at, signed_at, admin_signed_at, final_pdf_token, final_pdf_sent_at, partner_email_sent_at, partner_email_recipient, partner_email_error, clarification_email_sent_at, clarification_email_recipient, clarification_email_error, signature_provider, opensign_document_id, opensign_status, opensign_sent_at, opensign_completed_at, opensign_file_url, opensign_certificate_url, opensign_error, created_at, updated_at, signature_token, signature_token_expires_at",
 				)
 				.order("created_at", { ascending: false });
+			if (!isAdmin) {
+				query = query.eq("submitter_user_id", user.id);
+			}
+			const { data, error } = await query;
 			if (error) {
 				request.log.error(
 					{ err: error, userId: user.id },
@@ -1219,14 +1226,24 @@ export async function contractRoutes(server: FastifyInstance) {
 				);
 				throw createContractDatabaseError(error);
 			}
-			return data ?? [];
+			const rows = data ?? [];
+			if (isAdmin) {
+				return rows;
+			}
+			return rows.map((row) => {
+				const r = { ...(row as Record<string, unknown>) };
+				delete r.signature_token;
+				delete r.signature_token_expires_at;
+				return r;
+			});
 		},
 	);
 
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select("*")
@@ -1238,6 +1255,18 @@ export async function contractRoutes(server: FastifyInstance) {
 				}
 				request.log.error({ err: error }, "Failed to fetch submission");
 				throw createContractDatabaseError(error);
+			}
+			const isAdmin =
+				(await checkAdminRole(user.id)) || (await checkContractsAdmin(user.id));
+			if (!isAdmin && data.submitter_user_id !== user.id) {
+				return reply.status(403).send({ error: "Forbidden" });
+			}
+			if (!isAdmin) {
+				const creatorData = { ...(data as Record<string, unknown>) };
+				delete creatorData.signature_token;
+				delete creatorData.signature_token_expires_at;
+				delete creatorData.notes;
+				return creatorData;
 			}
 			return data;
 		},
@@ -1259,8 +1288,25 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id/comments",
-		{ preHandler: [authenticate, requireContractsAdmin] },
-		async (request, _reply) => {
+		{ preHandler: [authenticate, requireContractsCreate] },
+		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
+			const { data: submission, error: fetchError } = await getSupabase()
+				.from("contract_submissions")
+				.select("submitter_user_id")
+				.eq("id", request.params.id)
+				.single();
+			if (fetchError) {
+				if ((fetchError as { code?: string }).code === "PGRST116") {
+					return reply.status(404).send({ error: "Submission not found" });
+				}
+				throw createContractDatabaseError(fetchError);
+			}
+			const isAdmin =
+				(await checkAdminRole(user.id)) || (await checkContractsAdmin(user.id));
+			if (!isAdmin && submission.submitter_user_id !== user.id) {
+				return reply.status(403).send({ error: "Forbidden" });
+			}
 			try {
 				return await fetchSubmissionComments(request.params.id);
 			} catch (error) {
@@ -1272,8 +1318,9 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id/pdf",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select("*")
@@ -1286,7 +1333,11 @@ export async function contractRoutes(server: FastifyInstance) {
 				request.log.error({ err: error }, "Failed to fetch submission PDF");
 				throw createContractDatabaseError(error);
 			}
-
+			const isAdmin =
+				(await checkAdminRole(user.id)) || (await checkContractsAdmin(user.id));
+			if (!isAdmin && data.submitter_user_id !== user.id) {
+				return reply.status(403).send({ error: "Forbidden" });
+			}
 			const text = await getPdfTextForSubmission(
 				data as Record<string, unknown>,
 			);
@@ -1340,7 +1391,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.post(
 		"/contracts/submissions",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const body = SubmissionBodySchema.parse(request.body);
@@ -1413,7 +1464,7 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	server.patch<{ Params: { id: string } }>(
 		"/contracts/submissions/:id/draft",
-		{ preHandler: [authenticate, requireContractsAdmin] },
+		{ preHandler: [authenticate, requireContractsCreate] },
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const body = DraftSubmissionPatchSchema.parse(request.body);

@@ -142,6 +142,19 @@ test("buildServerEnv preserves optional local server secrets", () => {
 			"SLACK_BOT_TOKEN=xoxb-local-test",
 			"APP_BASE_URL=http://localhost:5173",
 			"WEBSITE_RESEARCH_API_URL=http://localhost:3000/api/research",
+			"BUG_REPORT_GITHUB_OWNER=tum-ai",
+			"BUG_REPORT_GITHUB_REPO=member-manager",
+			"SLACK_SIGNING_SECRET=local-signing-secret",
+			"CRON_SECRET=local-cron-secret",
+			"RSVP_TARGET_EMAILS=one@example.com,two@example.com",
+			"PARTNER_PORTAL_JOBS_API_URL=http://partner.test/api/public/v1/jobs",
+			"PARTNER_PORTAL_JOBS_API_TOKEN=local-jobs-token",
+			"BUCHHALTUNGSBUTLER_SYNC_ENABLED=true",
+			"BUCHHALTUNGSBUTLER_API_CLIENT=local-bb-client",
+			"BUCHHALTUNGSBUTLER_API_SECRET=local-bb-secret",
+			"BUCHHALTUNGSBUTLER_API_KEY=local-bb-key",
+			"RESEND_API_KEY=re_local",
+			"OPENSIGN_API_TOKEN=opensign-local",
 		].join("\n"),
 	});
 
@@ -152,6 +165,22 @@ test("buildServerEnv preserves optional local server secrets", () => {
 		env,
 		/^WEBSITE_RESEARCH_API_URL=http:\/\/localhost:3000\/api\/research$/m,
 	);
+	assert.match(env, /^BUG_REPORT_GITHUB_OWNER=tum-ai$/m);
+	assert.match(env, /^BUG_REPORT_GITHUB_REPO=member-manager$/m);
+	assert.match(env, /^SLACK_SIGNING_SECRET=local-signing-secret$/m);
+	assert.match(env, /^CRON_SECRET=local-cron-secret$/m);
+	assert.match(env, /^RSVP_TARGET_EMAILS=one@example\.com,two@example\.com$/m);
+	assert.match(
+		env,
+		/^PARTNER_PORTAL_JOBS_API_URL=http:\/\/partner\.test\/api\/public\/v1\/jobs$/m,
+	);
+	assert.match(env, /^PARTNER_PORTAL_JOBS_API_TOKEN=local-jobs-token$/m);
+	assert.match(env, /^BUCHHALTUNGSBUTLER_SYNC_ENABLED=true$/m);
+	assert.match(env, /^BUCHHALTUNGSBUTLER_API_CLIENT=local-bb-client$/m);
+	assert.match(env, /^BUCHHALTUNGSBUTLER_API_SECRET=local-bb-secret$/m);
+	assert.match(env, /^BUCHHALTUNGSBUTLER_API_KEY=local-bb-key$/m);
+	assert.match(env, /^RESEND_API_KEY=re_local$/m);
+	assert.match(env, /^OPENSIGN_API_TOKEN=opensign-local$/m);
 });
 
 test("buildServerEnv wires sibling Partner Portal jobs API config", () => {

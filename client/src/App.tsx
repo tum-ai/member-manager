@@ -162,7 +162,10 @@ export function AuthenticatedApp({
 }: AuthenticatedAppProps): JSX.Element {
 	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
 	const { permissions } = useToolAccess();
-	const hasContractsAccess = isAdmin || permissions.includes("contracts.admin");
+	const hasContractsAccess =
+		isAdmin ||
+		permissions.includes("contracts.admin") ||
+		permissions.includes("contracts.create");
 
 	const adminRoute = (element: JSX.Element): JSX.Element =>
 		isLoadingAdminRole ? (
@@ -224,17 +227,21 @@ export function AuthenticatedApp({
 				<Route
 					path="/contracts"
 					element={
-						<RequirePermission permission="contracts.admin">
+						<RequireAnyPermission
+							permissions={["contracts.create", "contracts.admin"]}
+						>
 							<ContractFormPage />
-						</RequirePermission>
+						</RequireAnyPermission>
 					}
 				/>
 				<Route
 					path="/contracts/drafts/:draftId"
 					element={
-						<RequirePermission permission="contracts.admin">
+						<RequireAnyPermission
+							permissions={["contracts.create", "contracts.admin"]}
+						>
 							<ContractFormPage />
-						</RequirePermission>
+						</RequireAnyPermission>
 					}
 				/>
 				<Route
@@ -248,17 +255,21 @@ export function AuthenticatedApp({
 				<Route
 					path="/contracts/submissions"
 					element={
-						<RequirePermission permission="contracts.admin">
+						<RequireAnyPermission
+							permissions={["contracts.create", "contracts.admin"]}
+						>
 							<ContractSubmissionsPage />
-						</RequirePermission>
+						</RequireAnyPermission>
 					}
 				/>
 				<Route
 					path="/contracts/submissions/:id"
 					element={
-						<RequirePermission permission="contracts.admin">
+						<RequireAnyPermission
+							permissions={["contracts.create", "contracts.admin"]}
+						>
 							<ContractSubmissionDetailPage />
-						</RequirePermission>
+						</RequireAnyPermission>
 					}
 				/>
 				<Route path="/admin" element={adminRoute(<AdminDatabaseView />)} />
@@ -322,6 +333,28 @@ function RequirePermission({
 	}
 
 	if (!permissions.includes(permission)) {
+		return <Navigate to="/" replace />;
+	}
+
+	return children;
+}
+
+// Same as RequirePermission but allows access if the user has ANY of the listed
+// permissions (OR logic). Used when multiple roles share access to a feature.
+function RequireAnyPermission({
+	permissions: required,
+	children,
+}: {
+	permissions: Permission[];
+	children: ReactElement;
+}): ReactElement {
+	const { permissions, isLoading } = useToolAccess();
+
+	if (isLoading) {
+		return <RouteAccessLoading />;
+	}
+
+	if (!required.some((p) => permissions.includes(p))) {
 		return <Navigate to="/" replace />;
 	}
 

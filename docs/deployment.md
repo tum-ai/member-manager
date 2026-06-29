@@ -31,7 +31,7 @@ Do this once per environment (production, preview). Everything on this list has 
 
 ### 1. Vercel environment variables
 
-Settings → Environment Variables. Set for Production (and Preview if you want OAuth working on preview deploys).
+Settings → Environment Variables. Set for Production (and Preview if you want OAuth working on preview deploys). The source-of-truth key lists are [server/.env.example](../server/.env.example) and [client/.env.example](../client/.env.example); this section adds deployment-specific notes.
 
 **Server runtime** (read by the Vercel function):
 
@@ -51,6 +51,9 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `BUG_REPORT_SLACK_CHANNEL_ID` | `C0B3YGL3XS5` | Slack channel receiving footer bug-report issue notifications; code defaults to this channel, but set explicitly in Vercel and invite the bot to the channel |
 | `CORS_ORIGIN` | `https://<prod-domain>` | comma-separate if multiple; required for production, previews derive their Vercel URL automatically if unset |
 | `APP_BASE_URL` | `https://<prod-domain>` | canonical app URL for Slack actions and contract signing/final PDF links |
+| `SLACK_SIGNING_SECRET` | Slack signing secret | required for Slack approve / approve-and-sync interactions |
+| `CRON_SECRET` | strong random bearer secret | required for Vercel Cron calls to `/api/tum-ai-days/send-pending` |
+| `RSVP_TARGET_EMAILS` | comma-separated target emails | required before scheduled TUM.ai Days Slack DMs are sent; `TEST_RSVP_EMAIL` can restrict to one test recipient |
 | `RESEND_API_KEY` | Resend API key | required to send partner contract signing-link emails |
 | `CONTRACT_EMAIL_FROM` | verified sender, e.g. `contracts@tum-ai.com` | required with `RESEND_API_KEY`; must be accepted by Resend |
 | `OPENSIGN_API_TOKEN` | OpenSign API token | required to send reviewed contracts through hosted OpenSign |
@@ -59,6 +62,11 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `OPENSIGN_WIDGETS_JSON` | JSON widget array | optional; leave unset for default signature/date placement until final template positions are verified |
 | `PARTNER_PORTAL_JOBS_API_URL` | Partner Portal `/api/public/v1/jobs` URL, e.g. `https://partners.tum-ai.com/api/public/v1/jobs` | optional; enables Partner Portal jobs on the member job board and pending Partner Portal requests in the admin job queue |
 | `PARTNER_PORTAL_JOBS_API_TOKEN` | shared Member Manager jobs API token | optional with the URL; must match Partner Portal `MM_API_TOKEN` for both approved-job reads and pending-request review; this is separate from `PARTNER_EXPORT_TOKEN` |
+| `BUCHHALTUNGSBUTLER_SYNC_ENABLED` | `true` | required to enable live BuchhaltungsButler sync |
+| `BUCHHALTUNGSBUTLER_API_CLIENT` | BuchhaltungsButler API client | required with sync enabled |
+| `BUCHHALTUNGSBUTLER_API_SECRET` | BuchhaltungsButler API secret | required with sync enabled |
+| `BUCHHALTUNGSBUTLER_API_KEY` | BuchhaltungsButler customer API key | required with sync enabled; ties sync to the BB account |
+| `BUCHHALTUNGSBUTLER_API_BASE_URL` | `https://webapp.buchhaltungsbutler.de/api/v1` | optional override |
 | `WEBSITE_RESEARCH_API_URL` | `https://www.tum-ai.com/api/getResearch` | optional override for research-project metadata; defaults to production website API |
 
 **Client build-time** (baked into the JS bundle by `vite build`; `VITE_` prefix required):
@@ -118,6 +126,31 @@ Vercel auto-deploys GitHub pushes: PRs become preview deployments, and pushes to
 3. Keep automatic production aliasing enabled.
 
 With that check selected, Vercel may still build the production deployment immediately after the `main` push, but it will not assign it to the production domain until `Production Supabase Migrations` passes.
+
+### 6. GitHub Actions secrets (Turborepo remote cache)
+
+CI runs `build`/`typecheck`/`lint`/`test` through Turborepo and uses Vercel's remote cache so unchanged packages are restored instead of rebuilt. Add two repo secrets (**Settings → Secrets and variables → Actions**). Until they exist, CI still runs — it just skips remote caching, so this is optional but recommended.
+
+| Secret | Value | How to get it |
+| --- | --- | --- |
+| `TURBO_TOKEN` | a Vercel access token | <https://vercel.com/account/tokens> → Create Token, **scoped to the `tum-ai` team**, with an expiry (rotate it) |
+| `TURBO_TEAM` | `tum-ai` | the team's URL slug (Team Settings → General → Team URL — the `vercel.com/<slug>` part, not the display name) |
+
+Or via CLI:
+
+```bash
+gh secret set TURBO_TOKEN --repo tum-ai/member-manager   # paste the token when prompted
+gh secret set TURBO_TEAM  --repo tum-ai/member-manager --body "tum-ai"
+```
+
+Safety: only pushes to `main` may **write** the shared cache (`TURBO_CACHE=remote:rw` in `ci.yml`); every PR is read-only (`remote:r`), so a branch can't poison the cache that later runs trust. Fork PRs receive no secrets and run without the cache. Scope the token to the team and give it an expiry — if leaked it grants Vercel team API access.
+
+Optional — let local builds share the same cache:
+
+```bash
+pnpm exec turbo login
+pnpm exec turbo link   # select the TUM-ai team
+```
 
 ## The `FIELD_ENCRYPTION_KEY` warning
 

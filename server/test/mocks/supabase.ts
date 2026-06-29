@@ -797,6 +797,14 @@ export function createMockSupabaseClient(): SupabaseClient {
 		},
 		storage: {
 			from: (bucket: string) => ({
+				createSignedUploadUrl: async (path: string) => ({
+					data: {
+						path,
+						token: `upload-token-${path}`,
+						signedUrl: `https://mock-storage.local/${bucket}/${path}?upload=1`,
+					},
+					error: null,
+				}),
 				upload: async (path: string, body: Buffer, _options?: unknown) => {
 					const key = `${bucket}/${path}`;
 					if (mockStorage.has(key)) {
@@ -821,12 +829,24 @@ export function createMockSupabaseClient(): SupabaseClient {
 						error: null,
 					};
 				},
-				createSignedUrl: async (path: string, expiresIn: number) => ({
-					data: {
-						signedUrl: `https://mock-storage.local/${bucket}/${path}?token=mock&exp=${expiresIn}`,
-					},
-					error: null,
-				}),
+				createSignedUrl: async (
+					path: string,
+					expiresIn: number,
+					options?: { download?: string | boolean },
+				) => {
+					const download =
+						typeof options?.download === "string"
+							? `&download=${encodeURIComponent(options.download)}`
+							: options?.download
+								? "&download=1"
+								: "";
+					return {
+						data: {
+							signedUrl: `https://mock-storage.local/${bucket}/${path}?token=mock&exp=${expiresIn}${download}`,
+						},
+						error: null,
+					};
+				},
 				remove: async (paths: string[]) => {
 					for (const path of paths) {
 						mockStorage.delete(`${bucket}/${path}`);

@@ -5,22 +5,25 @@
 	"engines": {
 		"node": "24.x"
 	},
+	"packageManager": "pnpm@10.34.3",
 	"scripts": {
 		"dev": "pnpm dev:local",
 		"dev:local": "pnpm build:shared && pnpm supabase:start && pnpm setup:local && pnpm -r --parallel --filter @member-manager/client --filter @member-manager/server run dev:local",
 		"gate": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
-		"build": "pnpm -r run build",
+		"build": "turbo run build",
 		"build:shared": "pnpm --filter @member-manager/shared run build",
-		"typecheck": "pnpm build:shared && pnpm -r run typecheck",
-		"test": "pnpm build:shared && pnpm test:scripts && pnpm -r run test",
-		"test:coverage": "pnpm build:shared && pnpm test:scripts && pnpm -r run test:coverage",
+		"typecheck": "turbo run typecheck",
+		"test": "pnpm test:scripts && turbo run test",
+		"test:coverage": "pnpm test:scripts && turbo run test:coverage",
 		"test:scripts": "node --test scripts/*.test.mjs",
 		"check:filesize": "node scripts/check-file-size.mjs",
 		"test:e2e": "playwright test",
 		"test:e2e:ui": "playwright test --ui",
-		"lint": "biome check api && pnpm -r run lint && pnpm check:filesize",
+		"lint": "biome check api && turbo run lint && pnpm check:filesize",
 		"lint:staged": "biome check --staged --no-errors-on-unmatched",
 		"lint:apply": "pnpm -r --parallel run lint:apply",
+		"doctor": "node scripts/doctor.mjs",
+		"prepare": "node scripts/install-git-hooks.mjs --quiet",
 		"hooks:install": "node scripts/install-git-hooks.mjs",
 		"setup:local": "node scripts/setup-local-env.mjs",
 		"supabase:start": "node scripts/supabase-start.mjs",
@@ -33,6 +36,7 @@
 		"@biomejs/biome": "^2.4.16",
 		"@playwright/test": "^1.60.0",
 		"@types/node": "^24.13.2",
-		"exceljs": "^4.4.0"
+		"exceljs": "^4.4.0",
+		"turbo": "^2.9.18"
 	}
 }

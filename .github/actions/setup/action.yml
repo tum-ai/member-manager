@@ -5,9 +5,10 @@ runs:
   using: composite
   steps:
     - name: Setup pnpm
+      # Version comes from the "packageManager" field in package.json (also used
+      # by Turborepo); do not also pin it here or action-setup errors on the
+      # duplicate ("Multiple versions of pnpm specified").
       uses: pnpm/action-setup@v6
-      with:
-        version: 10
 
     - name: Setup Node.js
       uses: actions/setup-node@v6

@@ -16,7 +16,7 @@ import {
 	testTokens,
 	testUserIds,
 } from "../helpers.js";
-import { mockDatabase } from "../mocks/supabase.js";
+import { mockDatabase, mockStorage } from "../mocks/supabase.js";
 
 const PDF_BASE64 = "JVBERi0xLjQ=";
 const ONE_BY_ONE_JPEG_BASE64 =
@@ -97,6 +97,30 @@ describe("Reimbursement Routes", async () => {
 	});
 
 	describe("POST /api/reimbursements", () => {
+		test("creates a signed storage upload URL for receipt uploads", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements/receipt-upload-url",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					receipt_filename: "receipt.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_size_bytes: 2048,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.bucket, "reimbursement-receipts");
+			assert.match(data.path, new RegExp(`^${testUserIds.user}/`));
+			assert.match(data.token, /^upload-token-/);
+		});
+
 		test("creates an authenticated reimbursement request", async () => {
 			resetDatabase();
 			const notifications: Array<Record<string, unknown>> = [];
@@ -147,6 +171,50 @@ describe("Reimbursement Routes", async () => {
 			} finally {
 				resetSlackNotifier();
 			}
+		});
+
+		test("creates a request from a stored receipt reference", async () => {
+			resetDatabase();
+			const storagePath = `${testUserIds.user}/receipt.pdf`;
+			mockStorage.set(
+				`reimbursement-receipts/${storagePath}`,
+				Buffer.from(PDF_BASE64, "base64"),
+			);
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					amount: 42.5,
+					date: "2026-04-12",
+					description: "Snacks for the onboarding workshop",
+					department: "Community",
+					submission_type: "reimbursement",
+					payment_iban: "DE89370400440532013000",
+					payment_bic: "COBADEFFXXX",
+					receipt_filename: "receipt.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_storage_bucket: "reimbursement-receipts",
+					receipt_storage_path: storagePath,
+					receipt_size_bytes: 8,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 201);
+			const data = JSON.parse(response.payload);
+			const stored = mockDatabase.reimbursements.find(
+				(row) => row.id === data.id,
+			);
+			assert.strictEqual(stored?.receipt_base64, null);
+			assert.strictEqual(stored?.receipt_storage_path, storagePath);
+			assert.strictEqual(
+				stored?.receipt_storage_bucket,
+				"reimbursement-receipts",
+			);
 		});
 
 		test("creates invoice requests with payout bank details", async () => {
@@ -658,6 +726,34 @@ describe("Reimbursement Routes", async () => {
 				download.headers["content-disposition"],
 				'attachment; filename="older.pdf"',
 			);
+		});
+
+		test("redirects storage-backed receipt downloads to signed URLs", async () => {
+			resetDatabase();
+			const request = mockDatabase.reimbursements.find(
+				(row) => row.id === "reimbursement-older",
+			);
+			assert.ok(request);
+			request.receipt_base64 = null;
+			request.receipt_storage_bucket = "reimbursement-receipts";
+			request.receipt_storage_path = `${testUserIds.user}/older.pdf`;
+			mockStorage.set(
+				`reimbursement-receipts/${request.receipt_storage_path}`,
+				Buffer.from(PDF_BASE64, "base64"),
+			);
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/review/reimbursement-older/receipt?download=1",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 302);
+			assert.match(
+				String(response.headers.location),
+				/^https:\/\/mock-storage\.local\/reimbursement-receipts\//,
+			);
+			assert.match(String(response.headers.location), /download=older\.pdf/);
 		});
 
 		test("lets reviewers bulk download selected receipts", async () => {
