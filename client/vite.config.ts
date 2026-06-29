@@ -49,6 +49,9 @@ export default defineConfig(({ mode }) => {
 			globals: true,
 			environment: "jsdom",
 			setupFiles: "./src/test/setup.ts",
+			// On CI, add the github-actions reporter so failed tests annotate the
+			// PR diff directly instead of hiding in the raw job log.
+			reporters: process.env.CI ? ["default", "github-actions"] : ["default"],
 			// v8 coverage instrumentation slows userEvent-heavy tests; give them
 			// headroom so they don't time out on slower CI runners.
 			testTimeout: 30_000,

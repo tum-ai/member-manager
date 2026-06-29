@@ -127,6 +127,31 @@ Vercel auto-deploys GitHub pushes: PRs become preview deployments, and pushes to
 
 With that check selected, Vercel may still build the production deployment immediately after the `main` push, but it will not assign it to the production domain until `Production Supabase Migrations` passes.
 
+### 6. GitHub Actions secrets (Turborepo remote cache)
+
+CI runs `build`/`typecheck`/`lint`/`test` through Turborepo and uses Vercel's remote cache so unchanged packages are restored instead of rebuilt. Add two repo secrets (**Settings → Secrets and variables → Actions**). Until they exist, CI still runs — it just skips remote caching, so this is optional but recommended.
+
+| Secret | Value | How to get it |
+| --- | --- | --- |
+| `TURBO_TOKEN` | a Vercel access token | <https://vercel.com/account/tokens> → Create Token, **scoped to the `tum-ai` team**, with an expiry (rotate it) |
+| `TURBO_TEAM` | `tum-ai` | the team's URL slug (Team Settings → General → Team URL — the `vercel.com/<slug>` part, not the display name) |
+
+Or via CLI:
+
+```bash
+gh secret set TURBO_TOKEN --repo tum-ai/member-manager   # paste the token when prompted
+gh secret set TURBO_TEAM  --repo tum-ai/member-manager --body "tum-ai"
+```
+
+Safety: only pushes to `main` may **write** the shared cache (`TURBO_CACHE=remote:rw` in `ci.yml`); every PR is read-only (`remote:r`), so a branch can't poison the cache that later runs trust. Fork PRs receive no secrets and run without the cache. Scope the token to the team and give it an expiry — if leaked it grants Vercel team API access.
+
+Optional — let local builds share the same cache:
+
+```bash
+pnpm exec turbo login
+pnpm exec turbo link   # select the TUM-ai team
+```
+
 ## The `FIELD_ENCRYPTION_KEY` warning
 
 This secret encrypts sensitive member and SEPA fields before they hit Supabase. **Rotating or losing it makes existing rows undecryptable.**
