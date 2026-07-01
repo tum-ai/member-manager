@@ -174,7 +174,8 @@ begin
         seed.board_role,
         seed.degree,
         seed.school,
-        seed.department = 'Legal & Finance' or seed.access_role = 'admin'
+        coalesce(seed.department = 'Legal & Finance', false) or
+            seed.access_role = 'admin'
     from seed_users_local seed
     on conflict (user_id) do update set
         given_name = excluded.given_name,
