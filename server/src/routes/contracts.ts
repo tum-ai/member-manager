@@ -667,9 +667,16 @@ async function notifyContractStatusChange(args: {
 			? args.submission.submitter_user_id
 			: "";
 	if (!args.skipCreator && submitterUserId) {
-		const creatorEmail = await getAuthEmail(submitterUserId);
-		if (creatorEmail && creatorEmail !== legalEmail) {
-			recipients.push({ to: creatorEmail, audience: "creator" });
+		try {
+			const creatorEmail = await getAuthEmail(submitterUserId);
+			if (creatorEmail && creatorEmail !== legalEmail) {
+				recipients.push({ to: creatorEmail, audience: "creator" });
+			}
+		} catch (error) {
+			args.log.warn(
+				{ err: error, submitterUserId },
+				"Failed to look up creator email",
+			);
 		}
 	}
 
@@ -2251,6 +2258,17 @@ export async function contractRoutes(server: FastifyInstance) {
 		if (error) {
 			request.log.error({ err: error }, "Failed to process OpenSign webhook");
 			throw createContractDatabaseError(error);
+		}
+
+		if (typeof update.status === "string" && update.status !== current.status) {
+			await recordAndNotifyTransition({
+				request,
+				submissionId: String(current.id),
+				fromStatus: current.status,
+				toStatus: update.status,
+				changedBy: null,
+				changedByName: "OpenSign",
+			});
 		}
 
 		return { ok: true };
