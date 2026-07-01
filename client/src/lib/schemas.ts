@@ -58,6 +58,7 @@ export const memberSchema = z.object({
 	research_project_id: z.string().nullish(),
 	degree: z.string().nullish(),
 	school: z.string().nullish(),
+	reimbursement_slack_notifications_enabled: z.boolean().optional(),
 });
 
 export const sepaSchema = z.object({

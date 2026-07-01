@@ -326,20 +326,33 @@ async function fetchReimbursementReviewerEmails(): Promise<string[]> {
 		throw new Error(`Failed to fetch admin roles: ${adminError.message}`);
 	}
 
-	const { data: financeRows, error: financeError } = await getSupabase()
-		.from("members")
-		.select("user_id")
-		.eq("department", "Legal & Finance")
-		.eq("member_status", "active");
+	const adminUserIds = new Set(
+		(adminRows ?? [])
+			.map((row) => String((row as { user_id?: unknown }).user_id ?? ""))
+			.filter(Boolean),
+	);
 
-	if (financeError) {
-		throw new Error(`Failed to fetch finance members: ${financeError.message}`);
+	const { data: optedInRows, error: optedInError } = await getSupabase()
+		.from("members")
+		.select(
+			"user_id, department, member_status, reimbursement_slack_notifications_enabled",
+		)
+		.eq("reimbursement_slack_notifications_enabled", true);
+
+	if (optedInError) {
+		throw new Error(
+			`Failed to fetch reimbursement Slack opt-ins: ${optedInError.message}`,
+		);
 	}
 
 	const userIds = new Set<string>();
-	for (const row of [...(adminRows ?? []), ...(financeRows ?? [])]) {
+	for (const row of optedInRows ?? []) {
 		const userId = String((row as { user_id?: unknown }).user_id ?? "");
-		if (userId) {
+		const isAdmin = adminUserIds.has(userId);
+		const isActiveFinanceMember =
+			(row as { department?: unknown }).department === "Legal & Finance" &&
+			(row as { member_status?: unknown }).member_status === "active";
+		if (userId && (isAdmin || isActiveFinanceMember)) {
 			userIds.add(userId);
 		}
 	}

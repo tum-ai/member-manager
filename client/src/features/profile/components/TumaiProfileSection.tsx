@@ -11,6 +11,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import { EducationFields } from "@/features/profile/EducationFields";
 import {
 	fromSelectValue,
@@ -37,6 +38,7 @@ interface TumaiProfileSectionProps {
 		department: string;
 		role: string;
 		researchProject: string;
+		reimbursementNotifications: string;
 	};
 }
 
@@ -243,6 +245,35 @@ export function TumaiProfileSection({
 							});
 						}}
 					/>
+					<div className="rounded-lg bg-muted/40 px-4 py-3 sm:col-span-2">
+						<div className="flex items-start justify-between gap-4">
+							<div className="space-y-1">
+								<label
+									htmlFor={ids.reimbursementNotifications}
+									className="text-sm font-medium leading-none"
+								>
+									Reimbursement Slack DMs
+								</label>
+								<p className="text-xs text-muted-foreground">
+									Send me Slack DMs for new reimbursement and invoice requests
+									when I have finance review access.
+								</p>
+							</div>
+							<Switch
+								id={ids.reimbursementNotifications}
+								checked={Boolean(
+									memberForm.watch("reimbursement_slack_notifications_enabled"),
+								)}
+								onCheckedChange={(checked) =>
+									memberForm.setValue(
+										"reimbursement_slack_notifications_enabled",
+										checked,
+										{ shouldDirty: true },
+									)
+								}
+							/>
+						</div>
+					</div>
 				</div>
 			</CardContent>
 		</GlassCard>

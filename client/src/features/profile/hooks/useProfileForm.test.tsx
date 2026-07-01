@@ -97,6 +97,7 @@ describe("useProfileForm", () => {
 			batch: "WS25",
 			linkedin_profile_url: "https://linkedin.com/in/grace",
 			public_location: "Munich",
+			reimbursement_slack_notifications_enabled: true,
 		};
 		sepaData = {
 			iban: "DE89370400440532013000",
@@ -121,6 +122,11 @@ describe("useProfileForm", () => {
 		expect(result.current.sepaForm.getValues("iban")).toBe(
 			"DE89370400440532013000",
 		);
+		expect(
+			result.current.memberForm.getValues(
+				"reimbursement_slack_notifications_enabled",
+			),
+		).toBe(true);
 		expect(result.current.normalizedLinkedinUrl).toBe(
 			"https://linkedin.com/in/grace",
 		);
@@ -181,6 +187,10 @@ describe("useProfileForm", () => {
 			result.current.memberForm.setValue("department", "Venture");
 			result.current.memberForm.setValue("member_role", "Team Lead");
 			result.current.memberForm.setValue("research_project_id", "rp-1");
+			result.current.memberForm.setValue(
+				"reimbursement_slack_notifications_enabled",
+				true,
+			);
 		});
 
 		await act(async () => {
@@ -194,6 +204,7 @@ describe("useProfileForm", () => {
 		expect(payload).not.toHaveProperty("member_role");
 		// Non-admin, non-research effective department drops research_project_id.
 		expect(payload).not.toHaveProperty("research_project_id");
+		expect(payload.reimbursement_slack_notifications_enabled).toBe(true);
 		expect(showToast).toHaveBeenCalledWith(
 			"Profile saved successfully!",
 			"success",

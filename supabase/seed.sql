@@ -152,7 +152,8 @@ begin
         member_role,
         board_role,
         degree,
-        school
+        school,
+        reimbursement_slack_notifications_enabled
     )
     select
         seed.id,
@@ -172,7 +173,9 @@ begin
         seed.member_role,
         seed.board_role,
         seed.degree,
-        seed.school
+        seed.school,
+        coalesce(seed.department = 'Legal & Finance', false) or
+            seed.access_role = 'admin'
     from seed_users_local seed
     on conflict (user_id) do update set
         given_name = excluded.given_name,
@@ -191,7 +194,8 @@ begin
         member_role = excluded.member_role,
         board_role = excluded.board_role,
         degree = excluded.degree,
-        school = excluded.school;
+        school = excluded.school,
+        reimbursement_slack_notifications_enabled = excluded.reimbursement_slack_notifications_enabled;
 
 -- Seed user roles
     insert into public.user_roles (user_id, role)
