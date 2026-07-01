@@ -99,6 +99,10 @@ function buildAdminReviewUrl(requestId: string): string | undefined {
 	return `${baseUrl.replace(/\/$/, "")}/admin?engagementCertificateRequest=${requestId}`;
 }
 
+function canRequestEngagementCertificate(memberStatus: string): boolean {
+	return memberStatus === "active" || memberStatus === "alumni";
+}
+
 export async function engagementCertificateRoutes(server: FastifyInstance) {
 	server.post(
 		"/engagement-certificates",
@@ -132,9 +136,10 @@ export async function engagementCertificateRoutes(server: FastifyInstance) {
 					.member_status ??
 					((member as { active?: boolean }).active ? "active" : "inactive"),
 			);
-			if (memberStatus !== "active") {
+			if (!canRequestEngagementCertificate(memberStatus)) {
 				return reply.status(403).send({
-					error: "Only active members can request engagement certificates",
+					error:
+						"Only active members and alumni can request engagement certificates",
 				});
 			}
 
