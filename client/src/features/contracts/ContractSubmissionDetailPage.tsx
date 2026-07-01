@@ -39,6 +39,7 @@ import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import { useToolAccess } from "@/hooks/useToolAccess";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import { ContractActivitySection } from "./components/ContractActivitySection";
+import { ContractBoardSignatureCard } from "./components/ContractBoardSignatureCard";
 import { ContractPartnerSignatureCard } from "./components/ContractPartnerSignatureCard";
 import { ContractStatusTimeline } from "./components/ContractStatusTimeline";
 import {
@@ -173,7 +174,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const [downloadError, setDownloadError] = useState<string | null>(null);
 	const [downloading, setDownloading] = useState(false);
 	const { currentUserId, isAdmin } = useCurrentUserIsAdmin();
-	const { permissions } = useToolAccess();
+	const { permissions, isBoardMember } = useToolAccess();
 	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
 	const previewQuery = useContractSubmissionPreview(
 		isContractsAdmin ? id : undefined,
@@ -737,37 +738,59 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					/>
 				) : null}
 
+				{/* Persistent, read-only once recorded — stays visible after the
+				status moves past "partner_signed" so any contracts.admin (not
+				just the board member who signed) can still see who signed. */}
+				{isContractsAdmin && submission.admin_signature_data ? (
+					<ContractBoardSignatureCard
+						signerName={submission.admin_signer_name}
+						signatureData={submission.admin_signature_data}
+						signedAt={submission.admin_signed_at}
+					/>
+				) : null}
+
 				{isContractsAdmin && submission.status === "partner_signed" ? (
 					<GlassCard className="p-6">
 						<p className="mb-2 text-base font-medium">Board signature</p>
 						<div className="flex flex-col gap-4">
-							<div className="flex flex-col gap-1.5">
-								<Label htmlFor="board-signer-name">Board signer name</Label>
-								<Input
-									id="board-signer-name"
-									value={boardSignerName}
-									onChange={(event) => setBoardSignerName(event.target.value)}
-									required
-								/>
-							</div>
-							<SignaturePad onChange={setBoardSignatureData} />
-							<Button
-								className="self-start"
-								disabled={
-									!boardSignatureData || !boardSignerName.trim() || busy
-								}
-								onClick={() =>
-									boardSignMutation.mutate({
-										signature_data: boardSignatureData ?? "",
-										signer_name: boardSignerName.trim(),
-									})
-								}
-							>
-								Board sign
-							</Button>
+							{isBoardMember ? (
+								<>
+									<div className="flex flex-col gap-1.5">
+										<Label htmlFor="board-signer-name">Board signer name</Label>
+										<Input
+											id="board-signer-name"
+											value={boardSignerName}
+											onChange={(event) =>
+												setBoardSignerName(event.target.value)
+											}
+											required
+										/>
+									</div>
+									<SignaturePad onChange={setBoardSignatureData} />
+									<Button
+										className="self-start"
+										disabled={
+											!boardSignatureData || !boardSignerName.trim() || busy
+										}
+										onClick={() =>
+											boardSignMutation.mutate({
+												signature_data: boardSignatureData ?? "",
+												signer_name: boardSignerName.trim(),
+											})
+										}
+									>
+										Board sign
+									</Button>
+									<Separator className="my-1" />
+								</>
+							) : (
+								<p className="text-sm text-muted-foreground">
+									Signing in-app requires board access. Generate a signing link
+									below and share it with a board member instead.
+								</p>
+							)}
 
 							{/* Nr.5: board signing link, mirroring the partner link. */}
-							<Separator className="my-1" />
 							<p className="text-sm text-muted-foreground">
 								Or share a signing link so a board member can sign without
 								logging in.

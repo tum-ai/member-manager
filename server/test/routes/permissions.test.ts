@@ -105,6 +105,61 @@ describe("Permission Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 401);
 		});
+
+		test("reports isBoardMember true for an admin (bypasses department checks)", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/me/tool-access",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			assert.strictEqual(JSON.parse(response.payload).isBoardMember, true);
+		});
+
+		test("reports isBoardMember false for a contracts.admin who is not on the board", async () => {
+			const member = mockDatabase.members.find(
+				(row) => row.user_id === "user-123",
+			);
+			assert.ok(member);
+			// contracts.admin via department, but no board_role/President/VP.
+			member.department = "Legal & Finance";
+			member.board_role = null;
+			member.member_role = "Member";
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/me/tool-access",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.ok(data.permissions.includes("contracts.admin"));
+			assert.strictEqual(data.isBoardMember, false);
+		});
+
+		test("reports isBoardMember true for a board_role member outside contracts.admin departments", async () => {
+			const member = mockDatabase.members.find(
+				(row) => row.user_id === "user-123",
+			);
+			assert.ok(member);
+			member.department = "Software Development";
+			member.board_role = "Board Member";
+			member.member_status = "active";
+			member.active = true;
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/me/tool-access",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.deepStrictEqual(data.permissions, []);
+			assert.strictEqual(data.isBoardMember, true);
+		});
 	});
 
 	describe("GET /api/admin/department-permissions", () => {
