@@ -6,7 +6,7 @@ import {
 	notifyFinanceOfReimbursementRequest,
 	resetSlackNotifier,
 } from "../../src/lib/slackNotifier.js";
-import { setSupabaseClient } from "../../src/lib/supabase.js";
+import { getSupabase, setSupabaseClient } from "../../src/lib/supabase.js";
 import {
 	createMockSupabaseClient,
 	MOCK_ADMIN_ID,
@@ -16,6 +16,7 @@ import {
 } from "../mocks/supabase.js";
 
 const originalFetch = globalThis.fetch;
+const originalSupabase = getSupabase();
 const originalEnv = {
 	slackBotToken: process.env.SLACK_BOT_TOKEN,
 	bugReportSlackChannelId: process.env.BUG_REPORT_SLACK_CHANNEL_ID,
@@ -41,6 +42,7 @@ afterEach(() => {
 	delete mockUsers["finance-opt-out-token"];
 	delete mockUsers["community-opt-in-token"];
 	resetMockDatabase();
+	setSupabaseClient(originalSupabase);
 	resetSlackNotifier();
 });
 
