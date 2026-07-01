@@ -3,6 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import { HttpResponse, http, server } from "@/test/mswServer";
 import { renderHookWithClient } from "@/test/renderWithClient";
 import {
+	fetchPublicBoardSignPayload,
+	postPublicBoardSignature,
+	useContractStatusEvents,
 	useContractSubmissions,
 	useContractTemplates,
 	useCreateContractSubmission,
@@ -87,6 +90,70 @@ describe("useContracts", () => {
 			template_id: "tmpl-1",
 			form_data: { foo: "bar" },
 			status: "submitted",
+		});
+	});
+
+	it("fetches status events from /api/contracts/submissions/:id/status-events", async () => {
+		server.use(
+			http.get("/api/contracts/submissions/sub-1/status-events", () =>
+				HttpResponse.json([
+					{
+						id: "evt-1",
+						submission_id: "sub-1",
+						from_status: "legal_review",
+						to_status: "approved",
+						changed_by: null,
+						changed_by_name: "Ada Admin",
+						note: null,
+						created_at: "2026-07-01T00:00:00Z",
+					},
+				]),
+			),
+		);
+
+		const { result } = renderHookWithClient(() =>
+			useContractStatusEvents("sub-1"),
+		);
+
+		await waitFor(() => expect(result.current.isSuccess).toBe(true));
+		expect(result.current.data?.[0]?.to_status).toBe("approved");
+	});
+
+	it("fetches and posts the public board-signing payload", async () => {
+		server.use(
+			http.get("/api/contracts/board-sign/board-token", () =>
+				HttpResponse.json({
+					contract_text: "Body",
+					html: "<section>Body</section>",
+					pages: ["Body"],
+					status: "partner_signed",
+					partner_signer_name: "Jane",
+					partner_signature_data: "data:image/png;base64,AAAA",
+					partner_signed_at: "2026-07-01T00:00:00Z",
+				}),
+			),
+		);
+		let posted: unknown = null;
+		server.use(
+			http.post(
+				"/api/contracts/board-sign/board-token",
+				async ({ request }) => {
+					posted = await request.json();
+					return HttpResponse.json({ id: "sub-1", status: "board_signed" });
+				},
+			),
+		);
+
+		const payload = await fetchPublicBoardSignPayload("board-token");
+		expect(payload.partner_signer_name).toBe("Jane");
+
+		await postPublicBoardSignature("board-token", {
+			signature_data: "data:image/png;base64,BBBB",
+			signer_name: "Board Member",
+		});
+		expect(posted).toEqual({
+			signature_data: "data:image/png;base64,BBBB",
+			signer_name: "Board Member",
 		});
 	});
 });

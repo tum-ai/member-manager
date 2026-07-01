@@ -5,13 +5,16 @@ import { z } from "zod";
 import { checkAdminRole, checkContractsAdmin } from "../lib/auth.js";
 import { getAuthEmail } from "../lib/authEmails.js";
 import {
+	getContractLegalEmail,
 	isContractEmailConfigured,
 	sendContractClarificationEmail,
 	sendContractPartnerEmail,
+	sendContractStatusChangeEmail,
 } from "../lib/contractEmails.js";
 import { DatabaseError } from "../lib/errors.js";
 import { isOpenSignConfigured, sendOpenSignDocument } from "../lib/openSign.js";
-import { createTextPdf } from "../lib/simplePdf.js";
+import { stripDataUrlPrefix } from "../lib/receiptProcessing.js";
+import { createTextPdf, type PdfSignatureImage } from "../lib/simplePdf.js";
 import { getSupabase } from "../lib/supabase.js";
 import {
 	authenticate,
@@ -132,7 +135,9 @@ const SubmissionPatchSchema = z
 		admin_edited_text: z.string().max(200_000).nullable().optional(),
 		notes: z.string().max(5000).nullable().optional(),
 		feedback_message: z.string().max(5000).nullable().optional(),
+		rejection_reason: z.string().max(5000).nullable().optional(),
 		generate_signature_token: z.boolean().optional(),
+		generate_board_signature_token: z.boolean().optional(),
 		send_to_partner: z.boolean().optional(),
 		send_partner_email: z.boolean().optional(),
 		send_opensign: z.boolean().optional(),
@@ -146,11 +151,22 @@ const SubmissionPatchSchema = z
 			value.admin_edited_text !== undefined ||
 			value.notes !== undefined ||
 			value.feedback_message !== undefined ||
+			value.rejection_reason !== undefined ||
 			value.generate_signature_token === true ||
+			value.generate_board_signature_token === true ||
 			value.send_to_partner === true ||
 			value.send_partner_email === true ||
 			value.send_opensign === true,
 		{ message: "No-op patch" },
+	)
+	.refine(
+		(value) =>
+			value.status !== "rejected" ||
+			(value.rejection_reason?.trim().length ?? 0) > 0,
+		{
+			message: "A rejection reason is required when rejecting a contract",
+			path: ["rejection_reason"],
+		},
 	);
 
 const SignBodySchema = z.object({
@@ -575,6 +591,161 @@ async function notifySubmitterOfClarification(args: {
 	return { recipient: submitterEmail, error: null };
 }
 
+// Resolve a member's display name for a Supabase auth user id, falling back to
+// their email when no member row exists. Used so internal contract comments and
+// status events show a human name instead of a raw email address (feedback Nr.4).
+async function getMemberDisplayName(userId: string): Promise<string | null> {
+	const { data } = await getSupabase()
+		.from("members")
+		.select("given_name, surname")
+		.eq("user_id", userId)
+		.maybeSingle();
+	const first =
+		data && typeof data.given_name === "string" ? data.given_name.trim() : "";
+	const last =
+		data && typeof data.surname === "string" ? data.surname.trim() : "";
+	const full = `${first} ${last}`.trim();
+	if (full) return full;
+	return (await getAuthEmail(userId)) || null;
+}
+
+/**
+ * Append a status-transition audit event (feedback Nr.3). No-op when the status
+ * did not actually change or when moving between draft states (a draft edit is
+ * not a meaningful transition — feedback Nr.2). Best-effort: failures are logged
+ * by the caller, never surfaced to the user.
+ */
+async function recordStatusEvent(args: {
+	submissionId: string;
+	fromStatus: string | null;
+	toStatus: string;
+	changedBy: string | null;
+	changedByName: string | null;
+	note?: string | null;
+}): Promise<void> {
+	if (args.fromStatus === args.toStatus) return;
+	if (args.fromStatus === "draft" && args.toStatus === "draft") return;
+	await getSupabase()
+		.from("contract_status_events")
+		.insert({
+			submission_id: args.submissionId,
+			from_status: args.fromStatus,
+			to_status: args.toStatus,
+			changed_by: args.changedBy,
+			changed_by_name: args.changedByName,
+			note: args.note ?? null,
+		});
+}
+
+/**
+ * Notify the legal team and the contract creator of a status change (feedback
+ * Nr.2). Gracefully no-ops when email is not configured; never throws.
+ */
+async function notifyContractStatusChange(args: {
+	submission: Record<string, unknown>;
+	fromStatus: string | null;
+	toStatus: string;
+	submissionUrl: string;
+	note?: string | null;
+	/** Skip the creator email (e.g. inquiry already emails them separately). */
+	skipCreator?: boolean;
+	log: { warn: (obj: unknown, msg: string) => void };
+}): Promise<void> {
+	if (args.fromStatus === args.toStatus) return;
+	if (args.fromStatus === "draft" && args.toStatus === "draft") return;
+	if (!isContractEmailConfigured()) return;
+
+	const partnerCompanyName = getPartnerCompanyNameFromSubmission(
+		args.submission,
+	);
+	const recipients: Array<{ to: string; audience: "legal" | "creator" }> = [];
+	const legalEmail = getContractLegalEmail();
+	if (legalEmail) recipients.push({ to: legalEmail, audience: "legal" });
+	const submitterUserId =
+		typeof args.submission.submitter_user_id === "string"
+			? args.submission.submitter_user_id
+			: "";
+	if (!args.skipCreator && submitterUserId) {
+		const creatorEmail = await getAuthEmail(submitterUserId);
+		if (creatorEmail && creatorEmail !== legalEmail) {
+			recipients.push({ to: creatorEmail, audience: "creator" });
+		}
+	}
+
+	for (const recipient of recipients) {
+		try {
+			await sendContractStatusChangeEmail({
+				to: recipient.to,
+				partnerCompanyName,
+				submissionUrl: args.submissionUrl,
+				fromStatus: args.fromStatus,
+				toStatus: args.toStatus,
+				note: args.note,
+				audience: recipient.audience,
+			});
+		} catch (error) {
+			args.log.warn(
+				{ err: error, to: recipient.to },
+				"Failed to send contract status-change notification",
+			);
+		}
+	}
+}
+
+/**
+ * Record a status event and notify legal + creator for a transition that
+ * happens outside the main admin PATCH handler (partner sign/comment, board
+ * sign, finalize). Best-effort: never throws so the signing flow still succeeds.
+ */
+async function recordAndNotifyTransition(args: {
+	request: {
+		headers: Record<string, unknown>;
+		log: { warn: (obj: unknown, msg: string) => void };
+	};
+	submissionId: string;
+	fromStatus: string | null;
+	toStatus: string;
+	changedBy: string | null;
+	changedByName: string | null;
+	note?: string | null;
+}): Promise<void> {
+	try {
+		await recordStatusEvent({
+			submissionId: args.submissionId,
+			fromStatus: args.fromStatus,
+			toStatus: args.toStatus,
+			changedBy: args.changedBy,
+			changedByName: args.changedByName,
+			note: args.note,
+		});
+	} catch (error) {
+		args.request.log.warn(
+			{ err: error, submissionId: args.submissionId },
+			"Failed to record contract status event",
+		);
+	}
+	try {
+		const { data } = await getSupabase()
+			.from("contract_submissions")
+			.select("submitter_user_id, form_data")
+			.eq("id", args.submissionId)
+			.maybeSingle();
+		await notifyContractStatusChange({
+			submission: (data as Record<string, unknown>) ?? {},
+			fromStatus: args.fromStatus,
+			toStatus: args.toStatus,
+			submissionUrl: `${getAppBaseUrl(args.request)}/contracts/submissions/${args.submissionId}`,
+			note: args.note,
+			log: args.request.log,
+		});
+	} catch (error) {
+		args.request.log.warn(
+			{ err: error, submissionId: args.submissionId },
+			"Failed to notify contract status change",
+		);
+	}
+}
+
 function verifyOpenSignWebhookSignature(
 	body: unknown,
 	signature: unknown,
@@ -647,6 +818,52 @@ async function getPdfTextForSubmission(
 	if (typeof version?.rendered_text === "string") return version.rendered_text;
 	if (submission.status === "completed") return buildFinalPdfText(submission);
 	return textFromSubmission(submission);
+}
+
+// Nr.8: collect the partner and board signature images (PNG data URLs) so they
+// can be embedded in the downloaded PDF. Partner shows as soon as it is present,
+// even before the board has signed; both show once the board signs. Malformed
+// data is skipped rather than failing the whole PDF.
+function buildSignatureImages(
+	submission: Record<string, unknown>,
+): PdfSignatureImage[] {
+	const images: PdfSignatureImage[] = [];
+	const toPng = (value: unknown): Buffer | null => {
+		if (typeof value !== "string" || !value.trim()) return null;
+		try {
+			return Buffer.from(stripDataUrlPrefix(value), "base64");
+		} catch {
+			return null;
+		}
+	};
+	const formatDate = (value: unknown): string | undefined =>
+		typeof value === "string" && value.trim()
+			? new Date(value).toLocaleString()
+			: undefined;
+
+	const partnerPng = toPng(submission.signature_data);
+	if (partnerPng) {
+		const name =
+			typeof submission.signer_name === "string" ? submission.signer_name : "";
+		images.push({
+			label: `Partner: ${name || "-"}`,
+			sublabel: formatDate(submission.signed_at),
+			png: partnerPng,
+		});
+	}
+	const boardPng = toPng(submission.admin_signature_data);
+	if (boardPng) {
+		const name =
+			typeof submission.admin_signer_name === "string"
+				? submission.admin_signer_name
+				: "";
+		images.push({
+			label: `TUM.ai / Board: ${name || "-"}`,
+			sublabel: formatDate(submission.admin_signed_at),
+			png: boardPng,
+		});
+	}
+	return images;
 }
 
 function sendPdf(
@@ -1259,6 +1476,8 @@ export async function contractRoutes(server: FastifyInstance) {
 				const creatorData = { ...(data as Record<string, unknown>) };
 				delete creatorData.signature_token;
 				delete creatorData.signature_token_expires_at;
+				delete creatorData.board_signature_token;
+				delete creatorData.board_signature_token_expires_at;
 				delete creatorData.notes;
 				return creatorData;
 			}
@@ -1310,6 +1529,41 @@ export async function contractRoutes(server: FastifyInstance) {
 		},
 	);
 
+	// Nr.3: status-transition history for the contract view.
+	server.get<{ Params: { id: string } }>(
+		"/contracts/submissions/:id/status-events",
+		{ preHandler: [authenticate, requireContractsCreate] },
+		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
+			const { data: submission, error: fetchError } = await getSupabase()
+				.from("contract_submissions")
+				.select("submitter_user_id")
+				.eq("id", request.params.id)
+				.single();
+			if (fetchError) {
+				if ((fetchError as { code?: string }).code === "PGRST116") {
+					return reply.status(404).send({ error: "Submission not found" });
+				}
+				throw createContractDatabaseError(fetchError);
+			}
+			const isAdmin =
+				(await checkAdminRole(user.id)) || (await checkContractsAdmin(user.id));
+			if (!isAdmin && submission.submitter_user_id !== user.id) {
+				return reply.status(403).send({ error: "Forbidden" });
+			}
+			const { data, error } = await getSupabase()
+				.from("contract_status_events")
+				.select("*")
+				.eq("submission_id", request.params.id)
+				.order("created_at", { ascending: true });
+			if (error) {
+				request.log.error({ err: error }, "Failed to fetch status events");
+				throw createContractDatabaseError(error);
+			}
+			return data ?? [];
+		},
+	);
+
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id/pdf",
 		{ preHandler: [authenticate, requireContractsCreate] },
@@ -1335,9 +1589,10 @@ export async function contractRoutes(server: FastifyInstance) {
 			const text = await getPdfTextForSubmission(
 				data as Record<string, unknown>,
 			);
+			const signatures = buildSignatureImages(data as Record<string, unknown>);
 			return sendPdf(
 				reply,
-				createTextPdf(text),
+				createTextPdf(text, signatures),
 				`contract-${request.params.id}.pdf`,
 				"attachment",
 			);
@@ -1364,10 +1619,13 @@ export async function contractRoutes(server: FastifyInstance) {
 			}
 
 			try {
+				// Nr.4: show a human name in the comment history, not the raw email.
+				const authorName =
+					(await getMemberDisplayName(user.id)) ?? user.email ?? null;
 				return await createSubmissionComment({
 					submissionId: request.params.id,
 					authorType: "internal",
-					authorName: user.email ?? null,
+					authorName,
 					authorEmail: user.email ?? null,
 					comment: body.comment,
 					documentVersionId:
@@ -1550,8 +1808,9 @@ export async function contractRoutes(server: FastifyInstance) {
 				body.send_partner_email === true || body.send_opensign === true;
 			const needsCurrent =
 				body.admin_edited_text !== undefined ||
-				body.status === "inquiry" ||
+				body.status !== undefined ||
 				body.generate_signature_token === true ||
+				body.generate_board_signature_token === true ||
 				shouldSendToPartner;
 			let current: Record<string, unknown> | null = null;
 			let sentTextForExternalDelivery: string | null = null;
@@ -1569,6 +1828,51 @@ export async function contractRoutes(server: FastifyInstance) {
 				current = data as Record<string, unknown>;
 			}
 
+			const fromStatus =
+				current && typeof current.status === "string" ? current.status : null;
+			const submissionUrl = `${getAppBaseUrl(request)}/contracts/submissions/${request.params.id}`;
+			// Record the status event + notify legal/creator once the final row is
+			// known. Best-effort; a notification failure never fails the request.
+			const finalizeStatusChange = async (
+				row: Record<string, unknown>,
+			): Promise<Record<string, unknown>> => {
+				const toStatus =
+					typeof row.status === "string" ? row.status : (fromStatus ?? "");
+				if (!current || toStatus === fromStatus) return row;
+				const note =
+					body.status === "rejected"
+						? (body.rejection_reason ?? null)
+						: body.status === "inquiry"
+							? (body.feedback_message ?? body.notes ?? null)
+							: null;
+				try {
+					await recordStatusEvent({
+						submissionId: request.params.id,
+						fromStatus,
+						toStatus,
+						changedBy: user.id,
+						changedByName: await getMemberDisplayName(user.id),
+						note,
+					});
+				} catch (eventError) {
+					request.log.warn(
+						{ err: eventError, submissionId: request.params.id },
+						"Failed to record contract status event",
+					);
+				}
+				await notifyContractStatusChange({
+					submission: row,
+					fromStatus,
+					toStatus,
+					submissionUrl,
+					note,
+					// The inquiry branch emails the creator via the clarification path.
+					skipCreator: body.status === "inquiry",
+					log: request.log,
+				});
+				return row;
+			};
+
 			const update: Record<string, unknown> = {
 				updated_at: new Date().toISOString(),
 				reviewed_by: user.id,
@@ -1581,17 +1885,35 @@ export async function contractRoutes(server: FastifyInstance) {
 			if (body.notes !== undefined) update.notes = body.notes;
 			if (body.feedback_message !== undefined)
 				update.feedback_message = body.feedback_message;
+			if (body.rejection_reason !== undefined)
+				update.rejection_reason = body.rejection_reason;
+			// Nr.7: clarification is only for pre-approval questions. Once a contract
+			// is approved (or further along), the Request-clarification path is closed.
+			if (
+				body.status === "inquiry" &&
+				[
+					"approved",
+					"sent_to_partner",
+					"partner_signed",
+					"board_signed",
+					"signed",
+					"completed",
+				].includes(String(current?.status))
+			) {
+				return reply.status(400).send({
+					error:
+						"Clarification cannot be requested once the contract has been approved",
+				});
+			}
 			if (body.generate_signature_token === true || shouldSendToPartner) {
+				// Nr.1: sending to the partner requires an explicit Approve first
+				// (partner_comments is kept so a contract can be re-sent after the
+				// partner leaves comments).
 				if (
-					![
-						"legal_review",
-						"in_review",
-						"approved",
-						"partner_comments",
-					].includes(String(current?.status))
+					!["approved", "partner_comments"].includes(String(current?.status))
 				) {
 					return reply.status(400).send({
-						error: "Submission is not ready to send to the partner",
+						error: "Submission must be approved before sending to the partner",
 					});
 				}
 				if (body.send_partner_email === true) {
@@ -1643,6 +1965,21 @@ export async function contractRoutes(server: FastifyInstance) {
 					update.signature_provider = "opensign";
 					update.opensign_error = null;
 				}
+			}
+
+			// Nr.5: generate a public board-signing link once the partner has signed.
+			if (body.generate_board_signature_token === true) {
+				if (String(current?.status) !== "partner_signed") {
+					return reply.status(400).send({
+						error:
+							"A board signing link can only be generated after the partner has signed",
+					});
+				}
+				const ttlHours = body.signature_token_ttl_hours ?? 24 * 30;
+				update.board_signature_token = generateSignatureToken();
+				update.board_signature_token_expires_at = new Date(
+					Date.now() + ttlHours * 60 * 60 * 1000,
+				).toISOString();
 			}
 
 			if (
@@ -1715,7 +2052,7 @@ export async function contractRoutes(server: FastifyInstance) {
 						.select("*")
 						.single();
 					if (emailUpdateError) throw emailUpdateError;
-					return emailed;
+					return await finalizeStatusChange(emailed as Record<string, unknown>);
 				} catch (emailError) {
 					const message =
 						emailError instanceof Error
@@ -1770,7 +2107,9 @@ export async function contractRoutes(server: FastifyInstance) {
 							.select("*")
 							.single();
 					if (openSignUpdateError) throw openSignUpdateError;
-					return openSigned;
+					return await finalizeStatusChange(
+						openSigned as Record<string, unknown>,
+					);
 				} catch (openSignError) {
 					const message =
 						openSignError instanceof Error
@@ -1837,9 +2176,9 @@ export async function contractRoutes(server: FastifyInstance) {
 					);
 					throw createContractDatabaseError(notificationUpdateError);
 				}
-				return notified;
+				return await finalizeStatusChange(notified as Record<string, unknown>);
 			}
-			return data;
+			return await finalizeStatusChange(data as Record<string, unknown>);
 		},
 	);
 
@@ -1975,6 +2314,139 @@ export async function contractRoutes(server: FastifyInstance) {
 		},
 	);
 
+	// ---------------------------------------------------------------------
+	// Nr.5: Public board-signing endpoints (no auth). Verified by
+	// board_signature_token only — the tokenized link is the authorization
+	// boundary, mirroring the partner signing flow.
+	// ---------------------------------------------------------------------
+
+	server.get<{ Params: { token: string } }>(
+		"/contracts/board-sign/:token",
+		async (request, reply) => {
+			const { data, error } = await getSupabase()
+				.from("contract_submissions")
+				.select(
+					"id, status, admin_edited_text, generated_contract_text, active_document_version_id, sent_document_version_id, board_signature_token_expires_at, signer_name, signature_data, signed_at, admin_signed_at, form_data, submitted_at, updated_at",
+				)
+				.eq("board_signature_token", request.params.token)
+				.maybeSingle();
+
+			if (error) {
+				request.log.error({ err: error }, "Failed to fetch board sign payload");
+				throw createContractDatabaseError(error);
+			}
+			if (!data) {
+				return reply.status(404).send({ error: "Invalid board signing link" });
+			}
+			if (
+				data.board_signature_token_expires_at &&
+				new Date(data.board_signature_token_expires_at).getTime() < Date.now()
+			) {
+				return reply.status(410).send({ error: "Board signing link expired" });
+			}
+			if (data.admin_signed_at || data.status !== "partner_signed") {
+				return reply
+					.status(409)
+					.send({ error: "Contract is not awaiting a board signature" });
+			}
+
+			const record = data as Record<string, unknown>;
+			const version = await fetchDocumentVersion(
+				record.active_document_version_id ?? record.sent_document_version_id,
+			);
+			const contractText =
+				typeof version?.rendered_text === "string"
+					? version.rendered_text
+					: textFromSubmission(record);
+			const pages = renderDocumentPages(contractText);
+
+			return {
+				contract_text: contractText,
+				html:
+					typeof version?.rendered_html === "string"
+						? version.rendered_html
+						: pages.map((page) => `<section>${page}</section>`).join(""),
+				pages,
+				status: data.status,
+				partner_signer_name: data.signer_name ?? null,
+				partner_signature_data: data.signature_data ?? null,
+				partner_signed_at: data.signed_at ?? null,
+			};
+		},
+	);
+
+	server.post<{ Params: { token: string } }>(
+		"/contracts/board-sign/:token",
+		async (request, reply) => {
+			const body = SignBodySchema.parse(request.body);
+
+			const { data: submission, error: fetchError } = await getSupabase()
+				.from("contract_submissions")
+				.select("id, status, board_signature_token_expires_at, admin_signed_at")
+				.eq("board_signature_token", request.params.token)
+				.maybeSingle();
+
+			if (fetchError) {
+				request.log.error(
+					{ err: fetchError },
+					"Failed to load submission for board sign",
+				);
+				throw createContractDatabaseError(fetchError);
+			}
+			if (!submission) {
+				return reply.status(404).send({ error: "Invalid board signing link" });
+			}
+			if (
+				submission.board_signature_token_expires_at &&
+				new Date(submission.board_signature_token_expires_at).getTime() <
+					Date.now()
+			) {
+				return reply.status(410).send({ error: "Board signing link expired" });
+			}
+			if (
+				submission.admin_signed_at ||
+				submission.status !== "partner_signed"
+			) {
+				return reply
+					.status(409)
+					.send({ error: "Contract is not awaiting a board signature" });
+			}
+
+			const nowIso = new Date().toISOString();
+			const { data, error } = await getSupabase()
+				.from("contract_submissions")
+				.update({
+					admin_signature_data: body.signature_data,
+					admin_signer_name: body.signer_name,
+					admin_signed_at: nowIso,
+					status: "board_signed",
+					board_signature_token: null,
+					board_signature_token_expires_at: null,
+					updated_at: nowIso,
+				})
+				.eq("id", submission.id)
+				.select("id, status, admin_signed_at")
+				.single();
+			if (error) {
+				request.log.error(
+					{ err: error },
+					"Failed to record board signature via link",
+				);
+				throw createContractDatabaseError(error);
+			}
+
+			await recordAndNotifyTransition({
+				request,
+				submissionId: String(submission.id),
+				fromStatus: "partner_signed",
+				toStatus: "board_signed",
+				changedBy: null,
+				changedByName: body.signer_name,
+			});
+			return data;
+		},
+	);
+
 	server.post<{ Params: { token: string } }>(
 		"/contracts/sign/:token/comment",
 		async (request, reply) => {
@@ -2050,6 +2522,18 @@ export async function contractRoutes(server: FastifyInstance) {
 				throw createContractDatabaseError(error);
 			}
 
+			await recordAndNotifyTransition({
+				request,
+				submissionId: String(submission.id),
+				fromStatus: "sent_to_partner",
+				toStatus: "partner_comments",
+				changedBy: null,
+				changedByName:
+					getPartnerCompanyNameFromSubmission(
+						submission as Record<string, unknown>,
+					) || "Partner",
+				note: body.comment,
+			});
 			return data;
 		},
 	);
@@ -2108,6 +2592,14 @@ export async function contractRoutes(server: FastifyInstance) {
 				throw createContractDatabaseError(error);
 			}
 
+			await recordAndNotifyTransition({
+				request,
+				submissionId: String(submission.id),
+				fromStatus: "sent_to_partner",
+				toStatus: "partner_signed",
+				changedBy: null,
+				changedByName: body.signer_name,
+			});
 			return data;
 		},
 	);
@@ -2153,6 +2645,14 @@ export async function contractRoutes(server: FastifyInstance) {
 				throw createContractDatabaseError(error);
 			}
 
+			await recordAndNotifyTransition({
+				request,
+				submissionId: request.params.id,
+				fromStatus: "partner_signed",
+				toStatus: "board_signed",
+				changedBy: user.id,
+				changedByName: body.signer_name,
+			});
 			return data;
 		},
 	);
@@ -2215,6 +2715,15 @@ export async function contractRoutes(server: FastifyInstance) {
 				throw createContractDatabaseError(error);
 			}
 
+			const finalizeUser = (request as AuthenticatedRequest).user;
+			await recordAndNotifyTransition({
+				request,
+				submissionId: request.params.id,
+				fromStatus: typeof current.status === "string" ? current.status : null,
+				toStatus: "completed",
+				changedBy: finalizeUser.id,
+				changedByName: await getMemberDisplayName(finalizeUser.id),
+			});
 			return data;
 		},
 	);
@@ -2226,7 +2735,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, final_document_version_id, admin_edited_text, generated_contract_text, signer_name, signed_at, admin_signer_name, admin_signed_at",
+					"id, status, final_document_version_id, admin_edited_text, generated_contract_text, signer_name, signed_at, signature_data, admin_signer_name, admin_signed_at, admin_signature_data",
 				)
 				.eq("final_pdf_token", request.params.token)
 				.maybeSingle();
@@ -2246,7 +2755,10 @@ export async function contractRoutes(server: FastifyInstance) {
 				typeof finalVersion?.rendered_text === "string"
 					? finalVersion.rendered_text
 					: buildFinalPdfText(data);
-			const pdf = createTextPdf(finalText);
+			const pdf = createTextPdf(
+				finalText,
+				buildSignatureImages(data as Record<string, unknown>),
+			);
 			return sendPdf(
 				reply,
 				pdf,

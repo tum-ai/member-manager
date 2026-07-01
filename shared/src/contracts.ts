@@ -17,6 +17,21 @@ export const CONTRACT_WORKFLOW_STATUSES = [
 export type ContractWorkflowStatus =
 	(typeof CONTRACT_WORKFLOW_STATUSES)[number];
 
+/**
+ * A single status transition recorded for a contract submission. Appended
+ * (never overwritten) so the full history stays visible in the contract view.
+ */
+export interface ContractStatusEvent {
+	id: string;
+	submission_id: string;
+	from_status: ContractWorkflowStatus | null;
+	to_status: ContractWorkflowStatus;
+	changed_by: string | null;
+	changed_by_name: string | null;
+	note: string | null;
+	created_at: string;
+}
+
 export interface ContractPackageDefinition {
 	label: string;
 	amountEur: number;

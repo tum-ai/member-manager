@@ -54,6 +54,7 @@ interface MockData {
 	contract_submissions: Array<Record<string, unknown>>;
 	contract_document_versions: Array<Record<string, unknown>>;
 	contract_partner_comments: Array<Record<string, unknown>>;
+	contract_status_events: Array<Record<string, unknown>>;
 	tumai_days: Array<Record<string, unknown>>;
 	tumai_day_responses: Array<Record<string, unknown>>;
 }
@@ -204,6 +205,7 @@ export const mockDatabase: MockData = {
 	contract_conditional_blocks: [],
 	contract_document_versions: [],
 	contract_partner_comments: [],
+	contract_status_events: [],
 	contract_submissions: [
 		{
 			id: "33333333-3333-4333-8333-333333333333",
@@ -570,6 +572,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 						table === "contract_submissions" ||
 						table === "contract_document_versions" ||
 						table === "contract_partner_comments" ||
+						table === "contract_status_events" ||
 						table === "tumai_days" ||
 						table === "tumai_day_responses") &&
 					rec.id === undefined &&
@@ -1002,6 +1005,7 @@ export function resetMockDatabase(): void {
 	mockDatabase.contract_conditional_blocks = [];
 	mockDatabase.contract_document_versions = [];
 	mockDatabase.contract_partner_comments = [];
+	mockDatabase.contract_status_events = [];
 	mockDatabase.contract_submissions = [
 		{
 			id: "33333333-3333-4333-8333-333333333333",

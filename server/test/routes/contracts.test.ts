@@ -17,6 +17,16 @@ import { mockDatabase } from "../mocks/supabase.js";
 const TEMPLATE_ID = "11111111-1111-4111-8111-111111111111";
 const SUBMISSION_ID = "33333333-3333-4333-8333-333333333333";
 
+// Nr.1: sending to the partner now requires an approved contract. Tests that
+// exercise the send/OpenSign paths approve the seeded submission first.
+function approveSeededSubmission(): void {
+	const submission = mockDatabase.contract_submissions.find(
+		(row) => row.id === SUBMISSION_ID,
+	);
+	assert.ok(submission);
+	submission.status = "approved";
+}
+
 function restoreEnv(name: string, value: string | undefined): void {
 	if (value === undefined) {
 		delete process.env[name];
@@ -404,6 +414,7 @@ describe("Contract Routes", async () => {
 
 	test("sends a reviewed contract to the partner", async () => {
 		resetDatabase();
+		approveSeededSubmission();
 
 		const response = await app.inject({
 			method: "PATCH",
@@ -452,6 +463,7 @@ describe("Contract Routes", async () => {
 
 	test("emails a reviewed contract to the partner", async () => {
 		resetDatabase();
+		approveSeededSubmission();
 		const originalFetch = globalThis.fetch;
 		const originalResendKey = process.env.RESEND_API_KEY;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
@@ -497,11 +509,16 @@ describe("Contract Routes", async () => {
 			assert.strictEqual(data.status, "sent_to_partner");
 			assert.strictEqual(data.partner_email_recipient, "partner@example.com");
 			assert.ok(data.partner_email_sent_at);
-			assert.strictEqual(sentBodies.length, 1);
-			assert.strictEqual(sentBodies[0].to, "partner@example.com");
-			assert.strictEqual(sentBodies[0].subject, "Please sign");
+			// The partner signing email is sent (a separate Nr.2 status-change
+			// notification to the creator may also be sent — assert on the partner
+			// email specifically).
+			const partnerBody = sentBodies.find(
+				(body) => body.to === "partner@example.com",
+			);
+			assert.ok(partnerBody);
+			assert.strictEqual(partnerBody.subject, "Please sign");
 			assert.match(
-				String(sentBodies[0].text),
+				String(partnerBody.text),
 				/https:\/\/member-manager\.test\/contracts\/sign\/[a-f0-9]{64}/,
 			);
 		} finally {
@@ -514,6 +531,7 @@ describe("Contract Routes", async () => {
 
 	test("rejects partner email sending when the provider is not configured", async () => {
 		resetDatabase();
+		approveSeededSubmission();
 		const originalResendKey = process.env.RESEND_API_KEY;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
 		delete process.env.RESEND_API_KEY;
@@ -552,6 +570,7 @@ describe("Contract Routes", async () => {
 
 	test("does not mark a submission sent when partner email delivery fails", async () => {
 		resetDatabase();
+		approveSeededSubmission();
 		const originalFetch = globalThis.fetch;
 		const originalResendKey = process.env.RESEND_API_KEY;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
@@ -588,7 +607,7 @@ describe("Contract Routes", async () => {
 				(row) => row.id === SUBMISSION_ID,
 			);
 			assert.ok(updated);
-			assert.strictEqual(updated.status, "legal_review");
+			assert.strictEqual(updated.status, "approved");
 			assert.strictEqual(updated.sent_to_partner_at, null);
 			assert.match(
 				String(updated.partner_email_error),
@@ -712,6 +731,7 @@ describe("Contract Routes", async () => {
 
 	test("sends a reviewed contract with OpenSign", async () => {
 		resetDatabase();
+		approveSeededSubmission();
 		const originalFetch = globalThis.fetch;
 		const originalOpenSignToken = process.env.OPENSIGN_API_TOKEN;
 		const originalOpenSignBaseUrl = process.env.OPENSIGN_BASE_URL;
@@ -802,6 +822,7 @@ describe("Contract Routes", async () => {
 
 	test("does not mark a submission sent when OpenSign delivery fails", async () => {
 		resetDatabase();
+		approveSeededSubmission();
 		const originalFetch = globalThis.fetch;
 		const originalOpenSignToken = process.env.OPENSIGN_API_TOKEN;
 		const originalOpenSignBaseUrl = process.env.OPENSIGN_BASE_URL;
@@ -841,7 +862,7 @@ describe("Contract Routes", async () => {
 				(row) => row.id === SUBMISSION_ID,
 			);
 			assert.ok(updated);
-			assert.strictEqual(updated.status, "legal_review");
+			assert.strictEqual(updated.status, "approved");
 			assert.strictEqual(updated.sent_to_partner_at, null);
 			assert.strictEqual(updated.opensign_document_id, null);
 			assert.strictEqual(updated.opensign_error, "OpenSign unavailable");
@@ -862,6 +883,8 @@ describe("Contract Routes", async () => {
 				(row) => row.id === SUBMISSION_ID,
 			);
 			assert.ok(submission);
+			// Nr.1: sending requires an approved contract first.
+			submission.status = "approved";
 			submission.form_data = {
 				partner_company_name: "Partner GmbH",
 				partner_contact_email: "partner@example.com",
@@ -1331,5 +1354,182 @@ describe("Contract Routes", async () => {
 			String(downloadResponse.headers["content-disposition"]),
 			/^attachment; filename="contract-/,
 		);
+	});
+
+	// Nr.1: sending requires an explicit approval first.
+	test("blocks sending to the partner before approval", async () => {
+		resetDatabase();
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ send_to_partner: true }),
+		});
+		assert.strictEqual(response.statusCode, 400);
+		assert.match(JSON.parse(response.payload).error, /must be approved/);
+	});
+
+	// Nr.3: approving records a status event exposed via the status-events route.
+	test("records a status event on approval", async () => {
+		resetDatabase();
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ status: "approved" }),
+		});
+		assert.strictEqual(response.statusCode, 200);
+		const event = mockDatabase.contract_status_events.find(
+			(row) => row.submission_id === SUBMISSION_ID,
+		);
+		assert.ok(event);
+		assert.strictEqual(event.from_status, "legal_review");
+		assert.strictEqual(event.to_status, "approved");
+
+		const eventsResponse = await app.inject({
+			method: "GET",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}/status-events`,
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(eventsResponse.statusCode, 200);
+		const events = JSON.parse(eventsResponse.payload);
+		assert.ok(
+			events.some((e: { to_status: string }) => e.to_status === "approved"),
+		);
+	});
+
+	// Nr.10: rejecting requires a reason, which is stored.
+	test("requires a rejection reason and stores it", async () => {
+		resetDatabase();
+		const missing = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ status: "rejected" }),
+		});
+		assert.strictEqual(missing.statusCode, 400);
+
+		const rejected = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				status: "rejected",
+				rejection_reason: "Budget not confirmed",
+			}),
+		});
+		assert.strictEqual(rejected.statusCode, 200);
+		const updated = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(updated);
+		assert.strictEqual(updated.status, "rejected");
+		assert.strictEqual(updated.rejection_reason, "Budget not confirmed");
+	});
+
+	// Nr.7: clarification is closed once the contract is approved.
+	test("blocks requesting clarification after approval", async () => {
+		resetDatabase();
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.status = "approved";
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ status: "inquiry" }),
+		});
+		assert.strictEqual(response.statusCode, 400);
+		assert.match(JSON.parse(response.payload).error, /once the contract/);
+	});
+
+	// Nr.5: public board-signing link flow.
+	test("supports the public board-signing link flow", async () => {
+		resetDatabase();
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.status = "partner_signed";
+		submission.signer_name = "Jane Signer";
+		submission.signed_at = "2026-05-28T12:00:00Z";
+
+		const genResponse = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ generate_board_signature_token: true }),
+		});
+		assert.strictEqual(genResponse.statusCode, 200);
+		const token = JSON.parse(genResponse.payload).board_signature_token;
+		assert.match(String(token), /^[a-f0-9]{64}$/);
+
+		const payloadResponse = await app.inject({
+			method: "GET",
+			url: `/api/contracts/board-sign/${token}`,
+		});
+		assert.strictEqual(payloadResponse.statusCode, 200);
+		assert.ok(Array.isArray(JSON.parse(payloadResponse.payload).pages));
+
+		const signResponse = await app.inject({
+			method: "POST",
+			url: `/api/contracts/board-sign/${token}`,
+			headers: { "content-type": "application/json" },
+			payload: JSON.stringify({
+				signature_data: "data:image/png;base64,CCCC",
+				signer_name: "Board Member",
+			}),
+		});
+		assert.strictEqual(signResponse.statusCode, 200);
+		const updated = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(updated);
+		assert.strictEqual(updated.status, "board_signed");
+		assert.strictEqual(updated.admin_signer_name, "Board Member");
+		assert.ok(updated.admin_signed_at);
+		assert.strictEqual(updated.board_signature_token, null);
+	});
+
+	// Nr.4: internal comments store a display name, not the raw email.
+	test("stores a display name for internal comments", async () => {
+		resetDatabase();
+		const response = await app.inject({
+			method: "POST",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}/comments`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ comment: "Looks good to me" }),
+		});
+		assert.strictEqual(response.statusCode, 200);
+		const comment = mockDatabase.contract_partner_comments.find(
+			(row) => row.submission_id === SUBMISSION_ID,
+		);
+		assert.ok(comment);
+		assert.strictEqual(comment.author_type, "internal");
+		// The mocked admin member resolves to a name rather than an email.
+		assert.doesNotMatch(String(comment.author_name), /@/);
 	});
 });
