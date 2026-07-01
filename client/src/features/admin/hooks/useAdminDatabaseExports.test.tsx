@@ -3,16 +3,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminMember } from "@/features/admin/adminUtils";
 import { useAdminDatabase } from "./useAdminDatabase";
 
-const writeFileMock = vi.fn();
+const { addRow, addWorksheet, writeBuffer, Workbook } = vi.hoisted(() => {
+	const addRowFn = vi.fn();
+	const addWorksheetFn = vi.fn(() => ({ columns: [], addRow: addRowFn }));
+	const writeBufferFn = vi.fn(async () => new ArrayBuffer(8));
+	const WorkbookFn = vi.fn(function MockWorkbook(
+		this: Record<string, unknown>,
+	) {
+		this.addWorksheet = addWorksheetFn;
+		this.xlsx = { writeBuffer: writeBufferFn };
+	});
+	return {
+		addRow: addRowFn,
+		addWorksheet: addWorksheetFn,
+		writeBuffer: writeBufferFn,
+		Workbook: WorkbookFn,
+	};
+});
 
-vi.mock("xlsx", () => ({
-	utils: {
-		json_to_sheet: vi.fn(() => ({ sheet: true })),
-		book_new: vi.fn(() => ({ book: true })),
-		book_append_sheet: vi.fn(),
-	},
-	writeFile: (...args: unknown[]) => writeFileMock(...args),
-}));
+vi.mock("exceljs", () => ({ Workbook }));
 
 const updateMemberAsyncMock = vi.fn();
 
@@ -59,7 +68,9 @@ describe("useAdminDatabase exports", () => {
 	let clickSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
-		writeFileMock.mockReset();
+		addRow.mockClear();
+		addWorksheet.mockClear();
+		writeBuffer.mockClear();
 		updateMemberAsyncMock.mockReset();
 		adminDataState.members = [
 			member({ user_id: "1", surname: "Zeta", email: "zeta@example.com" }),
@@ -83,15 +94,16 @@ describe("useAdminDatabase exports", () => {
 		clickSpy.mockRestore();
 	});
 
-	it("exports filtered rows to an .xlsx workbook", () => {
+	it("exports filtered rows to an .xlsx workbook", async () => {
 		const { result } = renderHook(() => useAdminDatabase());
 
-		act(() => result.current.exportToExcel());
+		await act(async () => {
+			await result.current.exportToExcel();
+		});
 
-		expect(writeFileMock).toHaveBeenCalledWith(
-			expect.anything(),
-			"members_export.xlsx",
-		);
+		expect(addWorksheet).toHaveBeenCalledWith("Members");
+		expect(writeBuffer).toHaveBeenCalledOnce();
+		expect(clickSpy).toHaveBeenCalledTimes(1);
 	});
 
 	it("exports filtered rows to a downloadable CSV", () => {

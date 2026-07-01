@@ -184,6 +184,9 @@ let hasLoggedPartnerConfigWarning = false;
 const MEMBER_MANAGER_JOBS_CURSOR_PREFIX = "mm:";
 const PARTNER_JOB_REQUEST_ID_PREFIX = "partner:";
 
+// The upstream Partner Portal URL is sourced exclusively from the
+// PARTNER_PORTAL_JOBS_API_URL env var (operator-controlled, never from request
+// input), so the fetchWithTimeout calls built from it are not an SSRF vector.
 function getPartnerPortalJobsApiConfig(): { url: URL; token: string } | null {
 	const urlValue = process.env.PARTNER_PORTAL_JOBS_API_URL?.trim();
 	const token = process.env.PARTNER_PORTAL_JOBS_API_TOKEN?.trim();
@@ -837,6 +840,7 @@ export async function jobRoutes(server: FastifyInstance) {
 					typeof fetchError === "object" &&
 					fetchError !== null &&
 					"code" in fetchError &&
+					typeof fetchError.code === "string" &&
 					fetchError.code === "PGRST116"
 				) {
 					return reply.status(404).send({ error: "Job request not found" });
@@ -871,6 +875,7 @@ export async function jobRoutes(server: FastifyInstance) {
 					typeof error === "object" &&
 					error !== null &&
 					"code" in error &&
+					typeof error.code === "string" &&
 					error.code === "PGRST116"
 				) {
 					return reply

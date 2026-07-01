@@ -1,5 +1,5 @@
+import { Workbook } from "exceljs";
 import { useMemo, useState } from "react";
-import * as XLSX from "xlsx";
 import { initialFilters } from "@/features/admin/adminDatabaseViewTypes";
 import { buildExportRows, rowsToCsv } from "@/features/admin/adminExportUtils";
 import {
@@ -72,12 +72,23 @@ export function useAdminDatabase() {
 		setSortAsc((previousValue) => (sortBy === column ? !previousValue : true));
 	}
 
-	function exportToExcel() {
+	async function exportToExcel() {
 		const exportData = buildExportRows(filtered);
-		const worksheet = XLSX.utils.json_to_sheet(exportData);
-		const workbook = XLSX.utils.book_new();
-		XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
-		XLSX.writeFile(workbook, "members_export.xlsx");
+		const workbook = new Workbook();
+		const worksheet = workbook.addWorksheet("Members");
+		const columns = exportData.length > 0 ? Object.keys(exportData[0]) : [];
+		worksheet.columns = columns.map((column) => ({
+			header: column,
+			key: column,
+		}));
+		for (const row of exportData) {
+			worksheet.addRow(row);
+		}
+		const buffer = await workbook.xlsx.writeBuffer();
+		const blob = new Blob([buffer], {
+			type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		});
+		triggerDownload(blob, "members_export.xlsx");
 	}
 
 	function exportToCsv() {

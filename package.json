@@ -36,6 +36,7 @@
 		"@biomejs/biome": "^2.4.16",
 		"@playwright/test": "^1.60.0",
 		"@types/node": "^24.13.2",
+		"exceljs": "^4.4.0",
 		"turbo": "^2.9.18"
 	}
 }

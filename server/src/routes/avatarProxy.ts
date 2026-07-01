@@ -1,14 +1,15 @@
 import type { FastifyInstance } from "fastify";
+import { isUrlAllowed } from "../lib/ssrfGuard.js";
 
 // Slack/Gravatar avatar CDNs don't send CORS headers, so the browser can't read
 // them onto a canvas (org-tree PNG export) and logs cross-origin warnings. We
 // proxy them through our own origin instead. Strictly allowlisted to avatar
 // hosts so this can't be abused as an open proxy / SSRF vector.
-const ALLOWED_AVATAR_HOSTS = new Set([
+const ALLOWED_AVATAR_HOSTS = [
 	"avatars.slack-edge.com",
 	"a.slack-edge.com",
 	"secure.gravatar.com",
-]);
+];
 
 const AVATAR_CACHE_SECONDS = 60 * 60 * 24; // 24h
 
@@ -33,10 +34,8 @@ export async function avatarProxyRoutes(
 				return reply.code(400).send({ error: "Invalid url" });
 			}
 
-			if (
-				target.protocol !== "https:" ||
-				!ALLOWED_AVATAR_HOSTS.has(target.hostname)
-			) {
+			// SSRF boundary: only fetch from the avatar-host allowlist (https only).
+			if (!isUrlAllowed(target, { allowedHosts: ALLOWED_AVATAR_HOSTS })) {
 				return reply.code(400).send({ error: "Host not allowed" });
 			}
 

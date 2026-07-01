@@ -113,7 +113,7 @@ export function OrgChartDiagram({ nodes }: OrgChartDiagramProps) {
 		if (!container || typeof ResizeObserver === "undefined") return;
 
 		let frame = 0;
-		const observer = new ResizeObserver((entries) => {
+		const observer = new ResizeObserver((entries: ResizeObserverEntry[]) => {
 			const width = entries[0]?.contentRect.width ?? 0;
 			if (width === 0) return;
 			cancelAnimationFrame(frame);

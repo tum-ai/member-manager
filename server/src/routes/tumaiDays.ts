@@ -110,7 +110,10 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 				if (error) throw error;
 				return data;
 			} catch (error) {
-				request.log.error(error, `Failed to update TUM.ai Day ${id}`);
+				request.log.error(
+					{ err: error, tumaiDayId: id },
+					"Failed to update TUM.ai Day",
+				);
 				throw new DatabaseError();
 			}
 		},
@@ -131,7 +134,10 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 				if (error) throw error;
 				return reply.status(204).send();
 			} catch (error) {
-				request.log.error(error, `Failed to delete TUM.ai Day ${id}`);
+				request.log.error(
+					{ err: error, tumaiDayId: id },
+					"Failed to delete TUM.ai Day",
+				);
 				throw new DatabaseError();
 			}
 		},
@@ -209,8 +215,8 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 				return { event, stats, responses: auditList };
 			} catch (error) {
 				request.log.error(
-					error,
-					`Failed to load responses for TUM.ai Day ${id}`,
+					{ err: error, tumaiDayId: id },
+					"Failed to load responses for TUM.ai Day",
 				);
 				throw new DatabaseError();
 			}
@@ -222,6 +228,7 @@ export async function tumaiDaysRoutes(server: FastifyInstance) {
 	server.route({
 		method: ["GET", "POST"],
 		url: "/tum-ai-days/send-pending",
+		config: { rateLimit: { max: 30, timeWindow: "1 minute" } },
 		preHandler: [requireCronOrTumaiDaysManager],
 		handler: async (request) => {
 			try {
