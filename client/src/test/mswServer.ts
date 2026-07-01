@@ -23,6 +23,10 @@ const defaultHandlers = [
 		HttpResponse.json([]),
 	),
 	http.get("/api/admin/job-requests", () => HttpResponse.json([])),
+	http.get("/api/members", () => HttpResponse.json([])),
+	http.post("/api/members/expertise-query", () =>
+		HttpResponse.json({ answer: "", matches: [], source: "fallback" }),
+	),
 ];
 
 export const server = setupServer(...defaultHandlers);

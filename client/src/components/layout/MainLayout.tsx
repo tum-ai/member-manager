@@ -23,6 +23,7 @@ import {
 	User as UserIcon,
 	Users,
 	Wallet,
+	Waypoints,
 	Workflow,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -146,6 +147,11 @@ export function MainLayout({
 					icon: Users,
 					items: [
 						{ label: "Browse", to: "/members", icon: Search },
+						{
+							label: "Expertise Graph",
+							to: "/members/graph",
+							icon: Waypoints,
+						},
 						{ label: "Org Chart", to: "/members/org-chart", icon: Network },
 						{
 							label: "Org Tree",

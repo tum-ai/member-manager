@@ -26,6 +26,8 @@ export interface Member {
 	avatar_url?: string | null;
 	linkedin_profile_url?: string | null;
 	public_location?: string | null;
+	expertise_summary?: string | null;
+	expertise_tags?: string[] | null;
 	// biome-ignore lint/suspicious/noExplicitAny: Allow indexing
 	[key: string]: any;
 }

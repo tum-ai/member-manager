@@ -9,6 +9,10 @@ import {
 	NotFoundError,
 } from "../lib/errors.js";
 import {
+	answerExpertiseQuery,
+	type ExpertiseCandidate,
+} from "../lib/expertiseQuery.js";
+import {
 	isLocalAdminBootstrapEnabled,
 	isLocalAdminEmail,
 } from "../lib/localAdmin.js";
@@ -164,6 +168,10 @@ const UpdateMemberSchema = z.object({
 	// LinkedIn fields — member-editable
 	linkedin_profile_url: optionalLinkedInProfileUrlSchema,
 	public_location: optionalTrimmedTextSchema,
+});
+
+const ExpertiseQuerySchema = z.object({
+	question: z.string().trim().min(3).max(500),
 });
 
 const LOCAL_ADMIN_BANK_DETAILS = {
@@ -468,6 +476,49 @@ export async function memberRoutes(server: FastifyInstance) {
 		},
 	);
 
+	server.post(
+		"/members/expertise-query",
+		{ preHandler: authenticate },
+		async (request, reply) => {
+			const parsed = ExpertiseQuerySchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({ error: parsed.error.flatten() });
+			}
+
+			// Only expertise-relevant, non-sensitive columns are selected. Never
+			// touch IBAN/BIC/address/DOB/phone/email or any encrypted field here.
+			const { data, error } = await getSupabase()
+				.from("members")
+				.select(
+					"user_id, given_name, surname, department, batch, degree, school, expertise_summary, expertise_tags",
+				)
+				.in("member_status", ["active", "alumni"]);
+
+			if (error) {
+				request.log.error(
+					{ err: error },
+					"Failed to fetch members for expertise query",
+				);
+				throw new DatabaseError();
+			}
+
+			const candidates: ExpertiseCandidate[] =
+				// biome-ignore lint/suspicious/noExplicitAny: Vercel type resolution workaround
+				((data || []) as any[]).map((member) => ({
+					userId: String(member.user_id),
+					name: `${member.given_name ?? ""} ${member.surname ?? ""}`.trim(),
+					department: member.department ?? null,
+					batch: member.batch ?? null,
+					degree: member.degree ?? null,
+					school: member.school ?? null,
+					expertiseSummary: member.expertise_summary ?? null,
+					expertiseTags: member.expertise_tags ?? [],
+				}));
+
+			return await answerExpertiseQuery(parsed.data.question, candidates);
+		},
+	);
+
 	server.get(
 		"/members",
 		{ preHandler: authenticate },
@@ -475,7 +526,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select(
-					"user_id, given_name, surname, batch, department, member_role, board_role, research_project_id, degree, school, active, member_status, linkedin_profile_url, public_location",
+					"user_id, given_name, surname, batch, department, member_role, board_role, research_project_id, degree, school, active, member_status, linkedin_profile_url, public_location, expertise_summary, expertise_tags",
 				)
 				.in("member_status", ["active", "alumni"])
 				.order("surname", { ascending: true });

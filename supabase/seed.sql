@@ -25,7 +25,11 @@ begin
         board_role text,
         degree text,
         school text,
-        access_role text not null default 'user'
+        access_role text not null default 'user',
+        -- Public/professional profile fields for the expertise graph + Q&A feature.
+        -- Backfill-later: most members are left blank (NULL summary, empty tag array).
+        expertise_summary text,
+        expertise_tags text[] not null default '{}'
     ) on commit drop;
 
     -- All local seed users share the password `password123`.
@@ -40,30 +44,32 @@ begin
         board_role,
         degree,
         school,
-        access_role
+        access_role,
+        expertise_summary,
+        expertise_tags
     ) values
-        ('00000000-0000-0000-0000-000000000001', 'admin@example.com', 'Ada', 'President', 'WS22', 'Legal & Finance', 'President', null, 'PhD', 'TUM', 'admin'),
-        ('00000000-0000-0000-0000-000000000002', 'vice-president@example.com', 'Vera', 'Vice', 'SS23', 'Community', 'Vice-President', null, 'M.Sc. Management & Technology', 'TUM', 'admin'),
-        ('00000000-0000-0000-0000-000000000003', 'board-lead@example.com', 'Bianca', 'Boardlead', 'WS23', 'Software Development', 'Team Lead', 'Board Member', 'M.Sc. Management & Technology', 'LMU', 'user'),
-        ('00000000-0000-0000-0000-000000000004', 'board-member@example.com', 'Ben', 'Boardmember', 'SS24', 'Software Development', 'Member', 'Board Member', 'B.Sc. Computer Science', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000005', 'community-lead@example.com', 'Clara', 'Community', 'WS23', 'Community', 'Team Lead', null, 'M.Sc. Management & Technology', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000006', 'regular-member@example.com', 'Regular', 'Member', null, null, 'Member', null, null, null, 'user'),
-        ('00000000-0000-0000-0000-000000000007', 'innovation-lead@example.com', 'Ines', 'Innovation', 'WS23', 'Innovation Department', 'Team Lead', null, 'M.Sc. Management & Technology', 'LMU', 'user'),
-        ('00000000-0000-0000-0000-000000000008', 'innovation-member@example.com', 'Ian', 'Innovation', 'SS24', 'Innovation Department', 'Member', null, 'B.Sc. Management & Technology', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000009', 'legal-finance-lead@example.com', 'Lea', 'Finance', 'WS23', 'Legal & Finance', 'Team Lead', 'Board Member', 'M.Sc. Management & Technology', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000010', 'legal-finance-member@example.com', 'Luca', 'Finance', 'SS24', 'Legal & Finance', 'Member', null, 'B.Sc. Management & Technology', 'LMU', 'user'),
-        ('00000000-0000-0000-0000-000000000011', 'makeathon-lead@example.com', 'Maya', 'Makeathon', 'WS23', 'Makeathon', 'Team Lead', null, 'M.Sc. Computer Science', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000012', 'makeathon-member@example.com', 'Max', 'Makeathon', 'SS24', 'Makeathon', 'Member', null, 'B.Sc. Computer Science', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000013', 'marketing-lead@example.com', 'Mina', 'Marketing', 'WS23', 'Marketing', 'Team Lead', null, 'M.Sc. Management & Technology', 'LMU', 'user'),
-        ('00000000-0000-0000-0000-000000000014', 'marketing-member@example.com', 'Milo', 'Marketing', 'SS24', 'Marketing', 'Member', null, 'B.Sc. Management & Technology', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000015', 'partners-sponsors-lead@example.com', 'Paula', 'Partners', 'WS23', 'Partners & Sponsors', 'Team Lead', null, 'M.Sc. Management & Technology', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000016', 'partners-sponsors-member@example.com', 'Peter', 'Partners', 'SS24', 'Partners & Sponsors', 'Member', null, 'B.Sc. Management & Technology', 'LMU', 'user'),
-        ('00000000-0000-0000-0000-000000000017', 'research-lead@example.com', 'Rita', 'Research', 'WS23', 'Research', 'Member', null, 'PhD', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000018', 'research-member@example.com', 'Robin', 'Research', 'SS24', 'Research', 'Member', null, 'M.Sc. Computer Science', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000019', 'software-development-lead@example.com', 'Sofia', 'Software', 'WS23', 'Software Development', 'Team Lead', null, 'M.Sc. Computer Science', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000020', 'user@example.com', 'Regular', 'User', 'SS24', 'Software Development', 'Member', null, 'B.Sc. Computer Science', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000021', 'venture-lead@example.com', 'Valerie', 'Venture', 'WS23', 'Venture', 'Team Lead', null, 'M.Sc. Management & Technology', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000022', 'venture-member@example.com', 'Victor', 'Venture', 'SS24', 'Venture', 'Member', null, 'B.Sc. Management & Technology', 'LMU', 'user');
+        ('00000000-0000-0000-0000-000000000001', 'admin@example.com', 'Ada', 'President', 'WS22', 'Legal & Finance', 'President', null, 'PhD', 'TUM', 'admin', null, '{}'),
+        ('00000000-0000-0000-0000-000000000002', 'vice-president@example.com', 'Vera', 'Vice', 'SS23', 'Community', 'Vice-President', null, 'M.Sc. Management & Technology', 'TUM', 'admin', null, '{}'),
+        ('00000000-0000-0000-0000-000000000003', 'board-lead@example.com', 'Bianca', 'Boardlead', 'WS23', 'Software Development', 'Team Lead', 'Board Member', 'M.Sc. Management & Technology', 'LMU', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000004', 'board-member@example.com', 'Ben', 'Boardmember', 'SS24', 'Software Development', 'Member', 'Board Member', 'B.Sc. Computer Science', 'TUM', 'user', 'Backend engineer: TypeScript services and data pipelines', '{"backend","typescript","postgres"}'),
+        ('00000000-0000-0000-0000-000000000005', 'community-lead@example.com', 'Clara', 'Community', 'WS23', 'Community', 'Team Lead', null, 'M.Sc. Management & Technology', 'TUM', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000006', 'regular-member@example.com', 'Regular', 'Member', null, null, 'Member', null, null, null, 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000007', 'innovation-lead@example.com', 'Ines', 'Innovation', 'WS23', 'Innovation Department', 'Team Lead', null, 'M.Sc. Management & Technology', 'LMU', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000008', 'innovation-member@example.com', 'Ian', 'Innovation', 'SS24', 'Innovation Department', 'Member', null, 'B.Sc. Management & Technology', 'TUM', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000009', 'legal-finance-lead@example.com', 'Lea', 'Finance', 'WS23', 'Legal & Finance', 'Team Lead', 'Board Member', 'M.Sc. Management & Technology', 'TUM', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000010', 'legal-finance-member@example.com', 'Luca', 'Finance', 'SS24', 'Legal & Finance', 'Member', null, 'B.Sc. Management & Technology', 'LMU', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000011', 'makeathon-lead@example.com', 'Maya', 'Makeathon', 'WS23', 'Makeathon', 'Team Lead', null, 'M.Sc. Computer Science', 'TUM', 'user', 'Runs large-scale hackathons and event operations', '{"hackathons","event-ops","community"}'),
+        ('00000000-0000-0000-0000-000000000012', 'makeathon-member@example.com', 'Max', 'Makeathon', 'SS24', 'Makeathon', 'Member', null, 'B.Sc. Computer Science', 'TUM', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000013', 'marketing-lead@example.com', 'Mina', 'Marketing', 'WS23', 'Marketing', 'Team Lead', null, 'M.Sc. Management & Technology', 'LMU', 'user', 'Product and brand design for member-facing products', '{"product","design","marketing"}'),
+        ('00000000-0000-0000-0000-000000000014', 'marketing-member@example.com', 'Milo', 'Marketing', 'SS24', 'Marketing', 'Member', null, 'B.Sc. Management & Technology', 'TUM', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000015', 'partners-sponsors-lead@example.com', 'Paula', 'Partners', 'WS23', 'Partners & Sponsors', 'Team Lead', null, 'M.Sc. Management & Technology', 'TUM', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000016', 'partners-sponsors-member@example.com', 'Peter', 'Partners', 'SS24', 'Partners & Sponsors', 'Member', null, 'B.Sc. Management & Technology', 'LMU', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000017', 'research-lead@example.com', 'Rita', 'Research', 'WS23', 'Research', 'Member', null, 'PhD', 'TUM', 'user', 'Applied ML research: NLP and computer vision', '{"machine-learning","nlp","computer-vision","pytorch"}'),
+        ('00000000-0000-0000-0000-000000000018', 'research-member@example.com', 'Robin', 'Research', 'SS24', 'Research', 'Member', null, 'M.Sc. Computer Science', 'TUM', 'user', 'Robotics perception and computer vision', '{"robotics","computer-vision","machine-learning"}'),
+        ('00000000-0000-0000-0000-000000000019', 'software-development-lead@example.com', 'Sofia', 'Software', 'WS23', 'Software Development', 'Team Lead', null, 'M.Sc. Computer Science', 'TUM', 'user', 'Leads platform engineering: backend and TypeScript', '{"backend","typescript","platform"}'),
+        ('00000000-0000-0000-0000-000000000020', 'user@example.com', 'Regular', 'User', 'SS24', 'Software Development', 'Member', null, 'B.Sc. Computer Science', 'TUM', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000021', 'venture-lead@example.com', 'Valerie', 'Venture', 'WS23', 'Venture', 'Team Lead', null, 'M.Sc. Management & Technology', 'TUM', 'user', null, '{}'),
+        ('00000000-0000-0000-0000-000000000022', 'venture-member@example.com', 'Victor', 'Venture', 'SS24', 'Venture', 'Member', null, 'B.Sc. Management & Technology', 'LMU', 'user', null, '{}');
 
     insert into auth.users (
         id,
@@ -152,7 +158,9 @@ begin
         member_role,
         board_role,
         degree,
-        school
+        school,
+        expertise_summary,
+        expertise_tags
     )
     select
         seed.id,
@@ -172,7 +180,9 @@ begin
         seed.member_role,
         seed.board_role,
         seed.degree,
-        seed.school
+        seed.school,
+        seed.expertise_summary,
+        seed.expertise_tags
     from seed_users_local seed
     on conflict (user_id) do update set
         given_name = excluded.given_name,
@@ -191,7 +201,9 @@ begin
         member_role = excluded.member_role,
         board_role = excluded.board_role,
         degree = excluded.degree,
-        school = excluded.school;
+        school = excluded.school,
+        expertise_summary = excluded.expertise_summary,
+        expertise_tags = excluded.expertise_tags;
 
 -- Seed user roles
     insert into public.user_roles (user_id, role)
