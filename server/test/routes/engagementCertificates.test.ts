@@ -120,6 +120,80 @@ describe("Engagement Certificate Routes", async () => {
 		assert.ok(!Object.hasOwn(storedEngagement, "specialRole"));
 	});
 
+	test("alumni member can submit an engagement certificate request", async () => {
+		resetDatabase();
+		const member = mockDatabase.members.find(
+			(member) => member.user_id === testUserIds.user,
+		);
+		assert.ok(member);
+		member.member_status = "alumni";
+		member.active = false;
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/engagement-certificates",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				engagements: [
+					{
+						id: "eng-alumni",
+						startDate: "2025-10-01",
+						endDate: "2026-03-31",
+						isStillActive: false,
+						weeklyHours: "10",
+						department: "Software Development",
+						isTeamLead: false,
+						tasksDescription: "Built internal tooling",
+					},
+				],
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 201);
+		const payload = JSON.parse(response.payload);
+		assert.strictEqual(payload.user_id, testUserIds.user);
+		assert.strictEqual(payload.status, "pending");
+	});
+
+	test("inactive member cannot submit an engagement certificate request", async () => {
+		resetDatabase();
+		const member = mockDatabase.members.find(
+			(member) => member.user_id === testUserIds.user,
+		);
+		assert.ok(member);
+		member.member_status = "inactive";
+		member.active = false;
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/engagement-certificates",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				engagements: [
+					{
+						id: "eng-inactive",
+						startDate: "2025-10-01",
+						endDate: "2026-03-31",
+						isStillActive: false,
+						weeklyHours: "10",
+						department: "Software Development",
+						isTeamLead: false,
+						tasksDescription: "Built internal tooling",
+					},
+				],
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 403);
+		assert.match(response.payload, /active members and alumni/i);
+	});
+
 	test("member can list their own engagement certificate requests", async () => {
 		resetDatabase();
 		mockDatabase.engagement_certificate_requests.push(
