@@ -6,7 +6,7 @@ import {
 } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { checkAdminRole } from "../lib/auth.js";
+import { checkAdminRole, checkBoardRole } from "../lib/auth.js";
 import {
 	fetchDepartmentPermissionMap,
 	fetchDepartmentPermissions,
@@ -26,9 +26,12 @@ const UpdateDepartmentPermissionsSchema = z.object({
 });
 
 export async function permissionRoutes(server: FastifyInstance) {
-	// The current user's effective tool permissions. Admins inherit everything;
-	// other members inherit their active department's permissions. The client
-	// gates tool visibility and route access off this list.
+	// The current user's effective tool permissions plus board membership.
+	// Admins inherit everything; other members inherit their active
+	// department's permissions. The client gates tool visibility and route
+	// access off this, and gates the in-app board-signing form on
+	// `isBoardMember` (contracts.admin alone is not sufficient to sign as the
+	// board — see requireBoardMember on the board-signature endpoint).
 	server.get(
 		"/me/tool-access",
 		{ preHandler: [authenticate] },
@@ -36,8 +39,10 @@ export async function permissionRoutes(server: FastifyInstance) {
 			const user = (request as AuthenticatedRequest).user;
 
 			try {
+				const isBoardMember = await checkBoardRole(user.id);
+
 				if (await checkAdminRole(user.id)) {
-					return { permissions: [...PERMISSIONS] };
+					return { permissions: [...PERMISSIONS], isBoardMember };
 				}
 
 				const { data, error } = await getSupabase()
@@ -57,11 +62,11 @@ export async function permissionRoutes(server: FastifyInstance) {
 				} | null;
 
 				if (!member || !isActiveMember(member) || !member.department) {
-					return { permissions: [] as Permission[] };
+					return { permissions: [] as Permission[], isBoardMember };
 				}
 
 				const permissions = await fetchDepartmentPermissions(member.department);
-				return { permissions };
+				return { permissions, isBoardMember };
 			} catch (error) {
 				request.log.error(
 					{ err: error, userId: user.id },

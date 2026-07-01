@@ -3,7 +3,6 @@ import {
 	AlignLeft,
 	Building2,
 	Calendar,
-	CircleCheck,
 	Copy,
 	ExternalLink,
 	Hash,
@@ -12,7 +11,6 @@ import {
 	Mail,
 	MapPin,
 	Package,
-	TriangleAlert,
 	User,
 } from "lucide-react";
 import type React from "react";
@@ -39,8 +37,11 @@ import { useToast } from "@/contexts/ToastContext";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import { useToolAccess } from "@/hooks/useToolAccess";
-import { cn } from "@/lib/utils";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
+import { ContractActivitySection } from "./components/ContractActivitySection";
+import { ContractBoardSignatureCard } from "./components/ContractBoardSignatureCard";
+import { ContractPartnerSignatureCard } from "./components/ContractPartnerSignatureCard";
+import { ContractStatusTimeline } from "./components/ContractStatusTimeline";
 import {
 	getContractStatusLabel,
 	getContractStatusTone,
@@ -49,6 +50,7 @@ import { SignaturePad } from "./SignaturePad";
 import {
 	downloadContractSubmissionPdf,
 	useBoardSignContractSubmission,
+	useContractStatusEvents,
 	useContractSubmission,
 	useContractSubmissionComments,
 	useContractSubmissionPreview,
@@ -148,29 +150,6 @@ function CopyButton({ value }: { value: string }): JSX.Element {
 	);
 }
 
-type ActivityTone = "success" | "error" | "info";
-
-function ActivityRow({
-	tone,
-	children,
-}: {
-	tone: ActivityTone;
-	children: React.ReactNode;
-}): JSX.Element {
-	const Icon = tone === "error" ? TriangleAlert : CircleCheck;
-	return (
-		<div className="flex items-start gap-2 text-sm">
-			<Icon
-				className={cn(
-					"mt-0.5 size-4 shrink-0",
-					tone === "error" ? "text-destructive" : "text-emerald-600",
-				)}
-			/>
-			<span className="text-muted-foreground">{children}</span>
-		</div>
-	);
-}
-
 export default function ContractSubmissionDetailPage(): JSX.Element {
 	const { id } = useParams<{ id: string }>();
 	const submissionQuery = useContractSubmission(id);
@@ -179,10 +158,12 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const finalizeMutation = useFinalizeContractSubmission(id ?? "");
 	const commentsQuery = useContractSubmissionComments(id);
 	const createCommentMutation = useCreateContractSubmissionComment(id ?? "");
+	const statusEventsQuery = useContractStatusEvents(id);
 
 	const [editedText, setEditedText] = useState("");
 	const [notes, setNotes] = useState("");
 	const [clarificationMessage, setClarificationMessage] = useState("");
+	const [rejectReason, setRejectReason] = useState("");
 	const [internalComment, setInternalComment] = useState("");
 	const [boardSignatureData, setBoardSignatureData] = useState<string | null>(
 		null,
@@ -193,7 +174,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const [downloadError, setDownloadError] = useState<string | null>(null);
 	const [downloading, setDownloading] = useState(false);
 	const { currentUserId, isAdmin } = useCurrentUserIsAdmin();
-	const { permissions } = useToolAccess();
+	const { permissions, isBoardMember } = useToolAccess();
 	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
 	const previewQuery = useContractSubmissionPreview(
 		isContractsAdmin ? id : undefined,
@@ -258,17 +239,55 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 		submission.status === "draft" &&
 		(submission.submitter_user_id === currentUserId || isAdmin);
 	const formEntries = Object.entries(submission.form_data ?? {});
+	// Nr.1: sending requires an explicit approval first (partner_comments allows
+	// a re-send after the partner leaves comments).
+	const canSendToPartner =
+		submission.status === "approved" ||
+		submission.status === "partner_comments";
+	// Nr.1: Approve is offered while the contract is still under review.
+	const canApprove = [
+		"submitted",
+		"legal_review",
+		"in_review",
+		"inquiry",
+	].includes(submission.status);
+	// Nr.7: clarification is closed once approved (or further along).
+	const canRequestClarification = ![
+		"approved",
+		"sent_to_partner",
+		"partner_signed",
+		"board_signed",
+		"signed",
+		"completed",
+	].includes(submission.status);
+	const statusEvents = statusEventsQuery.data ?? [];
+	const boardSignUrl = submission.board_signature_token
+		? `${window.location.origin}/contracts/board-sign/${submission.board_signature_token}`
+		: null;
 
 	return (
 		<ToolPageShell
 			title={`Submission ${submission.id.slice(0, 8)}…`}
 			description="Review, edit and progress this contract through the workflow."
 		>
-			<div className="mb-6 flex items-center gap-2">
-				<span className="text-sm text-muted-foreground">Status</span>
-				<Badge variant={getContractStatusTone(submission.status)}>
-					{getContractStatusLabel(submission.status)}
-				</Badge>
+			<div className="mb-6 flex flex-col gap-3">
+				<div className="flex items-center gap-2">
+					<span className="text-sm text-muted-foreground">Status</span>
+					<Badge variant={getContractStatusTone(submission.status)}>
+						{getContractStatusLabel(submission.status)}
+					</Badge>
+				</div>
+				{statusEvents.length > 0 ? (
+					<GlassCard className="p-4">
+						<p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+							Status history
+						</p>
+						<ContractStatusTimeline
+							events={statusEvents}
+							loading={statusEventsQuery.isLoading}
+						/>
+					</GlassCard>
+				) : null}
 			</div>
 
 			<div className="flex flex-col gap-6">
@@ -463,9 +482,14 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 										rows={2}
 									/>
 								</div>
+								{!canSendToPartner ? (
+									<p className="text-sm text-muted-foreground">
+										Approve the contract below before sending it to the partner.
+									</p>
+								) : null}
 								<div className="flex flex-row flex-wrap gap-2">
 									<Button
-										disabled={busy}
+										disabled={busy || !canSendToPartner}
 										onClick={() =>
 											updateMutation.mutate({
 												admin_edited_text: editedText,
@@ -477,7 +501,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 										Send to partner
 									</Button>
 									<Button
-										disabled={busy}
+										disabled={busy || !canSendToPartner}
 										onClick={() =>
 											updateMutation.mutate({
 												admin_edited_text: editedText,
@@ -491,7 +515,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 										Send email to partner
 									</Button>
 									<Button
-										disabled={busy}
+										disabled={busy || !canSendToPartner}
 										onClick={() =>
 											updateMutation.mutate({
 												admin_edited_text: editedText,
@@ -521,42 +545,71 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 							{/* Decision */}
 							<p className="mb-3 text-sm font-medium">Decision</p>
 							<div className="flex flex-col gap-4">
+								{canRequestClarification ? (
+									<div className="flex flex-col gap-1.5">
+										<Label htmlFor="clarification-message">
+											Clarification message
+										</Label>
+										<Textarea
+											id="clarification-message"
+											value={clarificationMessage}
+											onChange={(event) =>
+												setClarificationMessage(event.target.value)
+											}
+											rows={2}
+										/>
+									</div>
+								) : null}
 								<div className="flex flex-col gap-1.5">
-									<Label htmlFor="clarification-message">
-										Clarification message
-									</Label>
+									<Label htmlFor="reject-reason">Rejection reason</Label>
 									<Textarea
-										id="clarification-message"
-										value={clarificationMessage}
-										onChange={(event) =>
-											setClarificationMessage(event.target.value)
-										}
+										id="reject-reason"
+										value={rejectReason}
+										onChange={(event) => setRejectReason(event.target.value)}
 										rows={2}
+										placeholder="Required to reject — sent to the contract creator."
 									/>
 								</div>
 								<div className="flex flex-row flex-wrap gap-2">
-									<Button
-										variant="outline"
-										className="border-amber-500 text-amber-600 hover:bg-amber-50 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/40"
-										disabled={busy}
-										onClick={() =>
-											updateMutation.mutate({
-												status: "inquiry",
-												notes,
-												feedback_message: clarificationMessage.trim() || null,
-											})
-										}
-									>
-										Request clarification
-									</Button>
+									{canApprove ? (
+										<Button
+											className="bg-emerald-600 text-white hover:bg-emerald-700"
+											disabled={busy}
+											onClick={() =>
+												updateMutation.mutate({
+													status: "approved",
+													notes,
+												})
+											}
+										>
+											Approve
+										</Button>
+									) : null}
+									{canRequestClarification ? (
+										<Button
+											variant="outline"
+											className="border-amber-500 text-amber-600 hover:bg-amber-50 hover:text-amber-700 dark:text-amber-400 dark:hover:bg-amber-950/40"
+											disabled={busy}
+											onClick={() =>
+												updateMutation.mutate({
+													status: "inquiry",
+													notes,
+													feedback_message: clarificationMessage.trim() || null,
+												})
+											}
+										>
+											Request clarification
+										</Button>
+									) : null}
 									<Button
 										variant="outline"
 										className="border-destructive text-destructive hover:bg-destructive/10 hover:text-destructive"
-										disabled={busy}
+										disabled={busy || !rejectReason.trim()}
 										onClick={() =>
 											updateMutation.mutate({
 												status: "rejected",
 												notes,
+												rejection_reason: rejectReason.trim(),
 											})
 										}
 									>
@@ -565,72 +618,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								</div>
 							</div>
 
-							{/* Activity */}
-							{submission.partner_email_sent_at ||
-							submission.partner_email_error ||
-							submission.clarification_email_sent_at ||
-							submission.clarification_email_error ||
-							submission.opensign_sent_at ||
-							submission.opensign_completed_at ||
-							submission.opensign_error ? (
-								<>
-									<Separator className="my-5" />
-									<p className="mb-3 text-sm font-medium">Activity</p>
-									<div className="flex flex-col gap-2 rounded-md bg-muted/50 p-3">
-										{submission.partner_email_sent_at ? (
-											<ActivityRow tone="success">
-												Email sent to {submission.partner_email_recipient} at{" "}
-												{new Date(
-													submission.partner_email_sent_at,
-												).toLocaleString()}
-											</ActivityRow>
-										) : null}
-										{submission.partner_email_error ? (
-											<ActivityRow tone="error">
-												Last email error: {submission.partner_email_error}
-											</ActivityRow>
-										) : null}
-										{submission.clarification_email_sent_at ? (
-											<ActivityRow tone="success">
-												Clarification email sent to{" "}
-												{submission.clarification_email_recipient} at{" "}
-												{new Date(
-													submission.clarification_email_sent_at,
-												).toLocaleString()}
-											</ActivityRow>
-										) : null}
-										{submission.clarification_email_error ? (
-											<ActivityRow tone="error">
-												Clarification email error:{" "}
-												{submission.clarification_email_error}
-											</ActivityRow>
-										) : null}
-										{submission.opensign_sent_at ? (
-											<ActivityRow tone="success">
-												OpenSign document {submission.opensign_document_id} sent
-												at{" "}
-												{new Date(submission.opensign_sent_at).toLocaleString()}
-												{submission.opensign_status
-													? ` (${submission.opensign_status})`
-													: ""}
-											</ActivityRow>
-										) : null}
-										{submission.opensign_completed_at ? (
-											<ActivityRow tone="success">
-												OpenSign completed at{" "}
-												{new Date(
-													submission.opensign_completed_at,
-												).toLocaleString()}
-											</ActivityRow>
-										) : null}
-										{submission.opensign_error ? (
-											<ActivityRow tone="error">
-												Last OpenSign error: {submission.opensign_error}
-											</ActivityRow>
-										) : null}
-									</div>
-								</>
-							) : null}
+							<ContractActivitySection submission={submission} />
 						</>
 					) : null}
 
@@ -742,34 +730,94 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					) : null}
 				</GlassCard>
 
+				{isContractsAdmin && submission.signature_data ? (
+					<ContractPartnerSignatureCard
+						signerName={submission.signer_name}
+						signatureData={submission.signature_data}
+						signedAt={submission.signed_at}
+					/>
+				) : null}
+
+				{/* Persistent, read-only once recorded — stays visible after the
+				status moves past "partner_signed" so any contracts.admin (not
+				just the board member who signed) can still see who signed. */}
+				{isContractsAdmin && submission.admin_signature_data ? (
+					<ContractBoardSignatureCard
+						signerName={submission.admin_signer_name}
+						signatureData={submission.admin_signature_data}
+						signedAt={submission.admin_signed_at}
+					/>
+				) : null}
+
 				{isContractsAdmin && submission.status === "partner_signed" ? (
 					<GlassCard className="p-6">
 						<p className="mb-2 text-base font-medium">Board signature</p>
 						<div className="flex flex-col gap-4">
-							<div className="flex flex-col gap-1.5">
-								<Label htmlFor="board-signer-name">Board signer name</Label>
-								<Input
-									id="board-signer-name"
-									value={boardSignerName}
-									onChange={(event) => setBoardSignerName(event.target.value)}
-									required
-								/>
-							</div>
-							<SignaturePad onChange={setBoardSignatureData} />
+							{isBoardMember ? (
+								<>
+									<div className="flex flex-col gap-1.5">
+										<Label htmlFor="board-signer-name">Board signer name</Label>
+										<Input
+											id="board-signer-name"
+											value={boardSignerName}
+											onChange={(event) =>
+												setBoardSignerName(event.target.value)
+											}
+											required
+										/>
+									</div>
+									<SignaturePad onChange={setBoardSignatureData} />
+									<Button
+										className="self-start"
+										disabled={
+											!boardSignatureData || !boardSignerName.trim() || busy
+										}
+										onClick={() =>
+											boardSignMutation.mutate({
+												signature_data: boardSignatureData ?? "",
+												signer_name: boardSignerName.trim(),
+											})
+										}
+									>
+										Board sign
+									</Button>
+									<Separator className="my-1" />
+								</>
+							) : (
+								<p className="text-sm text-muted-foreground">
+									Signing in-app requires board access. Generate a signing link
+									below and share it with a board member instead.
+								</p>
+							)}
+
+							{/* Nr.5: board signing link, mirroring the partner link. */}
+							<p className="text-sm text-muted-foreground">
+								Or share a signing link so a board member can sign without
+								logging in.
+							</p>
 							<Button
+								variant="outline"
 								className="self-start"
-								disabled={
-									!boardSignatureData || !boardSignerName.trim() || busy
-								}
+								disabled={busy}
 								onClick={() =>
-									boardSignMutation.mutate({
-										signature_data: boardSignatureData ?? "",
-										signer_name: boardSignerName.trim(),
+									updateMutation.mutate({
+										generate_board_signature_token: true,
 									})
 								}
 							>
-								Board sign
+								{boardSignUrl
+									? "Regenerate board signing link"
+									: "Generate board signing link"}
 							</Button>
+							{boardSignUrl ? (
+								<div className="flex flex-col gap-1.5">
+									<Label htmlFor="board-sign-url">Board signing link</Label>
+									<div className="flex items-center gap-1">
+										<Input id="board-sign-url" value={boardSignUrl} readOnly />
+										<CopyButton value={boardSignUrl} />
+									</div>
+								</div>
+							) : null}
 						</div>
 					</GlassCard>
 				) : null}

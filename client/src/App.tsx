@@ -19,6 +19,7 @@ import { AdminDatabaseView } from "./features/admin/AdminDatabaseView";
 import AdminJobRequestsPage from "./features/admin/AdminJobRequestsPage";
 import { Auth } from "./features/auth/Auth";
 import EngagementCertificatePage from "./features/certificate/EngagementCertificatePage";
+import ContractBoardSignPage from "./features/contracts/ContractBoardSignPage";
 import ContractFormPage from "./features/contracts/ContractFormPage";
 import ContractSignPage from "./features/contracts/ContractSignPage";
 import ContractSubmissionDetailPage from "./features/contracts/ContractSubmissionDetailPage";
@@ -129,17 +130,23 @@ interface AppRouterProps {
 	onLogout: () => Promise<void>;
 }
 
-// The partner-signing page (/contracts/sign/:token) is public — render it
-// before the auth gate so unauthenticated partners can sign without an
-// account.
+// The partner-signing page (/contracts/sign/:token) and the board-signing page
+// (/contracts/board-sign/:token) are public — render them before the auth gate
+// so unauthenticated signers can sign without an account.
 function AppRouter({ user, onLogout }: AppRouterProps): JSX.Element {
 	const location = useLocation();
-	const isPublicSignRoute = location.pathname.startsWith("/contracts/sign/");
+	const isPublicSignRoute =
+		location.pathname.startsWith("/contracts/sign/") ||
+		location.pathname.startsWith("/contracts/board-sign/");
 
 	if (isPublicSignRoute) {
 		return (
 			<Routes>
 				<Route path="/contracts/sign/:token" element={<ContractSignPage />} />
+				<Route
+					path="/contracts/board-sign/:token"
+					element={<ContractBoardSignPage />}
+				/>
 			</Routes>
 		);
 	}

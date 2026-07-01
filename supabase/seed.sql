@@ -1092,6 +1092,68 @@ insert into public.contract_submissions (
     )
 on conflict (id) do nothing;
 
+-- Status history for seeded contract submissions. The migration backfills rows
+-- before this seed data is inserted during a fresh local reset, so seed needs
+-- explicit history rows to keep the contract timeline populated locally.
+insert into public.contract_status_events (
+    id, submission_id, from_status, to_status, changed_by_name, note, created_at
+) values
+    (
+        '82000000-0000-0000-0000-000000000001',
+        '80000000-0000-0000-0000-000000000001',
+        null,
+        'submitted',
+        'Seed data',
+        'Seeded current status',
+        now() - interval '3 days'
+    ),
+    (
+        '82000000-0000-0000-0000-000000000002',
+        '80000000-0000-0000-0000-000000000002',
+        null,
+        'in_review',
+        'Seed data',
+        'Seeded current status',
+        now() - interval '5 days'
+    ),
+    (
+        '82000000-0000-0000-0000-000000000003',
+        '80000000-0000-0000-0000-000000000003',
+        null,
+        'approved',
+        'Seed data',
+        'Seeded current status',
+        now() - interval '2 days'
+    ),
+    (
+        '82000000-0000-0000-0000-000000000004',
+        '80000000-0000-0000-0000-000000000004',
+        null,
+        'sent_to_partner',
+        'Seed data',
+        'Seeded current status',
+        now() - interval '3 days'
+    ),
+    (
+        '82000000-0000-0000-0000-000000000005',
+        '80000000-0000-0000-0000-000000000005',
+        null,
+        'completed',
+        'Seed data',
+        'Seeded current status',
+        now() - interval '1 day'
+    ),
+    (
+        '82000000-0000-0000-0000-000000000006',
+        '80000000-0000-0000-0000-000000000006',
+        null,
+        'rejected',
+        'Seed data',
+        'Partner could not confirm budget; resubmit next quarter.',
+        now() - interval '1 day'
+    )
+on conflict (id) do nothing;
+
 -- A couple of document versions for the sent-to-partner submission, and the
 -- partner's comment, so the contract detail/version history renders.
 insert into public.contract_document_versions (
