@@ -33,9 +33,9 @@
 		"supabase:migrations:check": "node scripts/check-supabase-migrations.mjs"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.16",
-		"@playwright/test": "^1.60.0",
+		"@biomejs/biome": "^2.5.2",
+		"@playwright/test": "^1.61.1",
 		"@types/node": "^24.13.2",
-		"turbo": "^2.9.18"
+		"turbo": "^2.10.2"
 	}
 }
