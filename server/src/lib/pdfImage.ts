@@ -167,13 +167,21 @@ export function decodePngForPdf(buffer: Buffer): ImageDataForPdf {
 		source += bytesPerPixel
 	) {
 		if (colorType === 0 || colorType === 4) {
-			rgb[target++] = pixels[source];
-			rgb[target++] = pixels[source];
-			rgb[target++] = pixels[source];
+			const gray = pixels[source];
+			const alpha = colorType === 4 ? pixels[source + 1] / 255 : 1;
+			const value = Math.round(gray * alpha + 255 * (1 - alpha));
+			rgb[target++] = value;
+			rgb[target++] = value;
+			rgb[target++] = value;
 		} else {
-			rgb[target++] = pixels[source];
-			rgb[target++] = pixels[source + 1];
-			rgb[target++] = pixels[source + 2];
+			const alpha = colorType === 6 ? pixels[source + 3] / 255 : 1;
+			rgb[target++] = Math.round(pixels[source] * alpha + 255 * (1 - alpha));
+			rgb[target++] = Math.round(
+				pixels[source + 1] * alpha + 255 * (1 - alpha),
+			);
+			rgb[target++] = Math.round(
+				pixels[source + 2] * alpha + 255 * (1 - alpha),
+			);
 		}
 	}
 

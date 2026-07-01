@@ -625,7 +625,7 @@ async function recordStatusEvent(args: {
 }): Promise<void> {
 	if (args.fromStatus === args.toStatus) return;
 	if (args.fromStatus === "draft" && args.toStatus === "draft") return;
-	await getSupabase()
+	const { error } = await getSupabase()
 		.from("contract_status_events")
 		.insert({
 			submission_id: args.submissionId,
@@ -635,6 +635,7 @@ async function recordStatusEvent(args: {
 			changed_by_name: args.changedByName,
 			note: args.note ?? null,
 		});
+	if (error) throw createContractDatabaseError(error);
 }
 
 /**

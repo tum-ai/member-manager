@@ -1,11 +1,12 @@
 import assert from "node:assert";
 import { describe, test } from "node:test";
-import { deflateSync } from "node:zlib";
+import { deflateSync, inflateSync } from "node:zlib";
+import { imageDataForPdf } from "../../src/lib/pdfImage.js";
 import { createTextPdf } from "../../src/lib/simplePdf.js";
 
 // Build a minimal 1x1 RGB PNG. The decoder skips CRCs, so dummy CRC bytes are
 // fine; only the chunk structure and IDAT deflate stream must be valid.
-function tinyPng(): Buffer {
+function tinyPng(colorType = 2, pixel = [10, 20, 30]): Buffer {
 	const chunk = (type: string, data: Buffer): Buffer => {
 		const length = Buffer.alloc(4);
 		length.writeUInt32BE(data.length, 0);
@@ -21,9 +22,9 @@ function tinyPng(): Buffer {
 	ihdr.writeUInt32BE(1, 0); // width
 	ihdr.writeUInt32BE(1, 4); // height
 	ihdr[8] = 8; // bit depth
-	ihdr[9] = 2; // color type: RGB
-	// scanline: filter byte 0 + one RGB pixel.
-	const idat = deflateSync(Buffer.from([0, 10, 20, 30]));
+	ihdr[9] = colorType;
+	// scanline: filter byte 0 + one pixel.
+	const idat = deflateSync(Buffer.from([0, ...pixel]));
 	return Buffer.concat([
 		signature,
 		chunk("IHDR", ihdr),
@@ -59,6 +60,12 @@ describe("simplePdf", () => {
 		assert.match(raw, /\/Im0 Do/);
 		assert.match(raw, /\(Signaturen\) Tj/);
 		assert.match(raw, /\(Partner: Jane Doe\) Tj/);
+	});
+
+	test("embeds transparent signature PNGs without dropping alpha to black", () => {
+		const image = imageDataForPdf(tinyPng(6, [0, 0, 0, 0]), "image/png");
+
+		assert.deepStrictEqual([...inflateSync(image.data)], [255, 255, 255]);
 	});
 
 	test("skips invalid signature images instead of throwing", () => {
