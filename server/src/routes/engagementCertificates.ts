@@ -1,4 +1,3 @@
-import { canRequestEngagementCertificate } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { DatabaseError } from "../lib/errors.js";
@@ -110,7 +109,7 @@ export async function engagementCertificateRoutes(server: FastifyInstance) {
 
 			const { data: member, error: memberError } = await getSupabase()
 				.from("members")
-				.select("given_name, surname, member_status, active")
+				.select("given_name, surname")
 				.eq("user_id", user.id)
 				.single();
 
@@ -126,17 +125,6 @@ export async function engagementCertificateRoutes(server: FastifyInstance) {
 					"Failed to fetch member for certificate request",
 				);
 				throw new DatabaseError();
-			}
-
-			if (
-				!canRequestEngagementCertificate(
-					member as { member_status?: string; active?: boolean },
-				)
-			) {
-				return reply.status(403).send({
-					error:
-						"Only active members and alumni can request engagement certificates",
-				});
 			}
 
 			const { data, error } = await getSupabase()

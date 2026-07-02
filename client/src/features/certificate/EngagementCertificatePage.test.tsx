@@ -102,8 +102,12 @@ describe("EngagementCertificatePage", () => {
 		});
 	}, 15_000);
 
-	it("lets alumni members reach the request form", () => {
-		mockMember({ member_status: "alumni", active: false });
+	it.each([
+		["active", { member_status: "active", active: true }],
+		["alumni", { member_status: "alumni", active: false }],
+		["inactive", { member_status: "inactive", active: false }],
+	] as const)("lets %s members reach the request form", (_status, member) => {
+		mockMember(member);
 		renderPage();
 
 		expect(
@@ -112,14 +116,5 @@ describe("EngagementCertificatePage", () => {
 		expect(
 			screen.queryByText(/only available for active members/i),
 		).not.toBeInTheDocument();
-	});
-
-	it("blocks inactive members from the request form", () => {
-		mockMember({ member_status: "inactive", active: false });
-		renderPage();
-
-		expect(
-			screen.getByText(/only available for active members and alumni/i),
-		).toBeInTheDocument();
 	});
 });

@@ -1,4 +1,3 @@
-import { canRequestEngagementCertificate } from "@member-manager/shared";
 import type { User } from "@supabase/supabase-js";
 
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
@@ -52,16 +51,6 @@ export default function EngagementCertificatePage({
 		return (
 			<div className="p-6">
 				<p className="text-muted-foreground">No member data found.</p>
-			</div>
-		);
-	}
-
-	if (!canRequestEngagementCertificate(member)) {
-		return (
-			<div className="p-6">
-				<p className="text-muted-foreground">
-					This feature is only available for active members and alumni.
-				</p>
 			</div>
 		);
 	}

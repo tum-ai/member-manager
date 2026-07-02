@@ -32,32 +32,6 @@ export function statusToLegacyActive(status: MemberStatus): boolean {
 	return status === "active";
 }
 
-interface MemberStatusFields {
-	active?: boolean | null;
-	member_status?: string | null;
-}
-
-// Legacy rows may lack `member_status`; fall back to the boolean `active` flag
-// the same way the DB trigger (`sync_member_status_active`) does.
-export function resolveMemberStatus(
-	member: MemberStatusFields | null | undefined,
-): MemberStatus {
-	const status = member?.member_status;
-	if (status === "active" || status === "inactive" || status === "alumni") {
-		return status;
-	}
-	return member?.active ? "active" : "inactive";
-}
-
-// Alumni retain the right to request an engagement certificate for the time
-// they were active; only fully inactive members are blocked.
-export function canRequestEngagementCertificate(
-	member: MemberStatusFields | null | undefined,
-): boolean {
-	const status = resolveMemberStatus(member);
-	return status === "active" || status === "alumni";
-}
-
 export function getMemberStatusLabel(status?: string | null): string {
 	switch (status) {
 		case "inactive":
