@@ -99,10 +99,6 @@ function buildAdminReviewUrl(requestId: string): string | undefined {
 	return `${baseUrl.replace(/\/$/, "")}/admin?engagementCertificateRequest=${requestId}`;
 }
 
-function canRequestEngagementCertificate(memberStatus: string): boolean {
-	return memberStatus === "active" || memberStatus === "alumni";
-}
-
 export async function engagementCertificateRoutes(server: FastifyInstance) {
 	server.post(
 		"/engagement-certificates",
@@ -113,7 +109,7 @@ export async function engagementCertificateRoutes(server: FastifyInstance) {
 
 			const { data: member, error: memberError } = await getSupabase()
 				.from("members")
-				.select("given_name, surname, member_status, active")
+				.select("given_name, surname")
 				.eq("user_id", user.id)
 				.single();
 
@@ -129,18 +125,6 @@ export async function engagementCertificateRoutes(server: FastifyInstance) {
 					"Failed to fetch member for certificate request",
 				);
 				throw new DatabaseError();
-			}
-
-			const memberStatus = String(
-				(member as { member_status?: string; active?: boolean })
-					.member_status ??
-					((member as { active?: boolean }).active ? "active" : "inactive"),
-			);
-			if (!canRequestEngagementCertificate(memberStatus)) {
-				return reply.status(403).send({
-					error:
-						"Only active members and alumni can request engagement certificates",
-				});
 			}
 
 			const { data, error } = await getSupabase()

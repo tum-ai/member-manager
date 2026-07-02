@@ -5,26 +5,30 @@ import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import EngagementCertificatePage from "./EngagementCertificatePage";
 
-const { submitRequestAsync, showToast } = vi.hoisted(() => ({
+const { submitRequestAsync, showToast, useMemberDataMock } = vi.hoisted(() => ({
 	submitRequestAsync: vi.fn(),
 	showToast: vi.fn(),
+	useMemberDataMock: vi.fn(),
 }));
 
 vi.mock("../../hooks/useMemberData", () => ({
-	useMemberData: () => ({
+	useMemberData: useMemberDataMock,
+}));
+
+function mockMember(overrides: { member_status: string; active: boolean }) {
+	useMemberDataMock.mockReturnValue({
 		member: {
 			user_id: "user-123",
 			given_name: "Test",
 			surname: "User",
 			salutation: "",
 			date_of_birth: "1999-01-01",
-			member_status: "active",
-			active: true,
+			...overrides,
 		},
 		isLoading: false,
 		error: null,
-	}),
-}));
+	});
+}
 
 vi.mock("../../hooks/useEngagementCertificateRequests", () => ({
 	useEngagementCertificateRequests: () => ({
@@ -60,6 +64,7 @@ function renderPage() {
 
 describe("EngagementCertificatePage", () => {
 	it("submits an approval request instead of downloading immediately", async () => {
+		mockMember({ member_status: "active", active: true });
 		const user = userEvent.setup();
 		renderPage();
 
@@ -96,4 +101,20 @@ describe("EngagementCertificatePage", () => {
 			],
 		});
 	}, 15_000);
+
+	it.each([
+		["active", { member_status: "active", active: true }],
+		["alumni", { member_status: "alumni", active: false }],
+		["inactive", { member_status: "inactive", active: false }],
+	] as const)("lets %s members reach the request form", (_status, member) => {
+		mockMember(member);
+		renderPage();
+
+		expect(
+			screen.getByRole("button", { name: /add another engagement/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText(/only available for active members/i),
+		).not.toBeInTheDocument();
+	});
 });

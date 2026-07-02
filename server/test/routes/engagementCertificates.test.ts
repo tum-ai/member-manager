@@ -158,7 +158,7 @@ describe("Engagement Certificate Routes", async () => {
 		assert.strictEqual(payload.status, "pending");
 	});
 
-	test("inactive member cannot submit an engagement certificate request", async () => {
+	test("inactive member can submit an engagement certificate request", async () => {
 		resetDatabase();
 		const member = mockDatabase.members.find(
 			(member) => member.user_id === testUserIds.user,
@@ -190,8 +190,10 @@ describe("Engagement Certificate Routes", async () => {
 			}),
 		});
 
-		assert.strictEqual(response.statusCode, 403);
-		assert.match(response.payload, /active members and alumni/i);
+		assert.strictEqual(response.statusCode, 201);
+		const payload = JSON.parse(response.payload);
+		assert.strictEqual(payload.user_id, testUserIds.user);
+		assert.strictEqual(payload.status, "pending");
 	});
 
 	test("member can list their own engagement certificate requests", async () => {

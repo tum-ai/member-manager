@@ -55,19 +55,6 @@ export default function EngagementCertificatePage({
 		);
 	}
 
-	if (
-		(member.member_status || (member.active ? "active" : "inactive")) !==
-		"active"
-	) {
-		return (
-			<div className="p-6">
-				<p className="text-muted-foreground">
-					This feature is only available for active members.
-				</p>
-			</div>
-		);
-	}
-
 	return (
 		<ToolPageShell
 			title="Engagement Certificate"
