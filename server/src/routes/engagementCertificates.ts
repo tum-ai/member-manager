@@ -1,3 +1,4 @@
+import { canRequestEngagementCertificate } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { DatabaseError } from "../lib/errors.js";
@@ -99,10 +100,6 @@ function buildAdminReviewUrl(requestId: string): string | undefined {
 	return `${baseUrl.replace(/\/$/, "")}/admin?engagementCertificateRequest=${requestId}`;
 }
 
-function canRequestEngagementCertificate(memberStatus: string): boolean {
-	return memberStatus === "active" || memberStatus === "alumni";
-}
-
 export async function engagementCertificateRoutes(server: FastifyInstance) {
 	server.post(
 		"/engagement-certificates",
@@ -131,12 +128,11 @@ export async function engagementCertificateRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			const memberStatus = String(
-				(member as { member_status?: string; active?: boolean })
-					.member_status ??
-					((member as { active?: boolean }).active ? "active" : "inactive"),
-			);
-			if (!canRequestEngagementCertificate(memberStatus)) {
+			if (
+				!canRequestEngagementCertificate(
+					member as { member_status?: string; active?: boolean },
+				)
+			) {
 				return reply.status(403).send({
 					error:
 						"Only active members and alumni can request engagement certificates",
