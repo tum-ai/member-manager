@@ -269,7 +269,9 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: supabase db push --linked --yes --password "$SUPABASE_DB_PASSWORD"
+        # Main can receive migrations out of timestamp order when older PRs merge
+        # after newer ones; Supabase requires --include-all for that release path.
+        run: supabase db push --linked --include-all --yes --password "$SUPABASE_DB_PASSWORD"
 
       - name: Assert production migration parity
         env:
