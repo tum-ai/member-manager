@@ -773,7 +773,7 @@ describe("Job Routes", async () => {
 				contact_email: "jobs@robotics.example",
 				contact_role: "Hiring lead",
 				external_url: "https://robotics.example/jobs/ws",
-				expires_at: "2026-07-01",
+				expires_at: "2099-07-01",
 			},
 		});
 
@@ -782,7 +782,7 @@ describe("Job Routes", async () => {
 		assert.strictEqual(created.status, "pending");
 		assert.strictEqual(created.user_id, testUserIds.user);
 		assert.strictEqual(created.call_to_action, "Apply now");
-		assert.strictEqual(created.expires_at, "2026-07-01T23:59:59.000Z");
+		assert.strictEqual(created.expires_at, "2099-07-01T23:59:59.000Z");
 
 		const publicBeforeApproval = await app.inject({
 			method: "GET",
