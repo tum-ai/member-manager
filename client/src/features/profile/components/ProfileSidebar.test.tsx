@@ -14,6 +14,7 @@ function renderSidebar(
 		isActive: true,
 		memberStatus: "active",
 		completeness: 80,
+		missingProfileFields: ["IBAN", "Bank name"],
 		isGeneratingPdf: false,
 		canDownloadProof: true,
 		onDownloadMembershipProof: vi.fn(),
@@ -40,6 +41,20 @@ describe("ProfileSidebar", () => {
 		expect(screen.getByText("Member · Engineering")).toBeInTheDocument();
 		expect(screen.getByText("80%")).toBeInTheDocument();
 		expect(screen.getByText(/active member/i)).toBeInTheDocument();
+	});
+
+	it("lists which fields are still missing", () => {
+		renderSidebar();
+
+		expect(screen.getByText("Still missing:")).toBeInTheDocument();
+		expect(screen.getByText("IBAN")).toBeInTheDocument();
+		expect(screen.getByText("Bank name")).toBeInTheDocument();
+	});
+
+	it("hides the missing-fields breakdown at 100% completeness", () => {
+		renderSidebar({ completeness: 100, missingProfileFields: [] });
+
+		expect(screen.queryByText("Still missing:")).not.toBeInTheDocument();
 	});
 
 	it("downloads the membership proof", async () => {

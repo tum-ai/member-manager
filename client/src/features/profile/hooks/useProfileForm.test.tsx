@@ -347,6 +347,7 @@ describe("useProfileForm", () => {
 			"rp-blank",
 		]);
 		expect(typeof result.current.completeness).toBe("number");
+		expect(Array.isArray(result.current.missingProfileFields)).toBe(true);
 	});
 
 	it("flags the research department when the current role resolves to research", async () => {

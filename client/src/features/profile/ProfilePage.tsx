@@ -41,6 +41,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		isLoadingResearchProjects,
 		onSubmit,
 		completeness,
+		missingProfileFields,
 		normalizedLinkedinUrl,
 		isLinkedinUrlValid,
 		currentRole,
@@ -106,6 +107,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 						isActive={isActive}
 						memberStatus={memberForm.watch("member_status")}
 						completeness={completeness}
+						missingProfileFields={missingProfileFields}
 						isGeneratingPdf={isGeneratingPdf}
 						canDownloadProof={Boolean(memberData)}
 						onDownloadMembershipProof={handleDownloadMembershipProof}
