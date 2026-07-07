@@ -68,5 +68,11 @@ describe("AdminCertificateRequestsPage", () => {
 		).toBeInTheDocument();
 		expect(within(dialog).getByText(/built mvp/i)).toBeInTheDocument();
 		expect(within(dialog).getByText(/ran workshops/i)).toBeInTheDocument();
+		expect(dialog).toHaveClass("max-h-[calc(100dvh-2rem)]");
+		expect(dialog).toHaveClass("grid-rows-[auto_minmax(0,1fr)_auto]");
+		expect(screen.getByTestId("certificate-request-engagements")).toHaveClass(
+			"min-h-0",
+			"overflow-y-auto",
+		);
 	});
 });

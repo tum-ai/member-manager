@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogFooter,
 	DialogHeader,
 	DialogTitle,
@@ -130,7 +131,7 @@ export default function AdminCertificateRequestsPage() {
 					if (!open) setRequestBeingViewed(null);
 				}}
 			>
-				<DialogContent className="sm:max-w-2xl">
+				<DialogContent className="max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-2xl">
 					<DialogHeader>
 						<DialogTitle>
 							{requestBeingViewed
@@ -140,8 +141,15 @@ export default function AdminCertificateRequestsPage() {
 									)}`
 								: "Engagement certificate request"}
 						</DialogTitle>
+						<DialogDescription className="sr-only">
+							Review the submitted engagement details before approving or
+							rejecting the certificate request.
+						</DialogDescription>
 					</DialogHeader>
-					<div className="flex flex-col gap-4 border-y py-4">
+					<div
+						data-testid="certificate-request-engagements"
+						className="scrollbar-thin flex min-h-0 flex-col gap-4 overflow-y-auto border-y py-4 pr-2"
+					>
 						{requestBeingViewed?.engagements.map((engagement, index) => (
 							<div key={String(engagement.id ?? index)}>
 								<p className="mb-1 font-bold">Engagement {index + 1}</p>
