@@ -20,6 +20,7 @@ interface ProfileSidebarProps {
 	isActive: boolean;
 	memberStatus?: string;
 	completeness: number;
+	missingProfileFields: string[];
 	isGeneratingPdf: boolean;
 	canDownloadProof: boolean;
 	onDownloadMembershipProof: () => void;
@@ -37,6 +38,7 @@ export function ProfileSidebar({
 	isActive,
 	memberStatus,
 	completeness,
+	missingProfileFields,
 	isGeneratingPdf,
 	canDownloadProof,
 	onDownloadMembershipProof,
@@ -91,6 +93,16 @@ export function ProfileSidebar({
 							<span className="font-medium">{completeness}%</span>
 						</div>
 						<Progress value={completeness} />
+						{missingProfileFields.length > 0 && (
+							<div className="mt-2 text-xs text-muted-foreground">
+								<p>Still missing:</p>
+								<ul className="mt-1 list-inside list-disc">
+									{missingProfileFields.map((field) => (
+										<li key={field}>{field}</li>
+									))}
+								</ul>
+							</div>
+						)}
 					</div>
 
 					<div className="my-5 border-t border-border" />

@@ -42,45 +42,78 @@ interface ProfileCompletenessInput {
 	};
 }
 
-// Share of "key" profile fields a member has filled in, as an integer 0–100.
-// Drives the completeness meter in the profile sidebar.
-export function computeProfileCompleteness({
+interface CompletenessField {
+	label: string;
+	filled: boolean;
+}
+
+// Single source of truth for which fields count toward completeness, shared
+// by computeProfileCompleteness (the percentage) and getMissingProfileFields
+// (the breakdown of what's still needed to reach 100%).
+function getCompletenessFields({
 	member,
 	linkedin,
 	sepa,
-}: ProfileCompletenessInput): number {
-	const textFields = [
-		member.given_name,
-		member.surname,
-		member.date_of_birth,
-		member.street,
-		member.number,
-		member.postal_code,
-		member.city,
-		member.country,
-		member.batch,
+}: ProfileCompletenessInput): CompletenessField[] {
+	const isFilledText = (value: string | null | undefined) =>
+		Boolean(value?.trim());
+
+	return [
+		{ label: "First name", filled: isFilledText(member.given_name) },
+		{ label: "Last name", filled: isFilledText(member.surname) },
+		{ label: "Date of birth", filled: isFilledText(member.date_of_birth) },
+		{ label: "Street", filled: isFilledText(member.street) },
+		{ label: "House number", filled: isFilledText(member.number) },
+		{ label: "Postal code", filled: isFilledText(member.postal_code) },
+		{ label: "City", filled: isFilledText(member.city) },
+		{ label: "Country", filled: isFilledText(member.country) },
+		{ label: "TUM.ai batch", filled: isFilledText(member.batch) },
 		// Study/education: a real degree counts; an explicit "None" serializes to
 		// "" (EducationFields NONE_VALUE) and so does not count — same trim rule
 		// as every other select-backed field below.
-		member.degree,
+		{ label: "Degree", filled: isFilledText(member.degree) },
 		// department and member_role are admin-managed (stripped from
 		// self-service updates), so a member can never fill them in — excluded
 		// from completeness so a fully-filled editable profile reaches 100%.
-		linkedin.linkedin_profile_url,
-		linkedin.public_location,
-		sepa.iban,
-		sepa.bank_name,
+		{
+			label: "LinkedIn profile",
+			filled: isFilledText(linkedin.linkedin_profile_url),
+		},
+		{
+			label: "Public location",
+			filled: isFilledText(linkedin.public_location),
+		},
+		{ label: "IBAN", filled: isFilledText(sepa.iban) },
+		{ label: "Bank name", filled: isFilledText(sepa.bank_name) },
+		{
+			label: "SEPA mandate agreement",
+			filled: Boolean(sepa.mandate_agreed),
+		},
+		{ label: "Privacy agreement", filled: Boolean(sepa.privacy_agreed) },
+		{
+			label: "Data privacy notice agreement",
+			filled: Boolean(sepa.data_privacy_notice_agreed),
+		},
 	];
-	const booleanFields = [
-		sepa.mandate_agreed,
-		sepa.privacy_agreed,
-		sepa.data_privacy_notice_agreed,
-	];
+}
 
-	const total = textFields.length + booleanFields.length;
-	const filled =
-		textFields.filter((value) => Boolean(value?.trim())).length +
-		booleanFields.filter(Boolean).length;
+// Share of "key" profile fields a member has filled in, as an integer 0–100.
+// Drives the completeness meter in the profile sidebar.
+export function computeProfileCompleteness(
+	input: ProfileCompletenessInput,
+): number {
+	const fields = getCompletenessFields(input);
+	const filled = fields.filter((field) => field.filled).length;
 
-	return Math.round((filled / total) * 100);
+	return Math.round((filled / fields.length) * 100);
+}
+
+// Labels of the fields still missing, for the "what's left" breakdown next
+// to the completeness meter.
+export function getMissingProfileFields(
+	input: ProfileCompletenessInput,
+): string[] {
+	return getCompletenessFields(input)
+		.filter((field) => !field.filled)
+		.map((field) => field.label);
 }
