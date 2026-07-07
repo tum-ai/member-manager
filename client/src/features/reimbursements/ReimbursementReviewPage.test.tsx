@@ -205,6 +205,17 @@ describe("ReimbursementReviewPage", () => {
 		);
 	}, 30_000);
 
+	it("lets finance reviewers click the amount to select/copy it without toggling the row", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		await user.click(screen.getByText(/42,50/));
+
+		expect(
+			screen.queryByRole("button", { name: /^approve$/i }),
+		).not.toBeInTheDocument();
+	});
+
 	it("keeps finance review badges non-duplicative in collapsed rows", () => {
 		renderPage();
 

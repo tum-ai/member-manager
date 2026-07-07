@@ -219,7 +219,11 @@ function ReviewItem({
 									</div>
 
 									<div className="flex items-center justify-end lg:min-w-[120px] lg:flex-[0_0_auto]">
-										<p className="text-lg font-extrabold whitespace-nowrap tabular-nums">
+										{/* biome-ignore lint/a11y/useKeyWithClickEvents: not itself interactive; only isolates the click from the ancestor accordion trigger so the amount can be selected/copied without toggling the row */}
+										<p
+											className="select-text text-lg font-extrabold whitespace-nowrap tabular-nums"
+											onClick={(event) => event.stopPropagation()}
+										>
 											{formatReviewAmount(request.amount)}
 										</p>
 									</div>
