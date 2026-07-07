@@ -498,6 +498,33 @@ describe("Reimbursement Routes", async () => {
 			assert.strictEqual(data.payment_bic, "COBADEFFXXX");
 		});
 
+		test("returns a graceful 502 when the OpenAI request times out or fails", async () => {
+			resetDatabase();
+			process.env.OPENAI_API_KEY = "test-openai-key";
+
+			globalThis.fetch = (async () => {
+				throw new DOMException("The operation was aborted.", "AbortError");
+			}) as typeof fetch;
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements/parse-receipt",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					receipt_filename: "receipt.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_base64: PDF_BASE64,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 502);
+			const data = JSON.parse(response.payload);
+			assert.match(data.error, /fill the fields manually/i);
+		});
+
 		test("requires receipt extraction to be configured", async () => {
 			resetDatabase();
 			delete process.env.OPENAI_API_KEY;

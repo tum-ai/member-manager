@@ -49,6 +49,10 @@ import type { AuthenticatedRequest } from "../types/index.js";
 const BB_PENDING_SYNC_FRESHNESS_MS = 10 * 60 * 1000;
 const OPENAI_CHAT_COMPLETIONS_URL =
 	"https://api.openai.com/v1/chat/completions";
+// Vision/document extraction on a receipt or multi-page invoice routinely takes
+// longer than the default external-fetch timeout; a short timeout here reliably
+// aborts the request before OpenAI responds.
+const RECEIPT_PARSE_TIMEOUT_MS = 45_000;
 
 const RECEIPT_PARSE_PROMPT = `Analyze this receipt or invoice and return only valid JSON.
 Extract:
@@ -1065,31 +1069,43 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 						image_url: { url: dataUrl },
 					};
 
-			const openaiResponse = await fetchWithTimeout(
-				OPENAI_CHAT_COMPLETIONS_URL,
-				{
-					method: "POST",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${apiKey}`,
+			let openaiResponse: Response;
+			try {
+				openaiResponse = await fetchWithTimeout(
+					OPENAI_CHAT_COMPLETIONS_URL,
+					{
+						method: "POST",
+						headers: {
+							"Content-Type": "application/json",
+							Authorization: `Bearer ${apiKey}`,
+						},
+						body: JSON.stringify({
+							model: "gpt-4o-mini",
+							messages: [
+								{
+									role: "user",
+									content: [
+										{ type: "text", text: RECEIPT_PARSE_PROMPT },
+										documentContent,
+									],
+								},
+							],
+							response_format: { type: "json_object" },
+							temperature: 0.1,
+							max_tokens: 500,
+						}),
 					},
-					body: JSON.stringify({
-						model: "gpt-4o-mini",
-						messages: [
-							{
-								role: "user",
-								content: [
-									{ type: "text", text: RECEIPT_PARSE_PROMPT },
-									documentContent,
-								],
-							},
-						],
-						response_format: { type: "json_object" },
-						temperature: 0.1,
-						max_tokens: 500,
-					}),
-				},
-			);
+					RECEIPT_PARSE_TIMEOUT_MS,
+				);
+			} catch (error) {
+				request.log.warn(
+					{ err: error },
+					"OpenAI receipt extraction request failed",
+				);
+				return reply.status(502).send({
+					error: "Receipt extraction failed. Fill the fields manually.",
+				});
+			}
 
 			if (!openaiResponse.ok) {
 				const errorText = await openaiResponse.text();
