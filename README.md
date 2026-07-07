@@ -24,7 +24,7 @@ At a glance:
 - `server/`: Fastify API and authorization/encryption logic
 - `supabase/`: local Supabase config, SQL migrations, and seed data
 - `docs/`: project docs and vendored TUM.ai brand reference material
-- `.agents/skills/`: repo-local Codex skills, including the TUM.ai CI skill
+- `.agents/`: repo-local agent prompts, rules, and skills, including the TUM.ai CI skill
 
 More reading:
 

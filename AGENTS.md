@@ -14,7 +14,8 @@ Supabase. Auth via Supabase; sensitive DB fields are encrypted at rest.
 ## Read These First
 
 Start with this file, then read the matching nested `AGENTS.md` for the area you are editing.
-Claude-specific `.claude/rules/*.md` files mirror these conventions for Claude Code auto-loading.
+Reusable helper prompts, rules, and skills live under `.agents/`; `CLAUDE.md` files are symlinks to
+the corresponding `AGENTS.md` files for Claude compatibility.
 
 | You are editing...                        | Canonical guide                      |
 | ----------------------------------------- | ------------------------------------ |
