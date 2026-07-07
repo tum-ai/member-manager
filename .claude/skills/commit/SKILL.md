@@ -15,6 +15,6 @@ Commit the current work cleanly.
 4. **Lint staged** — `pnpm lint:staged`. Fix anything it flags before committing.
 5. **Message** — conventional commit, scoped: `type(scope): summary` where type ∈
    feat|fix|refactor|test|ci|docs|style|chore|perf|build. Keep the subject imperative and concise.
-6. **Commit** — keep the trailer `Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>`.
+6. **Commit** — do not add tool-specific co-author trailers unless explicitly requested.
    (The git-guard hook warns on non-conventional messages.)
 7. Report the branch + short SHA. Don't push unless asked.
