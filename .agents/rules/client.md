@@ -27,7 +27,7 @@ paths: ["client/**"]
   components → Storybook play + a11y story. Coverage in `vite.config.ts` ratchets up only.
 - **Always verify a new feature with both layers before merging**: Vitest unit/integration tests
   for its hooks/utils/components, **and** a Playwright E2E spec covering the primary user flow
-  (`pnpm test:e2e`, see `e2e/CLAUDE.md`). A feature is not "done" until both pass green.
+  (`pnpm test:e2e`, see `e2e/AGENTS.md`). A feature is not "done" until both pass green.
 - **Any change to functionality ships with test changes** that exercise the new/changed behaviour —
   update or add the relevant Vitest and/or E2E cases in the same PR.
 - **Every bug fix adds a regression test.** When a user bug report affects functionality, add a

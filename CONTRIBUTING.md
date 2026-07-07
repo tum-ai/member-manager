@@ -36,8 +36,8 @@ precedence, dev modes, Slack OIDC, and common failure modes see
 `client/` (React + Vite), `server/` (Fastify), `shared/` (the client/server type
 contract), `supabase/` (migrations + seed). See
 [docs/repo-structure.md](./docs/repo-structure.md) for the full breakdown, and the
-package-level `CLAUDE.md` files plus `.claude/rules/*.md` for the conventions that
-apply when you edit each area.
+root and package-level `AGENTS.md` files for the conventions that apply when you
+edit each area.
 
 ## Before you push
 
@@ -54,5 +54,5 @@ If `pnpm gate` is green locally, the core CI jobs should be too.
   `ci:`, `build:`, `revert:`). This is enforced in CI; keep commit messages in the
   same style.
 - Keep changes feature-scoped and respect the repo invariants documented in the
-  root [CLAUDE.md](./CLAUDE.md) (file-size limits, coverage ratchet, encrypted
+  root [AGENTS.md](./AGENTS.md) (file-size limits, coverage ratchet, encrypted
   sensitive fields, immutable migrations).

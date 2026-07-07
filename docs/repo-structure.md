@@ -6,7 +6,7 @@ This document describes the source-of-truth layout of the `member-manager` monor
 
 ```text
 member-manager/
-├── .agents/                  # Repo-local Codex skills and instructions
+├── .agents/                  # Repo-local agent prompts, rules, and skills
 ├── .github/                  # GitHub Actions workflows and repo automation
 ├── client/                   # React/Vite member portal
 ├── docs/                     # Project documentation and vendored brand material
@@ -135,15 +135,24 @@ The brand source bundle exists so UI work can reference stable, committed files 
 
 ### `.agents/`
 
-Repo-local Codex skill definitions.
+Repo-local agent prompts, rules, and skill definitions.
 
 ```text
 .agents/
+├── agents/                   # Specialized helper prompts
+├── rules/                    # Path-scoped conventions mirrored from AGENTS.md
 └── skills/
-    └── tumai-ci/            # TUM.ai brand skill for frontend and design work
+    ├── commit/               # Commit workflow helper
+    ├── gate/                 # Full pre-push gate helper
+    ├── new-feature/          # Client feature scaffold helper
+    ├── pr-review/            # PR review helper
+    ├── tumai-ci/             # TUM.ai brand skill for frontend and design work
+    └── verify-e2e/           # E2E verification helper
 ```
 
-The `tumai-ci` skill points at `docs/brand/source/` so future UI changes can stay consistent with the committed TUM.ai corporate identity material.
+The root and package-level `AGENTS.md` files are the source of truth for repo instructions. `CLAUDE.md`
+files symlink to them for Claude compatibility. The `tumai-ci` skill points at `docs/brand/source/`
+so future UI changes can stay consistent with the committed TUM.ai corporate identity material.
 
 ## How To Navigate Changes
 
@@ -153,7 +162,7 @@ Use this map when deciding where a change belongs:
 - Request validation, authorization, encryption, API behavior: `server/src/`
 - Database schema or seed data: `supabase/migrations/` and `supabase/seed.sql`
 - Product docs and internal references: `docs/`
-- Repo-local agent guidance for brand/UI work: `.agents/skills/`
+- Repo-local agent guidance, helper prompts, and skills: `.agents/`
 
 ## Practical Conventions
 
