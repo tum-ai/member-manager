@@ -33,6 +33,10 @@ export function useAdminDatabase() {
 		isRefreshingMembers,
 		error,
 		updateMemberAsync,
+		duplicateCandidates,
+		duplicateCandidatesError,
+		mergeMembersAsync,
+		isMergingMembers,
 		isSavingMember,
 	} = useAdminData();
 
@@ -117,6 +121,10 @@ export function useAdminDatabase() {
 		downloadEmails,
 		memberLoadingMessage,
 		updateMemberAsync,
+		duplicateCandidates,
+		duplicateCandidatesError,
+		mergeMembersAsync,
+		isMergingMembers,
 		isSavingMember,
 	};
 }

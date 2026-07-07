@@ -1,4 +1,15 @@
+import type {
+	MemberDuplicateCandidate,
+	MemberMergeRequest,
+	MemberMergeResponse,
+} from "@member-manager/shared";
 import type { AdminMember } from "./adminUtils";
+
+export type {
+	MemberDuplicateCandidate,
+	MemberMergeRequest,
+	MemberMergeResponse,
+};
 
 export interface AdminResponse {
 	data: AdminMember[];

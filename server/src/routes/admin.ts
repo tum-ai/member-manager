@@ -1,13 +1,25 @@
+import type {
+	DuplicateMemberSummary,
+	MemberDuplicateCandidate,
+	MemberMergeResponse,
+} from "@member-manager/shared";
+import {
+	memberMergeRequestSchema,
+	memberMergeResponseSchema,
+} from "@member-manager/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { getAuthProfiles } from "../lib/authEmails.js";
 import { DatabaseError } from "../lib/errors.js";
 import {
 	BOARD_MEMBER_ROLE,
+	buildDuplicateMemberNameKey,
 	buildMemberNameSearchText,
+	isPlaceholderDateOfBirth,
 	MEMBER_ROLES,
 	memberRoleSchema,
 	memberStatusSchema,
+	normalizeDuplicateMemberText,
 	normalizeMemberBatch,
 	normalizeNullableText,
 	normalizeOperationalDepartment,
@@ -23,9 +35,11 @@ import {
 } from "../lib/sensitiveData.js";
 import { getSupabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 
 const ADMIN_PAGE_LIMIT_MAX = 200;
 const ADMIN_EXPENSIVE_FILTER_SCAN_LIMIT = 5_000;
+const ADMIN_DUPLICATE_SCAN_LIMIT = 5_000;
 
 const PositiveIntFromString = z
 	.string()
@@ -137,6 +151,154 @@ const MEMBER_DB_SORT_COLUMNS = new Set([
 	"linkedin_profile_url",
 	"public_location",
 ]);
+
+interface DuplicateCandidateInput extends DuplicateMemberSummary {
+	phone?: string | null;
+	linkedin_profile_url?: string | null;
+}
+
+interface CandidateGroup {
+	matchKey: string;
+	reason: string;
+	confidence: "high" | "medium";
+	members: DuplicateCandidateInput[];
+}
+
+function normalizeComparableUrl(value?: string | null): string {
+	const trimmed = value?.trim().toLowerCase();
+	return trimmed ? trimmed.replace(/\/+$/, "") : "";
+}
+
+function addCandidateGroup(
+	groups: Map<string, DuplicateCandidateInput[]>,
+	key: string,
+	member: DuplicateCandidateInput,
+): void {
+	const existing = groups.get(key);
+	if (existing) {
+		existing.push(member);
+		return;
+	}
+	groups.set(key, [member]);
+}
+
+function collectCandidateGroups(
+	members: DuplicateCandidateInput[],
+): CandidateGroup[] {
+	const exactNameAndBirthDate = new Map<string, DuplicateCandidateInput[]>();
+	const linkedInProfile = new Map<string, DuplicateCandidateInput[]>();
+	const nameAndPhone = new Map<string, DuplicateCandidateInput[]>();
+
+	for (const member of members) {
+		const nameKey = buildDuplicateMemberNameKey(
+			member.given_name,
+			member.surname,
+		);
+		if (!nameKey) continue;
+
+		if (!isPlaceholderDateOfBirth(member.date_of_birth)) {
+			addCandidateGroup(
+				exactNameAndBirthDate,
+				`name_dob:${nameKey}:${member.date_of_birth}`,
+				member,
+			);
+		}
+
+		const linkedInKey = normalizeComparableUrl(member.linkedin_profile_url);
+		if (linkedInKey) {
+			addCandidateGroup(linkedInProfile, `linkedin:${linkedInKey}`, member);
+		}
+
+		const phoneKey = normalizeDuplicateMemberText(member.phone);
+		if (phoneKey) {
+			addCandidateGroup(
+				nameAndPhone,
+				`name_phone:${nameKey}:${phoneKey}`,
+				member,
+			);
+		}
+	}
+
+	const groups: CandidateGroup[] = [];
+	for (const [matchKey, groupMembers] of exactNameAndBirthDate) {
+		if (groupMembers.length > 1) {
+			groups.push({
+				matchKey,
+				reason: "Same name and date of birth",
+				confidence: "high",
+				members: groupMembers,
+			});
+		}
+	}
+	for (const [matchKey, groupMembers] of linkedInProfile) {
+		if (groupMembers.length > 1) {
+			groups.push({
+				matchKey,
+				reason: "Same LinkedIn profile",
+				confidence: "high",
+				members: groupMembers,
+			});
+		}
+	}
+	for (const [matchKey, groupMembers] of nameAndPhone) {
+		if (groupMembers.length > 1) {
+			groups.push({
+				matchKey,
+				reason: "Same name and phone number",
+				confidence: "medium",
+				members: groupMembers,
+			});
+		}
+	}
+
+	return groups;
+}
+
+function buildDuplicateCandidates(
+	members: DuplicateCandidateInput[],
+): MemberDuplicateCandidate[] {
+	const deduped = new Map<string, CandidateGroup>();
+	for (const group of collectCandidateGroups(members)) {
+		const memberSetKey = group.members
+			.map((member) => member.user_id)
+			.sort()
+			.join(":");
+		const existing = deduped.get(memberSetKey);
+		if (!existing) {
+			deduped.set(memberSetKey, group);
+			continue;
+		}
+		existing.reason = `${existing.reason}; ${group.reason}`;
+		if (group.confidence === "high") {
+			existing.confidence = "high";
+		}
+	}
+
+	return [...deduped.values()]
+		.map((group, index) => ({
+			id: `duplicate-${index + 1}`,
+			match_key: group.matchKey,
+			reason: group.reason,
+			confidence: group.confidence,
+			members: group.members.map(
+				({ phone, linkedin_profile_url, ...member }) => ({
+					...member,
+				}),
+			),
+		}))
+		.sort((left, right) => {
+			if (left.confidence !== right.confidence) {
+				return left.confidence === "high" ? -1 : 1;
+			}
+			const leftName = left.members[0]
+				? `${left.members[0].surname} ${left.members[0].given_name}`
+				: "";
+			const rightName = right.members[0]
+				? `${right.members[0].surname} ${right.members[0].given_name}`
+				: "";
+			return leftName.localeCompare(rightName);
+		});
+}
 
 const DATE_ONLY_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -526,6 +688,158 @@ export async function adminRoutes(server: FastifyInstance) {
 				request.log.error({ err: authError }, "Failed to fetch auth profiles");
 				throw new DatabaseError();
 			}
+		},
+	);
+
+	server.get(
+		"/admin/member-duplicate-candidates",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const { data, error, count } = await getSupabase()
+				.from("members")
+				.select(
+					"user_id, given_name, surname, date_of_birth, phone, department, batch, member_status, active, created_at, linkedin_profile_url",
+					{ count: "exact" },
+				)
+				.range(0, ADMIN_DUPLICATE_SCAN_LIMIT - 1);
+
+			if (error) {
+				request.log.error(
+					{ err: error },
+					"Failed to fetch members for duplicate detection",
+				);
+				throw new DatabaseError();
+			}
+
+			if ((count ?? 0) > ADMIN_DUPLICATE_SCAN_LIMIT) {
+				return reply.status(413).send({
+					error:
+						"Duplicate detection is limited to 5000 members. Narrow the data set before running it.",
+				});
+			}
+
+			const rawMembers = (data ?? []) as Array<Record<string, unknown>>;
+			const profileMap = await getAuthProfiles(
+				rawMembers.map((member) => String(member.user_id)),
+			);
+			const candidates = buildDuplicateCandidates(
+				rawMembers.map((member) => {
+					const profile = profileMap.get(String(member.user_id));
+					const decryptedMember = decryptRecordSafely(
+						member,
+						SENSITIVE_MEMBER_FIELDS,
+						({ field, error: decryptError }) => {
+							request.log.warn(
+								{ err: decryptError, userId: member.user_id, field },
+								"Failed to decrypt member field during duplicate detection",
+							);
+						},
+					);
+
+					return {
+						user_id: String(decryptedMember.user_id ?? ""),
+						email: profile?.email ?? "",
+						given_name: String(
+							decryptedMember.given_name || profile?.given_name || "",
+						),
+						surname: String(decryptedMember.surname || profile?.surname || ""),
+						date_of_birth:
+							typeof decryptedMember.date_of_birth === "string"
+								? decryptedMember.date_of_birth
+								: null,
+						member_status:
+							typeof decryptedMember.member_status === "string"
+								? decryptedMember.member_status
+								: null,
+						active:
+							typeof decryptedMember.active === "boolean"
+								? decryptedMember.active
+								: null,
+						department:
+							typeof decryptedMember.department === "string"
+								? normalizeOperationalDepartment(decryptedMember.department)
+								: null,
+						batch:
+							typeof decryptedMember.batch === "string"
+								? decryptedMember.batch
+								: null,
+						created_at:
+							typeof decryptedMember.created_at === "string"
+								? decryptedMember.created_at
+								: null,
+						phone:
+							typeof decryptedMember.phone === "string"
+								? decryptedMember.phone
+								: null,
+						linkedin_profile_url:
+							typeof decryptedMember.linkedin_profile_url === "string"
+								? decryptedMember.linkedin_profile_url
+								: null,
+					};
+				}),
+			);
+
+			return { data: candidates };
+		},
+	);
+
+	server.post(
+		"/admin/members/merge",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply): Promise<MemberMergeResponse | FastifyReply> => {
+			const parsed = memberMergeRequestSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid member merge payload",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const user = (request as AuthenticatedRequest).user;
+			const { data, error } = await getSupabase()
+				.rpc("merge_duplicate_member", {
+					p_source_user_id: parsed.data.source_user_id,
+					p_target_user_id: parsed.data.target_user_id,
+					p_admin_user_id: user.id,
+					p_note: parsed.data.note?.trim() || null,
+				})
+				.single();
+
+			if (error) {
+				const message =
+					typeof error === "object" && error !== null && "message" in error
+						? String((error as { message?: unknown }).message ?? "")
+						: "";
+				if (message.includes("must differ")) {
+					return reply.status(400).send({ error: message });
+				}
+				if (message.includes("not found")) {
+					return reply.status(404).send({ error: message });
+				}
+				if (message.includes("admin must have admin role")) {
+					return reply.status(403).send({ error: message });
+				}
+				if (message.includes("TUM.ai Day response conflicts")) {
+					return reply.status(409).send({ error: message });
+				}
+
+				request.log.error({ err: error }, "Failed to merge duplicate members");
+				throw new DatabaseError();
+			}
+
+			const row = data as {
+				source_user_id?: string;
+				target_user_id?: string;
+				audit_id?: string | null;
+				transferred_counts?: Record<string, number>;
+			} | null;
+
+			return memberMergeResponseSchema.parse({
+				source_user_id: row?.source_user_id ?? parsed.data.source_user_id,
+				target_user_id: row?.target_user_id ?? parsed.data.target_user_id,
+				audit_id: row?.audit_id ?? null,
+				transferred_counts: row?.transferred_counts ?? {},
+			});
 		},
 	);
 

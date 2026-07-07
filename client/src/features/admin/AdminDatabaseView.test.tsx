@@ -3,8 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AdminDatabaseView } from "./AdminDatabaseView";
 
-const { updateMemberAsync } = vi.hoisted(() => ({
+const { updateMemberAsync, mergeMembersAsync } = vi.hoisted(() => ({
 	updateMemberAsync: vi.fn(),
+	mergeMembersAsync: vi.fn(),
 }));
 
 vi.mock("../../hooks/useResearchProjects", () => ({
@@ -17,6 +18,7 @@ vi.mock("../../hooks/useResearchProjects", () => ({
 				status: "ongoing",
 			},
 		],
+		duplicateCandidatesError: null,
 		isLoading: false,
 		error: null,
 	}),
@@ -107,10 +109,46 @@ vi.mock("../../hooks/useAdminData", () => ({
 				expires_at: null,
 			},
 		],
+		duplicateCandidates: [
+			{
+				id: "duplicate-1",
+				match_key: "name_dob:alice-example:1990-01-01",
+				reason: "Same name and date of birth",
+				confidence: "high",
+				members: [
+					{
+						user_id: "member-1",
+						given_name: "Alice",
+						surname: "Example",
+						email: "alice@tum.de",
+						date_of_birth: "1990-01-01",
+						member_status: "active",
+						active: true,
+						department: "Software Development",
+						batch: "WS23",
+						created_at: "2024-01-01T00:00:00Z",
+					},
+					{
+						user_id: "member-duplicate",
+						given_name: "Alice",
+						surname: "Example",
+						email: "alice@gmail.com",
+						date_of_birth: "1990-01-01",
+						member_status: "active",
+						active: true,
+						department: "Software Development",
+						batch: "WS23",
+						created_at: "2025-01-01T00:00:00Z",
+					},
+				],
+			},
+		],
 		isLoading: false,
 		error: null,
 		updateMemberAsync,
+		mergeMembersAsync,
 		isSavingMember: false,
+		isMergingMembers: false,
 	}),
 }));
 
@@ -254,5 +292,23 @@ describe("AdminDatabaseView", () => {
 		expect(screen.queryByText(/request-1/i)).not.toBeInTheDocument();
 		expect(screen.queryByText(/certificate-1/i)).not.toBeInTheDocument();
 		expect(screen.queryByText(/job-request-1/i)).not.toBeInTheDocument();
+	});
+
+	it("lets admins confirm a duplicate member merge", async () => {
+		const user = userEvent.setup();
+		renderAdminView();
+
+		expect(screen.getByText(/possible duplicate members/i)).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: /^merge$/i }));
+		await user.type(screen.getByLabelText(/audit note/i), "Same person");
+		await user.click(screen.getByRole("button", { name: /merge members/i }));
+
+		await waitFor(() => {
+			expect(mergeMembersAsync).toHaveBeenCalledWith({
+				source_user_id: "member-duplicate",
+				target_user_id: "member-1",
+				note: "Same person",
+			});
+		});
 	});
 });
