@@ -807,7 +807,7 @@ export async function adminRoutes(server: FastifyInstance) {
 
 			if (error) {
 				const message =
-					typeof error === "object" && error !== null && "message" in error
+					typeof error === "object" && "message" in error
 						? String((error as { message?: unknown }).message ?? "")
 						: "";
 				if (message.includes("must differ")) {
