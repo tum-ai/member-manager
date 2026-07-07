@@ -1,5 +1,5 @@
 import type React from "react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import {
 	ALLOWED_RECEIPT_TYPES,
@@ -33,7 +33,7 @@ export function useReimbursementForm(userId: string) {
 		isParsingReceipt,
 	} = useReimbursementRequests(userId);
 	const { member } = useMemberData(userId);
-	const { sepa } = useSepaData(userId);
+	const { sepa, isLoading: isSepaLoading } = useSepaData(userId);
 	const [values, setValues] = useState<FormValues>(defaultValues);
 	const [errors, setErrors] = useState<FormErrors>({});
 	const [isReadingReceipt, setIsReadingReceipt] = useState(false);
@@ -45,6 +45,21 @@ export function useReimbursementForm(userId: string) {
 			: "";
 	const profileIban = typeof sepa?.iban === "string" ? sepa.iban : "";
 	const profileBic = typeof sepa?.bic === "string" ? sepa.bic : "";
+	// Reimbursement and invoice submissions share one paymentIban/paymentBic
+	// field, but must not leak into each other when the member switches
+	// submission type mid-form. These drafts remember what was last shown for
+	// each type so switching back restores it instead of the other type's
+	// value. `null` means "not visited yet" (fall back to the profile
+	// IBAN/BIC for reimbursement); an empty string is a deliberate clear and
+	// must be kept as-is.
+	const reimbursementDraft = useRef<{
+		iban: string | null;
+		bic: string | null;
+	}>({ iban: null, bic: null });
+	const invoiceDraft = useRef<{ iban: string | null; bic: string | null }>({
+		iban: null,
+		bic: null,
+	});
 
 	useEffect(() => {
 		if (!memberDepartment && !profileIban && !profileBic) {
@@ -83,21 +98,37 @@ export function useReimbursementForm(userId: string) {
 			return;
 		}
 
+		// Stash whatever is currently shown under the type being left (read from
+		// the latest render's state, not from inside the setValues updater,
+		// which must stay a pure function of its input), then restore the
+		// target type's own draft. While the SEPA profile is still loading, a
+		// blank reimbursement field doesn't yet mean "deliberately cleared" —
+		// it's just the unset default — so keep it as "unvisited" (null) rather
+		// than locking in a blank that would block the profile IBAN once it
+		// arrives.
+		if (values.submissionType === "reimbursement") {
+			reimbursementDraft.current = {
+				iban: values.paymentIban || (isSepaLoading ? null : ""),
+				bic: values.paymentBic || (isSepaLoading ? null : ""),
+			};
+		} else {
+			invoiceDraft.current = {
+				iban: values.paymentIban,
+				bic: values.paymentBic,
+			};
+		}
+		const nextDraft =
+			nextType === "reimbursement"
+				? reimbursementDraft.current
+				: invoiceDraft.current;
+
 		setValues((current) => ({
 			...current,
 			submissionType: nextType,
 			paymentIban:
-				nextType === "invoice" && current.paymentIban === profileIban
-					? ""
-					: nextType === "reimbursement"
-						? current.paymentIban || profileIban
-						: current.paymentIban,
+				nextDraft.iban ?? (nextType === "reimbursement" ? profileIban : ""),
 			paymentBic:
-				nextType === "invoice" && current.paymentBic === profileBic
-					? ""
-					: nextType === "reimbursement"
-						? current.paymentBic || profileBic
-						: current.paymentBic,
+				nextDraft.bic ?? (nextType === "reimbursement" ? profileBic : ""),
 		}));
 		setErrors((current) => ({
 			...current,
@@ -225,6 +256,8 @@ export function useReimbursementForm(userId: string) {
 		try {
 			await createRequestAsync(payload);
 			showToast("Reimbursement request submitted.", "success");
+			reimbursementDraft.current = { iban: null, bic: null };
+			invoiceDraft.current = { iban: null, bic: null };
 			setValues({
 				...defaultValues,
 				department: memberDepartment,

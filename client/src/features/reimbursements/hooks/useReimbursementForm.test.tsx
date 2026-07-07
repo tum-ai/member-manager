@@ -18,6 +18,7 @@ const { showToast, memberState, sepaState } = vi.hoisted(() => ({
 			iban: "DE89370400440532013000",
 			bic: "COBADEFFXXX",
 		} as { user_id: string; iban: string; bic: string } | undefined,
+		isLoading: false,
 	},
 }));
 
@@ -78,6 +79,7 @@ describe("useReimbursementForm", () => {
 			iban: "DE89370400440532013000",
 			bic: "COBADEFFXXX",
 		};
+		sepaState.isLoading = false;
 		server.use(http.get("/api/reimbursements", () => HttpResponse.json([])));
 		server.use(
 			http.post("/api/reimbursements/receipt-upload-url", () =>
@@ -114,6 +116,89 @@ describe("useReimbursementForm", () => {
 		act(() => result.current.handleSubmissionTypeChange("invoice"));
 		expect(result.current.values.paymentIban).toBe("");
 		expect(result.current.values.paymentBic).toBe("");
+
+		act(() => result.current.handleSubmissionTypeChange("reimbursement"));
+		expect(result.current.values.paymentIban).toBe("DE89370400440532013000");
+		expect(result.current.values.paymentBic).toBe("COBADEFFXXX");
+	});
+
+	it("discards a vendor invoice IBAN when switching back to reimbursement", async () => {
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+		await waitFor(() =>
+			expect(result.current.values.paymentIban).toBe("DE89370400440532013000"),
+		);
+
+		act(() => result.current.handleSubmissionTypeChange("invoice"));
+		act(() => result.current.setField("paymentIban", "DE12500105170648489890"));
+		act(() => result.current.setField("paymentBic", "INGDDEFFXXX"));
+
+		act(() => result.current.handleSubmissionTypeChange("reimbursement"));
+		expect(result.current.values.paymentIban).toBe("DE89370400440532013000");
+		expect(result.current.values.paymentBic).toBe("COBADEFFXXX");
+	});
+
+	it("keeps a manually corrected reimbursement IBAN across a round trip through invoice", async () => {
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+		await waitFor(() =>
+			expect(result.current.values.paymentIban).toBe("DE89370400440532013000"),
+		);
+
+		act(() => result.current.setField("paymentIban", "DE02120300000000202051"));
+		act(() => result.current.setField("paymentBic", "BYLADEM1001"));
+
+		act(() => result.current.handleSubmissionTypeChange("invoice"));
+		expect(result.current.values.paymentIban).toBe("");
+		expect(result.current.values.paymentBic).toBe("");
+
+		act(() => result.current.setField("paymentIban", "DE12500105170648489890"));
+		act(() => result.current.setField("paymentBic", "INGDDEFFXXX"));
+
+		act(() => result.current.handleSubmissionTypeChange("reimbursement"));
+		expect(result.current.values.paymentIban).toBe("DE02120300000000202051");
+		expect(result.current.values.paymentBic).toBe("BYLADEM1001");
+	});
+
+	it("preserves a deliberately cleared reimbursement IBAN across a round trip through invoice", async () => {
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+		await waitFor(() =>
+			expect(result.current.values.paymentIban).toBe("DE89370400440532013000"),
+		);
+
+		act(() => result.current.setField("paymentIban", ""));
+		act(() => result.current.setField("paymentBic", ""));
+
+		act(() => result.current.handleSubmissionTypeChange("invoice"));
+		act(() => result.current.handleSubmissionTypeChange("reimbursement"));
+
+		expect(result.current.values.paymentIban).toBe("");
+		expect(result.current.values.paymentBic).toBe("");
+	});
+
+	it("still prefills the profile IBAN if the member switches type before SEPA data loads", async () => {
+		sepaState.sepa = undefined;
+		sepaState.isLoading = true;
+
+		const { result, rerender } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+		expect(result.current.values.paymentIban).toBe("");
+
+		act(() => result.current.handleSubmissionTypeChange("invoice"));
+		expect(result.current.values.paymentIban).toBe("");
+
+		sepaState.sepa = {
+			user_id: "user-123",
+			iban: "DE89370400440532013000",
+			bic: "COBADEFFXXX",
+		};
+		sepaState.isLoading = false;
+		rerender();
 
 		act(() => result.current.handleSubmissionTypeChange("reimbursement"));
 		expect(result.current.values.paymentIban).toBe("DE89370400440532013000");
