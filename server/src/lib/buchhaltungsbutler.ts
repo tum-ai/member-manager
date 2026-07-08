@@ -3,9 +3,10 @@ import {
 	stripDataUrlPrefix,
 } from "./receiptProcessing.js";
 
-const DEFAULT_BB_API_BASE_URL = "https://webapp.buchhaltungsbutler.de/api/v1";
+export const DEFAULT_BB_API_BASE_URL =
+	"https://webapp.buchhaltungsbutler.de/api/v1";
 
-interface BuchhaltungsButlerCredentials {
+export interface BuchhaltungsButlerCredentials {
 	apiClient: string;
 	apiSecret: string;
 	apiKey: string;
@@ -100,8 +101,12 @@ export function getBuchhaltungsButlerSyncStatus(): BuchhaltungsButlerSyncStatus 
 	};
 }
 
-function getCredentials(): BuchhaltungsButlerCredentials {
-	if (!isBuchhaltungsButlerSyncEnabled()) {
+export function getBuchhaltungsButlerCredentials({
+	requireSyncEnabled = true,
+}: {
+	requireSyncEnabled?: boolean;
+} = {}): BuchhaltungsButlerCredentials {
+	if (requireSyncEnabled && !isBuchhaltungsButlerSyncEnabled()) {
 		throw new BuchhaltungsButlerConfigError(
 			"BuchhaltungsButler sync is disabled",
 		);
@@ -125,13 +130,18 @@ function getCredentials(): BuchhaltungsButlerCredentials {
 	};
 }
 
-function buildAuthHeader(credentials: BuchhaltungsButlerCredentials): string {
+export function buildBuchhaltungsButlerAuthHeader(
+	credentials: BuchhaltungsButlerCredentials,
+): string {
 	return `Basic ${Buffer.from(
 		`${credentials.apiClient}:${credentials.apiSecret}`,
 	).toString("base64")}`;
 }
 
-function normalizeEndpoint(baseUrl: string, path: string): string {
+export function normalizeBuchhaltungsButlerEndpoint(
+	baseUrl: string,
+	path: string,
+): string {
 	return `${baseUrl.replace(/\/$/, "")}/${path.replace(/^\//, "")}`;
 }
 
@@ -153,18 +163,21 @@ async function requestBuchhaltungsButler<T extends BuchhaltungsButlerResponse>(
 	path: string,
 	fields: Record<string, string>,
 ): Promise<T> {
-	const credentials = getCredentials();
-	const response = await fetch(normalizeEndpoint(credentials.baseUrl, path), {
-		method: "POST",
-		headers: {
-			Authorization: buildAuthHeader(credentials),
-			"content-type": "application/x-www-form-urlencoded",
+	const credentials = getBuchhaltungsButlerCredentials();
+	const response = await fetch(
+		normalizeBuchhaltungsButlerEndpoint(credentials.baseUrl, path),
+		{
+			method: "POST",
+			headers: {
+				Authorization: buildBuchhaltungsButlerAuthHeader(credentials),
+				"content-type": "application/x-www-form-urlencoded",
+			},
+			body: new URLSearchParams({
+				api_key: credentials.apiKey,
+				...fields,
+			}),
 		},
-		body: new URLSearchParams({
-			api_key: credentials.apiKey,
-			...fields,
-		}),
-	});
+	);
 
 	let payload: BuchhaltungsButlerResponse;
 	try {

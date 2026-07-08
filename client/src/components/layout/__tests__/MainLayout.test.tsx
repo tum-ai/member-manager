@@ -106,6 +106,9 @@ describe("MainLayout sidebar navigation", () => {
 		expect(
 			screen.getByRole("link", { name: /finance review/i }),
 		).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: /transactions/i }),
+		).toBeInTheDocument();
 		toolAccessState.permissions = [];
 	});
 

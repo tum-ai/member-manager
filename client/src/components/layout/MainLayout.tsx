@@ -13,6 +13,7 @@ import {
 	Moon,
 	Network,
 	Receipt,
+	ReceiptText,
 	Scale,
 	ScrollText,
 	Search,
@@ -191,7 +192,7 @@ export function MainLayout({
 					label: "Finance",
 					icon: Wallet,
 					// Finance Review lives under `/tools/reimbursement/review`.
-					match: ["/tools/reimbursement"],
+					match: ["/tools/reimbursement", "/tools/finance"],
 					items: [
 						{
 							label: "Reimbursement",
@@ -202,6 +203,12 @@ export function MainLayout({
 							label: "Finance Review",
 							to: "/tools/reimbursement/review",
 							icon: ShieldCheck,
+							visible: showFinanceReview,
+						},
+						{
+							label: "Transactions",
+							to: "/tools/finance/buchhaltungsbutler",
+							icon: ReceiptText,
 							visible: showFinanceReview,
 						},
 					],
