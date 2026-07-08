@@ -36,7 +36,7 @@
 		"remark-gfm": "^4.0.1",
 		"sonner": "^2.0.7",
 		"tailwind-merge": "^3.6.0",
-		"xlsx": "^0.18.5",
+		"write-excel-file": "^4.1.1",
 		"yup": "^1.7.1",
 		"zod": "^4.4.3"
 	},

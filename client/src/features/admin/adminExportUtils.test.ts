@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildExportRows, escapeCsvCell, rowsToCsv } from "./adminExportUtils";
+import {
+	buildExportRows,
+	buildXlsxData,
+	escapeCsvCell,
+	rowsToCsv,
+} from "./adminExportUtils";
 import type { AdminMember } from "./adminUtils";
 
 function makeMember(overrides: Partial<AdminMember> = {}): AdminMember {
@@ -64,6 +69,32 @@ describe("adminExportUtils", () => {
 			expect(row["LinkedIn URL"]).toBe("");
 			expect(row["SEPA Mandate"]).toBe("Not accepted");
 			expect(row.Status).toBe("Inactive");
+		});
+	});
+
+	describe("buildXlsxData", () => {
+		it("returns a single blank cell for no rows", () => {
+			expect(buildXlsxData([])).toEqual([[null]]);
+		});
+
+		it("builds a bold header row followed by string cells", () => {
+			const [header, ...body] = buildXlsxData([
+				{ Name: "Alice", Note: "hi" },
+				{ Name: "Bob", Note: "" },
+			]);
+
+			expect(header).toEqual([
+				{ value: "Name", fontWeight: "bold", type: String },
+				{ value: "Note", fontWeight: "bold", type: String },
+			]);
+			expect(body).toEqual([
+				[
+					{ value: "Alice", type: String },
+					{ value: "hi", type: String },
+				],
+				// Empty cells collapse to `null` so they render blank.
+				[{ value: "Bob", type: String }, null],
+			]);
 		});
 	});
 

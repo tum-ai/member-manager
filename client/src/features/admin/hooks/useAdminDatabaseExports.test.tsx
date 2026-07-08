@@ -3,15 +3,21 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminMember } from "@/features/admin/adminUtils";
 import { useAdminDatabase } from "./useAdminDatabase";
 
-const writeFileMock = vi.fn();
+const { writeXlsxFileMock, toFileMock } = vi.hoisted(() => {
+	const toFileMock = vi.fn(() => Promise.resolve());
+	const writeXlsxFileMock = vi.fn(() => ({
+		toFile: toFileMock,
+		toBlob: vi.fn(),
+	}));
+	return { writeXlsxFileMock, toFileMock };
+});
 
-vi.mock("xlsx", () => ({
-	utils: {
-		json_to_sheet: vi.fn(() => ({ sheet: true })),
-		book_new: vi.fn(() => ({ book: true })),
-		book_append_sheet: vi.fn(),
-	},
-	writeFile: (...args: unknown[]) => writeFileMock(...args),
+vi.mock("write-excel-file/browser", () => ({
+	default: writeXlsxFileMock,
+}));
+
+vi.mock("@/contexts/ToastContext", () => ({
+	useToast: () => ({ showToast: vi.fn() }),
 }));
 
 const updateMemberAsyncMock = vi.fn();
@@ -59,7 +65,8 @@ describe("useAdminDatabase exports", () => {
 	let clickSpy: ReturnType<typeof vi.spyOn>;
 
 	beforeEach(() => {
-		writeFileMock.mockReset();
+		writeXlsxFileMock.mockClear();
+		toFileMock.mockClear();
 		updateMemberAsyncMock.mockReset();
 		adminDataState.members = [
 			member({ user_id: "1", surname: "Zeta", email: "zeta@example.com" }),
@@ -83,15 +90,20 @@ describe("useAdminDatabase exports", () => {
 		clickSpy.mockRestore();
 	});
 
-	it("exports filtered rows to an .xlsx workbook", () => {
+	it("exports filtered rows to an .xlsx workbook", async () => {
 		const { result } = renderHook(() => useAdminDatabase());
 
-		act(() => result.current.exportToExcel());
+		await act(async () => {
+			await result.current.exportToExcel();
+		});
 
-		expect(writeFileMock).toHaveBeenCalledWith(
-			expect.anything(),
-			"members_export.xlsx",
-		);
+		expect(writeXlsxFileMock).toHaveBeenCalledOnce();
+		const [sheetData] = writeXlsxFileMock.mock.calls[0] as unknown as [
+			unknown[][],
+		];
+		// Header row + one row per filtered member.
+		expect(sheetData).toHaveLength(4);
+		expect(toFileMock).toHaveBeenCalledWith("members_export.xlsx");
 	});
 
 	it("exports filtered rows to a downloadable CSV", () => {
