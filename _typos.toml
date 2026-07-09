@@ -36,3 +36,5 @@ paeth = "paeth"
 # German month names (date-formatting fixtures, .docx filename in docs).
 Februar = "Februar"
 Januar = "Januar"
+# Product name for the design platform (not "Canvas").
+Canva = "Canva"
