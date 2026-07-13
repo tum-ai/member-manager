@@ -57,6 +57,7 @@ import {
 
 const DATA_TYPES: ContractVariableDataType[] = [
 	"TEXT",
+	"EMAIL",
 	"TEXTAREA",
 	"NUMBER",
 	"DATE",
@@ -67,6 +68,7 @@ const DATA_TYPES: ContractVariableDataType[] = [
 
 const DATA_TYPE_LABELS: Record<ContractVariableDataType, string> = {
 	TEXT: "Text",
+	EMAIL: "Email",
 	TEXTAREA: "Long text",
 	NUMBER: "Number",
 	DATE: "Date",

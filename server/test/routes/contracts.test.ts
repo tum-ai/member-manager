@@ -1172,7 +1172,9 @@ describe("Contract Routes", async () => {
 		);
 	});
 
-	test("includes comment history in the public signing payload", async () => {
+	// Round 2 Nr.3 regression: internal replies must never leak to the partner
+	// via the public signing payload.
+	test("excludes internal comments from the public signing payload", async () => {
 		resetDatabase();
 		const submission = mockDatabase.contract_submissions.find(
 			(row) => row.id === SUBMISSION_ID,
@@ -1211,18 +1213,18 @@ describe("Contract Routes", async () => {
 
 		assert.strictEqual(response.statusCode, 200);
 		const data = JSON.parse(response.payload);
-		assert.strictEqual(data.comments.length, 2);
+		assert.strictEqual(data.comments.length, 1);
 		assert.strictEqual(data.comments[0].comment, "Initial partner comment.");
-		assert.strictEqual(data.comments[1].author_type, "internal");
-		assert.strictEqual(data.comments[1].author_name, "TUM.ai");
+		assert.strictEqual(data.comments[0].author_type, "partner");
+		assert.ok(
+			!data.comments.some(
+				(comment: { comment: string }) => comment.comment === "Internal reply.",
+			),
+		);
 		assert.strictEqual(data.comments[0].id, undefined);
 		assert.strictEqual(data.comments[0].author_email, undefined);
 		assert.strictEqual(data.comments[0].submission_id, undefined);
 		assert.strictEqual(data.comments[0].document_version_id, undefined);
-		assert.strictEqual(data.comments[1].id, undefined);
-		assert.strictEqual(data.comments[1].author_email, undefined);
-		assert.strictEqual(data.comments[1].submission_id, undefined);
-		assert.strictEqual(data.comments[1].document_version_id, undefined);
 	});
 
 	test("includes legacy partner comments in the public signing payload", async () => {
@@ -1509,6 +1511,432 @@ describe("Contract Routes", async () => {
 		assert.strictEqual(updated.admin_signer_name, "Board Member");
 		assert.ok(updated.admin_signed_at);
 		assert.strictEqual(updated.board_signature_token, null);
+	});
+
+	// Round 2 Nr.2: the initial status is recorded so the timeline starts at
+	// the submission itself.
+	test("records an initial status event on submission creation", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/contracts/submissions",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				template_id: TEMPLATE_ID,
+				form_data: { partner_name: "Partner GmbH" },
+				status: "submitted",
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const data = JSON.parse(response.payload);
+		const event = mockDatabase.contract_status_events.find(
+			(row) => row.submission_id === data.id,
+		);
+		assert.ok(event);
+		assert.strictEqual(event.from_status, null);
+		assert.strictEqual(event.to_status, "legal_review");
+	});
+
+	// Round 2 Nr.2: submitting a draft records the draft -> legal_review event.
+	test("records a status event when a draft is submitted", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+
+		const createResponse = await app.inject({
+			method: "POST",
+			url: "/api/contracts/submissions",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				template_id: TEMPLATE_ID,
+				form_data: { partner_name: "Draft GmbH" },
+				status: "draft",
+			}),
+		});
+		assert.strictEqual(createResponse.statusCode, 200);
+		const draft = JSON.parse(createResponse.payload);
+		const draftEvent = mockDatabase.contract_status_events.find(
+			(row) => row.submission_id === draft.id,
+		);
+		assert.ok(draftEvent);
+		assert.strictEqual(draftEvent.from_status, null);
+		assert.strictEqual(draftEvent.to_status, "draft");
+
+		const submitResponse = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${draft.id}/draft`,
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				form_data: { partner_name: "Draft GmbH" },
+				status: "submitted",
+			}),
+		});
+		assert.strictEqual(submitResponse.statusCode, 200);
+		const submitEvent = mockDatabase.contract_status_events.find(
+			(row) =>
+				row.submission_id === draft.id && row.to_status === "legal_review",
+		);
+		assert.ok(submitEvent);
+		assert.strictEqual(submitEvent.from_status, "draft");
+	});
+
+	// Round 2 Nr.4: a contract already sent to the partner can be re-sent via a
+	// different delivery channel.
+	test("allows re-sending to the partner from sent_to_partner", async () => {
+		resetDatabase();
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.status = "sent_to_partner";
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ send_to_partner: true }),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const data = JSON.parse(response.payload);
+		assert.strictEqual(data.status, "sent_to_partner");
+		assert.match(data.signature_token, /^[a-f0-9]{64}$/);
+	});
+
+	// Round 2 Nr.7: manual dropdown changes are tagged in the status event so
+	// the timeline can phrase them distinctly.
+	test("tags manual status changes with a Manual override note", async () => {
+		resetDatabase();
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				status: "in_review",
+				manual_status_change: true,
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const event = mockDatabase.contract_status_events.find(
+			(row) =>
+				row.submission_id === SUBMISSION_ID && row.to_status === "in_review",
+		);
+		assert.ok(event);
+		assert.strictEqual(event.note, "Manual override");
+	});
+
+	// Round 2 Nr.7: button-driven changes stay untagged.
+	test("does not tag button-driven status changes as manual", async () => {
+		resetDatabase();
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ status: "approved" }),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const event = mockDatabase.contract_status_events.find(
+			(row) =>
+				row.submission_id === SUBMISSION_ID && row.to_status === "approved",
+		);
+		assert.ok(event);
+		assert.strictEqual(event.note, null);
+	});
+
+	// Round 2 Nr.12: EMAIL-typed template variables get format validation.
+	test("rejects malformed EMAIL variables on submission", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+		mockDatabase.contract_template_variables.push({
+			id: "22222222-2222-4222-8222-222222222222",
+			template_id: TEMPLATE_ID,
+			variable_name: "partner_contact_email",
+			label: "Partner contact email",
+			data_type: "EMAIL",
+			help_text: null,
+			options: null,
+			is_required: true,
+			is_multiselect: false,
+			show_if_variable: null,
+			show_if_value: null,
+			sort_order: 10,
+		});
+
+		const invalid = await app.inject({
+			method: "POST",
+			url: "/api/contracts/submissions",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				template_id: TEMPLATE_ID,
+				form_data: {
+					partner_name: "Partner GmbH",
+					partner_contact_email: "not-an-email",
+				},
+				status: "submitted",
+			}),
+		});
+		assert.strictEqual(invalid.statusCode, 400);
+		assert.match(
+			JSON.parse(invalid.payload).error,
+			/Invalid email address in: Partner contact email/,
+		);
+
+		const valid = await app.inject({
+			method: "POST",
+			url: "/api/contracts/submissions",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				template_id: TEMPLATE_ID,
+				form_data: {
+					partner_name: "Partner GmbH",
+					partner_contact_email: "partner@example.com",
+				},
+				status: "submitted",
+			}),
+		});
+		assert.strictEqual(valid.statusCode, 200);
+	});
+
+	// Round 2 Nr.6: the reserved signature tokens survive rendering so the PDF
+	// generator can substitute the images at that position.
+	test("preserves reserved signature tokens in rendered contract text", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+		const template = mockDatabase.contract_templates.find(
+			(row) => row.id === TEMPLATE_ID,
+		);
+		assert.ok(template);
+		template.contract_text =
+			"Hello {{partner_name}}\n\nSign here:\n\n{{partner_signature}}\n\n{{board_signature}}";
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/contracts/submissions",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				template_id: TEMPLATE_ID,
+				form_data: { partner_name: "Token GmbH" },
+				status: "submitted",
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const data = JSON.parse(response.payload);
+		assert.match(data.generated_contract_text, /Hello Token GmbH/);
+		assert.match(data.generated_contract_text, /\{\{partner_signature\}\}/);
+		assert.match(data.generated_contract_text, /\{\{board_signature\}\}/);
+	});
+
+	// Round 2 Nr.11: with the opt-in flag set, a board signature finalizes the
+	// contract and emails the partner the final signed copy.
+	test("auto-sends the final contract after board signature when opted in", async () => {
+		resetDatabase();
+		const originalFetch = globalThis.fetch;
+		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
+		const originalBaseUrl = process.env.APP_BASE_URL;
+		const sentBodies: Array<Record<string, unknown>> = [];
+		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
+		process.env.APP_BASE_URL = "https://member-manager.test";
+		globalThis.fetch = (async (_url, init) => {
+			sentBodies.push(JSON.parse(String(init?.body)));
+			return new Response(JSON.stringify({ id: "email-789" }), {
+				status: 200,
+			});
+		}) as typeof fetch;
+
+		try {
+			const submission = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(submission);
+			submission.status = "partner_signed";
+			submission.signer_name = "Jane Signer";
+			submission.signed_at = "2026-07-01T12:00:00Z";
+			submission.auto_send_after_board_signed = true;
+			submission.board_signature_token = "board-token-auto";
+			submission.board_signature_token_expires_at = "2099-01-01T00:00:00Z";
+			submission.form_data = {
+				partner_company_name: "Partner GmbH",
+				partner_contact_email: "partner@example.com",
+			};
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/contracts/board-sign/board-token-auto",
+				headers: { "content-type": "application/json" },
+				payload: JSON.stringify({
+					signature_data: "data:image/png;base64,BBBB",
+					signer_name: "Board Member",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updated = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(updated);
+			assert.strictEqual(updated.status, "completed");
+			assert.match(String(updated.final_pdf_token), /^[a-f0-9]{64}$/);
+			assert.ok(updated.final_document_version_id);
+			assert.strictEqual(
+				updated.partner_email_recipient,
+				"partner@example.com",
+			);
+			assert.ok(updated.partner_email_sent_at);
+			const partnerBody = sentBodies.find(
+				(body) => body.to === "partner@example.com",
+			);
+			assert.ok(partnerBody);
+			assert.match(
+				String(partnerBody.text),
+				/https:\/\/member-manager\.test\/api\/contracts\/final\/[a-f0-9]{64}\/pdf/,
+			);
+			const finalVersion = mockDatabase.contract_document_versions.find(
+				(row) => row.submission_id === SUBMISSION_ID && row.source === "final",
+			);
+			assert.ok(finalVersion);
+		} finally {
+			globalThis.fetch = originalFetch;
+			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
+			restoreEnv("APP_BASE_URL", originalBaseUrl);
+		}
+	});
+
+	// Round 2 Nr.11: without the flag, board signing keeps the manual flow.
+	test("keeps the manual flow when auto-send is disabled", async () => {
+		resetDatabase();
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.status = "partner_signed";
+		submission.signer_name = "Jane Signer";
+		submission.signed_at = "2026-07-01T12:00:00Z";
+		submission.auto_send_after_board_signed = false;
+		submission.board_signature_token = "board-token-manual";
+		submission.board_signature_token_expires_at = "2099-01-01T00:00:00Z";
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/contracts/board-sign/board-token-manual",
+			headers: { "content-type": "application/json" },
+			payload: JSON.stringify({
+				signature_data: "data:image/png;base64,BBBB",
+				signer_name: "Board Member",
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const updated = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(updated);
+		assert.strictEqual(updated.status, "board_signed");
+	});
+
+	// Round 2 Nr.11: unconfigured email must never block the board signature —
+	// the submission stays at board_signed for the manual flow.
+	test("skips auto-send when email is not configured", async () => {
+		resetDatabase();
+		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
+		delete process.env.RESEND_API_KEY;
+		delete process.env.CONTRACT_EMAIL_FROM;
+
+		try {
+			const submission = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(submission);
+			submission.status = "partner_signed";
+			submission.signer_name = "Jane Signer";
+			submission.signed_at = "2026-07-01T12:00:00Z";
+			submission.auto_send_after_board_signed = true;
+			submission.board_signature_token = "board-token-noemail";
+			submission.board_signature_token_expires_at = "2099-01-01T00:00:00Z";
+			submission.form_data = {
+				partner_company_name: "Partner GmbH",
+				partner_contact_email: "partner@example.com",
+			};
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/contracts/board-sign/board-token-noemail",
+				headers: { "content-type": "application/json" },
+				payload: JSON.stringify({
+					signature_data: "data:image/png;base64,BBBB",
+					signer_name: "Board Member",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updated = mockDatabase.contract_submissions.find(
+				(row) => row.id === SUBMISSION_ID,
+			);
+			assert.ok(updated);
+			assert.strictEqual(updated.status, "board_signed");
+		} finally {
+			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
+		}
+	});
+
+	// Round 2 Nr.11: the flag itself is toggled via the admin PATCH.
+	test("toggles auto_send_after_board_signed via PATCH", async () => {
+		resetDatabase();
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ auto_send_after_board_signed: true }),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const updated = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(updated);
+		assert.strictEqual(updated.auto_send_after_board_signed, true);
 	});
 
 	// Nr.4: internal comments store a display name, not the raw email.

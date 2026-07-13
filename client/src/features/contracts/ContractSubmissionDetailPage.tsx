@@ -19,6 +19,8 @@ import { Link as RouterLink, useParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	Collapsible,
 	CollapsibleContent,
@@ -28,6 +30,13 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LinkButton } from "@/components/ui/link-button";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
@@ -43,6 +52,7 @@ import { ContractBoardSignatureCard } from "./components/ContractBoardSignatureC
 import { ContractPartnerSignatureCard } from "./components/ContractPartnerSignatureCard";
 import { ContractStatusTimeline } from "./components/ContractStatusTimeline";
 import {
+	CONTRACT_REVIEW_STATUSES,
 	getContractStatusLabel,
 	getContractStatusTone,
 } from "./contractStatus";
@@ -173,6 +183,9 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const [partnerEmailMessage, setPartnerEmailMessage] = useState("");
 	const [downloadError, setDownloadError] = useState<string | null>(null);
 	const [downloading, setDownloading] = useState(false);
+	// Nr.4 (round 2): holds the deferred send action while the admin confirms
+	// re-sending a contract that was already sent to the partner.
+	const [pendingResend, setPendingResend] = useState<(() => void) | null>(null);
 	const { currentUserId, isAdmin } = useCurrentUserIsAdmin();
 	const { permissions, isBoardMember } = useToolAccess();
 	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
@@ -240,10 +253,20 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 		(submission.submitter_user_id === currentUserId || isAdmin);
 	const formEntries = Object.entries(submission.form_data ?? {});
 	// Nr.1: sending requires an explicit approval first (partner_comments allows
-	// a re-send after the partner leaves comments).
+	// a re-send after the partner leaves comments). Nr.4 (round 2):
+	// sent_to_partner allows switching to a different delivery channel, gated
+	// behind an explicit confirmation below.
 	const canSendToPartner =
 		submission.status === "approved" ||
-		submission.status === "partner_comments";
+		submission.status === "partner_comments" ||
+		submission.status === "sent_to_partner";
+	const confirmIfResend = (send: () => void) => {
+		if (submission.status === "sent_to_partner") {
+			setPendingResend(() => send);
+			return;
+		}
+		send();
+	};
 	// Nr.1: Approve is offered while the contract is still under review.
 	const canApprove = [
 		"submitted",
@@ -271,11 +294,54 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 			description="Review, edit and progress this contract through the workflow."
 		>
 			<div className="mb-6 flex flex-col gap-3">
-				<div className="flex items-center gap-2">
+				<div className="flex flex-wrap items-center gap-2">
 					<span className="text-sm text-muted-foreground">Status</span>
 					<Badge variant={getContractStatusTone(submission.status)}>
 						{getContractStatusLabel(submission.status)}
 					</Badge>
+					{/* Round 2 Nr.7: manual override for Legal. Restricted to review
+					statuses — partner/board transitions stay on their dedicated flows.
+					"rejected" is excluded because it requires a reason (Reject button). */}
+					{isContractsAdmin ? (
+						<div className="flex items-center gap-2 sm:ml-auto">
+							<Label
+								htmlFor="manual-status"
+								className="text-sm text-muted-foreground"
+							>
+								Set status manually
+							</Label>
+							<Select
+								value={submission.status}
+								onValueChange={(next) => {
+									if (next === submission.status) return;
+									updateMutation.mutate({
+										status: next as (typeof CONTRACT_REVIEW_STATUSES)[number],
+										manual_status_change: true,
+									});
+								}}
+								disabled={busy}
+							>
+								<SelectTrigger
+									id="manual-status"
+									className="w-44"
+									aria-label="Set status manually"
+								>
+									<SelectValue>
+										{getContractStatusLabel(submission.status)}
+									</SelectValue>
+								</SelectTrigger>
+								<SelectContent>
+									{CONTRACT_REVIEW_STATUSES.filter(
+										(status) => status !== "rejected",
+									).map((status) => (
+										<SelectItem key={status} value={status}>
+											{getContractStatusLabel(status)}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+					) : null}
 				</div>
 				{statusEvents.length > 0 ? (
 					<GlassCard className="p-4">
@@ -491,11 +557,13 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 									<Button
 										disabled={busy || !canSendToPartner}
 										onClick={() =>
-											updateMutation.mutate({
-												admin_edited_text: editedText,
-												notes,
-												send_to_partner: true,
-											})
+											confirmIfResend(() =>
+												updateMutation.mutate({
+													admin_edited_text: editedText,
+													notes,
+													send_to_partner: true,
+												}),
+											)
 										}
 									>
 										Send to partner
@@ -503,13 +571,15 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 									<Button
 										disabled={busy || !canSendToPartner}
 										onClick={() =>
-											updateMutation.mutate({
-												admin_edited_text: editedText,
-												notes,
-												send_partner_email: true,
-												partner_email_subject: partnerEmailSubject,
-												partner_email_message: partnerEmailMessage,
-											})
+											confirmIfResend(() =>
+												updateMutation.mutate({
+													admin_edited_text: editedText,
+													notes,
+													send_partner_email: true,
+													partner_email_subject: partnerEmailSubject,
+													partner_email_message: partnerEmailMessage,
+												}),
+											)
 										}
 									>
 										Send email to partner
@@ -517,16 +587,32 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 									<Button
 										disabled={busy || !canSendToPartner}
 										onClick={() =>
-											updateMutation.mutate({
-												admin_edited_text: editedText,
-												notes,
-												send_opensign: true,
-											})
+											confirmIfResend(() =>
+												updateMutation.mutate({
+													admin_edited_text: editedText,
+													notes,
+													send_opensign: true,
+												}),
+											)
 										}
 									>
 										Send with OpenSign
 									</Button>
 								</div>
+								{/* Round 2 Nr.11: opt-in — when checked, the board signature
+								automatically finalizes the contract and emails the partner. */}
+								<Label className="gap-2 font-normal">
+									<Checkbox
+										checked={submission.auto_send_after_board_signed === true}
+										onCheckedChange={(checked) =>
+											updateMutation.mutate({
+												auto_send_after_board_signed: checked === true,
+											})
+										}
+										disabled={busy}
+									/>
+									Auto-send to partner after board signs
+								</Label>
 								{signUrl ? (
 									<div className="flex flex-col gap-1.5">
 										<Label htmlFor="sign-url">
@@ -619,36 +705,6 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 							</div>
 
 							<ContractActivitySection submission={submission} />
-						</>
-					) : null}
-
-					{finalPdfUrl ? (
-						<>
-							<Separator className="my-5" />
-							<p className="mb-3 text-sm font-medium">Final PDF</p>
-							<div className="flex flex-col gap-1.5">
-								<div className="flex items-center gap-1">
-									<Input value={finalPdfUrl} readOnly />
-									<CopyButton value={finalPdfUrl} />
-								</div>
-								<div className="mt-1 flex flex-row gap-2">
-									<Button variant="ghost" asChild>
-										<a href={finalPdfUrl} target="_blank" rel="noreferrer">
-											<ExternalLink className="size-4" />
-											Open final PDF
-										</a>
-									</Button>
-									<Button variant="outline" asChild>
-										<a
-											href={`${finalPdfUrl}?download=1`}
-											target="_blank"
-											rel="noreferrer"
-										>
-											Download final PDF
-										</a>
-									</Button>
-								</div>
-							</div>
 						</>
 					) : null}
 				</GlassCard>
@@ -822,7 +878,12 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					</GlassCard>
 				) : null}
 
-				{isContractsAdmin && submission.status === "board_signed" ? (
+				{/* 5b regression fix: finalizing sets the status to "completed", so the
+				card must stay visible then — otherwise the link vanishes right after
+				clicking "Generate final PDF link". */}
+				{isContractsAdmin &&
+				(submission.status === "board_signed" ||
+					submission.status === "completed") ? (
 					<GlassCard className="p-6">
 						<p className="mb-2 text-base font-medium">Final PDF</p>
 						<Button
@@ -830,11 +891,50 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 							disabled={busy}
 							onClick={() => finalizeMutation.mutate()}
 						>
-							Generate final PDF link
+							{finalPdfUrl
+								? "Regenerate final PDF link"
+								: "Generate final PDF link"}
 						</Button>
+						{finalPdfUrl ? (
+							<div className="mt-4 flex flex-col gap-1.5">
+								<div className="flex items-center gap-1">
+									<Input value={finalPdfUrl} readOnly />
+									<CopyButton value={finalPdfUrl} />
+								</div>
+								<div className="mt-1 flex flex-row gap-2">
+									<Button variant="ghost" asChild>
+										<a href={finalPdfUrl} target="_blank" rel="noreferrer">
+											<ExternalLink className="size-4" />
+											Open final PDF
+										</a>
+									</Button>
+									<Button variant="outline" asChild>
+										<a
+											href={`${finalPdfUrl}?download=1`}
+											target="_blank"
+											rel="noreferrer"
+										>
+											Download final PDF
+										</a>
+									</Button>
+								</div>
+							</div>
+						) : null}
 					</GlassCard>
 				) : null}
 			</div>
+
+			{/* Nr.4 (round 2): confirm before re-sending via another channel. */}
+			<ConfirmDialog
+				open={pendingResend !== null}
+				onOpenChange={(open) => {
+					if (!open) setPendingResend(null);
+				}}
+				title="Send again to partner?"
+				description="This contract was already sent to the partner. Send it again via the selected method?"
+				confirmLabel="Send again"
+				onConfirm={() => pendingResend?.()}
+			/>
 		</ToolPageShell>
 	);
 }

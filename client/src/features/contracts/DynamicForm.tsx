@@ -70,6 +70,12 @@ function HelpText({ text }: { text: string }): JSX.Element {
 	return <p className="text-xs text-muted-foreground">{text}</p>;
 }
 
+// Round 2 Nr.12: light format check for EMAIL fields. The server re-validates
+// with Zod; this only drives the inline hint.
+export function isValidEmailInput(value: string): boolean {
+	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+}
+
 function fieldFor(
 	variable: ContractTemplateVariable,
 	value: unknown,
@@ -78,6 +84,32 @@ function fieldFor(
 ) {
 	const dataType: ContractVariableDataType = variable.data_type;
 	switch (dataType) {
+		case "EMAIL": {
+			const current = typeof value === "string" ? value : "";
+			const showInvalid = current.trim() !== "" && !isValidEmailInput(current);
+			return (
+				<div className="flex min-w-0 flex-col gap-1.5">
+					<Label>
+						{variable.label}
+						{variable.is_required ? " *" : ""}
+					</Label>
+					<Input
+						type="email"
+						value={current}
+						onChange={(event) => setValue(event.target.value)}
+						required={variable.is_required}
+						disabled={disabled}
+						aria-invalid={showInvalid || undefined}
+					/>
+					{showInvalid ? (
+						<p className="text-xs text-destructive">
+							Enter a valid email address.
+						</p>
+					) : null}
+					{variable.help_text ? <HelpText text={variable.help_text} /> : null}
+				</div>
+			);
+		}
 		case "TEXTAREA":
 			return (
 				<div className="flex min-w-0 flex-col gap-1.5">

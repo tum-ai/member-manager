@@ -7,9 +7,45 @@ interface ContractStatusTimelineProps {
 	loading?: boolean;
 }
 
+/**
+ * Marker note set by the server when a status was changed via the manual
+ * override dropdown (round 2 Nr.7) rather than a workflow button.
+ */
+export const MANUAL_STATUS_CHANGE_NOTE = "Manual override";
+
 function statusLabel(status: string | null): string {
 	if (!status) return "—";
 	return getContractStatusLabel(status as ContractWorkflowStatus);
+}
+
+function eventPhrase(event: ContractStatusEvent): JSX.Element {
+	// Round 2 Nr.2: the initial event has no from_status — phrase it as the
+	// submission itself instead of a "— → X" transition.
+	if (!event.from_status) {
+		if (event.to_status === "draft") {
+			return <span className="font-medium">Draft created</span>;
+		}
+		return (
+			<>
+				Submitted as{" "}
+				<span className="font-medium">{statusLabel(event.to_status)}</span>
+			</>
+		);
+	}
+	if (event.note === MANUAL_STATUS_CHANGE_NOTE) {
+		return (
+			<>
+				Status manually changed from {statusLabel(event.from_status)} to{" "}
+				<span className="font-medium">{statusLabel(event.to_status)}</span>
+			</>
+		);
+	}
+	return (
+		<>
+			{statusLabel(event.from_status)} →{" "}
+			<span className="font-medium">{statusLabel(event.to_status)}</span>
+		</>
+	);
 }
 
 /**
@@ -36,18 +72,7 @@ export function ContractStatusTimeline({
 						{new Date(event.created_at).toLocaleString()}
 					</span>
 					<span>
-						{event.from_status ? (
-							<>
-								{statusLabel(event.from_status)} →{" "}
-								<span className="font-medium">
-									{statusLabel(event.to_status)}
-								</span>
-							</>
-						) : (
-							<span className="font-medium">
-								{statusLabel(event.to_status)}
-							</span>
-						)}
+						{eventPhrase(event)}
 						{event.changed_by_name ? (
 							<span className="text-muted-foreground">
 								{" "}

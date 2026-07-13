@@ -18,6 +18,25 @@ export type ContractWorkflowStatus =
 	(typeof CONTRACT_WORKFLOW_STATUSES)[number];
 
 /**
+ * Data types a template author can assign to a contract variable. EMAIL
+ * behaves like TEXT but gets email-format validation on both client and
+ * server (round 2 Nr.12).
+ */
+export const CONTRACT_VARIABLE_DATA_TYPES = [
+	"TEXT",
+	"TEXTAREA",
+	"NUMBER",
+	"DATE",
+	"BOOLEAN",
+	"SELECT",
+	"FILE",
+	"EMAIL",
+] as const;
+
+export type ContractVariableDataType =
+	(typeof CONTRACT_VARIABLE_DATA_TYPES)[number];
+
+/**
  * A single status transition recorded for a contract submission. Appended
  * (never overwritten) so the full history stays visible in the contract view.
  */
