@@ -109,6 +109,20 @@ describe("MainLayout sidebar navigation", () => {
 		toolAccessState.permissions = [];
 	});
 
+	it("reveals Partner Management only with partners.manage", () => {
+		renderLayout({ isAdmin: false, route: "/tools/partners" });
+		expect(
+			screen.queryByRole("link", { name: /partner management/i }),
+		).not.toBeInTheDocument();
+
+		toolAccessState.permissions = ["partners.manage"];
+		renderLayout({ isAdmin: false, route: "/tools/partners" });
+		expect(
+			screen.getByRole("link", { name: /partner management/i }),
+		).toBeInTheDocument();
+		toolAccessState.permissions = [];
+	});
+
 	it("keeps a report bug action at the bottom of the layout", () => {
 		renderLayout({ isAdmin: false });
 

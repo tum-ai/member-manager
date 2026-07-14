@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import {
 	Award,
 	Briefcase,
+	Building2,
 	CalendarDays,
 	ChevronRight,
 	FileText,
@@ -127,6 +128,7 @@ export function MainLayout({
 
 	const showFinanceReview = permissions.includes("finance.review");
 	const showTumaiDays = permissions.includes("tumai_days.manage");
+	const showPartnerManagement = permissions.includes("partners.manage");
 	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
 
 	const pathname = location.pathname;
@@ -228,8 +230,16 @@ export function MainLayout({
 					key: "partners",
 					label: "Partners & Sponsors",
 					icon: Handshake,
-					match: ["/tools/jobs"],
-					items: [{ label: "Job Board", to: "/tools/jobs", icon: Briefcase }],
+					match: ["/tools/jobs", "/tools/partners"],
+					items: [
+						{ label: "Job Board", to: "/tools/jobs", icon: Briefcase },
+						{
+							label: "Partner Management",
+							to: "/tools/partners",
+							icon: Building2,
+							visible: showPartnerManagement,
+						},
+					],
 				},
 			],
 		},

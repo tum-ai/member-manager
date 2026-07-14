@@ -168,7 +168,7 @@ export const mockDatabase: MockData = {
 		},
 		{
 			department: "Partners & Sponsors",
-			permissions: ["contracts.admin"],
+			permissions: ["contracts.create", "partners.manage"],
 			updated_at: "2026-06-02T00:00:00Z",
 			updated_by: MOCK_ADMIN_ID,
 		},
@@ -968,7 +968,7 @@ export function resetMockDatabase(): void {
 		},
 		{
 			department: "Partners & Sponsors",
-			permissions: ["contracts.admin"],
+			permissions: ["contracts.create", "partners.manage"],
 			updated_at: "2026-06-02T00:00:00Z",
 			updated_by: MOCK_ADMIN_ID,
 		},

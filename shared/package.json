@@ -20,6 +20,9 @@
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write"
 	},
+	"dependencies": {
+		"zod": "^4.4.3"
+	},
 	"devDependencies": {
 		"typescript": "^5.9.3"
 	}
