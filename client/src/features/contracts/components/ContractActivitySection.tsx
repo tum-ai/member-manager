@@ -1,7 +1,7 @@
+import type { ContractSubmission } from "@member-manager/shared";
 import { CircleCheck, TriangleAlert } from "lucide-react";
 import type React from "react";
 import { Separator } from "@/components/ui/separator";
-import type { ContractSubmission } from "@/features/contracts/useContracts";
 import { cn } from "@/lib/utils";
 
 type ActivityTone = "success" | "error";

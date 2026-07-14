@@ -17,6 +17,7 @@
 	"scripts": {
 		"build": "tsc",
 		"typecheck": "tsc --noEmit",
+		"test": "node --test test/**/*.test.ts",
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write"
 	},

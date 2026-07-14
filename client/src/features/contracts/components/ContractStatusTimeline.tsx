@@ -1,6 +1,8 @@
-import type { ContractWorkflowStatus } from "@member-manager/shared";
+import type {
+	ContractStatusEvent,
+	ContractWorkflowStatus,
+} from "@member-manager/shared";
 import { getContractStatusLabel } from "@/features/contracts/contractStatus";
-import type { ContractStatusEvent } from "@/features/contracts/useContracts";
 
 interface ContractStatusTimelineProps {
 	events: ContractStatusEvent[];

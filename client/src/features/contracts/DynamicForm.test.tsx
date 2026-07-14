@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { DynamicForm, isValidEmailInput, isVisible } from "./DynamicForm";
-import type { ContractTemplateVariable } from "./useContracts";
+import type { ContractTemplateVariable } from "@member-manager/shared";
 
 function makeVariable(
 	overrides: Partial<ContractTemplateVariable> = {},

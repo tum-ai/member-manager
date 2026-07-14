@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 
 // File-size policy (lines):
@@ -23,12 +23,8 @@ const EXEMPT_PATTERNS = [
 	/\.test\.tsx?$/,
 ];
 
-// Current offenders (genuinely >700 lines). Exempt from hard-fail but each
-// prints a backlog notice. Tracked as remediation backlog in #189.
-export const ALLOWLIST = [
-	"client/src/features/contracts/ContractTemplatesPage.tsx",
-	"client/src/features/contracts/ContractSubmissionDetailPage.tsx",
-];
+// Temporary exemptions must name a tracked remediation backlog item.
+export const ALLOWLIST = [];
 
 /**
  * Classify a file against the size policy.
@@ -191,8 +187,14 @@ function countLines(path) {
 	return { lineCount: countLinesInSource(source), source };
 }
 
+export function filterExistingPaths(paths, exists = existsSync) {
+	return paths.filter((path) => exists(path));
+}
+
 export function main() {
-	const files = listTrackedFiles();
+	// `git ls-files` still reports unstaged deletions; ignore paths that no
+	// longer exist in the working tree so refactors can run this check pre-stage.
+	const files = filterExistingPaths(listTrackedFiles());
 
 	const hardFailures = [];
 	const softWarnings = [];

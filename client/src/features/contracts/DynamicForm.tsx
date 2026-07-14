@@ -1,4 +1,9 @@
-import { CONTRACT_ADDONS, CONTRACT_PACKAGES } from "@member-manager/shared";
+import {
+	CONTRACT_ADDONS,
+	CONTRACT_PACKAGES,
+	type ContractTemplateVariable,
+	type ContractVariableDataType,
+} from "@member-manager/shared";
 import { ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -17,10 +22,6 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type {
-	ContractTemplateVariable,
-	ContractVariableDataType,
-} from "./useContracts";
 
 interface DynamicFormProps {
 	variables: ContractTemplateVariable[];
