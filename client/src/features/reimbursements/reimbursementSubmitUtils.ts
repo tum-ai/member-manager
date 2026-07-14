@@ -1,3 +1,4 @@
+import { isValidIban } from "@member-manager/shared";
 import type {
 	ReimbursementRequest,
 	ReimbursementSubmissionType,
@@ -114,7 +115,11 @@ export function validateForm(values: FormValues): FormErrors {
 		errors.description = "Describe what this request is for.";
 	if (!values.department) errors.department = "Select a department.";
 	if (!values.receipt) errors.receiptFile = "Attach a receipt.";
-	if (!values.paymentIban.trim()) errors.paymentIban = "IBAN is required.";
+	if (!values.paymentIban.trim()) {
+		errors.paymentIban = "IBAN is required.";
+	} else if (!isValidIban(values.paymentIban)) {
+		errors.paymentIban = "Enter a valid IBAN.";
+	}
 	if (!values.paymentBic.trim()) errors.paymentBic = "BIC is required.";
 
 	return errors;

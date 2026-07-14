@@ -153,6 +153,34 @@ export function buildServerEnv({
 		extractExistingServerValue(existingEnv, "FIELD_ENCRYPTION_KEY") ??
 		encryptionKey ??
 		DEFAULT_LOCAL_ENCRYPTION_KEY;
+	const existingFallbackKeys = extractExistingServerValue(
+		existingEnv,
+		"FIELD_ENCRYPTION_KEY_FALLBACKS",
+	);
+	let fallbackKeys = [];
+	if (existingFallbackKeys) {
+		try {
+			fallbackKeys = JSON.parse(existingFallbackKeys);
+		} catch {
+			throw new Error(
+				"FIELD_ENCRYPTION_KEY_FALLBACKS must be a JSON array in server/.env.local",
+			);
+		}
+		if (
+			!Array.isArray(fallbackKeys) ||
+			fallbackKeys.some((value) => typeof value !== "string")
+		) {
+			throw new Error(
+				"FIELD_ENCRYPTION_KEY_FALLBACKS must be a JSON array in server/.env.local",
+			);
+		}
+	}
+	if (resolvedEncryptionKey !== DEFAULT_LOCAL_ENCRYPTION_KEY) {
+		fallbackKeys.push(DEFAULT_LOCAL_ENCRYPTION_KEY);
+	}
+	fallbackKeys = [
+		...new Set(fallbackKeys.filter((value) => value !== resolvedEncryptionKey)),
+	];
 	const existingPartnerPortalJobsApiUrl = extractExistingServerValue(
 		existingEnv,
 		"PARTNER_PORTAL_JOBS_API_URL",
@@ -187,6 +215,7 @@ export function buildServerEnv({
 		`SUPABASE_URL=${apiUrl}`,
 		`SUPABASE_SERVICE_ROLE_KEY=${serviceRoleKey}`,
 		`FIELD_ENCRYPTION_KEY=${resolvedEncryptionKey}`,
+		`FIELD_ENCRYPTION_KEY_FALLBACKS=${JSON.stringify(fallbackKeys)}`,
 		`PORT=${port}`,
 		`CORS_ORIGIN=${corsOrigin}`,
 		`ENABLE_LOCAL_ADMIN_BOOTSTRAP=${localAdminBootstrapFlag}`,

@@ -80,3 +80,7 @@ Use an equivalent subagent or focused helper when your environment provides one:
 ## Learnings
 
 <!-- Append durable, non-obvious lessons here as you discover them. One bullet each. -->
+
+- Local bank-detail seed fixtures use `enc-v1:` ciphertext encrypted with the
+  default local key; custom local keys must retain that fixture key in
+  `FIELD_ENCRYPTION_KEY_FALLBACKS`.

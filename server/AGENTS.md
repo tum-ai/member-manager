@@ -10,13 +10,14 @@ Fastify 5 + Zod + Supabase JS. Package: `@member-manager/server`. ESM (`.js` imp
   - `auth.ts` — `checkAdminRole`, `checkDepartmentPermission` (department-scoped RBAC).
   - `departmentPermissions.ts` — department→permission mapping.
   - `sensitiveData.ts` — **field-level encryption** (`enc-v1:` AES-GCM). `SENSITIVE_MEMBER_FIELDS`,
-    `SENSITIVE_SEPA_FIELDS`, `SENSITIVE_REIMBURSEMENT_FIELDS`.
+    `SENSITIVE_SEPA_FIELDS`, `SENSITIVE_REIMBURSEMENT_FIELDS`. Key rotation uses
+    `FIELD_ENCRYPTION_KEY_FALLBACKS` plus `rotate:encryption`.
   - `errors.ts` — typed errors (`AppError`, `ValidationError`, `NotFoundError`, `ForbiddenError`,
     `UnauthorizedError`, `ConflictError`, `DatabaseError`, `isNotFoundError`).
   - `supabase.ts` — `getSupabase()` (service client). The only Supabase entry point.
 - `src/plugins/errorHandler.ts` — central handler mapping typed errors → HTTP responses.
 - `src/middleware/auth.ts` — `authenticate` + `require*` preHandlers.
-- `src/scripts/` — one-off backfills (`backfillSensitiveData.ts`, `backfillMemberCvs.ts`).
+- `src/scripts/` — one-off maintenance (`rotateSensitiveData.ts`, `backfillMemberCvs.ts`).
 - `src/test/` — `node --test` suites + c8 coverage.
 
 ## Invariants

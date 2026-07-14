@@ -156,6 +156,9 @@ describe("Reimbursement Routes", async () => {
 				assert.strictEqual(data.status, "requested");
 				assert.strictEqual(data.approval_status, "pending");
 				assert.strictEqual(data.payment_status, "to_be_paid");
+				assert.strictEqual(data.payment_iban, "DE89370400440532013000");
+				assert.strictEqual(data.payment_bic, "COBADEFFXXX");
+				assert.doesNotMatch(JSON.stringify(data), /enc-v1:/);
 
 				const stored = mockDatabase.reimbursements.find(
 					(row) => row.id === data.id,

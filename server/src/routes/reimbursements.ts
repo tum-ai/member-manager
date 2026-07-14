@@ -1,5 +1,5 @@
+import { isValidIban, normalizeIban } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
-import { electronicFormatIBAN, isValidIBAN } from "ibantools";
 import JSZip from "jszip";
 import { z } from "zod";
 import { getAuthEmail, getAuthEmails } from "../lib/authEmails.js";
@@ -101,8 +101,8 @@ function validateOptionalIban(value: string | null | undefined): string | null {
 		return null;
 	}
 
-	const normalized = electronicFormatIBAN(value);
-	if (!normalized || !isValidIBAN(normalized)) {
+	const normalized = normalizeIban(value);
+	if (!isValidIban(normalized)) {
 		throw new z.ZodError([
 			{
 				code: z.ZodIssueCode.custom,
@@ -387,6 +387,25 @@ function withoutReceiptPayload(row: ReimbursementRow): ReimbursementRow {
 	return rest;
 }
 
+function decryptReimbursementForResponse(
+	row: ReimbursementRow,
+	log: RouteLogger,
+	context: Record<string, unknown>,
+): ReimbursementRow {
+	return withoutReceiptPayload(
+		decryptRecordSafely(
+			row,
+			SENSITIVE_REIMBURSEMENT_FIELDS,
+			({ field, error }) => {
+				log.warn(
+					{ err: error, field, ...context },
+					"Failed to decrypt reimbursement field; returning blank value",
+				);
+			},
+		),
+	);
+}
+
 function hasReceiptPayload(row: ReimbursementRow): boolean {
 	return (
 		(typeof row.receipt_base64 === "string" &&
@@ -466,7 +485,7 @@ function getRequesterName(row: ReimbursementRow): string | null {
 function normalizeComparableIban(value: unknown): string | null {
 	const normalized = normalizeMaybeString(value);
 	if (!normalized) return null;
-	return electronicFormatIBAN(normalized) ?? normalized.replace(/\s/g, "");
+	return normalizeIban(normalized);
 }
 
 function isSamePaymentAccount(
@@ -1353,7 +1372,9 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					force: body.force,
 					log: request.log,
 				});
-				return withoutReceiptPayload(updated);
+				return decryptReimbursementForResponse(updated, request.log, {
+					requestId,
+				});
 			} catch (syncError) {
 				if (syncError instanceof ReimbursementWorkflowError) {
 					return reply.status(syncError.statusCode).send({
@@ -1447,7 +1468,11 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 
 			try {
 				if (!body.action) {
-					return withoutReceiptPayload(data as ReimbursementRow);
+					return decryptReimbursementForResponse(
+						data as ReimbursementRow,
+						request.log,
+						{ requestId },
+					);
 				}
 
 				const updatedRequest = data as ReimbursementRow;
@@ -1468,7 +1493,11 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				);
 			}
 
-			return withoutReceiptPayload(data as ReimbursementRow);
+			return decryptReimbursementForResponse(
+				data as ReimbursementRow,
+				request.log,
+				{ requestId },
+			);
 		},
 	);
 
@@ -1575,7 +1604,13 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 
 			return reply
 				.status(201)
-				.send(withoutReceiptPayload(data as ReimbursementRow));
+				.send(
+					decryptReimbursementForResponse(
+						data as ReimbursementRow,
+						request.log,
+						{ userId: user.id },
+					),
+				);
 		},
 	);
 }

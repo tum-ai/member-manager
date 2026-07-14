@@ -85,6 +85,10 @@ test("buildServerEnv wires server vars and uses fallback encryption key", () => 
 		env,
 		/^FIELD_ENCRYPTION_KEY=fixed-local-dev-secret-do-not-use-in-prod$/m,
 	);
+	assert.match(
+		env,
+		/^FIELD_ENCRYPTION_KEY_FALLBACKS=\["local-dev-only-encryption-key-do-not-use-in-production"\]$/m,
+	);
 	assert.match(env, /^PORT=8787$/m);
 	assert.match(
 		env,
@@ -106,6 +110,26 @@ test("buildServerEnv reuses an existing FIELD_ENCRYPTION_KEY when provided", () 
 	});
 
 	assert.match(env, /^FIELD_ENCRYPTION_KEY=reused-secret-from-previous-run$/m);
+	assert.match(
+		env,
+		/^FIELD_ENCRYPTION_KEY_FALLBACKS=\["local-dev-only-encryption-key-do-not-use-in-production"\]$/m,
+	);
+});
+
+test("buildServerEnv preserves encryption fallback keys", () => {
+	const env = buildServerEnv({
+		apiUrl: "http://127.0.0.1:54321",
+		serviceRoleKey: "service-abc",
+		existingEnv: [
+			"FIELD_ENCRYPTION_KEY=current-local-key-with-at-least-32-characters",
+			'FIELD_ENCRYPTION_KEY_FALLBACKS=["older-local-key-with-at-least-32-characters"]',
+		].join("\n"),
+	});
+
+	assert.match(
+		env,
+		/^FIELD_ENCRYPTION_KEY_FALLBACKS=\["older-local-key-with-at-least-32-characters","local-dev-only-encryption-key-do-not-use-in-production"\]$/m,
+	);
 });
 
 test("buildServerEnv preserves LOCAL_ADMIN_EMAILS when already configured", () => {

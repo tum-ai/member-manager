@@ -39,7 +39,8 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | --- | --- | --- |
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` | must use `https://` (enforced by `assertSecureRemoteUrl`) |
 | `SUPABASE_SERVICE_ROLE_KEY` | from Supabase dashboard | never expose to client |
-| `FIELD_ENCRYPTION_KEY` | 32+ char strong random | **see warning below** |
+| `FIELD_ENCRYPTION_KEY` | 32+ char strong random | current encryption key; see rotation procedure below |
+| `FIELD_ENCRYPTION_KEY_FALLBACKS` | JSON array of old 32+ char keys | normally `[]`; temporarily populated during rotation |
 | `OPENAI_API_KEY` | OpenAI project key | optional; enables reimbursement receipt field extraction |
 | `GITHUB_APP_ID` | GitHub App ID | required for in-app bug reports; app needs Issues read/write access |
 | `GITHUB_APP_INSTALLATION_ID` | GitHub App installation ID | required for in-app bug reports; install the app on `tum-ai/member-manager` |
@@ -154,14 +155,42 @@ pnpm exec turbo login
 pnpm exec turbo link   # select the TUM-ai team
 ```
 
-## The `FIELD_ENCRYPTION_KEY` warning
+## Field encryption and rotation
 
-This secret encrypts sensitive member and SEPA fields before they hit Supabase. **Rotating or losing it makes existing rows undecryptable.**
+These secrets encrypt sensitive member, SEPA, and reimbursement fields before
+they hit Supabase. Losing every key capable of decrypting a row makes that row
+unrecoverable.
 
 - Generate once, store in your password manager, paste into Vercel.
 - Never commit it (it's gitignored via `.env` rules but double-check).
-- If you suspect compromise: you need to decrypt everything with the old key, then re-encrypt with the new key. There is no automatic rotation script. Plan downtime.
 - Never use the local dev placeholder (`local-dev-only-...`) in prod.
+
+The first enforcement migration blocks new plaintext writes while allowing
+unrelated updates to legacy rows. After deploying it, backfill any legacy
+plaintext:
+
+```bash
+pnpm --filter @member-manager/server backfill:encryption
+```
+
+The command performs a post-write verification across the configured keyring.
+Its `plaintextBefore` count reports how many rows required cleanup, not the
+remaining count. A later migration can then replace the column-specific
+triggers with validated check constraints.
+
+Rotate without downtime:
+
+1. Generate a new 32+ character random key.
+2. Set `FIELD_ENCRYPTION_KEY` to the new key and
+   `FIELD_ENCRYPTION_KEY_FALLBACKS` to a JSON array containing the old key.
+3. Deploy and verify existing profiles and reimbursement records still load.
+4. Run `pnpm --filter @member-manager/server rotate:encryption` with the same
+   environment and inspect the value-free dry-run counts.
+5. Run
+   `pnpm --filter @member-manager/server rotate:encryption --apply`. This
+   paginates through all sensitive rows, uses compare-and-swap updates, and
+   verifies the result.
+6. Verify reads again, set `FIELD_ENCRYPTION_KEY_FALLBACKS=[]`, and redeploy.
 
 ## Deploying
 

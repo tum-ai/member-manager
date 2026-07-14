@@ -143,17 +143,29 @@ pnpm supabase:stop
 
 ## Sensitive Data Handling
 
-The server encrypts sensitive member and SEPA data before persisting it to Supabase and decrypts it only for authorized responses.
+The shared client/server schema normalizes IBANs and validates their country
+format and checksum. The server encrypts sensitive member, SEPA, and
+reimbursement data before persisting it to Supabase and decrypts it only for
+authorized responses.
 
 - encrypted member fields include `date_of_birth`, `street`, `number`, `postal_code`, `city`, and `country`
 - encrypted SEPA fields include `iban`, `bic`, and `bank_name`
+- encrypted reimbursement fields include `payment_iban` and `payment_bic`
 - production Supabase URLs must use `https://`
+- database write guards reject plaintext sensitive fields, including direct Supabase writes
 
 If older environments contain plaintext data, run the one-time backfill:
 
 ```bash
 pnpm --filter @member-manager/server backfill:encryption
 ```
+
+To rotate the encryption key without downtime, deploy the new
+`FIELD_ENCRYPTION_KEY` with the old key in
+`FIELD_ENCRYPTION_KEY_FALLBACKS`, run
+`pnpm --filter @member-manager/server rotate:encryption` for a dry run followed
+by `pnpm --filter @member-manager/server rotate:encryption --apply`, then
+remove the fallback after verification.
 
 ## API Summary
 

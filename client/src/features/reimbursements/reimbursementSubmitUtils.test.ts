@@ -194,4 +194,11 @@ describe("validateForm", () => {
 			"Enter a positive amount.",
 		);
 	});
+
+	it("rejects an IBAN with an invalid checksum", () => {
+		expect(
+			validateForm(values({ paymentIban: "DE89370400440532013001" }))
+				.paymentIban,
+		).toBe("Enter a valid IBAN.");
+	});
 });

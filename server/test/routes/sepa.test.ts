@@ -3,6 +3,10 @@ import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
 import type { FastifyInstance } from "fastify";
 import {
+	decryptRecord,
+	SENSITIVE_SEPA_FIELDS,
+} from "../../src/lib/sensitiveData.js";
+import {
 	authHeaders,
 	closeTestApp,
 	getTestApp,
@@ -156,6 +160,14 @@ describe("SEPA Routes", async () => {
 			});
 
 			assert.strictEqual(response.statusCode, 200);
+			const storedSepa = mockDatabase.sepa.find(
+				(row) => row.user_id === testUserIds.otherUser,
+			);
+			assert.ok(storedSepa);
+			assert.strictEqual(
+				decryptRecord(storedSepa, SENSITIVE_SEPA_FIELDS).iban,
+				"DE89370400440532013000",
+			);
 		});
 
 		test("rejects unauthenticated request", async () => {

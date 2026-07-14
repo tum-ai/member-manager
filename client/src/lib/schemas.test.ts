@@ -12,6 +12,22 @@ const validSepaPayload = {
 };
 
 describe("sepaSchema", () => {
+	it("normalizes valid IBANs and rejects invalid checksums", () => {
+		const validResult = sepaSchema.safeParse({
+			...validSepaPayload,
+			iban: "de89 3704-0044 0532 0130 00",
+		});
+		const invalidResult = sepaSchema.safeParse({
+			...validSepaPayload,
+			iban: "DE89370400440532013001",
+		});
+
+		expect(validResult.success).toBe(true);
+		expect(validResult.data?.iban).toBe("DE89370400440532013000");
+		expect(invalidResult.success).toBe(false);
+		expect(invalidResult.error?.issues[0]?.message).toBe("Invalid IBAN");
+	});
+
 	it("requires the SEPA mandate agreement", () => {
 		const result = sepaSchema.safeParse({
 			...validSepaPayload,

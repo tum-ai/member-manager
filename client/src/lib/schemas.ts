@@ -1,3 +1,6 @@
+export type { SepaSchema } from "@member-manager/shared";
+export { sepaSchema } from "@member-manager/shared";
+
 import { z } from "zod";
 import { ENGAGEMENT_SPECIAL_ROLES } from "./constants";
 import { LINKEDIN_PROFILE_URL_REGEX } from "./linkedin";
@@ -59,22 +62,6 @@ export const memberSchema = z.object({
 	degree: z.string().nullish(),
 	school: z.string().nullish(),
 	reimbursement_slack_notifications_enabled: z.boolean().optional(),
-});
-
-export const sepaSchema = z.object({
-	iban: z.string().min(15, "Invalid IBAN"),
-	bic: z.string().optional(),
-	bank_name: z.string().min(1, "Bank name is required"),
-	mandate_agreed: z.boolean().refine((value) => value, {
-		message: "You must agree to the SEPA mandate",
-	}),
-	privacy_agreed: z.boolean().refine((value) => value, {
-		message: "You must agree to the Privacy Policy",
-	}),
-	data_privacy_notice_agreed: z.boolean().refine((value) => value, {
-		message: "You must agree to the Data Privacy Notice",
-	}),
-	user_id: z.string(),
 });
 
 export const engagementSchema = z
@@ -142,7 +129,6 @@ export const linkedinSchema = z.object({
 });
 
 export type MemberSchema = z.infer<typeof memberSchema>;
-export type SepaSchema = z.infer<typeof sepaSchema>;
 export type LinkedinSchema = z.infer<typeof linkedinSchema>;
 export type EngagementSchema = z.infer<typeof engagementSchema>;
 export type EngagementFormSchema = z.infer<typeof engagementFormSchema>;

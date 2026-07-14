@@ -11,8 +11,8 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 // `sepa` row — SEPA is only seeded for the reimbursement personas (…0001/0009/
 // 0011/0020). So GET /api/sepa/<member> 404s and the form renders empty on first
 // load. Filling any field makes the SEPA form dirty, which makes the profile
-// save include a PUT /api/sepa/<member>. The PUT validates the IBAN server-side
-// with `ibantools` (the client only checks length ≥ 15), and a successful save
+// save include a PUT /api/sepa/<member>. The shared schema validates the IBAN
+// checksum in both the client and server, and a successful save
 // upserts the row — so these tests assert via reload rather than a pristine
 // empty state, and stay re-runnable.
 //
@@ -22,8 +22,7 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 const VALID_IBAN = "DE89370400440532013000";
 const VALID_BIC = "COBADEFFXXX";
 
-// A 15+ char string that clears the client min-length guard but is NOT a valid
-// IBAN, so the server PUT rejects it and the save surfaces an error toast.
+// An invalid IBAN that is rejected before the profile request is sent.
 const INVALID_IBAN = "DE00000000000000";
 
 // The regular member is seeded with all agreements already accepted, so the
@@ -199,37 +198,32 @@ test.describe("SEPA mandate setup", () => {
 		await expect(mandateCheckbox).not.toBeChecked();
 	});
 
-	test("an invalid IBAN is rejected by the server and the save fails", async ({
+	test("an invalid IBAN is rejected before the profile request is sent", async ({
 		page,
 	}) => {
 		await loginAsLocalMember(page);
 
-		// 16 chars clears the client min-length(15) guard but fails the server's
-		// `isValidIBAN` check digit validation.
 		await page.getByLabel("IBAN").fill(INVALID_IBAN);
 		await page.getByLabel("BIC").fill(VALID_BIC);
 		await page.getByLabel("Bank Name").fill(`Bad IBAN Bank ${Date.now()}`);
 
-		// Satisfy all three agreements so the request actually reaches the server
-		// (otherwise the client blocks on missing agreements, not the IBAN).
+		// Satisfy all three agreements so IBAN validation is the only blocker.
 		await agreeAllAgreements(page);
 
-		// The save fires a SEPA PUT that the server rejects with a 4xx.
-		const sepaRejected = page.waitForResponse(
-			(r) =>
-				r.url().includes("/api/sepa/") &&
-				r.request().method() === "PUT" &&
-				r.status() >= 400,
-		);
+		let sepaPutCount = 0;
+		page.on("request", (request) => {
+			if (request.url().includes("/api/sepa/") && request.method() === "PUT") {
+				sepaPutCount += 1;
+			}
+		});
 		await page
 			.getByRole("button", { name: /save changes/i })
 			.first()
 			.click();
-		await sepaRejected;
 
-		// The page surfaces the failure as an error toast and does NOT claim
-		// success.
-		await expectToast(page, /Error saving/i);
+		await expect(page.getByText("Invalid IBAN")).toBeVisible();
+		await expectToast(page, /complete all required fields/i);
+		expect(sepaPutCount).toBe(0);
 		await expect(page.getByText(/profile saved successfully/i)).toHaveCount(0);
 	});
 

@@ -195,9 +195,6 @@ importers:
       fastify-plugin:
         specifier: ^5.1.0
         version: 5.1.0
-      ibantools:
-        specifier: ^4.5.4
-        version: 4.5.4
       jszip:
         specifier: ^3.10.1
         version: 3.10.1
@@ -223,6 +220,9 @@ importers:
 
   shared:
     dependencies:
+      ibantools:
+        specifier: ^4.5.4
+        version: 4.5.4
       zod:
         specifier: ^4.4.3
         version: 4.4.3
