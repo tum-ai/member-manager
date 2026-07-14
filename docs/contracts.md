@@ -25,6 +25,19 @@ Template source DOCX files are kept locally in `data/contracts/` and are intenti
 - `Single Event Sponsorship`
 - `Makeathon Sponsorship`
 
+Template variables support the data types `TEXT`, `TEXTAREA`, `NUMBER`, `DATE`,
+`BOOLEAN`, `SELECT`, `FILE`, and `EMAIL`. `EMAIL` behaves like `TEXT` but is
+format-validated in the form and again on the server before a submission is
+persisted.
+
+Besides `{{variable}}` placeholders, the reserved tokens `{{partner_signature}}`
+and `{{board_signature}}` can be placed anywhere in the contract text. They are
+never substituted from form data; instead the PDF renderer draws the matching
+signature image inline at that position once the party has signed (an
+underscore placeholder line until then). Signatures without a matching token in
+the text keep rendering on a trailing "Signaturen" page. The template editor
+lists these tokens with copy buttons.
+
 The package and tier catalog is shared by client and server in `shared/src/contracts.ts`, so preview rendering and server rendering use the same package labels, prices, and benefit lists.
 The same shared catalog now owns the selectable a-la-carte add-ons. Templates
 use the `selected_addons` multi-select field; rendering expands it into
@@ -82,7 +95,34 @@ Legacy review statuses such as `submitted`, `in_review`, `approved`, `rejected`,
 When Legal & Finance uses **Request Clarification**, the submission status is
 set to `inquiry`. If contract email sending is configured, Member Manager emails
 the original internal submitter with the clarification message and a link back
-to the submission.
+to the submission. Clarification is only available before approval.
+
+Every status transition is recorded in `contract_status_events` and shown as a
+timeline on the submission detail page, starting with the initial submission.
+If email is configured, status changes also notify the legal mailbox
+(`CONTRACT_LEGAL_EMAIL`) and the submitter.
+
+Contracts admins can set the status directly via a dropdown on the detail page.
+Manual overrides are restricted to the review statuses (`submitted`,
+`legal_review`, `in_review`, `inquiry`, `approved`) on both ends — the server
+rejects anything else — and are tagged "Manual override" in the timeline.
+Partner/board signing and completion always go through their dedicated flows.
+
+Sending to the partner requires an explicit approval first. A contract already
+at `sent_to_partner` can be re-sent through a different channel (link, email,
+OpenSign) after an explicit confirmation dialog.
+
+## Finalization
+
+After the board signature, Legal & Finance generates the final PDF link
+manually, or the submission auto-finalizes when its opt-in
+"Auto-send to partner after board signs" flag is set: the final document
+version is created and the partner is emailed a "View signed contract" link.
+The submission is only marked `completed` after that email succeeds; on
+failure it stays at `board_signed` with the error stored on the submission, and
+the manual finalize flow serves as the retry. Regenerating the final PDF always
+rebuilds from the latest non-final document version and issues a fresh token,
+invalidating any previously shared final-PDF link.
 
 ## Production
 

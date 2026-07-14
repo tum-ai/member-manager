@@ -4,6 +4,8 @@ interface ContractPartnerEmailPayload {
 	signingUrl: string;
 	customMessage?: string | null;
 	subject?: string | null;
+	/** Link text in the HTML body; defaults to the signing-flow wording. */
+	linkLabel?: string | null;
 }
 
 interface ContractClarificationEmailPayload {
@@ -85,7 +87,9 @@ export async function sendContractPartnerEmail(
 	const html = [
 		`<p>Hi ${escapeHtml(payload.partnerCompanyName || "there")},</p>`,
 		`<p>${escapeHtml(message).replace(/\n/g, "<br>")}</p>`,
-		`<p><a href="${escapeHtml(payload.signingUrl)}">Review and sign the contract</a></p>`,
+		`<p><a href="${escapeHtml(payload.signingUrl)}">${escapeHtml(
+			payload.linkLabel?.trim() || "Review and sign the contract",
+		)}</a></p>`,
 		"<p>Best regards<br>TUM.ai</p>",
 	].join("");
 

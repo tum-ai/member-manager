@@ -9,7 +9,7 @@ interface ContractStatusTimelineProps {
 
 /**
  * Marker note set by the server when a status was changed via the manual
- * override dropdown (round 2 Nr.7) rather than a workflow button.
+ * override dropdown rather than a workflow button.
  */
 export const MANUAL_STATUS_CHANGE_NOTE = "Manual override";
 
@@ -19,7 +19,7 @@ function statusLabel(status: string | null): string {
 }
 
 function eventPhrase(event: ContractStatusEvent): JSX.Element {
-	// Round 2 Nr.2: the initial event has no from_status — phrase it as the
+	// The initial event has no from_status — phrase it as the
 	// submission itself instead of a "— → X" transition.
 	if (!event.from_status) {
 		if (event.to_status === "draft") {
@@ -49,7 +49,7 @@ function eventPhrase(event: ContractStatusEvent): JSX.Element {
 }
 
 /**
- * Nr.3: compact history of status transitions so a previous status stays
+ * Compact history of status transitions so a previous status stays
  * visible after it has been superseded (e.g. "Partner signed" is still shown
  * after a later clarification request).
  */

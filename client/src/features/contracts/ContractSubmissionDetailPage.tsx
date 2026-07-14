@@ -52,7 +52,7 @@ import { ContractBoardSignatureCard } from "./components/ContractBoardSignatureC
 import { ContractPartnerSignatureCard } from "./components/ContractPartnerSignatureCard";
 import { ContractStatusTimeline } from "./components/ContractStatusTimeline";
 import {
-	CONTRACT_REVIEW_STATUSES,
+	CONTRACT_MANUAL_STATUSES,
 	getContractStatusLabel,
 	getContractStatusTone,
 } from "./contractStatus";
@@ -183,7 +183,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	const [partnerEmailMessage, setPartnerEmailMessage] = useState("");
 	const [downloadError, setDownloadError] = useState<string | null>(null);
 	const [downloading, setDownloading] = useState(false);
-	// Nr.4 (round 2): holds the deferred send action while the admin confirms
+	// Holds the deferred send action while the admin confirms
 	// re-sending a contract that was already sent to the partner.
 	const [pendingResend, setPendingResend] = useState<(() => void) | null>(null);
 	const { currentUserId, isAdmin } = useCurrentUserIsAdmin();
@@ -252,10 +252,10 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 		submission.status === "draft" &&
 		(submission.submitter_user_id === currentUserId || isAdmin);
 	const formEntries = Object.entries(submission.form_data ?? {});
-	// Nr.1: sending requires an explicit approval first (partner_comments allows
-	// a re-send after the partner leaves comments). Nr.4 (round 2):
-	// sent_to_partner allows switching to a different delivery channel, gated
-	// behind an explicit confirmation below.
+	// Sending requires an explicit approval first (partner_comments allows
+	// a re-send after the partner leaves comments); sent_to_partner allows
+	// switching to a different delivery channel, gated behind an explicit
+	// confirmation below.
 	const canSendToPartner =
 		submission.status === "approved" ||
 		submission.status === "partner_comments" ||
@@ -267,14 +267,14 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 		}
 		send();
 	};
-	// Nr.1: Approve is offered while the contract is still under review.
+	// Approve is offered while the contract is still under review.
 	const canApprove = [
 		"submitted",
 		"legal_review",
 		"in_review",
 		"inquiry",
 	].includes(submission.status);
-	// Nr.7: clarification is closed once approved (or further along).
+	// Clarification is closed once approved (or further along).
 	const canRequestClarification = ![
 		"approved",
 		"sent_to_partner",
@@ -299,10 +299,13 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					<Badge variant={getContractStatusTone(submission.status)}>
 						{getContractStatusLabel(submission.status)}
 					</Badge>
-					{/* Round 2 Nr.7: manual override for Legal. Restricted to review
-					statuses — partner/board transitions stay on their dedicated flows.
-					"rejected" is excluded because it requires a reason (Reject button). */}
-					{isContractsAdmin ? (
+					{/* Manual override for Legal, only while the contract is under
+					review. Partner/board/signing transitions stay on their dedicated
+					flows; "rejected" requires a reason via the Reject button. */}
+					{isContractsAdmin &&
+					CONTRACT_MANUAL_STATUSES.includes(
+						submission.status as (typeof CONTRACT_MANUAL_STATUSES)[number],
+					) ? (
 						<div className="flex items-center gap-2 sm:ml-auto">
 							<Label
 								htmlFor="manual-status"
@@ -315,7 +318,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								onValueChange={(next) => {
 									if (next === submission.status) return;
 									updateMutation.mutate({
-										status: next as (typeof CONTRACT_REVIEW_STATUSES)[number],
+										status: next as (typeof CONTRACT_MANUAL_STATUSES)[number],
 										manual_status_change: true,
 									});
 								}}
@@ -331,9 +334,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 									</SelectValue>
 								</SelectTrigger>
 								<SelectContent>
-									{CONTRACT_REVIEW_STATUSES.filter(
-										(status) => status !== "rejected",
-									).map((status) => (
+									{CONTRACT_MANUAL_STATUSES.map((status) => (
 										<SelectItem key={status} value={status}>
 											{getContractStatusLabel(status)}
 										</SelectItem>
@@ -599,7 +600,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 										Send with OpenSign
 									</Button>
 								</div>
-								{/* Round 2 Nr.11: opt-in — when checked, the board signature
+								{/* Opt-in — when checked, the board signature
 								automatically finalizes the contract and emails the partner. */}
 								<Label className="gap-2 font-normal">
 									<Checkbox
@@ -846,7 +847,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 								</p>
 							)}
 
-							{/* Nr.5: board signing link, mirroring the partner link. */}
+							{/* Board signing link, mirroring the partner link. */}
 							<p className="text-sm text-muted-foreground">
 								Or share a signing link so a board member can sign without
 								logging in.
@@ -924,7 +925,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 				) : null}
 			</div>
 
-			{/* Nr.4 (round 2): confirm before re-sending via another channel. */}
+			{/* Confirm before re-sending via another channel. */}
 			<ConfirmDialog
 				open={pendingResend !== null}
 				onOpenChange={(open) => {

@@ -28,7 +28,7 @@ describe("ContractStatusTimeline", () => {
 		expect(screen.getByText(/by Lena Legal/)).toBeInTheDocument();
 	});
 
-	// Round 2 Nr.2: the initial event (from_status null) reads as a submission.
+	// The initial event (from_status null) reads as a submission.
 	it("renders the initial event as Submitted", () => {
 		render(
 			<ContractStatusTimeline
@@ -57,7 +57,7 @@ describe("ContractStatusTimeline", () => {
 		expect(screen.getByText("Draft created")).toBeInTheDocument();
 	});
 
-	// Round 2 Nr.7: manual override changes are phrased distinctly.
+	// Manual override changes are phrased distinctly.
 	it("renders manual overrides with distinct phrasing", () => {
 		render(
 			<ContractStatusTimeline

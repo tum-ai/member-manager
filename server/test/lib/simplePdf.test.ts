@@ -68,7 +68,7 @@ describe("simplePdf", () => {
 		assert.deepStrictEqual([...inflateSync(image.data)], [255, 255, 255]);
 	});
 
-	// Round 2 Nr.6: inline signature tokens in the document body.
+	// Inline signature tokens in the document body.
 	test("draws a signature inline at its {{partner_signature}} token", () => {
 		const pdf = createTextPdf("Contract body text.\n\n{{partner_signature}}", [
 			{
@@ -86,6 +86,19 @@ describe("simplePdf", () => {
 		// Consumed inline — no trailing signature page.
 		assert.doesNotMatch(raw, /\(Signaturen\) Tj/);
 		// The raw token never renders as text.
+		assert.doesNotMatch(raw, /partner_signature/);
+	});
+
+	test("keeps text before and after an inline signature token", () => {
+		const pdf = createTextPdf(
+			"Unterschrift Partner: {{partner_signature}} Ort, Datum",
+			[{ role: "partner", label: "Partner: Jane Doe", png: tinyPng() }],
+		);
+		const raw = pdf.toString("latin1");
+
+		assert.match(raw, /\(Unterschrift Partner:\) Tj/);
+		assert.match(raw, /\(Ort, Datum\) Tj/);
+		assert.match(raw, /\/Im0 Do/);
 		assert.doesNotMatch(raw, /partner_signature/);
 	});
 

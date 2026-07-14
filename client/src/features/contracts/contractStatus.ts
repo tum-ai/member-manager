@@ -5,20 +5,17 @@ import type {
 } from "./useContracts";
 
 /**
- * Statuses that Legal can set directly via the manual override dropdown
- * (round 2 Nr.7). Mirrors the server's REVIEW_STATUSES — partner/board
- * transitions stay exclusive to their dedicated endpoints.
+ * Statuses that Legal can set directly via the manual override dropdown, and
+ * the only statuses the dropdown is shown for. Mirrors the server's
+ * MANUAL_STATUSES — partner/board/signing transitions stay exclusive to their
+ * dedicated flows, and "rejected" requires a reason via the Reject button.
  */
-export const CONTRACT_REVIEW_STATUSES: ContractSubmissionReviewStatus[] = [
-	"draft",
+export const CONTRACT_MANUAL_STATUSES: ContractSubmissionReviewStatus[] = [
 	"submitted",
 	"legal_review",
 	"in_review",
-	"approved",
-	"rejected",
 	"inquiry",
-	"signed",
-	"completed",
+	"approved",
 ];
 
 export const CONTRACT_STATUS_LABELS: Record<ContractSubmissionStatus, string> =

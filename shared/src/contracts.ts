@@ -20,7 +20,7 @@ export type ContractWorkflowStatus =
 /**
  * Data types a template author can assign to a contract variable. EMAIL
  * behaves like TEXT but gets email-format validation on both client and
- * server (round 2 Nr.12).
+ * server.
  */
 export const CONTRACT_VARIABLE_DATA_TYPES = [
 	"TEXT",

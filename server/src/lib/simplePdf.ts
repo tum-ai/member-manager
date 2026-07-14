@@ -21,7 +21,7 @@ export type PdfSignatureRole = "partner" | "board";
 /** One signature to embed on the appended signature page. */
 export interface PdfSignatureImage {
 	/**
-	 * Round 2 Nr.6: when set and the document body contains the matching
+	 * When set and the document body contains the matching
 	 * `{{partner_signature}}` / `{{board_signature}}` token, the image is drawn
 	 * inline at that position instead of on the trailing signature page.
 	 */
@@ -43,7 +43,7 @@ interface PdfLine {
 	lineHeight: number;
 	x: number;
 	wordSpacing?: number;
-	/** Marks the anchor line of an inline signature block (round 2 Nr.6). */
+	/** Marks the anchor line of an inline signature block. */
 	signatureRole?: PdfSignatureRole;
 }
 
@@ -216,35 +216,47 @@ function buildLines(text: string): PdfLine[] {
 }
 
 /**
- * Replace each body line containing a signature token with a fixed-size block
- * of line slots: one anchor line carrying the role plus blank fillers that
- * reserve vertical space for the image. Lines without tokens pass through, so
- * documents that never use the tokens are unaffected.
+ * Replace each signature token in the body with a fixed-size block of line
+ * slots: one anchor line carrying the role plus blank fillers that reserve
+ * vertical space for the image. Text before/after a token on the same line is
+ * kept as its own line. Lines without tokens pass through untouched.
  */
 function expandSignatureTokens(lines: PdfLine[]): PdfLine[] {
 	const expanded: PdfLine[] = [];
 	for (const line of lines) {
-		const match = SIGNATURE_TOKEN_REGEX.exec(line.text);
+		let remaining = line.text;
+		let match = SIGNATURE_TOKEN_REGEX.exec(remaining);
 		if (!match) {
 			expanded.push(line);
 			continue;
 		}
-		expanded.push({
-			text: "",
-			font: "F1",
-			fontSize: FONT_SIZE,
-			lineHeight: LINE_HEIGHT,
-			x: MARGIN_X,
-			signatureRole: match[1] as PdfSignatureRole,
-		});
-		for (let i = 1; i < SIGNATURE_BLOCK_LINES; i++) {
+		while (match) {
+			const before = remaining.slice(0, match.index).trim();
+			if (before) {
+				expanded.push({ ...line, text: before, wordSpacing: undefined });
+			}
 			expanded.push({
 				text: "",
 				font: "F1",
 				fontSize: FONT_SIZE,
 				lineHeight: LINE_HEIGHT,
 				x: MARGIN_X,
+				signatureRole: match[1] as PdfSignatureRole,
 			});
+			for (let i = 1; i < SIGNATURE_BLOCK_LINES; i++) {
+				expanded.push({
+					text: "",
+					font: "F1",
+					fontSize: FONT_SIZE,
+					lineHeight: LINE_HEIGHT,
+					x: MARGIN_X,
+				});
+			}
+			remaining = remaining.slice(match.index + match[0].length).trim();
+			match = SIGNATURE_TOKEN_REGEX.exec(remaining);
+		}
+		if (remaining) {
+			expanded.push({ ...line, text: remaining, wordSpacing: undefined });
 		}
 	}
 	return expanded;

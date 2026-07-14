@@ -70,7 +70,7 @@ function HelpText({ text }: { text: string }): JSX.Element {
 	return <p className="text-xs text-muted-foreground">{text}</p>;
 }
 
-// Round 2 Nr.12: light format check for EMAIL fields. The server re-validates
+// Light format check for EMAIL fields. The server re-validates
 // with Zod; this only drives the inline hint.
 export function isValidEmailInput(value: string): boolean {
 	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());

@@ -52,7 +52,7 @@ describe("isVisible", () => {
 	});
 });
 
-// Round 2 Nr.12: EMAIL variables render as email inputs with an inline hint.
+// EMAIL variables render as email inputs with an inline hint.
 describe("DynamicForm EMAIL fields", () => {
 	it("renders an email input for EMAIL variables", () => {
 		render(

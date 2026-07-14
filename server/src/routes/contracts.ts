@@ -63,6 +63,17 @@ const REVIEW_STATUSES = [
 	"completed",
 ] as const;
 
+// Manual status overrides are limited to contracts still under review:
+// partner/board/signing statuses have dedicated flows, "rejected" requires a
+// reason via the Reject button, and signed/completed must not be set by hand.
+const MANUAL_STATUSES: ReadonlySet<string> = new Set([
+	"submitted",
+	"legal_review",
+	"in_review",
+	"inquiry",
+	"approved",
+]);
+
 type SubmissionStatus = (typeof SUBMISSION_STATUSES)[number];
 
 const TemplateBodySchema = z.object({
@@ -127,7 +138,7 @@ const PdfDownloadQuerySchema = z.object({
 const SubmissionPatchSchema = z
 	.object({
 		status: z.enum(REVIEW_STATUSES).optional(),
-		// Round 2 Nr.7: set by the manual status dropdown so the change is
+		// Set by the manual status dropdown so the change is
 		// logged distinctly in the timeline. Not persisted on the submission.
 		manual_status_change: z.boolean().optional(),
 		admin_edited_text: z.string().max(200_000).nullable().optional(),
@@ -139,7 +150,7 @@ const SubmissionPatchSchema = z
 		send_to_partner: z.boolean().optional(),
 		send_partner_email: z.boolean().optional(),
 		send_opensign: z.boolean().optional(),
-		// Round 2 Nr.11: opt-in — board signing then auto-finalizes and emails
+		// Opt-in — board signing then auto-finalizes and emails
 		// the partner the final signed copy.
 		auto_send_after_board_signed: z.boolean().optional(),
 		partner_email_subject: z.string().trim().max(300).nullable().optional(),
@@ -244,7 +255,7 @@ function applyInlineConditionals(
 	);
 }
 
-// Round 2 Nr.6: reserved tokens that mark where signature images are drawn
+// Reserved tokens that mark where signature images are drawn
 // when the PDF is generated. They must survive variable substitution so the
 // PDF renderer still sees them in the stored contract text.
 const RESERVED_SIGNATURE_TOKENS = new Set([
@@ -508,7 +519,7 @@ function pageLinesToHtml(lines: PreviewLine[]): string {
 }
 
 function renderDocumentPages(text: string): string[] {
-	// Round 2 Nr.6: HTML previews show a signature line where the reserved
+	// HTML previews show a signature line where the reserved
 	// tokens sit; the PDF renderer draws the actual image there.
 	const lines = buildPreviewLines(
 		text.replace(
@@ -612,7 +623,7 @@ async function notifySubmitterOfClarification(args: {
 
 // Resolve a member's display name for a Supabase auth user id, falling back to
 // their email when no member row exists. Used so internal contract comments and
-// status events show a human name instead of a raw email address (feedback Nr.4).
+// status events show a human name instead of a raw email address.
 async function getMemberDisplayName(userId: string): Promise<string | null> {
 	const { data } = await getSupabase()
 		.from("members")
@@ -629,9 +640,9 @@ async function getMemberDisplayName(userId: string): Promise<string | null> {
 }
 
 /**
- * Append a status-transition audit event (feedback Nr.3). No-op when the status
+ * Append a status-transition audit event. No-op when the status
  * did not actually change or when moving between draft states (a draft edit is
- * not a meaningful transition — feedback Nr.2). Best-effort: failures are logged
+ * not a meaningful transition). Best-effort: failures are logged
  * by the caller, never surfaced to the user.
  */
 async function recordStatusEvent(args: {
@@ -658,8 +669,8 @@ async function recordStatusEvent(args: {
 }
 
 /**
- * Notify the legal team and the contract creator of a status change (feedback
- * Nr.2). Gracefully no-ops when email is not configured; never throws.
+ * Notify the legal team and the contract creator of a status change.
+ * Gracefully no-ops when email is not configured; never throws.
  */
 async function notifyContractStatusChange(args: {
 	submission: Record<string, unknown>;
@@ -780,21 +791,35 @@ async function recordAndNotifyTransition(args: {
 }
 
 /**
- * Create the final ("completed") document version and mark the submission
- * completed. Shared by the manual finalize endpoint and the auto-send-after-
- * board-signature path (round 2 Nr.11).
+ * Create the final document version and store its id plus a fresh
+ * `final_pdf_token` — without changing the submission status, so a failed
+ * email send (auto-send path) leaves the contract retryable at board_signed.
+ * Rebuilds from the latest non-final version so regenerating doesn't stack
+ * another signature section onto an earlier final text, and the fresh token
+ * invalidates any previously shared final-PDF link.
  */
-async function finalizeSubmissionRow(
+async function prepareFinalDocument(
 	submissionId: string,
 	current: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-	const nowIso = new Date().toISOString();
-	const activeVersion = await fetchDocumentVersion(
+	let baseVersion = await fetchDocumentVersion(
 		current.active_document_version_id ?? current.sent_document_version_id,
 	);
+	if (baseVersion?.source === "final") {
+		const { data, error } = await getSupabase()
+			.from("contract_document_versions")
+			.select("*")
+			.eq("submission_id", submissionId)
+			.neq("source", "final")
+			.order("version_number", { ascending: false })
+			.limit(1)
+			.maybeSingle();
+		if (error) throw error;
+		baseVersion = (data as Record<string, unknown> | null) ?? null;
+	}
 	const baseText =
-		typeof activeVersion?.rendered_text === "string"
-			? activeVersion.rendered_text
+		typeof baseVersion?.rendered_text === "string"
+			? baseVersion.rendered_text
 			: textFromSubmission(current);
 	const finalText = buildSignedDocumentText(baseText, current);
 	const finalVersion = await createDocumentVersion({
@@ -809,9 +834,26 @@ async function finalizeSubmissionRow(
 	const { data, error } = await getSupabase()
 		.from("contract_submissions")
 		.update({
-			final_pdf_token: current.final_pdf_token ?? generateSignatureToken(),
+			final_pdf_token: generateSignatureToken(),
 			final_document_version_id: finalVersion.id,
 			active_document_version_id: finalVersion.id,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", submissionId)
+		.select("*")
+		.single();
+	if (error) throw error;
+	return data as Record<string, unknown>;
+}
+
+/** Mark a prepared submission completed (final PDF link is now servable). */
+async function completeSubmission(
+	submissionId: string,
+): Promise<Record<string, unknown>> {
+	const nowIso = new Date().toISOString();
+	const { data, error } = await getSupabase()
+		.from("contract_submissions")
+		.update({
 			final_pdf_sent_at: nowIso,
 			completed_at: nowIso,
 			status: "completed",
@@ -825,11 +867,12 @@ async function finalizeSubmissionRow(
 }
 
 /**
- * Round 2 Nr.11: after a board signature, when the submission opted in via
+ * After a board signature, when the submission opted in via
  * auto_send_after_board_signed, finalize it and email the partner the final
- * signed copy. Best-effort — never fails the board-sign request. When email is
- * not configured (or no partner email exists) the submission stays at
- * "board_signed" for the manual "Generate final PDF link" flow.
+ * signed copy. Best-effort — never fails the board-sign request. The
+ * submission is only marked completed once the email was sent successfully;
+ * on any failure (email unconfigured, no partner email, send error) it stays
+ * at "board_signed" so the manual "Generate final PDF link" flow can retry.
  */
 async function maybeAutoSendAfterBoardSign(args: {
 	request: {
@@ -860,40 +903,20 @@ async function maybeAutoSendAfterBoardSign(args: {
 			return;
 		}
 
-		const finalized = await finalizeSubmissionRow(
-			args.submissionId,
-			submission,
-		);
-		await recordAndNotifyTransition({
-			request: args.request,
-			submissionId: args.submissionId,
-			fromStatus: "board_signed",
-			toStatus: "completed",
-			changedBy: null,
-			changedByName: "Auto-send",
-		});
-
+		const prepared = await prepareFinalDocument(args.submissionId, submission);
 		const partnerCompany =
 			getPartnerCompanyNameFromSubmission(submission) || "Partner";
-		const finalPdfUrl = `${getAppBaseUrl(args.request)}/api/contracts/final/${String(finalized.final_pdf_token)}/pdf`;
+		const finalPdfUrl = `${getAppBaseUrl(args.request)}/api/contracts/final/${String(prepared.final_pdf_token)}/pdf`;
 		try {
 			await sendContractPartnerEmail({
 				to: partnerEmail,
 				partnerCompanyName: partnerCompany,
 				signingUrl: finalPdfUrl,
+				linkLabel: "View signed contract",
 				subject: `TUM.ai contract for ${partnerCompany} — signed copy`,
 				customMessage:
 					"The contract has been signed by all parties. You can view and download the final signed document using the link below.",
 			});
-			await getSupabase()
-				.from("contract_submissions")
-				.update({
-					partner_email_sent_at: new Date().toISOString(),
-					partner_email_recipient: partnerEmail,
-					partner_email_error: null,
-					updated_at: new Date().toISOString(),
-				})
-				.eq("id", args.submissionId);
 		} catch (emailError) {
 			const message =
 				emailError instanceof Error
@@ -901,7 +924,7 @@ async function maybeAutoSendAfterBoardSign(args: {
 					: "Failed to send final contract email";
 			args.request.log.warn(
 				{ err: emailError, submissionId: args.submissionId },
-				"Auto-send after board signature: final email failed",
+				"Auto-send after board signature: final email failed — submission stays board_signed",
 			);
 			await getSupabase()
 				.from("contract_submissions")
@@ -911,7 +934,27 @@ async function maybeAutoSendAfterBoardSign(args: {
 					updated_at: new Date().toISOString(),
 				})
 				.eq("id", args.submissionId);
+			return;
 		}
+
+		await completeSubmission(args.submissionId);
+		await getSupabase()
+			.from("contract_submissions")
+			.update({
+				partner_email_sent_at: new Date().toISOString(),
+				partner_email_recipient: partnerEmail,
+				partner_email_error: null,
+				updated_at: new Date().toISOString(),
+			})
+			.eq("id", args.submissionId);
+		await recordAndNotifyTransition({
+			request: args.request,
+			submissionId: args.submissionId,
+			fromStatus: "board_signed",
+			toStatus: "completed",
+			changedBy: null,
+			changedByName: "Auto-send",
+		});
 	} catch (error) {
 		args.request.log.warn(
 			{ err: error, submissionId: args.submissionId },
@@ -994,7 +1037,7 @@ async function getPdfTextForSubmission(
 	return textFromSubmission(submission);
 }
 
-// Nr.8: collect the partner and board signature images (PNG data URLs) so they
+// Collect the partner and board signature images (PNG data URLs) so they
 // can be embedded in the downloaded PDF. Partner shows as soon as it is present,
 // even before the board has signed; both show once the board signs. Malformed
 // data is skipped rather than failing the whole PDF.
@@ -1133,7 +1176,7 @@ async function fetchTemplateWithChildren(templateId: string) {
 }
 
 /**
- * Round 2 Nr.12: variables typed EMAIL must contain a valid address. Empty
+ * Variables typed EMAIL must contain a valid address. Empty
  * values are skipped (required-ness is a separate concern). Returns the labels
  * of offending fields so the 400 message names them.
  */
@@ -1722,7 +1765,7 @@ export async function contractRoutes(server: FastifyInstance) {
 		},
 	);
 
-	// Nr.3: status-transition history for the contract view.
+	// Status-transition history for the contract view.
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id/status-events",
 		{ preHandler: [authenticate, requireContractsCreate] },
@@ -1812,7 +1855,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			}
 
 			try {
-				// Nr.4: show a human name in the comment history, not the raw email.
+				// Show a human name in the comment history, not the raw email.
 				const authorName =
 					(await getMemberDisplayName(user.id)) ?? user.email ?? null;
 				return await createSubmissionComment({
@@ -1850,7 +1893,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				if (!template) {
 					return reply.status(404).send({ error: "Template not found" });
 				}
-				// Round 2 Nr.12: validate EMAIL-typed variables before persisting.
+				// Validate EMAIL-typed variables before persisting.
 				const invalidEmails = findInvalidEmailFields(
 					variables as Array<Record<string, unknown>>,
 					formData,
@@ -1906,7 +1949,7 @@ export async function contractRoutes(server: FastifyInstance) {
 					.select("*")
 					.single();
 				if (updateError) throw updateError;
-				// Round 2 Nr.2: record the initial status so the timeline shows the
+				// Record the initial status so the timeline shows the
 				// submission itself, not just later transitions. Best-effort.
 				try {
 					await recordStatusEvent({
@@ -1968,7 +2011,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				if (!template) {
 					return reply.status(404).send({ error: "Template not found" });
 				}
-				// Round 2 Nr.12: validate EMAIL-typed variables before persisting.
+				// Validate EMAIL-typed variables before persisting.
 				const invalidEmails = findInvalidEmailFields(
 					variables as Array<Record<string, unknown>>,
 					formData,
@@ -2023,7 +2066,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				throw createContractDatabaseError(error);
 			}
 
-			// Round 2 Nr.2: a draft submit is the first meaningful transition —
+			// A draft submit is the first meaningful transition —
 			// record it so the timeline starts at submission. Best-effort.
 			if (nextStatus !== "draft") {
 				try {
@@ -2143,7 +2186,18 @@ export async function contractRoutes(server: FastifyInstance) {
 				update.rejection_reason = body.rejection_reason;
 			if (body.auto_send_after_board_signed !== undefined)
 				update.auto_send_after_board_signed = body.auto_send_after_board_signed;
-			// Nr.7: clarification is only for pre-approval questions. Once a contract
+			if (
+				body.manual_status_change === true &&
+				(body.status === undefined ||
+					!MANUAL_STATUSES.has(body.status) ||
+					!MANUAL_STATUSES.has(String(current?.status)))
+			) {
+				return reply.status(400).send({
+					error:
+						"Manual status changes are only allowed between review statuses",
+				});
+			}
+			// Clarification is only for pre-approval questions. Once a contract
 			// is approved (or further along), the Request-clarification path is closed.
 			if (
 				body.status === "inquiry" &&
@@ -2162,9 +2216,9 @@ export async function contractRoutes(server: FastifyInstance) {
 				});
 			}
 			if (body.generate_signature_token === true || shouldSendToPartner) {
-				// Nr.1: sending to the partner requires an explicit Approve first
+				// Sending to the partner requires an explicit Approve first
 				// (partner_comments is kept so a contract can be re-sent after the
-				// partner leaves comments). Nr.4: sent_to_partner is also allowed so
+				// partner leaves comments). Sent_to_partner is also allowed so
 				// a different channel can be used if needed (e.g. send via OpenSign
 				// after already sending a link).
 				if (
@@ -2227,7 +2281,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				}
 			}
 
-			// Nr.5: generate a public board-signing link once the partner has signed.
+			// Generate a public board-signing link once the partner has signed.
 			if (body.generate_board_signature_token === true) {
 				if (String(current?.status) !== "partner_signed") {
 					return reply.status(400).send({
@@ -2586,7 +2640,7 @@ export async function contractRoutes(server: FastifyInstance) {
 	);
 
 	// ---------------------------------------------------------------------
-	// Nr.5: Public board-signing endpoints (no auth). Verified by
+	// Public board-signing endpoints (no auth). Verified by
 	// board_signature_token only — the tokenized link is the authorization
 	// boundary, mirroring the partner signing flow.
 	// ---------------------------------------------------------------------
@@ -2956,10 +3010,11 @@ export async function contractRoutes(server: FastifyInstance) {
 
 			let data: Record<string, unknown>;
 			try {
-				data = await finalizeSubmissionRow(
+				await prepareFinalDocument(
 					request.params.id,
 					current as Record<string, unknown>,
 				);
+				data = await completeSubmission(request.params.id);
 			} catch (error) {
 				request.log.error({ err: error }, "Failed to finalize contract");
 				throw createContractDatabaseError(error);
