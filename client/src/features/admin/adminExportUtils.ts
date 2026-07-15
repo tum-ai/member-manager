@@ -1,3 +1,4 @@
+import type { SheetData } from "write-excel-file/browser";
 import {
 	getMemberStatusLabel,
 	getOperationalDepartment,
@@ -34,6 +35,28 @@ export function buildExportRows(
 			member.member_status || (member.active ? "active" : "inactive"),
 		),
 	}));
+}
+
+// Shape the flat export rows into `write-excel-file` sheet data: a bold header
+// row derived from the object keys, followed by one string cell per column.
+// Empty cells become `null` so they render blank rather than as "".
+export function buildXlsxData(rows: Array<Record<string, string>>): SheetData {
+	if (rows.length === 0) {
+		return [[null]];
+	}
+	const columns = Object.keys(rows[0]);
+	const header = columns.map((column) => ({
+		value: column,
+		fontWeight: "bold" as const,
+		type: String,
+	}));
+	const body = rows.map((row) =>
+		columns.map((column) => {
+			const value = row[column] ?? "";
+			return value ? { value, type: String } : null;
+		}),
+	);
+	return [header, ...body];
 }
 
 export function rowsToCsv(rows: Array<Record<string, string>>): string {

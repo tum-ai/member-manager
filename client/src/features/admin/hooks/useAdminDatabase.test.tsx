@@ -23,6 +23,10 @@ vi.mock("../../../hooks/useAdminData", () => ({
 	useAdminData: () => adminDataState,
 }));
 
+vi.mock("@/contexts/ToastContext", () => ({
+	useToast: () => ({ showToast: vi.fn() }),
+}));
+
 function member(overrides: Partial<AdminMember>): AdminMember {
 	return {
 		user_id: "u",
