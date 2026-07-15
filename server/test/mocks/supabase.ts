@@ -43,6 +43,7 @@ interface MockData {
 	user_roles: Array<Record<string, unknown>>;
 	member_role_history: Array<Record<string, unknown>>;
 	member_change_requests: Array<Record<string, unknown>>;
+	member_merge_audit: Array<Record<string, unknown>>;
 	engagement_certificate_requests: Array<Record<string, unknown>>;
 	job_posting_requests: Array<Record<string, unknown>>;
 	reimbursements: Array<Record<string, unknown>>;
@@ -156,6 +157,7 @@ export const mockDatabase: MockData = {
 	],
 	member_role_history: [],
 	member_change_requests: [],
+	member_merge_audit: [],
 	engagement_certificate_requests: [],
 	job_posting_requests: [],
 	member_cvs: [],
@@ -717,6 +719,261 @@ function createQueryBuilder(table: string): QueryBuilder {
 	return proxyBuilder;
 }
 
+function moveUserIdRows(
+	table: keyof MockData,
+	sourceId: string,
+	targetId: string,
+) {
+	let count = 0;
+	for (const row of mockDatabase[table]) {
+		if (row.user_id === sourceId) {
+			row.user_id = targetId;
+			count++;
+		}
+	}
+	return count;
+}
+
+function mergeDuplicateMember(params: Record<string, unknown>) {
+	const sourceId = String(params.p_source_user_id ?? "");
+	const targetId = String(params.p_target_user_id ?? "");
+	const adminId = String(params.p_admin_user_id ?? "");
+	if (sourceId === targetId) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "source and target members must differ" },
+		});
+	}
+	if (
+		!mockDatabase.user_roles.some(
+			(role) => role.user_id === adminId && role.role === "admin",
+		)
+	) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "admin must have admin role" },
+		});
+	}
+
+	const sourceMember = mockDatabase.members.find(
+		(member) => member.user_id === sourceId,
+	);
+	if (!sourceMember) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "source member not found" },
+		});
+	}
+	const targetMember = mockDatabase.members.find(
+		(member) => member.user_id === targetId,
+	);
+	if (!targetMember) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "target member not found" },
+		});
+	}
+	const hasTumaiDayResponseConflict = mockDatabase.tumai_day_responses
+		.filter((sourceResponse) => sourceResponse.user_id === sourceId)
+		.some((sourceResponse) =>
+			mockDatabase.tumai_day_responses.some(
+				(targetResponse) =>
+					targetResponse.user_id === targetId &&
+					targetResponse.tumai_day_id === sourceResponse.tumai_day_id,
+			),
+		);
+	if (hasTumaiDayResponseConflict) {
+		return Promise.resolve({
+			data: null,
+			error: {
+				message:
+					"TUM.ai Day response conflicts must be resolved before merging",
+			},
+		});
+	}
+
+	const counts: Record<string, number> = {};
+	const auditId = "33333333-3333-4333-8333-333333333333";
+	mockDatabase.member_merge_audit.push({
+		id: auditId,
+		source_user_id: sourceId,
+		target_user_id: targetId,
+		merged_by: adminId,
+		note: params.p_note ?? null,
+		source_snapshot: {
+			member: { ...sourceMember },
+			sepa: mockDatabase.sepa
+				.filter((row) => row.user_id === sourceId)
+				.map((row) => ({ ...row })),
+			member_agreements: mockDatabase.member_agreements
+				.filter((row) => row.user_id === sourceId)
+				.map((row) => ({ ...row })),
+		},
+		transferred_counts: counts,
+		created_at: new Date().toISOString(),
+	});
+
+	const sourceAgreementIndex = mockDatabase.member_agreements.findIndex(
+		(row) => row.user_id === sourceId,
+	);
+	if (sourceAgreementIndex !== -1) {
+		const sourceAgreement =
+			mockDatabase.member_agreements[sourceAgreementIndex];
+		const targetAgreement = mockDatabase.member_agreements.find(
+			(row) => row.user_id === targetId,
+		);
+		if (targetAgreement) {
+			targetAgreement.sepa_mandate_agreed =
+				Boolean(targetAgreement.sepa_mandate_agreed) ||
+				Boolean(sourceAgreement.sepa_mandate_agreed);
+			targetAgreement.privacy_policy_agreed =
+				Boolean(targetAgreement.privacy_policy_agreed) ||
+				Boolean(sourceAgreement.privacy_policy_agreed);
+			targetAgreement.data_privacy_notice_agreed =
+				Boolean(targetAgreement.data_privacy_notice_agreed) ||
+				Boolean(sourceAgreement.data_privacy_notice_agreed);
+			targetAgreement.updated_at = new Date().toISOString();
+		} else {
+			mockDatabase.member_agreements.push({
+				...sourceAgreement,
+				user_id: targetId,
+				updated_at: new Date().toISOString(),
+			});
+		}
+		mockDatabase.member_agreements.splice(sourceAgreementIndex, 1);
+		counts.member_agreements = 1;
+	} else {
+		counts.member_agreements = 0;
+	}
+
+	const targetSepa = mockDatabase.sepa.find((row) => row.user_id === targetId);
+	const sourceSepaIndex = mockDatabase.sepa.findIndex(
+		(row) => row.user_id === sourceId,
+	);
+	if (sourceSepaIndex !== -1) {
+		if (targetSepa) {
+			mockDatabase.sepa.splice(sourceSepaIndex, 1);
+		} else {
+			mockDatabase.sepa[sourceSepaIndex].user_id = targetId;
+		}
+		counts.sepa = 1;
+	} else {
+		counts.sepa = 0;
+	}
+
+	counts.member_role_history = moveUserIdRows(
+		"member_role_history",
+		sourceId,
+		targetId,
+	);
+	counts.member_change_requests = moveUserIdRows(
+		"member_change_requests",
+		sourceId,
+		targetId,
+	);
+	counts.engagement_certificate_requests = moveUserIdRows(
+		"engagement_certificate_requests",
+		sourceId,
+		targetId,
+	);
+	counts.job_posting_requests = moveUserIdRows(
+		"job_posting_requests",
+		sourceId,
+		targetId,
+	);
+	counts.reimbursements = moveUserIdRows("reimbursements", sourceId, targetId);
+	counts.reimbursements_bb_synced_by = 0;
+	for (const row of mockDatabase.reimbursements) {
+		if (row.bb_synced_by === sourceId) {
+			row.bb_synced_by = targetId;
+			counts.reimbursements_bb_synced_by++;
+		}
+	}
+
+	counts.tumai_day_response_conflicts = 0;
+	counts.tumai_day_responses = moveUserIdRows(
+		"tumai_day_responses",
+		sourceId,
+		targetId,
+	);
+
+	for (const row of mockDatabase.contract_submissions) {
+		if (row.submitter_user_id === sourceId) {
+			row.submitter_user_id = targetId;
+			counts.contract_submissions = (counts.contract_submissions ?? 0) + 1;
+		}
+	}
+	counts.contract_submissions = counts.contract_submissions ?? 0;
+
+	const targetHasCurrentCv = mockDatabase.member_cvs.some(
+		(row) => row.user_id === targetId && row.is_current === true,
+	);
+	if (targetHasCurrentCv) {
+		for (const row of mockDatabase.member_cvs) {
+			if (row.user_id === sourceId && row.is_current === true) {
+				row.is_current = false;
+			}
+		}
+	}
+	const targetMaxVersion = mockDatabase.member_cvs
+		.filter((row) => row.user_id === targetId)
+		.reduce((max, row) => Math.max(max, Number(row.version) || 0), 0);
+	counts.member_cvs = 0;
+	for (const row of mockDatabase.member_cvs) {
+		if (row.user_id === sourceId) {
+			row.user_id = targetId;
+			row.version = Number(row.version) + targetMaxVersion;
+			counts.member_cvs++;
+		}
+	}
+
+	const sourceRoleIndex = mockDatabase.user_roles.findIndex(
+		(row) => row.user_id === sourceId,
+	);
+	if (sourceRoleIndex !== -1) {
+		const sourceRole = mockDatabase.user_roles[sourceRoleIndex];
+		const targetRole = mockDatabase.user_roles.find(
+			(row) => row.user_id === targetId,
+		);
+		if (targetRole) {
+			if (sourceRole.role === "admin" || targetRole.role === "admin") {
+				targetRole.role = "admin";
+			}
+		} else {
+			mockDatabase.user_roles.push({
+				...sourceRole,
+				user_id: targetId,
+			});
+		}
+		mockDatabase.user_roles.splice(sourceRoleIndex, 1);
+		counts.user_roles = 1;
+	} else {
+		counts.user_roles = 0;
+	}
+
+	mockDatabase.members = mockDatabase.members.filter(
+		(member) => member.user_id !== sourceId,
+	);
+	counts.members = 1;
+
+	const auditRow = mockDatabase.member_merge_audit.find(
+		(row) => row.id === auditId,
+	);
+	if (auditRow) {
+		auditRow.transferred_counts = counts;
+	}
+
+	return Promise.resolve({
+		data: {
+			source_user_id: sourceId,
+			target_user_id: targetId,
+			audit_id: auditId,
+			transferred_counts: counts,
+		},
+		error: null,
+	});
+}
+
 export function createMockSupabaseClient(): SupabaseClient {
 	return {
 		auth: {
@@ -771,6 +1028,9 @@ export function createMockSupabaseClient(): SupabaseClient {
 		// perspective. Returns a `.single()`-shaped thenable.
 		rpc: (fnName: string, params: Record<string, unknown>) => {
 			const run = () => {
+				if (fnName === "merge_duplicate_member") {
+					return mergeDuplicateMember(params);
+				}
 				if (fnName !== "insert_member_cv_version") {
 					return Promise.resolve({
 						data: null,
@@ -969,6 +1229,7 @@ export function resetMockDatabase(): void {
 
 	mockDatabase.member_role_history = [];
 	mockDatabase.member_change_requests = [];
+	mockDatabase.member_merge_audit = [];
 	mockDatabase.engagement_certificate_requests = [];
 	mockDatabase.job_posting_requests = [];
 	mockDatabase.member_cvs = [];
