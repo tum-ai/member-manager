@@ -7,7 +7,7 @@ interface ContractPartnerSignatureCardProps {
 }
 
 /**
- * Nr.9: read-only display of the partner's signature in the contract view (shown
+ * Read-only display of the partner's signature in the contract view (shown
  * above the board signature block). Purely informational — there is no way to
  * edit or sign on the partner's behalf here.
  */

@@ -1199,3 +1199,109 @@ insert into public.contract_partner_comments (
         now() - interval '2 days'
     )
 on conflict (id) do nothing;
+
+-- =========================================================================
+-- Round 2 Nr.5a: render real contract text for the seeded submissions above.
+-- The rows are inserted with a short placeholder, then this block substitutes
+-- the actual template text (mirroring the server's renderContractText: enrich
+-- the package fields, replace {{variable}} tokens, blank unknown tokens) so
+-- local previews/PDFs show realistic contracts instead of a one-line stub.
+-- It also creates the initial document version each submission would have
+-- gotten when created through the UI.
+-- =========================================================================
+do $seed_contract_render$
+declare
+    sub record;
+    entry record;
+    pkg record;
+    enriched jsonb;
+    rendered text;
+begin
+    for sub in
+        select s.id, s.form_data, t.contract_text
+        from public.contract_submissions s
+        join public.contract_templates t on t.id = s.template_id
+        where s.generated_contract_text like 'Generated contract text for %'
+    loop
+        enriched := sub.form_data;
+
+        -- Package enrichment (subset of shared/src/contracts.ts used by seeds).
+        select * into pkg from (values
+            ('long_term_bronze', 'Long-Term Partnership - Bronze', '6.000 EUR / Jahr', 'sechstausend',
+                E'- Partner logo on website\n- 2x LinkedIn post per year\n- 1x Networking event invitation', '6.000 EUR'),
+            ('long_term_silver', 'Long-Term Partnership - Silver', '12.000 EUR / Jahr', 'zwoelftausend',
+                E'- Partner logo on website\n- 2x LinkedIn post per year\n- 1x Networking event invitation\n- Access to CV database (CVs der zwei letzten Batches, ca. 100-150 CVs)\n- 1x Co-organized event\n- 2x Job postings to community', '12.000 EUR'),
+            ('long_term_gold', 'Long-Term Partnership - Gold', '15.000 EUR / Jahr', 'fuenfzehntausend',
+                E'- Distinguished logo placement\n- 2x LinkedIn post per year\n- 1x Networking event invitation\n- Access to CV database (CVs der zwei letzten Batches, ca. 100-150 CVs)\n- 2x Co-organized events\n- Unlimited Job postings\n- First-choice for Hackathons', '15.000 EUR'),
+            ('ehl_bronze', 'EHL Hackathon Pass - Bronze', '4.500 EUR', 'viertausendfuenfhundert',
+                E'- 1x Booth at the venue\n- 1x Networking event invitation\n- 2x Announced on LinkedIn', '4.500 EUR'),
+            ('ehl_silver', 'EHL Hackathon Pass - Silver', '7.500 EUR', 'siebentausendfuenfhundert',
+                E'- 1x Custom Challenge path\n- 2x Announced on LinkedIn\n- 1x Participant list (incl. CVs)', '7.500 EUR'),
+            ('e_lab_final', 'E-Lab Jury Seat Final Pitch', '3.500 EUR', 'dreitausendfuenfhundert',
+                E'- 1x Jury Seat beim Final Pitch', '3.500 EUR')
+        ) as p(key, label, amount_label, amount_words, benefits, total_label)
+        where p.key = enriched->>'sponsoring_package';
+
+        if found then
+            enriched := enriched || jsonb_build_object(
+                'package_label', pkg.label,
+                'package_amount_label', pkg.amount_label,
+                'package_amount_words', pkg.amount_words,
+                'package_benefits', pkg.benefits,
+                'total_amount_label', pkg.total_label,
+                'addon_terms', 'Keine Add-ons ausgewaehlt.',
+                'package_footnote', 'Subject to topic being related to Club and approved by both parties. Pricing may vary depending on individual scope and agreement.'
+            );
+        end if;
+
+        rendered := sub.contract_text;
+        for entry in select key, value from jsonb_each_text(enriched) loop
+            rendered := replace(rendered, '{{' || entry.key || '}}', coalesce(entry.value, ''));
+        end loop;
+        -- Unresolved tokens render as empty strings, like the server renderer.
+        rendered := regexp_replace(rendered, '\{\{[a-zA-Z0-9_]+\}\}', '', 'g');
+
+        update public.contract_submissions
+        set generated_contract_text = rendered,
+            form_data = enriched
+        where id = sub.id;
+
+        -- Fix the placeholder in the pre-seeded Soylent v1 document version.
+        update public.contract_document_versions
+        set rendered_text = rendered,
+            rendered_html = '<section><p>' ||
+                replace(replace(replace(rendered, '&', '&amp;'), '<', '&lt;'), E'\n', '<br>') ||
+                '</p></section>',
+            form_data_snapshot = enriched
+        where submission_id = sub.id
+          and version_number = 1
+          and rendered_text like 'Generated contract text for %';
+
+        -- Initial document version, as the UI creation flow would have made.
+        if not exists (
+            select 1 from public.contract_document_versions v
+            where v.submission_id = sub.id
+        ) then
+            insert into public.contract_document_versions (
+                id, submission_id, version_number, source, rendered_text,
+                rendered_html, form_data_snapshot, created_by, created_at
+            ) values (
+                gen_random_uuid(), sub.id, 1, 'generated', rendered,
+                '<section><p>' ||
+                    replace(replace(replace(rendered, '&', '&amp;'), '<', '&lt;'), E'\n', '<br>') ||
+                    '</p></section>',
+                enriched, '00000000-0000-0000-0000-000000000001', now() - interval '3 days'
+            );
+        end if;
+
+        update public.contract_submissions s2
+        set active_document_version_id = (
+            select v.id from public.contract_document_versions v
+            where v.submission_id = sub.id
+            order by v.version_number desc
+            limit 1
+        )
+        where s2.id = sub.id
+          and s2.active_document_version_id is null;
+    end loop;
+end $seed_contract_render$;

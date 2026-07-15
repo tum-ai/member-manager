@@ -1,5 +1,22 @@
 import type { BadgeVariant } from "@/components/ui/badge";
-import type { ContractSubmissionStatus } from "./useContracts";
+import type {
+	ContractSubmissionReviewStatus,
+	ContractSubmissionStatus,
+} from "./useContracts";
+
+/**
+ * Statuses that Legal can set directly via the manual override dropdown, and
+ * the only statuses the dropdown is shown for. Mirrors the server's
+ * MANUAL_STATUSES — partner/board/signing transitions stay exclusive to their
+ * dedicated flows, and "rejected" requires a reason via the Reject button.
+ */
+export const CONTRACT_MANUAL_STATUSES: ContractSubmissionReviewStatus[] = [
+	"submitted",
+	"legal_review",
+	"in_review",
+	"inquiry",
+	"approved",
+];
 
 export const CONTRACT_STATUS_LABELS: Record<ContractSubmissionStatus, string> =
 	{

@@ -337,6 +337,7 @@ interface QueryBuilder {
 	) => QueryBuilder;
 	delete: () => QueryBuilder;
 	eq: (column: string, value: unknown) => QueryBuilder;
+	neq: (column: string, value: unknown) => QueryBuilder;
 	lte: (column: string, value: unknown) => QueryBuilder;
 	is: (column: string, value: unknown) => QueryBuilder;
 	in: (column: string, values: unknown[]) => QueryBuilder;
@@ -353,6 +354,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 		selectedColumns: "*",
 		forcedError: null as unknown,
 		filters: [] as Array<{ column: string; value: unknown }>,
+		neqFilters: [] as Array<{ column: string; value: unknown }>,
 		lteFilters: [] as Array<{ column: string; value: unknown }>,
 		isFilters: [] as Array<{ column: string; value: unknown }>,
 		inFilters: [] as Array<{ column: string; values: unknown[] }>,
@@ -409,6 +411,12 @@ function createQueryBuilder(table: string): QueryBuilder {
 		for (const filter of state.filters) {
 			tableData = tableData.filter(
 				(row) => row[filter.column] === filter.value,
+			);
+		}
+
+		for (const filter of state.neqFilters) {
+			tableData = tableData.filter(
+				(row) => row[filter.column] !== filter.value,
 			);
 		}
 
@@ -642,6 +650,11 @@ function createQueryBuilder(table: string): QueryBuilder {
 
 		eq: (column: string, value: unknown) => {
 			state.filters.push({ column, value });
+			return proxyBuilder;
+		},
+
+		neq: (column: string, value: unknown) => {
+			state.neqFilters.push({ column, value });
 			return proxyBuilder;
 		},
 

@@ -1,20 +1,12 @@
 import type {
 	ContractStatusEvent,
+	ContractVariableDataType,
 	ContractWorkflowStatus,
 } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiBlob, apiClient } from "@/lib/apiClient";
 
-export type { ContractStatusEvent };
-
-export type ContractVariableDataType =
-	| "TEXT"
-	| "TEXTAREA"
-	| "NUMBER"
-	| "DATE"
-	| "BOOLEAN"
-	| "SELECT"
-	| "FILE";
+export type { ContractStatusEvent, ContractVariableDataType };
 
 export type ContractConditionType = "ALWAYS" | "IF_YES" | "IF_NO" | "IF_VALUE";
 
@@ -111,6 +103,7 @@ export interface ContractSubmission {
 	opensign_file_url: string | null;
 	opensign_certificate_url: string | null;
 	opensign_error: string | null;
+	auto_send_after_board_signed: boolean;
 	final_pdf_token: string | null;
 	final_pdf_sent_at: string | null;
 	completed_at: string | null;
@@ -405,6 +398,8 @@ export function useUpdateContractSubmission(id: string) {
 	return useMutation({
 		mutationFn: (body: {
 			status?: ContractSubmissionReviewStatus;
+			manual_status_change?: boolean;
+			auto_send_after_board_signed?: boolean;
 			admin_edited_text?: string | null;
 			notes?: string | null;
 			feedback_message?: string | null;
