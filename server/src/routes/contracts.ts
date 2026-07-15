@@ -48,13 +48,13 @@ import {
 	generateSignatureToken,
 	getAppBaseUrl,
 } from "../lib/contracts/contractSecurity.js";
+import { findInvalidContractEmailFields } from "../lib/contracts/contractValidation.js";
 import {
 	getMemberDisplayName,
 	notifyContractStatusChange,
 	notifySubmitterOfClarification,
 	recordStatusEvent,
 } from "../lib/contracts/contractWorkflow.js";
-import { findInvalidContractEmailFields } from "../lib/contracts/contractValidation.js";
 import { isOpenSignConfigured, sendOpenSignDocument } from "../lib/openSign.js";
 import { createTextPdf } from "../lib/simplePdf.js";
 import { getSupabase } from "../lib/supabase.js";
@@ -500,26 +500,26 @@ export async function contractRoutes(server: FastifyInstance) {
 				}
 				request.log.error({ err: error }, "Failed to update draft submission");
 				throw createContractDatabaseError(error);
-				}
+			}
 
-				if (nextStatus !== "draft") {
-					try {
-						await recordStatusEvent({
-							submissionId: request.params.id,
-							fromStatus: "draft",
-							toStatus: nextStatus,
-							changedBy: user.id,
-							changedByName: await getMemberDisplayName(user.id),
-						});
-					} catch (eventError) {
-						request.log.warn(
-							{ err: eventError, submissionId: request.params.id },
-							"Failed to record draft submit status event",
-						);
-					}
+			if (nextStatus !== "draft") {
+				try {
+					await recordStatusEvent({
+						submissionId: request.params.id,
+						fromStatus: "draft",
+						toStatus: nextStatus,
+						changedBy: user.id,
+						changedByName: await getMemberDisplayName(user.id),
+					});
+				} catch (eventError) {
+					request.log.warn(
+						{ err: eventError, submissionId: request.params.id },
+						"Failed to record draft submit status event",
+					);
 				}
+			}
 
-				return data;
+			return data;
 		},
 	);
 

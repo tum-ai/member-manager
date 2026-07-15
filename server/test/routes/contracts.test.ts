@@ -1850,6 +1850,23 @@ describe("Contract Routes", async () => {
 		assert.match(data.generated_contract_text, /Hello Token GmbH/);
 		assert.match(data.generated_contract_text, /\{\{partner_signature\}\}/);
 		assert.match(data.generated_contract_text, /\{\{board_signature\}\}/);
+
+		const previewResponse = await app.inject({
+			method: "POST",
+			url: `/api/contracts/submissions/${data.id}/preview`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				contract_text: data.generated_contract_text,
+			}),
+		});
+		assert.strictEqual(previewResponse.statusCode, 200);
+		const preview = JSON.parse(previewResponse.payload);
+		assert.doesNotMatch(preview.html, /\{\{partner_signature\}\}/);
+		assert.doesNotMatch(preview.html, /\{\{board_signature\}\}/);
+		assert.match(preview.html, /_______________________________/);
 	});
 
 	// With the opt-in flag set, a board signature finalizes the

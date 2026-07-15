@@ -76,7 +76,7 @@ export function ContractSubmissionSignatureSections({
 							</p>
 						)}
 
-							{/* Board signing link, mirroring the partner link. */}
+						{/* Board signing link, mirroring the partner link. */}
 						<p className="text-sm text-muted-foreground">
 							Or share a signing link so a board member can sign without logging
 							in.

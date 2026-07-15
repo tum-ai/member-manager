@@ -98,8 +98,7 @@ export async function maybeAutoSendAfterBoardSign(args: {
 			.maybeSingle();
 		const submission = (data as Record<string, unknown> | null) ?? null;
 		if (
-			!submission ||
-			submission.auto_send_after_board_signed !== true ||
+			submission?.auto_send_after_board_signed !== true ||
 			submission.status !== "board_signed"
 		) {
 			return;

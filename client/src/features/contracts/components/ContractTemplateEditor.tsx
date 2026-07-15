@@ -76,10 +76,10 @@ export function TemplateEditor({
 					</Field>
 					<Field
 						label="Contract text"
-							htmlFor="template-contract-text"
-							description={
-								'Use {{variable}} to insert values and [IF {{var}} = "x" THEN {...} ELSE {...}] for conditional text. Reserved signature tokens are listed below.'
-							}
+						htmlFor="template-contract-text"
+						description={
+							'Use {{variable}} to insert values and [IF {{var}} = "x" THEN {...} ELSE {...}] for conditional text. Reserved signature tokens are listed below.'
+						}
 					>
 						<Textarea
 							id="template-contract-text"
@@ -124,36 +124,33 @@ export function TemplateEditor({
 						</Alert>
 					) : null}
 				</div>
-				</GlassCard>
+			</GlassCard>
 
-				<GlassCard className="p-6">
-					<h2 className="mb-2 text-lg font-semibold">
-						Reserved signature tokens
-					</h2>
-					<Separator className="mb-4" />
-					<p className="mb-3 text-sm text-muted-foreground">
-						Place these in the contract text to draw signatures inline once
-						signed. Without them, signatures render on a trailing page.
-					</p>
-					<div className="flex flex-col gap-2">
-						{RESERVED_SIGNATURE_TOKENS.map(({ token, description }) => (
-							<div key={token} className="flex items-center gap-2">
-								<p className="flex-1">
-									<code>{token}</code> -{" "}
-									<span className="text-xs text-muted-foreground">
-										{description}
-									</span>
-								</p>
-								<ContractCopyButton
-									value={token}
-									ariaLabel={`Copy ${token}`}
-								/>
-							</div>
-						))}
-					</div>
-				</GlassCard>
+			<GlassCard className="p-6">
+				<h2 className="mb-2 text-lg font-semibold">
+					Reserved signature tokens
+				</h2>
+				<Separator className="mb-4" />
+				<p className="mb-3 text-sm text-muted-foreground">
+					Place these in the contract text to draw signatures inline once
+					signed. Without them, signatures render on a trailing page.
+				</p>
+				<div className="flex flex-col gap-2">
+					{RESERVED_SIGNATURE_TOKENS.map(({ token, description }) => (
+						<div key={token} className="flex items-center gap-2">
+							<p className="flex-1">
+								<code>{token}</code> -{" "}
+								<span className="text-xs text-muted-foreground">
+									{description}
+								</span>
+							</p>
+							<ContractCopyButton value={token} ariaLabel={`Copy ${token}`} />
+						</div>
+					))}
+				</div>
+			</GlassCard>
 
-				<GlassCard className="p-6">
+			<GlassCard className="p-6">
 				<h2 className="mb-2 text-lg font-semibold">Variables</h2>
 				<Separator className="mb-4" />
 				{detail.variables.length > 0 ? (

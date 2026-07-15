@@ -258,9 +258,9 @@ export type ContractSubmission = ContractSubmissionCreatorDetail &
 	Partial<
 		Pick<
 			ContractSubmissionAdminDetail,
-				| "notes"
-				| "auto_send_after_board_signed"
-				| "signature_token"
+			| "notes"
+			| "auto_send_after_board_signed"
+			| "signature_token"
 			| "signature_token_expires_at"
 			| "board_signature_token"
 			| "board_signature_token_expires_at"

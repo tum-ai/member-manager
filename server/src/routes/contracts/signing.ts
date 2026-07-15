@@ -7,6 +7,11 @@ import {
 import type { FastifyInstance } from "fastify";
 import { renderDocumentPages } from "../../lib/contracts/contractDocument.js";
 import {
+	completeSubmission,
+	maybeAutoSendAfterBoardSign,
+	prepareFinalDocument,
+} from "../../lib/contracts/contractFinalization.js";
+import {
 	buildSignatureImages,
 	sendPdf,
 } from "../../lib/contracts/contractPdf.js";
@@ -17,11 +22,6 @@ import {
 	getPartnerEmailFromSubmission,
 	textFromSubmission,
 } from "../../lib/contracts/contractRecords.js";
-import {
-	completeSubmission,
-	maybeAutoSendAfterBoardSign,
-	prepareFinalDocument,
-} from "../../lib/contracts/contractFinalization.js";
 import {
 	createContractDatabaseError,
 	createSubmissionComment,

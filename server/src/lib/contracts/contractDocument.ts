@@ -182,7 +182,11 @@ function pageLinesToHtml(lines: PreviewLine[]): string {
 }
 
 export function renderDocumentPages(text: string): string[] {
-	const lines = buildPreviewLines(text);
+	const previewText = text.replace(
+		/\{\{(?:partner|board)_signature\}\}/g,
+		"_______________________________",
+	);
+	const lines = buildPreviewLines(previewText);
 	const pages: string[] = [];
 	for (
 		let index = 0;

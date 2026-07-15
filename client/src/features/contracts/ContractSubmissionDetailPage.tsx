@@ -38,13 +38,13 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 			description="Review, edit and progress this contract through the workflow."
 		>
 			<ContractSubmissionStatusSection
-					submission={submission}
-					statusEvents={detail.statusEvents}
-					statusEventsLoading={detail.statusEventsLoading}
-					isContractsAdmin={detail.isContractsAdmin}
-					busy={detail.busy}
-					onManualStatusChange={detail.setManualStatus}
-				/>
+				submission={submission}
+				statusEvents={detail.statusEvents}
+				statusEventsLoading={detail.statusEventsLoading}
+				isContractsAdmin={detail.isContractsAdmin}
+				busy={detail.busy}
+				onManualStatusChange={detail.setManualStatus}
+			/>
 
 			<div className="flex flex-col gap-6">
 				<ContractSubmissionFormDataSection
