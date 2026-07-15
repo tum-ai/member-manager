@@ -2,7 +2,12 @@ import "../setup.js";
 import assert from "node:assert";
 import { createHmac } from "node:crypto";
 import { after, before, describe, test } from "node:test";
-import { enrichContractFormData } from "@member-manager/shared";
+import {
+	ContractSubmissionAdminDetailSchema,
+	ContractSubmissionCreatorDetailSchema,
+	ContractSubmissionCreatorSummarySchema,
+	enrichContractFormData,
+} from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import {
 	authHeaders,
@@ -45,6 +50,22 @@ function moveRegularUserToPartnersAndSponsors(): void {
 	member.active = true;
 }
 
+function grantRegularUserContractCreateOnly(): void {
+	const member = mockDatabase.members.find(
+		(row) => row.user_id === testUserIds.user,
+	);
+	assert.ok(member);
+	member.department = "Software Development";
+	member.member_status = "active";
+	member.active = true;
+	mockDatabase.department_permissions.push({
+		department: "Software Development",
+		permissions: ["contracts.create"],
+		updated_at: "2026-07-15T00:00:00Z",
+		updated_by: testUserIds.admin,
+	});
+}
+
 describe("Contract Routes", async () => {
 	let app: FastifyInstance;
 
@@ -82,6 +103,77 @@ describe("Contract Routes", async () => {
 		});
 
 		assert.strictEqual(data.addon_terms, "Dinner powered by Partner.");
+	});
+
+	test("redacts admin-only submission fields from creator responses", async () => {
+		resetDatabase();
+		grantRegularUserContractCreateOnly();
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.notes = "Internal note";
+		submission.rejection_reason = null;
+		submission.signature_token = "partner-token";
+		submission.signature_token_expires_at = "2099-01-01T00:00:00Z";
+		submission.board_signature_token = "board-token";
+		submission.board_signature_token_expires_at = "2099-01-01T00:00:00Z";
+		submission.reviewed_by = testUserIds.admin;
+		submission.reviewed_at = "2026-07-15T00:00:00Z";
+		submission.opensign_webhook_last_event = "completed";
+		submission.opensign_webhook_received_at = "2026-07-15T00:00:00Z";
+
+		const listResponse = await app.inject({
+			method: "GET",
+			url: "/api/contracts/submissions",
+			headers: authHeaders(testTokens.user),
+		});
+		assert.strictEqual(listResponse.statusCode, 200);
+		const summaries = JSON.parse(listResponse.payload);
+		assert.equal(
+			ContractSubmissionCreatorSummarySchema.safeParse(summaries[0]).success,
+			true,
+		);
+		assert.equal("signature_token" in summaries[0], false);
+		assert.equal("signature_token_expires_at" in summaries[0], false);
+
+		const detailResponse = await app.inject({
+			method: "GET",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: authHeaders(testTokens.user),
+		});
+		assert.strictEqual(detailResponse.statusCode, 200);
+		const creatorDetail = JSON.parse(detailResponse.payload);
+		assert.equal(
+			ContractSubmissionCreatorDetailSchema.safeParse(creatorDetail).success,
+			true,
+		);
+		for (const field of [
+			"notes",
+			"signature_token",
+			"signature_token_expires_at",
+			"board_signature_token",
+			"board_signature_token_expires_at",
+			"reviewed_by",
+			"reviewed_at",
+			"opensign_webhook_last_event",
+			"opensign_webhook_received_at",
+		]) {
+			assert.equal(field in creatorDetail, false);
+		}
+
+		const adminResponse = await app.inject({
+			method: "GET",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(adminResponse.statusCode, 200);
+		assert.equal(
+			ContractSubmissionAdminDetailSchema.safeParse(
+				JSON.parse(adminResponse.payload),
+			).success,
+			true,
+		);
 	});
 
 	test("creates an authenticated submission with rendered contract text", async () => {

@@ -1,16 +1,16 @@
-import { enrichContractFormData } from "@member-manager/shared";
+import {
+	ConditionalBlockBodySchema,
+	enrichContractFormData,
+	PreviewBodySchema,
+	TemplateBodySchema,
+	VariableBodySchema,
+} from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { renderContractDocument } from "../../lib/contracts/contractDocument.js";
 import {
 	createContractDatabaseError,
 	fetchTemplateWithChildren,
 } from "../../lib/contracts/contractRepository.js";
-import {
-	ConditionalBlockBodySchema,
-	PreviewBodySchema,
-	TemplateBodySchema,
-	VariableBodySchema,
-} from "../../lib/contracts/contractSchemas.js";
 import { getSupabase } from "../../lib/supabase.js";
 import {
 	authenticate,

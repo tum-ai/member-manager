@@ -1,4 +1,5 @@
 export * from "./contractRenderer.js";
+export * from "./contractSchemas.js";
 export * from "./contracts.js";
 export * from "./cv.js";
 export * from "./member.js";

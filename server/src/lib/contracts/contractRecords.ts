@@ -1,4 +1,20 @@
-import type { PublicContractPartnerComment } from "@member-manager/shared";
+import {
+	ContractSubmissionCreatorDetailSchema,
+	ContractSubmissionCreatorSummarySchema,
+	type PublicContractPartnerComment,
+} from "@member-manager/shared";
+
+export function toCreatorSubmissionSummary(
+	submission: Record<string, unknown>,
+): Record<string, unknown> {
+	return ContractSubmissionCreatorSummarySchema.parse(submission);
+}
+
+export function toCreatorSubmissionDetail(
+	submission: Record<string, unknown>,
+): Record<string, unknown> {
+	return ContractSubmissionCreatorDetailSchema.parse(submission);
+}
 
 function getSubmissionFormString(
 	submission: Record<string, unknown>,

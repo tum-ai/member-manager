@@ -1,8 +1,13 @@
 import type {
+	ContractCommentInput,
+	ContractDraftSubmissionInput,
 	ContractPartnerComment,
-	ContractReviewStatus,
+	ContractSignatureInput,
 	ContractStatusEvent,
 	ContractSubmission,
+	ContractSubmissionInput,
+	ContractSubmissionSummary,
+	ContractSubmissionUpdateInput,
 	RenderedContractDocument,
 } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -30,7 +35,7 @@ export function useContractSubmissions() {
 	return useQuery({
 		queryKey: contractQueryKeys.submissions,
 		queryFn: () =>
-			apiClient<ContractSubmission[]>("/api/contracts/submissions"),
+			apiClient<ContractSubmissionSummary[]>("/api/contracts/submissions"),
 	});
 }
 
@@ -78,11 +83,7 @@ export function useContractSubmissionPreview(
 export function useCreateContractSubmission() {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: (body: {
-			template_id: string;
-			form_data: Record<string, unknown>;
-			status?: "draft" | "submitted";
-		}) =>
+		mutationFn: (body: ContractSubmissionInput) =>
 			apiClient<ContractSubmission>("/api/contracts/submissions", {
 				method: "POST",
 				body: JSON.stringify(body),
@@ -97,10 +98,7 @@ export function useCreateContractSubmission() {
 export function useUpdateContractDraft(submissionId: string) {
 	const invalidateSubmission = useInvalidateSubmission(submissionId);
 	return useMutation({
-		mutationFn: (body: {
-			form_data: Record<string, unknown>;
-			status?: "draft" | "submitted";
-		}) =>
+		mutationFn: (body: ContractDraftSubmissionInput) =>
 			apiClient<ContractSubmission>(
 				`/api/contracts/submissions/${submissionId}/draft`,
 				{
@@ -115,23 +113,7 @@ export function useUpdateContractDraft(submissionId: string) {
 export function useUpdateContractSubmission(submissionId: string) {
 	const invalidateSubmission = useInvalidateSubmission(submissionId);
 	return useMutation({
-			mutationFn: (body: {
-				status?: ContractReviewStatus;
-				manual_status_change?: boolean;
-				auto_send_after_board_signed?: boolean;
-				admin_edited_text?: string | null;
-			notes?: string | null;
-			feedback_message?: string | null;
-			rejection_reason?: string | null;
-			generate_signature_token?: boolean;
-			generate_board_signature_token?: boolean;
-			send_to_partner?: boolean;
-			send_partner_email?: boolean;
-			send_opensign?: boolean;
-			partner_email_subject?: string | null;
-			partner_email_message?: string | null;
-			signature_token_ttl_hours?: number;
-		}) =>
+		mutationFn: (body: ContractSubmissionUpdateInput) =>
 			apiClient<ContractSubmission>(
 				`/api/contracts/submissions/${submissionId}`,
 				{
@@ -159,7 +141,7 @@ export function useContractSubmissionComments(
 export function useCreateContractSubmissionComment(submissionId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: (body: { comment: string }) =>
+		mutationFn: (body: ContractCommentInput) =>
 			apiClient<ContractPartnerComment>(
 				`/api/contracts/submissions/${submissionId}/comments`,
 				{
@@ -181,7 +163,7 @@ export function useCreateContractSubmissionComment(submissionId: string) {
 export function useBoardSignContractSubmission(submissionId: string) {
 	const invalidateSubmission = useInvalidateSubmission(submissionId);
 	return useMutation({
-		mutationFn: (body: { signature_data: string; signer_name: string }) =>
+		mutationFn: (body: ContractSignatureInput) =>
 			apiClient<ContractSubmission>(
 				`/api/contracts/submissions/${submissionId}/board-signature`,
 				{

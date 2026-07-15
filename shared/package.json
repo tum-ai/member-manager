@@ -17,7 +17,7 @@
 	"scripts": {
 		"build": "tsc",
 		"typecheck": "tsc --noEmit",
-		"test": "node --test test/**/*.test.ts",
+		"test": "pnpm build && node --test test/**/*.test.ts",
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write"
 	},
@@ -26,5 +26,8 @@
 	},
 	"devDependencies": {
 		"typescript": "^5.9.3"
+	},
+	"dependencies": {
+		"zod": "^4.4.3"
 	}
 }

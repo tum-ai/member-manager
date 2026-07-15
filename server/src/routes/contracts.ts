@@ -4,10 +4,15 @@ import type {
 	RenderedContractDocument,
 } from "@member-manager/shared";
 import {
+	CommentBodySchema,
 	contractBlockMatches,
+	DraftSubmissionPatchSchema,
 	enrichContractFormData,
 	evaluateContractCondition,
+	SubmissionBodySchema,
+	SubmissionPatchSchema,
 	stringifyContractVariable,
+	TextPreviewBodySchema,
 } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { checkAdminRole, checkContractsAdmin } from "../lib/auth.js";
@@ -29,6 +34,8 @@ import {
 	getPartnerCompanyNameFromSubmission,
 	getPartnerEmailFromSubmission,
 	textFromSubmission,
+	toCreatorSubmissionDetail,
+	toCreatorSubmissionSummary,
 } from "../lib/contracts/contractRecords.js";
 import {
 	createContractDatabaseError,
@@ -37,13 +44,6 @@ import {
 	fetchSubmissionComments,
 	fetchTemplateWithChildren,
 } from "../lib/contracts/contractRepository.js";
-import {
-	CommentBodySchema,
-	DraftSubmissionPatchSchema,
-	SubmissionBodySchema,
-	SubmissionPatchSchema,
-	TextPreviewBodySchema,
-} from "../lib/contracts/contractSchemas.js";
 import {
 	generateSignatureToken,
 	getAppBaseUrl,
@@ -126,12 +126,9 @@ export async function contractRoutes(server: FastifyInstance) {
 			if (isAdmin) {
 				return rows;
 			}
-			return rows.map((row) => {
-				const r = { ...(row as Record<string, unknown>) };
-				delete r.signature_token;
-				delete r.signature_token_expires_at;
-				return r;
-			});
+			return rows.map((row) =>
+				toCreatorSubmissionSummary(row as Record<string, unknown>),
+			);
 		},
 	);
 
@@ -158,13 +155,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				return reply.status(403).send({ error: "Forbidden" });
 			}
 			if (!isAdmin) {
-				const creatorData = { ...(data as Record<string, unknown>) };
-				delete creatorData.signature_token;
-				delete creatorData.signature_token_expires_at;
-				delete creatorData.board_signature_token;
-				delete creatorData.board_signature_token_expires_at;
-				delete creatorData.notes;
-				return creatorData;
+				return toCreatorSubmissionDetail(data as Record<string, unknown>);
 			}
 			return data;
 		},

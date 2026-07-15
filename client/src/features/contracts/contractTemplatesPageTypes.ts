@@ -1,8 +1,8 @@
 import type {
-	ContractConditionalBlock,
+	ContractConditionalBlockInput,
 	ContractTemplate,
 	ContractTemplateDetail,
-	ContractTemplateVariable,
+	ContractTemplateVariableInput,
 } from "@member-manager/shared";
 
 export interface ContractTemplateDraft {
@@ -12,15 +12,9 @@ export interface ContractTemplateDraft {
 	is_active: boolean;
 }
 
-export type NewContractTemplateVariable = Omit<
-	ContractTemplateVariable,
-	"id" | "template_id"
->;
+export type NewContractTemplateVariable = ContractTemplateVariableInput;
 
-export type NewContractConditionalBlock = Omit<
-	ContractConditionalBlock,
-	"id" | "template_id"
->;
+export type NewContractConditionalBlock = ContractConditionalBlockInput;
 
 export interface ContractTemplateEditorViewModel {
 	detail: ContractTemplateDetail | undefined;

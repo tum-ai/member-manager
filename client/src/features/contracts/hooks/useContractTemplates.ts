@@ -1,8 +1,11 @@
 import type {
 	ContractConditionalBlock,
+	ContractConditionalBlockInput,
 	ContractTemplate,
 	ContractTemplateDetail,
+	ContractTemplateInput,
 	ContractTemplateVariable,
+	ContractTemplateVariableInput,
 	RenderedContractDocument,
 } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -50,12 +53,7 @@ export function useContractPreview(
 export function useCreateContractTemplate() {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: (body: {
-			name: string;
-			description?: string | null;
-			contract_text?: string;
-			is_active?: boolean;
-		}) =>
+		mutationFn: (body: ContractTemplateInput) =>
 			apiClient<ContractTemplate>("/api/contracts/templates", {
 				method: "POST",
 				body: JSON.stringify(body),
@@ -70,14 +68,7 @@ export function useCreateContractTemplate() {
 export function useUpdateContractTemplate(templateId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: (
-			body: Partial<{
-				name: string;
-				description: string | null;
-				contract_text: string;
-				is_active: boolean;
-			}>,
-		) =>
+		mutationFn: (body: Partial<ContractTemplateInput>) =>
 			apiClient<ContractTemplate>(`/api/contracts/templates/${templateId}`, {
 				method: "PATCH",
 				body: JSON.stringify(body),
@@ -110,7 +101,7 @@ export function useDeleteContractTemplate() {
 export function useCreateVariable(templateId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: (body: Omit<ContractTemplateVariable, "id" | "template_id">) =>
+		mutationFn: (body: ContractTemplateVariableInput) =>
 			apiClient<ContractTemplateVariable>(
 				`/api/contracts/templates/${templateId}/variables`,
 				{ method: "POST", body: JSON.stringify(body) },
@@ -140,7 +131,7 @@ export function useDeleteVariable(templateId: string) {
 export function useCreateBlock(templateId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: (body: Omit<ContractConditionalBlock, "id" | "template_id">) =>
+		mutationFn: (body: ContractConditionalBlockInput) =>
 			apiClient<ContractConditionalBlock>(
 				`/api/contracts/templates/${templateId}/blocks`,
 				{ method: "POST", body: JSON.stringify(body) },

@@ -71,7 +71,7 @@ export interface ContractTemplateVariable {
 	label: string;
 	data_type: ContractVariableDataType;
 	help_text: string | null;
-	options: string[] | null;
+	options: unknown | null;
 	is_required: boolean;
 	is_multiselect: boolean;
 	show_if_variable: string | null;
@@ -109,56 +109,6 @@ export interface RenderedContractDocument {
 	text: string;
 	html: string;
 	pages: string[];
-}
-
-export interface ContractSubmission {
-	id: string;
-	template_id: string;
-	submitter_user_id: string;
-	form_data: Record<string, unknown>;
-	generated_contract_text: string | null;
-	admin_edited_text: string | null;
-	status: ContractWorkflowStatus;
-	notes: string | null;
-	feedback_message: string | null;
-	rejection_reason: string | null;
-	signature_token: string | null;
-	signature_token_expires_at: string | null;
-	signature_data: string | null;
-	signer_name: string | null;
-	signed_at: string | null;
-	admin_signature_data: string | null;
-	admin_signer_name: string | null;
-	admin_signed_at: string | null;
-	board_signature_token: string | null;
-	board_signature_token_expires_at: string | null;
-	partner_comment: string | null;
-	partner_commented_at: string | null;
-	sent_to_partner_at: string | null;
-	partner_email_sent_at: string | null;
-	partner_email_recipient: string | null;
-	partner_email_error: string | null;
-	clarification_email_sent_at: string | null;
-	clarification_email_recipient: string | null;
-	clarification_email_error: string | null;
-	signature_provider: "in_app" | "opensign";
-	opensign_document_id: string | null;
-	opensign_status: string | null;
-	opensign_sent_at: string | null;
-	opensign_completed_at: string | null;
-	opensign_file_url: string | null;
-	opensign_certificate_url: string | null;
-	opensign_error: string | null;
-	auto_send_after_board_signed: boolean;
-	final_pdf_token: string | null;
-	final_pdf_sent_at: string | null;
-	completed_at: string | null;
-	active_document_version_id: string | null;
-	sent_document_version_id: string | null;
-	final_document_version_id: string | null;
-	submitted_at: string;
-	created_at: string;
-	updated_at: string;
 }
 
 export interface ContractPartnerComment {

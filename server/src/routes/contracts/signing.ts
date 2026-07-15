@@ -1,3 +1,9 @@
+import {
+	CommentBodySchema,
+	OpenSignWebhookSchema,
+	PdfDownloadQuerySchema,
+	SignBodySchema,
+} from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { renderDocumentPages } from "../../lib/contracts/contractDocument.js";
 import {
@@ -22,12 +28,6 @@ import {
 	fetchDocumentVersion,
 	fetchSubmissionComments,
 } from "../../lib/contracts/contractRepository.js";
-import {
-	CommentBodySchema,
-	OpenSignWebhookSchema,
-	PdfDownloadQuerySchema,
-	SignBodySchema,
-} from "../../lib/contracts/contractSchemas.js";
 import {
 	isOpenSignCompletedEvent,
 	isOpenSignFailureEvent,
