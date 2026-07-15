@@ -4,14 +4,22 @@ export function generateSignatureToken(): string {
 	return randomBytes(32).toString("hex");
 }
 
+function trimTrailingSlashes(value: string): string {
+	let end = value.length;
+	while (end > 0 && value.charCodeAt(end - 1) === 47) {
+		end -= 1;
+	}
+	return value.slice(0, end);
+}
+
 export function getAppBaseUrl(request: {
 	headers: Record<string, unknown>;
 }): string {
 	const configured = process.env.APP_BASE_URL?.trim();
-	if (configured) return configured.replace(/\/+$/, "");
+	if (configured) return trimTrailingSlashes(configured);
 	const origin =
 		typeof request.headers.origin === "string" ? request.headers.origin : "";
-	if (origin) return origin.replace(/\/+$/, "");
+	if (origin) return trimTrailingSlashes(origin);
 	return "http://localhost:5173";
 }
 

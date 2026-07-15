@@ -1027,6 +1027,39 @@ describe("Contract Routes", async () => {
 		}
 	});
 
+	test("rate-limits OpenSign webhook authorization attempts", async () => {
+		resetDatabase();
+		const originalWebhookSecret = process.env.OPENSIGN_WEBHOOK_SECRET;
+		delete process.env.OPENSIGN_WEBHOOK_SECRET;
+
+		try {
+			const responses = [];
+			for (let requestNumber = 1; requestNumber <= 61; requestNumber += 1) {
+				responses.push(
+					await app.inject({
+						method: "POST",
+						url: "/api/webhooks/opensign",
+						remoteAddress: "198.51.100.10",
+						headers: {
+							"content-type": "application/json",
+						},
+						payload: JSON.stringify({
+							event: "completed",
+							objectId: "opensign-rate-limit-test",
+						}),
+					}),
+				);
+			}
+
+			const response = responses.at(-1);
+			assert.ok(response);
+			assert.strictEqual(response.statusCode, 429);
+			assert.ok(response.headers["retry-after"]);
+		} finally {
+			restoreEnv("OPENSIGN_WEBHOOK_SECRET", originalWebhookSecret);
+		}
+	});
+
 	test("processes an OpenSign completion webhook", async () => {
 		resetDatabase();
 		const originalWebhookSecret = process.env.OPENSIGN_WEBHOOK_SECRET;
