@@ -259,7 +259,7 @@ export function MainLayout({
 					to: "/admin/certificate-requests",
 					icon: Award,
 				},
-				{ label: "Job Requests", to: "/admin/job-requests", icon: Briefcase },
+				{ label: "Job Postings", to: "/admin/job-requests", icon: Briefcase },
 			],
 		},
 	];

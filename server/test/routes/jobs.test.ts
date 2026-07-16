@@ -831,6 +831,122 @@ describe("Job Routes", async () => {
 		assert.strictEqual(publicJobs[0].title, "Robotics Working Student");
 	});
 
+	test("lets admins create published job postings", async () => {
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/admin/job-requests",
+			headers: authHeaders(testTokens.admin),
+			payload: {
+				title: "AI Platform Engineer",
+				organization_name: "TUM.ai",
+				description_markdown:
+					"Build and operate the platform used by our applied AI teams.",
+				call_to_action: "Apply now",
+				job_type: "full_time",
+				location: "Munich",
+				contact_name: "Admin User",
+				contact_email: "jobs@tum-ai.com",
+				external_url: "https://tum-ai.com/jobs/platform",
+				expires_at: "2099-12-31",
+			},
+		});
+
+		assert.strictEqual(response.statusCode, 201);
+		const created = JSON.parse(response.payload);
+		assert.strictEqual(created.status, "approved");
+		assert.strictEqual(created.user_id, testUserIds.admin);
+		assert.strictEqual(created.reviewed_by, testUserIds.admin);
+		assert.ok(created.published_at);
+
+		const publicResponse = await app.inject({
+			method: "GET",
+			url: "/api/jobs",
+			headers: authHeaders(testTokens.user),
+		});
+		const publicJobs = JSON.parse(publicResponse.payload).data;
+		assert.strictEqual(publicJobs[0].title, "AI Platform Engineer");
+	});
+
+	test("lets admins edit published member job postings", async () => {
+		mockDatabase.job_posting_requests.push({
+			id: "member-job-approved",
+			user_id: testUserIds.user,
+			status: "approved",
+			title: "AI Product Intern",
+			organization_name: "Example Lab",
+			logo_url: null,
+			description_markdown: "Support product research for AI tooling.",
+			call_to_action: "Apply now",
+			job_type: "internship",
+			location: "Remote",
+			contact_name: "Test User",
+			contact_email: "jobs@example.com",
+			contact_role: null,
+			external_url: null,
+			expires_at: null,
+			published_at: "2026-06-10T10:00:00.000Z",
+			reviewed_by: testUserIds.admin,
+			reviewed_at: "2026-06-10T10:00:00.000Z",
+			created_at: "2026-06-10T10:00:00.000Z",
+		});
+
+		const response = await app.inject({
+			method: "PUT",
+			url: "/api/admin/job-requests/member-job-approved",
+			headers: authHeaders(testTokens.admin),
+			payload: {
+				title: "Senior AI Product Engineer",
+				organization_name: "Example Lab",
+				description_markdown:
+					"Own product research and delivery for production AI tooling.",
+				call_to_action: "Meet the team",
+				job_type: "full_time",
+				location: "Munich or remote",
+				contact_name: "Test User",
+				contact_email: "jobs@example.com",
+				contact_role: "Hiring manager",
+				external_url: "https://example.com/jobs/senior-ai",
+				expires_at: null,
+			},
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const updated = JSON.parse(response.payload);
+		assert.strictEqual(updated.title, "Senior AI Product Engineer");
+		assert.strictEqual(updated.status, "approved");
+		assert.strictEqual(updated.published_at, "2026-06-10T10:00:00.000Z");
+		assert.ok(updated.updated_at);
+	});
+
+	test("requires admin access to create and edit job postings", async () => {
+		const payload = {
+			title: "AI Platform Engineer",
+			organization_name: "TUM.ai",
+			description_markdown:
+				"Build and operate the platform used by our applied AI teams.",
+			job_type: "full_time",
+			location: "Munich",
+			contact_name: "Test User",
+			contact_email: "jobs@tum-ai.com",
+		};
+
+		const createResponse = await app.inject({
+			method: "POST",
+			url: "/api/admin/job-requests",
+			headers: authHeaders(testTokens.user),
+			payload,
+		});
+		const updateResponse = await app.inject({
+			method: "PUT",
+			url: "/api/admin/job-requests/job-1",
+			headers: authHeaders(testTokens.user),
+			payload,
+		});
+
+		assert.strictEqual(createResponse.statusCode, 403);
+		assert.strictEqual(updateResponse.statusCode, 403);
+	});
+
 	test("requires admin access to review job requests", async () => {
 		mockDatabase.job_posting_requests.push({
 			id: "member-job-pending",

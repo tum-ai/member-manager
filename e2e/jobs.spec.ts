@@ -302,7 +302,7 @@ test.describe("job submission", () => {
 		await adminPage.goto("/admin/job-requests");
 
 		await expect(
-			adminPage.getByRole("heading", { name: "Job Posting Requests" }),
+			adminPage.getByRole("heading", { name: "Job Postings" }),
 		).toBeVisible();
 
 		// The pending review card renders the posting title as an <h2>.
