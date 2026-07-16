@@ -223,6 +223,32 @@ describe("usePartnerManagement", () => {
 		expect(showToast).toHaveBeenCalledWith("Partner updated.", "success");
 	});
 
+	it("restores an archived partner", async () => {
+		const archivedPartner = { ...managedPartner, status: "archived" as const };
+		let requested = false;
+		server.use(
+			http.get("/api/partners", () =>
+				HttpResponse.json({ ...data, partners: [archivedPartner] }),
+			),
+			http.post("/api/partners/:id/unarchive", () => {
+				requested = true;
+				return HttpResponse.json({ ok: true });
+			}),
+		);
+		const { result } = renderHookWithClient(() => usePartnerManagement());
+		await waitFor(() =>
+			expect(result.current.archivedPartners[0]?.status).toBe("archived"),
+		);
+
+		act(() => result.current.setUnarchiveTarget(archivedPartner));
+		act(() => result.current.confirmUnarchive());
+
+		await waitFor(() => expect(requested).toBe(true));
+		await waitFor(() =>
+			expect(showToast).toHaveBeenCalledWith("Partner restored.", "success"),
+		);
+	});
+
 	it("generates a replacement activation link", async () => {
 		server.use(
 			http.post("/api/partners/:id/activation-link", () =>

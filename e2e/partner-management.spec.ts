@@ -1,9 +1,14 @@
 import { expect, test } from "@playwright/test";
 import { loginAsLocalAdmin } from "./helpers";
 
-test("creates, updates, and archives a Partner Portal organization", async ({
+test("creates, updates, archives, and restores a Partner Portal organization", async ({
 	page,
 }) => {
+	const contractStart = new Date();
+	contractStart.setUTCDate(contractStart.getUTCDate() + 1);
+	const contractEnd = new Date();
+	contractEnd.setUTCFullYear(contractEnd.getUTCFullYear() + 1);
+
 	await loginAsLocalAdmin(page);
 	await page.goto("/tools/partners");
 	await expect(
@@ -15,8 +20,12 @@ test("creates, updates, and archives a Partner Portal organization", async ({
 	await page.getByLabel("Primary contact email").fill("partner@e2e.test");
 	await page.getByLabel("Partnership tier").click();
 	await page.getByRole("option", { name: "Silver" }).click();
-	await page.getByLabel("Contract start").fill("2026-08-01");
-	await page.getByLabel("Contract end").fill("2027-07-31");
+	await page
+		.getByLabel("Contract start")
+		.fill(contractStart.toISOString().slice(0, 10));
+	await page
+		.getByLabel("Contract end")
+		.fill(contractEnd.toISOString().slice(0, 10));
 	await page.getByLabel("Website").fill("https://e2e.test");
 	await page.getByRole("button", { name: "Create partner" }).click();
 
@@ -77,6 +86,13 @@ test("creates, updates, and archives a Partner Portal organization", async ({
 	await page.getByRole("button", { name: /archived partners/i }).click();
 	await expect(page.getByText("E2E Robotics GmbH").first()).toBeVisible();
 	await expect(page.getByText("Archived").first()).toBeVisible();
+
+	await page
+		.getByRole("button", { name: "Restore E2E Robotics GmbH" })
+		.first()
+		.click();
+	await page.getByRole("button", { name: "Restore partner" }).click();
+	await expect(page.getByText("Awaiting activation").first()).toBeVisible();
 });
 
 test("enforces the single-job account contract", async ({ page }) => {

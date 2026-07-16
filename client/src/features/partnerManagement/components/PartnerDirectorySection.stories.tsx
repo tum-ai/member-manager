@@ -45,7 +45,9 @@ const meta = {
 		onManageJobs: fn(),
 		onActivationLink: fn(),
 		onArchive: fn(),
+		onUnarchive: fn(),
 		isGeneratingActivationLink: false,
+		isUnarchiving: false,
 	},
 } satisfies Meta<typeof PartnerDirectorySection>;
 
@@ -90,13 +92,22 @@ export const ArchivedCollapsed: Story = {
 		partners: [],
 		archivedPartners: [{ ...partner, status: "archived" }],
 		totalCount: 0,
+		onUnarchive: fn(),
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.queryByText("Example Partner")).not.toBeInTheDocument();
 		await userEvent.click(
 			canvas.getByRole("button", { name: /archived partners/i }),
 		);
 		await expect(canvas.getAllByText("Example Partner")[0]).toBeVisible();
+		const restoreButtons = canvas.getAllByRole("button", {
+			name: /restore example partner/i,
+		});
+		await userEvent.click(restoreButtons[0]);
+		await expect(args.onUnarchive).toHaveBeenCalledWith({
+			...partner,
+			status: "archived",
+		});
 	},
 };
