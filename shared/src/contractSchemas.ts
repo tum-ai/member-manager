@@ -19,7 +19,7 @@ export const VariableBodySchema = z.object({
 		.trim()
 		.regex(
 			/^[a-zA-Z][a-zA-Z0-9_]*$/,
-			"Variable name must be alphanumeric/underscore",
+			"Variable name must start with a letter and contain only letters, digits, or underscores",
 		)
 		.max(80),
 	label: z.string().trim().min(1).max(200),

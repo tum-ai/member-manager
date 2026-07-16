@@ -82,6 +82,21 @@ describe("contract schemas", () => {
 		);
 	});
 
+	test("explains that variable names must start with a letter", () => {
+		const result = VariableBodySchema.safeParse({
+			variable_name: "_partner_name",
+			label: "Partner name",
+		});
+
+		assert.equal(result.success, false);
+		if (!result.success) {
+			assert.match(
+				result.error.issues[0]?.message ?? "",
+				/start with a letter/,
+			);
+		}
+	});
+
 	test("models admin and creator detail responses separately", () => {
 		const admin = adminSubmissionFixture();
 		assert.equal(

@@ -40,15 +40,15 @@ export function TemplateEditor({
 	model: ContractTemplateEditorViewModel;
 }): JSX.Element {
 	const { detail, draft } = model;
-	if (model.loading || !detail || !draft) {
-		return <TemplateEditorSkeleton />;
-	}
 	if (model.error) {
 		return (
 			<Alert variant="destructive">
 				<AlertDescription>{model.error.message}</AlertDescription>
 			</Alert>
 		);
+	}
+	if (model.loading || !detail || !draft) {
+		return <TemplateEditorSkeleton />;
 	}
 
 	return (

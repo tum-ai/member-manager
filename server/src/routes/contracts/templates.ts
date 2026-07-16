@@ -20,7 +20,8 @@ import {
 
 export async function contractTemplateRoutes(server: FastifyInstance) {
 	// ---------------------------------------------------------------------
-	// Templates: contract tools are limited to departments with contracts.admin.
+	// Template reads are available to contract creators; mutations require
+	// contracts.admin.
 	// ---------------------------------------------------------------------
 
 	server.get(
