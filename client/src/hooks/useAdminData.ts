@@ -1,3 +1,4 @@
+import type { JobPostingInput } from "@member-manager/shared";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -319,6 +320,43 @@ export function useAdminData() {
 		},
 	});
 
+	function invalidateJobViews() {
+		queryClient.invalidateQueries({
+			queryKey: ["admin-job-requests"],
+		});
+		queryClient.invalidateQueries({ queryKey: ["job-requests"] });
+		queryClient.invalidateQueries({ queryKey: ["partner-jobs"] });
+	}
+
+	const createJobMutation = useMutation({
+		mutationFn: async (payload: JobPostingInput) => {
+			return await apiClient<JobPostingRequest>("/api/admin/job-requests", {
+				method: "POST",
+				body: JSON.stringify(payload),
+			});
+		},
+		onSuccess: invalidateJobViews,
+	});
+
+	const updateJobMutation = useMutation({
+		mutationFn: async ({
+			requestId,
+			payload,
+		}: {
+			requestId: string;
+			payload: JobPostingInput;
+		}) => {
+			return await apiClient<JobPostingRequest>(
+				`/api/admin/job-requests/${requestId}`,
+				{
+					method: "PUT",
+					body: JSON.stringify(payload),
+				},
+			);
+		},
+		onSuccess: invalidateJobViews,
+	});
+
 	const removeJobRequestMutation = useMutation({
 		mutationFn: async (requestId: string) => {
 			await apiClient(`/api/admin/job-requests/${requestId}`, {
@@ -360,6 +398,8 @@ export function useAdminData() {
 		reviewChangeRequestAsync: reviewChangeRequestMutation.mutateAsync,
 		reviewCertificateRequestAsync: reviewCertificateRequestMutation.mutateAsync,
 		reviewJobRequestAsync: reviewJobRequestMutation.mutateAsync,
+		createJobAsync: createJobMutation.mutateAsync,
+		updateJobAsync: updateJobMutation.mutateAsync,
 		removeJobRequestAsync: removeJobRequestMutation.mutateAsync,
 		isSavingMember:
 			updateDepartmentMutation.isPending ||
@@ -371,6 +411,7 @@ export function useAdminData() {
 		isReviewingChangeRequest: reviewChangeRequestMutation.isPending,
 		isReviewingCertificateRequest: reviewCertificateRequestMutation.isPending,
 		isReviewingJobRequest: reviewJobRequestMutation.isPending,
+		isSavingJob: createJobMutation.isPending || updateJobMutation.isPending,
 		isRemovingJobRequest: removeJobRequestMutation.isPending,
 	};
 }

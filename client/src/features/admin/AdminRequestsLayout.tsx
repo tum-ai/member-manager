@@ -6,6 +6,7 @@ import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 interface AdminRequestsLayoutProps {
 	title: string;
 	description: string;
+	actions?: ReactNode;
 	isLoading?: boolean;
 	error?: Error | null;
 	children: ReactNode;
@@ -14,15 +15,19 @@ interface AdminRequestsLayoutProps {
 export function AdminRequestsLayout({
 	title,
 	description,
+	actions,
 	isLoading = false,
 	error = null,
 	children,
 }: AdminRequestsLayoutProps) {
 	return (
 		<div>
-			<div className="mb-6">
-				<h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-				<p className="mt-1 text-muted-foreground">{description}</p>
+			<div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+				<div>
+					<h1 className="text-2xl font-bold tracking-tight">{title}</h1>
+					<p className="mt-1 text-muted-foreground">{description}</p>
+				</div>
+				{actions}
 			</div>
 
 			{isLoading ? (

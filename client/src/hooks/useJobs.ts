@@ -1,13 +1,15 @@
+import type {
+	JobPostingFormInput,
+	JobPostingInput,
+	JobPostingRequest,
+	JobType,
+} from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 import { fetchAllPartnerJobPages } from "@/lib/jobs";
 
-export type JobType =
-	| "internship"
-	| "working_student"
-	| "full_time"
-	| "thesis"
-	| "other";
+export type { JobPostingInput, JobPostingRequest, JobType };
+export type JobPostingRequestPayload = JobPostingFormInput;
 
 export interface PartnerJob {
 	id: string;
@@ -34,34 +36,6 @@ export interface PartnerJob {
 export interface PartnerJobsResponse {
 	data: PartnerJob[];
 	next_cursor: string | null;
-}
-
-export type JobRequestStatus = "pending" | "approved" | "rejected";
-
-export interface JobPostingRequestPayload {
-	title: string;
-	organization_name: string;
-	logo_url?: string | null;
-	description_markdown: string;
-	call_to_action?: string | null;
-	job_type: JobType;
-	location: string;
-	contact_name: string;
-	contact_email: string;
-	contact_role?: string | null;
-	external_url?: string | null;
-	expires_at?: string | null;
-}
-
-export interface JobPostingRequest extends JobPostingRequestPayload {
-	id: string;
-	user_id: string;
-	status: JobRequestStatus;
-	review_note?: string | null;
-	reviewed_by?: string | null;
-	reviewed_at?: string | null;
-	published_at?: string | null;
-	created_at?: string;
 }
 
 export function useJobs() {
@@ -99,7 +73,7 @@ export function useJobs() {
 	});
 
 	const submitJobRequestMutation = useMutation({
-		mutationFn: async (payload: JobPostingRequestPayload) => {
+		mutationFn: async (payload: JobPostingFormInput) => {
 			return await apiClient<JobPostingRequest>("/api/jobs/requests", {
 				method: "POST",
 				body: JSON.stringify(payload),

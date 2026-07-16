@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { JOB_TYPES, jobTypeSchema } from "./jobs.js";
 
 export const PARTNER_KINDS = ["tier_subscriber", "single_job_buyer"] as const;
 export const partnerKindSchema = z.enum(PARTNER_KINDS);
@@ -123,14 +124,8 @@ export type PartnerActivationResult = z.infer<
 	typeof partnerActivationResultSchema
 >;
 
-export const PARTNER_JOB_TYPES = [
-	"internship",
-	"working_student",
-	"full_time",
-	"thesis",
-	"other",
-] as const;
-export const partnerJobTypeSchema = z.enum(PARTNER_JOB_TYPES);
+export const PARTNER_JOB_TYPES = JOB_TYPES;
+export const partnerJobTypeSchema = jobTypeSchema;
 export type PartnerJobType = z.infer<typeof partnerJobTypeSchema>;
 
 export const PARTNER_JOB_STATUSES = [

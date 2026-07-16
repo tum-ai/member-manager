@@ -120,6 +120,52 @@ describe("useAdminData", () => {
 		expect(body).toEqual({ decision: "approved", review_note: "ok" });
 	});
 
+	it("creates and updates admin-managed jobs", async () => {
+		const calls: Array<{ method: string; body: unknown; id?: string }> = [];
+		server.use(
+			http.get("/api/admin/members", () => membersPage(1, [], 0)),
+			http.post("/api/admin/job-requests", async ({ request }) => {
+				calls.push({ method: request.method, body: await request.json() });
+				return HttpResponse.json({ id: "job-1" }, { status: 201 });
+			}),
+			http.put("/api/admin/job-requests/:id", async ({ request, params }) => {
+				calls.push({
+					method: request.method,
+					id: String(params.id),
+					body: await request.json(),
+				});
+				return HttpResponse.json({ id: params.id });
+			}),
+		);
+
+		const { result } = renderHookWithClient(() => useAdminData());
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		const payload = {
+			title: "AI Platform Engineer",
+			organization_name: "TUM.ai",
+			logo_url: null,
+			description_markdown:
+				"Build and operate the platform used by our applied AI teams.",
+			call_to_action: "Apply now",
+			job_type: "full_time" as const,
+			location: "Munich",
+			contact_name: "Admin User",
+			contact_email: "jobs@tum-ai.com",
+			contact_role: null,
+			external_url: null,
+			expires_at: null,
+		};
+
+		await result.current.createJobAsync(payload);
+		await result.current.updateJobAsync({ requestId: "job-1", payload });
+
+		expect(calls).toEqual([
+			{ method: "POST", body: payload },
+			{ method: "PUT", id: "job-1", body: payload },
+		]);
+	});
+
 	it("paginates through every members page", async () => {
 		const firstPage = Array.from({ length: 200 }, (_, i) => ({
 			user_id: `m-${i}`,
