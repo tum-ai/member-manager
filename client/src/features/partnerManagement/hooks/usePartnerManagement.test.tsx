@@ -223,7 +223,7 @@ describe("usePartnerManagement", () => {
 		expect(showToast).toHaveBeenCalledWith("Partner updated.", "success");
 	});
 
-	it("unarchives an archived partner", async () => {
+	it("restores an archived partner", async () => {
 		const archivedPartner = { ...managedPartner, status: "archived" as const };
 		let requested = false;
 		server.use(
@@ -237,7 +237,7 @@ describe("usePartnerManagement", () => {
 		);
 		const { result } = renderHookWithClient(() => usePartnerManagement());
 		await waitFor(() =>
-			expect(result.current.partners[0]?.status).toBe("archived"),
+			expect(result.current.archivedPartners[0]?.status).toBe("archived"),
 		);
 
 		act(() => result.current.setUnarchiveTarget(archivedPartner));
@@ -245,7 +245,7 @@ describe("usePartnerManagement", () => {
 
 		await waitFor(() => expect(requested).toBe(true));
 		await waitFor(() =>
-			expect(showToast).toHaveBeenCalledWith("Partner unarchived.", "success"),
+			expect(showToast).toHaveBeenCalledWith("Partner restored.", "success"),
 		);
 	});
 

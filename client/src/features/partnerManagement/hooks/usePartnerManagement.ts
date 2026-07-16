@@ -178,7 +178,7 @@ export function usePartnerManagement() {
 		onSuccess: async () => {
 			await refresh();
 			setUnarchiveTarget(null);
-			showToast("Partner unarchived.", "success");
+			showToast("Partner restored.", "success");
 		},
 		onError: (error) => showToast(error.message, "error"),
 	});

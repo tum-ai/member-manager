@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { loginAsLocalAdmin } from "./helpers";
 
-test("creates, updates, archives, and unarchives a Partner Portal organization", async ({
+test("creates, updates, archives, and restores a Partner Portal organization", async ({
 	page,
 }) => {
 	const contractStart = new Date();
@@ -88,10 +88,10 @@ test("creates, updates, archives, and unarchives a Partner Portal organization",
 	await expect(page.getByText("Archived").first()).toBeVisible();
 
 	await page
-		.getByRole("button", { name: "Unarchive E2E Robotics GmbH" })
+		.getByRole("button", { name: "Restore E2E Robotics GmbH" })
 		.first()
 		.click();
-	await page.getByRole("button", { name: "Unarchive partner" }).click();
+	await page.getByRole("button", { name: "Restore partner" }).click();
 	await expect(page.getByText("Awaiting activation").first()).toBeVisible();
 });
 
