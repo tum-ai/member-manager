@@ -1,10 +1,20 @@
 import { createServer } from "node:http";
 
-const PORT = 8791;
+const PORT = Number(process.env.PARTNER_PORTAL_STUB_PORT ?? 8791);
 const TOKEN = "e2e-partner-management-token";
+const BRONZE_TIER_ID = "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c13";
 const SILVER_TIER_ID = "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c11";
 const GOLD_TIER_ID = "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c12";
 const tiers = [
+	{
+		id: BRONZE_TIER_ID,
+		slug: "bronze",
+		displayName: "Bronze",
+		hasCvAccess: false,
+		jobQuota: 1,
+		eventQuota: {},
+		displayOrder: 1,
+	},
 	{
 		id: SILVER_TIER_ID,
 		slug: "silver",
@@ -25,6 +35,7 @@ const tiers = [
 	},
 ];
 const partners = [];
+const jobs = [];
 
 function json(response, status, body) {
 	response.writeHead(status, {
@@ -57,11 +68,34 @@ const server = createServer(async (request, response) => {
 	}
 
 	const collectionPath = "/api/internal/member-manager/partners";
+	const isPartnerMutation =
+		url.pathname.startsWith(collectionPath) &&
+		["POST", "PATCH", "DELETE"].includes(request.method ?? "");
+	if (
+		isPartnerMutation &&
+		!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+			request.headers["x-member-manager-user-id"] ?? "",
+		)
+	) {
+		return json(response, 400, { error: "invalid_actor" });
+	}
+
 	if (url.pathname === collectionPath && request.method === "GET") {
 		return json(response, 200, { data: { partners, tiers } });
 	}
 	if (url.pathname === collectionPath && request.method === "POST") {
 		const input = await readJson(request);
+		if (
+			input.partnerKind === "single_job_buyer" &&
+			input.tierId !== BRONZE_TIER_ID
+		) {
+			return json(response, 400, {
+				error: {
+					code: "invalid_input",
+					message: "Single-job buyers must use the Bronze compatibility tier.",
+				},
+			});
+		}
 		const now = new Date().toISOString();
 		const partner = {
 			id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
@@ -81,6 +115,7 @@ const server = createServer(async (request, response) => {
 			updatedAt: now,
 		};
 		partners.splice(0, partners.length, partner);
+		jobs.splice(0, jobs.length);
 		return json(response, 201, {
 			data: {
 				partnerId: partner.id,
@@ -100,6 +135,92 @@ const server = createServer(async (request, response) => {
 				activationEmailSent: true,
 			},
 		});
+	}
+
+	const jobsCollectionMatch = url.pathname.match(
+		/^\/api\/internal\/member-manager\/partners\/([^/]+)\/jobs$/,
+	);
+	if (jobsCollectionMatch && request.method === "GET") {
+		return json(response, 200, {
+			data: {
+				jobs: jobs.filter(
+					(job) =>
+						job.partnerId === jobsCollectionMatch[1] &&
+						job.status !== "archived",
+				),
+			},
+		});
+	}
+	if (jobsCollectionMatch && request.method === "POST") {
+		const input = await readJson(request);
+		const partner = partners.find((item) => item.id === jobsCollectionMatch[1]);
+		if (
+			partner?.partnerKind === "single_job_buyer" &&
+			jobs.some(
+				(job) =>
+					job.partnerId === jobsCollectionMatch[1] && job.status !== "archived",
+			)
+		) {
+			return json(response, 409, {
+				error: {
+					code: "conflict",
+					message: "This account includes one job posting.",
+				},
+			});
+		}
+		const now = new Date().toISOString();
+		const job = {
+			id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c14",
+			partnerId: jobsCollectionMatch[1],
+			...input,
+			contactRole: input.contactRole || null,
+			externalUrl: input.externalUrl || null,
+			logoUrl: input.logoUrl || null,
+			status: "approved",
+			submittedAt: now,
+			publishedAt: now,
+			expiresAt: null,
+			createdAt: now,
+			updatedAt: now,
+		};
+		jobs.push(job);
+		return json(response, 201, { data: { job } });
+	}
+
+	const jobItemMatch = url.pathname.match(
+		/^\/api\/internal\/member-manager\/partners\/([^/]+)\/jobs\/([^/]+)$/,
+	);
+	if (jobItemMatch && request.method === "PATCH") {
+		const input = await readJson(request);
+		const job = jobs.find(
+			(item) =>
+				item.partnerId === jobItemMatch[1] && item.id === jobItemMatch[2],
+		);
+		if (!job) {
+			return json(response, 404, {
+				error: { code: "not_found", message: "Active job not found." },
+			});
+		}
+		Object.assign(job, input, {
+			contactRole: input.contactRole || null,
+			externalUrl: input.externalUrl || null,
+			logoUrl: input.logoUrl || null,
+			updatedAt: new Date().toISOString(),
+		});
+		return json(response, 200, { data: { job } });
+	}
+	if (jobItemMatch && request.method === "DELETE") {
+		const job = jobs.find(
+			(item) =>
+				item.partnerId === jobItemMatch[1] && item.id === jobItemMatch[2],
+		);
+		if (!job) {
+			return json(response, 404, {
+				error: { code: "not_found", message: "Active job not found." },
+			});
+		}
+		job.status = "archived";
+		return json(response, 200, { data: { ok: true } });
 	}
 
 	const itemMatch = url.pathname.match(

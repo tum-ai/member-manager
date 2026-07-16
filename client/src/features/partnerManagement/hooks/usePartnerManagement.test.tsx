@@ -1,5 +1,6 @@
 import type {
 	ManagedPartner,
+	ManagedPartnerJob,
 	PartnerManagementData,
 	PartnerTier,
 } from "@member-manager/shared";
@@ -35,6 +36,16 @@ const tier: PartnerTier = {
 	displayOrder: 3,
 };
 
+const bronzeTier: PartnerTier = {
+	...tier,
+	id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c12",
+	slug: "bronze",
+	displayName: "Bronze",
+	hasCvAccess: false,
+	jobQuota: 1,
+	displayOrder: 1,
+};
+
 const managedPartner: ManagedPartner = {
 	id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
 	companyName: "Example Partner",
@@ -62,7 +73,29 @@ const managedPartner: ManagedPartner = {
 
 const data: PartnerManagementData = {
 	partners: [managedPartner],
-	tiers: [tier],
+	tiers: [bronzeTier, tier],
+};
+
+const managedJob: ManagedPartnerJob = {
+	id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c13",
+	partnerId: managedPartner.id,
+	title: "AI Engineer",
+	jobType: "full_time",
+	location: "Munich",
+	description:
+		"Build reliable production AI systems with our engineering team.",
+	callToAction: "Apply now",
+	contactName: "Taylor Example",
+	contactEmail: "jobs@example.com",
+	contactRole: "Talent",
+	externalUrl: "https://example.com/jobs",
+	logoUrl: null,
+	status: "approved",
+	submittedAt: "2026-07-16T17:00:00.000Z",
+	publishedAt: "2026-07-16T17:00:00.000Z",
+	expiresAt: null,
+	createdAt: "2026-07-16T17:00:00.000Z",
+	updatedAt: "2026-07-16T17:00:00.000Z",
 };
 
 describe("usePartnerManagement", () => {
@@ -127,6 +160,47 @@ describe("usePartnerManagement", () => {
 		expect(showToast).toHaveBeenCalledWith("Partner created.", "success");
 	});
 
+	it("stores the compatibility Bronze tier for single-job accounts", async () => {
+		let received: unknown;
+		server.use(
+			http.post("/api/partners", async ({ request }) => {
+				received = await request.json();
+				return HttpResponse.json(
+					{
+						partnerId: managedPartner.id,
+						activationLink: null,
+						activationEmailSent: false,
+					},
+					{ status: 201 },
+				);
+			}),
+		);
+		const { result } = renderHookWithClient(() => usePartnerManagement());
+		await waitFor(() => expect(result.current.partners).toHaveLength(1));
+
+		act(() => result.current.openCreate());
+		act(() => {
+			result.current.form.reset({
+				companyName: "Single Job Buyer",
+				primaryEmail: "single@example.com",
+				tierId: tier.id,
+				contractStart: "2026-01-01",
+				contractEnd: "2026-12-31",
+				partnerKind: "single_job_buyer",
+				websiteUrl: "",
+				notes: "",
+			});
+		});
+		await act(async () => {
+			await result.current.submitForm();
+		});
+
+		expect(received).toMatchObject({
+			partnerKind: "single_job_buyer",
+			tierId: bronzeTier.id,
+		});
+	});
+
 	it("updates a partner without sending the immutable email", async () => {
 		let received: unknown;
 		server.use(
@@ -165,5 +239,72 @@ describe("usePartnerManagement", () => {
 		await waitFor(() =>
 			expect(result.current.activation?.link).toContain("new-invite"),
 		);
+	});
+
+	it("keeps archived partners outside the current roster", async () => {
+		server.use(
+			http.get("/api/partners", () =>
+				HttpResponse.json({
+					...data,
+					partners: [
+						managedPartner,
+						{
+							...managedPartner,
+							id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c14",
+							companyName: "Archived Partner",
+							status: "archived",
+						},
+					],
+				}),
+			),
+		);
+		const { result } = renderHookWithClient(() => usePartnerManagement());
+
+		await waitFor(() => expect(result.current.partners).toHaveLength(1));
+		expect(result.current.archivedPartners).toHaveLength(1);
+		expect(result.current.currentPartnerCount).toBe(1);
+	});
+
+	it("loads and creates jobs for the selected partner", async () => {
+		let received: unknown;
+		server.use(
+			http.get("/api/partners/:id/jobs", () =>
+				HttpResponse.json({ jobs: [managedJob] }),
+			),
+			http.post("/api/partners/:id/jobs", async ({ request }) => {
+				received = await request.json();
+				return HttpResponse.json({ job: managedJob }, { status: 201 });
+			}),
+		);
+		const { result } = renderHookWithClient(() => usePartnerManagement());
+		await waitFor(() => expect(result.current.partners).toHaveLength(1));
+
+		act(() => result.current.openJobs(managedPartner));
+		await waitFor(() => expect(result.current.jobs).toHaveLength(1));
+		act(() => result.current.openCreateJob());
+		act(() => {
+			result.current.jobForm.reset({
+				title: "New role",
+				jobType: "full_time",
+				location: "Munich",
+				description:
+					"Build reliable production AI systems with our engineering team.",
+				callToAction: "Apply now",
+				contactName: "Taylor Example",
+				contactEmail: "jobs@example.com",
+				contactRole: "",
+				externalUrl: "",
+				logoUrl: "",
+			});
+		});
+		await act(async () => {
+			await result.current.submitJobForm();
+		});
+
+		expect(received).toMatchObject({
+			title: "New role",
+			jobType: "full_time",
+		});
+		expect(showToast).toHaveBeenCalledWith("Job published.", "success");
 	});
 });

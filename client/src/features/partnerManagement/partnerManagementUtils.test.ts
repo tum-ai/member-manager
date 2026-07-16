@@ -4,6 +4,7 @@ import {
 	filterPartners,
 	formatContractRange,
 	partnerKindLabel,
+	partnerTierLabel,
 } from "./partnerManagementUtils";
 
 function partner(overrides: Partial<ManagedPartner> = {}): ManagedPartner {
@@ -43,6 +44,7 @@ describe("partnerManagementUtils", () => {
 				companyName: "Archived Company",
 				primaryEmail: "old@example.com",
 				status: "archived",
+				partnerKind: "single_job_buyer",
 				tier: {
 					id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c13",
 					slug: "bronze",
@@ -55,12 +57,17 @@ describe("partnerManagementUtils", () => {
 		];
 
 		expect(filterPartners(partners, "gold", "all")).toHaveLength(1);
-		expect(filterPartners(partners, "old@", "archived")).toHaveLength(1);
+		expect(filterPartners(partners, "old@", "all")).toHaveLength(1);
+		expect(filterPartners(partners, "bronze", "all")).toHaveLength(0);
+		expect(filterPartners(partners, "no package", "all")).toHaveLength(1);
 		expect(filterPartners(partners, "", "active")).toHaveLength(1);
 	});
 
 	it("formats partner types and contract dates", () => {
 		expect(partnerKindLabel("single_job_buyer")).toBe("Single job posting");
+		expect(partnerTierLabel(partner({ partnerKind: "single_job_buyer" }))).toBe(
+			"No package tier",
+		);
 		expect(formatContractRange("2026-01-01", "2026-12-31", "en-GB")).toBe(
 			"01 Jan 2026 - 31 Dec 2026",
 		);

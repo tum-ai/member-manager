@@ -15,6 +15,16 @@ const tier: PartnerTier = {
 	displayOrder: 2,
 };
 
+const bronzeTier: PartnerTier = {
+	...tier,
+	id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c12",
+	slug: "bronze",
+	displayName: "Bronze",
+	hasCvAccess: false,
+	jobQuota: 1,
+	displayOrder: 1,
+};
+
 function PartnerFormDialogStory({ onSubmit }: { onSubmit: () => void }) {
 	const form = useForm<CreatePartnerInput>({
 		defaultValues: {
@@ -37,7 +47,7 @@ function PartnerFormDialogStory({ onSubmit }: { onSubmit: () => void }) {
 			open
 			onOpenChange={() => {}}
 			partner={null}
-			tiers={[tier]}
+			tiers={[bronzeTier, tier]}
 			form={form}
 			onSubmit={handleSubmit}
 			isSaving={false}

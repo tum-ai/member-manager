@@ -1,7 +1,13 @@
-import type { ManagedPartner, PartnerStatus } from "@member-manager/shared";
-import { Archive, MailPlus, Pencil, Plus, Search } from "lucide-react";
-import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import type { ManagedPartner } from "@member-manager/shared";
+import { Archive, ChevronDown, Plus, Search } from "lucide-react";
+import { useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -11,130 +17,40 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import {
-	Table,
-	TableBody,
-	TableCell,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@/components/ui/table";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import {
-	formatContractRange,
 	PARTNER_STATUS_LABELS,
 	type PartnerStatusFilter,
-	partnerKindLabel,
 } from "@/features/partnerManagement/partnerManagementUtils";
+import {
+	type PartnerDirectoryActions,
+	PartnerDirectoryTable,
+} from "./PartnerDirectoryTable";
 
-const STATUS_VARIANTS: Record<PartnerStatus, BadgeVariant> = {
-	invited: "warning",
-	active: "success",
-	expired: "danger",
-	archived: "neutral",
-};
-
-interface PartnerDirectorySectionProps {
+interface PartnerDirectorySectionProps extends PartnerDirectoryActions {
 	partners: ManagedPartner[];
+	archivedPartners: ManagedPartner[];
 	totalCount: number;
 	searchTerm: string;
 	onSearchTermChange: (value: string) => void;
 	statusFilter: PartnerStatusFilter;
 	onStatusFilterChange: (value: PartnerStatusFilter) => void;
 	onCreate: () => void;
-	onEdit: (partner: ManagedPartner) => void;
-	onActivationLink: (partner: ManagedPartner) => void;
-	onArchive: (partner: ManagedPartner) => void;
-	isGeneratingActivationLink: boolean;
 }
 
-function ActionButton({
-	label,
-	onClick,
-	children,
-	disabled = false,
-}: {
-	label: string;
-	onClick: () => void;
-	children: React.ReactNode;
-	disabled?: boolean;
-}) {
-	return (
-		<Tooltip>
-			<TooltipTrigger asChild>
-				<Button
-					size="icon-sm"
-					variant="ghost"
-					aria-label={label}
-					onClick={onClick}
-					disabled={disabled}
-				>
-					{children}
-				</Button>
-			</TooltipTrigger>
-			<TooltipContent>{label}</TooltipContent>
-		</Tooltip>
-	);
-}
-
-function PartnerActions({
-	partner,
-	onEdit,
-	onActivationLink,
-	onArchive,
-	isGeneratingActivationLink,
-}: Pick<
-	PartnerDirectorySectionProps,
-	"onEdit" | "onActivationLink" | "onArchive" | "isGeneratingActivationLink"
-> & { partner: ManagedPartner }) {
-	return (
-		<TooltipProvider>
-			<div className="flex items-center justify-end gap-1">
-				<ActionButton
-					label={`Edit ${partner.companyName}`}
-					onClick={() => onEdit(partner)}
-				>
-					<Pencil />
-				</ActionButton>
-				{partner.status === "invited" && (
-					<ActionButton
-						label={`Generate activation link for ${partner.companyName}`}
-						onClick={() => onActivationLink(partner)}
-						disabled={isGeneratingActivationLink}
-					>
-						<MailPlus />
-					</ActionButton>
-				)}
-				{partner.status !== "archived" && (
-					<ActionButton
-						label={`Archive ${partner.companyName}`}
-						onClick={() => onArchive(partner)}
-					>
-						<Archive />
-					</ActionButton>
-				)}
-			</div>
-		</TooltipProvider>
-	);
-}
+const FILTERABLE_STATUSES = ["invited", "active", "expired"] as const;
 
 export function PartnerDirectorySection({
 	partners,
+	archivedPartners,
 	totalCount,
 	searchTerm,
 	onSearchTermChange,
 	statusFilter,
 	onStatusFilterChange,
 	onCreate,
-	onEdit,
-	onActivationLink,
-	onArchive,
-	isGeneratingActivationLink,
+	...actions
 }: PartnerDirectorySectionProps) {
+	const [archivedOpen, setArchivedOpen] = useState(false);
+
 	return (
 		<section className="overflow-hidden rounded-lg border bg-card">
 			<div className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center">
@@ -161,10 +77,10 @@ export function PartnerDirectorySection({
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="all">All statuses</SelectItem>
-						{Object.entries(PARTNER_STATUS_LABELS).map(([value, label]) => (
+						<SelectItem value="all">All current statuses</SelectItem>
+						{FILTERABLE_STATUSES.map((value) => (
 							<SelectItem key={value} value={value}>
-								{label}
+								{PARTNER_STATUS_LABELS[value]}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -179,110 +95,38 @@ export function PartnerDirectorySection({
 			</div>
 
 			<div className="border-b px-4 py-2 text-xs text-muted-foreground">
-				{partners.length} of {totalCount} partners
+				{partners.length} of {totalCount} current partners
 			</div>
 
-			<div className="hidden md:block">
-				<Table>
-					<TableHeader>
-						<TableRow>
-							<TableHead>Organization</TableHead>
-							<TableHead>Tier</TableHead>
-							<TableHead>Type</TableHead>
-							<TableHead>Contract</TableHead>
-							<TableHead>Status</TableHead>
-							<TableHead>
-								<span className="sr-only">Actions</span>
-							</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{partners.map((partner) => (
-							<TableRow key={partner.id}>
-								<TableCell>
-									<div className="font-medium">{partner.companyName}</div>
-									<div className="text-xs text-muted-foreground">
-										{partner.primaryEmail}
-									</div>
-								</TableCell>
-								<TableCell>{partner.tier?.displayName ?? "Unknown"}</TableCell>
-								<TableCell>{partnerKindLabel(partner.partnerKind)}</TableCell>
-								<TableCell>
-									{formatContractRange(
-										partner.contractStart,
-										partner.contractEnd,
-									)}
-								</TableCell>
-								<TableCell>
-									<Badge variant={STATUS_VARIANTS[partner.status]}>
-										{PARTNER_STATUS_LABELS[partner.status]}
-									</Badge>
-								</TableCell>
-								<TableCell>
-									<PartnerActions
-										partner={partner}
-										onEdit={onEdit}
-										onActivationLink={onActivationLink}
-										onArchive={onArchive}
-										isGeneratingActivationLink={isGeneratingActivationLink}
-									/>
-								</TableCell>
-							</TableRow>
-						))}
-					</TableBody>
-				</Table>
-			</div>
-
-			<div className="divide-y md:hidden">
-				{partners.map((partner) => (
-					<div key={partner.id} className="space-y-3 p-4">
-						<div className="flex items-start justify-between gap-3">
-							<div className="min-w-0">
-								<div className="truncate font-medium">
-									{partner.companyName}
-								</div>
-								<div className="truncate text-xs text-muted-foreground">
-									{partner.primaryEmail}
-								</div>
-							</div>
-							<Badge variant={STATUS_VARIANTS[partner.status]}>
-								{PARTNER_STATUS_LABELS[partner.status]}
-							</Badge>
-						</div>
-						<dl className="grid grid-cols-2 gap-2 text-sm">
-							<div>
-								<dt className="text-xs text-muted-foreground">Tier</dt>
-								<dd>{partner.tier?.displayName ?? "Unknown"}</dd>
-							</div>
-							<div>
-								<dt className="text-xs text-muted-foreground">Type</dt>
-								<dd>{partnerKindLabel(partner.partnerKind)}</dd>
-							</div>
-							<div className="col-span-2">
-								<dt className="text-xs text-muted-foreground">Contract</dt>
-								<dd>
-									{formatContractRange(
-										partner.contractStart,
-										partner.contractEnd,
-									)}
-								</dd>
-							</div>
-						</dl>
-						<PartnerActions
-							partner={partner}
-							onEdit={onEdit}
-							onActivationLink={onActivationLink}
-							onArchive={onArchive}
-							isGeneratingActivationLink={isGeneratingActivationLink}
-						/>
-					</div>
-				))}
-			</div>
-
-			{partners.length === 0 && (
+			{partners.length > 0 ? (
+				<PartnerDirectoryTable partners={partners} {...actions} />
+			) : (
 				<div className="px-4 py-12 text-center text-sm text-muted-foreground">
-					No partners match the current filters.
+					No current partners match the filters.
 				</div>
+			)}
+
+			{archivedPartners.length > 0 && (
+				<Collapsible
+					open={archivedOpen}
+					onOpenChange={setArchivedOpen}
+					className="border-t"
+				>
+					<CollapsibleTrigger asChild>
+						<Button
+							variant="ghost"
+							className="group h-11 w-full justify-start rounded-none px-4 text-muted-foreground"
+						>
+							<Archive />
+							Archived partners
+							<Badge variant="neutral">{archivedPartners.length}</Badge>
+							<ChevronDown className="ml-auto transition-transform group-data-[state=open]:rotate-180" />
+						</Button>
+					</CollapsibleTrigger>
+					<CollapsibleContent className="border-t bg-muted/20">
+						<PartnerDirectoryTable partners={archivedPartners} {...actions} />
+					</CollapsibleContent>
+				</Collapsible>
 			)}
 		</section>
 	);

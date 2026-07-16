@@ -13,7 +13,38 @@ import { MOCK_USER_ID, mockDatabase } from "../mocks/supabase.js";
 
 const partnerId = "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10";
 const tierId = "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c11";
+const bronzeTierId = "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c13";
+const jobId = "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c12";
 const originalFetch = globalThis.fetch;
+
+const partnerJobInput = {
+	title: "AI Engineer",
+	jobType: "full_time",
+	location: "Munich",
+	description:
+		"Build reliable production AI systems with our engineering team.",
+	callToAction: "Apply now",
+	contactName: "Taylor Example",
+	contactEmail: "jobs@example.com",
+	contactRole: "Talent",
+	externalUrl: "https://example.com/jobs",
+	logoUrl: "",
+};
+
+function partnerJobPayload() {
+	return {
+		id: jobId,
+		partnerId,
+		...partnerJobInput,
+		logoUrl: null,
+		status: "approved",
+		submittedAt: "2026-07-16T17:00:00+00:00",
+		publishedAt: "2026-07-16T17:00:00+00:00",
+		expiresAt: null,
+		createdAt: "2026-07-16T17:00:00+00:00",
+		updatedAt: "2026-07-16T17:00:00+00:00",
+	};
+}
 
 function partnerManagementPayload() {
 	return {
@@ -45,6 +76,15 @@ function partnerManagementPayload() {
 				},
 			],
 			tiers: [
+				{
+					id: bronzeTierId,
+					slug: "bronze",
+					displayName: "Bronze",
+					hasCvAccess: false,
+					jobQuota: 1,
+					eventQuota: {},
+					displayOrder: 1,
+				},
 				{
 					id: tierId,
 					slug: "gold",
@@ -178,6 +218,73 @@ describe("Partner management routes", async () => {
 		});
 	});
 
+	test("normalizes single-job creation to the Bronze compatibility tier", async () => {
+		grantPartnerManagementToUser();
+		let requestBody: Record<string, unknown> | null = null;
+		globalThis.fetch = async (_input, init) => {
+			if (!init?.method || init.method === "GET") {
+				return Response.json(partnerManagementPayload());
+			}
+			requestBody = JSON.parse(String(init.body));
+			return Response.json({
+				data: {
+					partnerId,
+					activationLink: "https://partnerportal.test/invite",
+					activationEmailSent: true,
+				},
+			});
+		};
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/partners",
+			headers: authHeaders(testTokens.user),
+			body: {
+				companyName: "Single Job Buyer",
+				primaryEmail: "single@example.com",
+				tierId,
+				contractStart: "2026-01-01",
+				contractEnd: "2026-12-31",
+				partnerKind: "single_job_buyer",
+				websiteUrl: "",
+				notes: "",
+			},
+		});
+
+		assert.strictEqual(response.statusCode, 201);
+		assert.strictEqual(requestBody?.tierId, bronzeTierId);
+	});
+
+	test("normalizes single-job updates to the Bronze compatibility tier", async () => {
+		grantPartnerManagementToUser();
+		let requestBody: Record<string, unknown> | null = null;
+		globalThis.fetch = async (_input, init) => {
+			if (!init?.method || init.method === "GET") {
+				return Response.json(partnerManagementPayload());
+			}
+			requestBody = JSON.parse(String(init.body));
+			return Response.json({ data: { ok: true } });
+		};
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/partners/${partnerId}`,
+			headers: authHeaders(testTokens.user),
+			body: {
+				companyName: "Single Job Buyer",
+				tierId,
+				contractStart: "2026-01-01",
+				contractEnd: "2026-12-31",
+				partnerKind: "single_job_buyer",
+				websiteUrl: "",
+				notes: "",
+			},
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(requestBody?.tierId, bronzeTierId);
+	});
+
 	test("falls back to legacy jobs credentials when generic values are blank", async () => {
 		grantPartnerManagementToUser();
 		const apiUrl = process.env.PARTNER_PORTAL_API_URL;
@@ -246,6 +353,92 @@ describe("Partner management routes", async () => {
 
 		assert.strictEqual(response.statusCode, 400);
 		assert.match(response.payload, /Select a valid tier/);
+	});
+
+	test("lists jobs for a managed partner", async () => {
+		grantPartnerManagementToUser();
+		let requestedUrl = "";
+		globalThis.fetch = async (input) => {
+			requestedUrl = String(input);
+			return Response.json({ data: { jobs: [partnerJobPayload()] } });
+		};
+
+		const response = await app.inject({
+			method: "GET",
+			url: `/api/partners/${partnerId}/jobs`,
+			headers: authHeaders(testTokens.user),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(
+			requestedUrl,
+			`https://partnerportal.test/api/internal/member-manager/partners/${partnerId}/jobs`,
+		);
+		assert.strictEqual(JSON.parse(response.payload).jobs[0].id, jobId);
+	});
+
+	test("creates a partner job with the authenticated actor id", async () => {
+		grantPartnerManagementToUser();
+		let requestHeaders = new Headers();
+		let requestBody: unknown;
+		globalThis.fetch = async (_input, init) => {
+			requestHeaders = new Headers(init?.headers);
+			requestBody = JSON.parse(String(init?.body));
+			return Response.json({ data: { job: partnerJobPayload() } });
+		};
+
+		const response = await app.inject({
+			method: "POST",
+			url: `/api/partners/${partnerId}/jobs`,
+			headers: authHeaders(testTokens.user),
+			body: partnerJobInput,
+		});
+
+		assert.strictEqual(response.statusCode, 201);
+		assert.strictEqual(
+			requestHeaders.get("x-member-manager-user-id"),
+			MOCK_USER_ID,
+		);
+		assert.deepStrictEqual(requestBody, partnerJobInput);
+	});
+
+	test("updates and archives partner jobs", async () => {
+		grantPartnerManagementToUser();
+		const requests: Array<{ method: string; url: string }> = [];
+		globalThis.fetch = async (input, init) => {
+			requests.push({
+				method: init?.method ?? "GET",
+				url: String(input),
+			});
+			return init?.method === "DELETE"
+				? Response.json({ data: { ok: true } })
+				: Response.json({ data: { job: partnerJobPayload() } });
+		};
+
+		const update = await app.inject({
+			method: "PATCH",
+			url: `/api/partners/${partnerId}/jobs/${jobId}`,
+			headers: authHeaders(testTokens.user),
+			body: partnerJobInput,
+		});
+		const archive = await app.inject({
+			method: "DELETE",
+			url: `/api/partners/${partnerId}/jobs/${jobId}`,
+			headers: authHeaders(testTokens.user),
+		});
+
+		assert.strictEqual(update.statusCode, 200);
+		assert.strictEqual(archive.statusCode, 200);
+		assert.deepStrictEqual(requests, [
+			{
+				method: "PATCH",
+				url: `https://partnerportal.test/api/internal/member-manager/partners/${partnerId}/jobs/${jobId}`,
+			},
+			{
+				method: "DELETE",
+				url: `https://partnerportal.test/api/internal/member-manager/partners/${partnerId}/jobs/${jobId}`,
+			},
+		]);
 	});
 
 	test("returns service unavailable when Partner Portal is not configured", async () => {

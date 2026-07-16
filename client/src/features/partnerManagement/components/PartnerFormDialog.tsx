@@ -46,8 +46,12 @@ export function PartnerFormDialog({
 	const {
 		register,
 		control,
+		setValue,
+		watch,
 		formState: { errors },
 	} = form;
+	const partnerKind = watch("partnerKind");
+	const bronzeTierId = tiers.find((tier) => tier.slug === "bronze")?.id;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -102,36 +106,6 @@ export function PartnerFormDialog({
 					</Field>
 
 					<Field
-						label="Partnership tier"
-						htmlFor="partner-tier"
-						required
-						error={errors.tierId?.message}
-					>
-						<Controller
-							control={control}
-							name="tierId"
-							render={({ field }) => (
-								<Select value={field.value} onValueChange={field.onChange}>
-									<SelectTrigger
-										id="partner-tier"
-										className="w-full"
-										aria-invalid={!!errors.tierId}
-									>
-										<SelectValue placeholder="Select a tier" />
-									</SelectTrigger>
-									<SelectContent>
-										{tiers.map((tier) => (
-											<SelectItem key={tier.id} value={tier.id}>
-												{tier.displayName}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
-							)}
-						/>
-					</Field>
-
-					<Field
 						label="Partner type"
 						htmlFor="partner-kind"
 						required
@@ -141,7 +115,18 @@ export function PartnerFormDialog({
 							control={control}
 							name="partnerKind"
 							render={({ field }) => (
-								<Select value={field.value} onValueChange={field.onChange}>
+								<Select
+									value={field.value}
+									onValueChange={(value) => {
+										field.onChange(value);
+										if (value === "single_job_buyer" && bronzeTierId) {
+											setValue("tierId", bronzeTierId, {
+												shouldDirty: true,
+												shouldValidate: true,
+											});
+										}
+									}}
+								>
 									<SelectTrigger
 										id="partner-kind"
 										className="w-full"
@@ -161,6 +146,45 @@ export function PartnerFormDialog({
 							)}
 						/>
 					</Field>
+
+					{partnerKind === "single_job_buyer" ? (
+						<div className="grid content-center gap-1 border-l-2 border-[#9A64D9] bg-muted/40 px-3 py-2 text-sm">
+							<div className="font-medium">No package tier</div>
+							<div className="text-xs text-muted-foreground">
+								One job posting. CV and event access disabled.
+							</div>
+						</div>
+					) : (
+						<Field
+							label="Partnership tier"
+							htmlFor="partner-tier"
+							required
+							error={errors.tierId?.message}
+						>
+							<Controller
+								control={control}
+								name="tierId"
+								render={({ field }) => (
+									<Select value={field.value} onValueChange={field.onChange}>
+										<SelectTrigger
+											id="partner-tier"
+											className="w-full"
+											aria-invalid={!!errors.tierId}
+										>
+											<SelectValue placeholder="Select a tier" />
+										</SelectTrigger>
+										<SelectContent>
+											{tiers.map((tier) => (
+												<SelectItem key={tier.id} value={tier.id}>
+													{tier.displayName}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								)}
+							/>
+						</Field>
+					)}
 
 					<Field
 						label="Website"
