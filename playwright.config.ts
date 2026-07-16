@@ -39,12 +39,25 @@ export default defineConfig({
 	projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 	webServer: [
 		{
+			command: "node e2e/partner-portal-stub.mjs",
+			url: "http://127.0.0.1:8791/health",
+			reuseExistingServer: !process.env.CI,
+			timeout: 30_000,
+			stdout: "pipe",
+			stderr: "pipe",
+		},
+		{
 			command: "pnpm --filter @member-manager/server dev:local",
 			url: `${SERVER_URL}/health`,
 			reuseExistingServer: !process.env.CI,
 			timeout: 120_000,
 			stdout: "pipe",
 			stderr: "pipe",
+			env: {
+				...process.env,
+				PARTNER_PORTAL_API_URL: "http://127.0.0.1:8791",
+				PARTNER_PORTAL_API_TOKEN: "e2e-partner-management-token",
+			},
 		},
 		{
 			command: "pnpm --filter @member-manager/client dev",

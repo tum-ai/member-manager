@@ -12,6 +12,7 @@ export const PERMISSIONS = [
 	"finance.review",
 	"contracts.admin",
 	"contracts.create",
+	"partners.manage",
 	"tumai_days.manage",
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
@@ -35,6 +36,11 @@ export const PERMISSION_DETAILS: Record<
 		label: "Contract Submission",
 		description:
 			"Create and submit contract drafts for review, and track the status of own submissions.",
+	},
+	"partners.manage": {
+		label: "Partner Management",
+		description:
+			"Create, invite, update, and archive Partner Portal organizations and partnership tiers.",
 	},
 	"tumai_days.manage": {
 		label: "TUM.ai Days Management",

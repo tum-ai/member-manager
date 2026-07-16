@@ -31,6 +31,7 @@ import MembersInnovationPage from "./features/members/MembersInnovationPage";
 import MembersOrgChartPage from "./features/members/MembersOrgChartPage";
 import MembersOrgTreePage from "./features/members/MembersOrgTreePage";
 import MembersResearchPage from "./features/members/MembersResearchPage";
+import PartnerManagementPage from "./features/partnerManagement/PartnerManagementPage";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
 import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
@@ -231,6 +232,14 @@ export function AuthenticatedApp({
 					element={<EngagementCertificatePage user={user} />}
 				/>
 				<Route path="/tools/jobs" element={<JobPostingsPage />} />
+				<Route
+					path="/tools/partners"
+					element={
+						<RequirePermission permission="partners.manage">
+							<PartnerManagementPage />
+						</RequirePermission>
+					}
+				/>
 				<Route
 					path="/contracts"
 					element={

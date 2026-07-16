@@ -55,6 +55,18 @@ export class DatabaseError extends AppError {
 	}
 }
 
+export class BadGatewayError extends AppError {
+	constructor(message = "An upstream service returned an invalid response") {
+		super(message, 502);
+	}
+}
+
+export class ServiceUnavailableError extends AppError {
+	constructor(message = "A required service is not configured") {
+		super(message, 503);
+	}
+}
+
 /**
  * Helper to check if an error is a Supabase "not found" error (PGRST116)
  */

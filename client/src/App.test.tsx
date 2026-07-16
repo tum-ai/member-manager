@@ -39,6 +39,10 @@ vi.mock("./features/jobs/JobPostingsPage", () => ({
 	default: () => <div>Jobs route</div>,
 }));
 
+vi.mock("./features/partnerManagement/PartnerManagementPage", () => ({
+	default: () => <div>Partner management route</div>,
+}));
+
 vi.mock("./features/reimbursements/ReimbursementPage", () => ({
 	default: () => <div>Reimbursement route</div>,
 }));
@@ -165,5 +169,14 @@ describe("AuthenticatedApp permission-gated routes", () => {
 		renderAuthenticatedApp("/tools/jobs");
 
 		expect(screen.getByText("Jobs route")).toBeInTheDocument();
+	});
+
+	it("gates partner management behind partners.manage", () => {
+		renderAuthenticatedApp("/tools/partners");
+		expect(screen.getByText("Profile route")).toBeInTheDocument();
+
+		toolAccessState.permissions = ["partners.manage"];
+		renderAuthenticatedApp("/tools/partners");
+		expect(screen.getByText("Partner management route")).toBeInTheDocument();
 	});
 });

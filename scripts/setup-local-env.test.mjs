@@ -147,6 +147,8 @@ test("buildServerEnv preserves optional local server secrets", () => {
 			"SLACK_SIGNING_SECRET=local-signing-secret",
 			"CRON_SECRET=local-cron-secret",
 			"RSVP_TARGET_EMAILS=one@example.com,two@example.com",
+			"PARTNER_PORTAL_API_URL=http://partner.test",
+			"PARTNER_PORTAL_API_TOKEN=local-api-token",
 			"PARTNER_PORTAL_JOBS_API_URL=http://partner.test/api/public/v1/jobs",
 			"PARTNER_PORTAL_JOBS_API_TOKEN=local-jobs-token",
 			"BUCHHALTUNGSBUTLER_SYNC_ENABLED=true",
@@ -170,6 +172,8 @@ test("buildServerEnv preserves optional local server secrets", () => {
 	assert.match(env, /^SLACK_SIGNING_SECRET=local-signing-secret$/m);
 	assert.match(env, /^CRON_SECRET=local-cron-secret$/m);
 	assert.match(env, /^RSVP_TARGET_EMAILS=one@example\.com,two@example\.com$/m);
+	assert.match(env, /^PARTNER_PORTAL_API_URL=http:\/\/partner\.test$/m);
+	assert.match(env, /^PARTNER_PORTAL_API_TOKEN=local-api-token$/m);
 	assert.match(
 		env,
 		/^PARTNER_PORTAL_JOBS_API_URL=http:\/\/partner\.test\/api\/public\/v1\/jobs$/m,
