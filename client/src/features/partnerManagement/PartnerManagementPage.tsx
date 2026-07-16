@@ -42,7 +42,9 @@ export default function PartnerManagementPage(): React.ReactElement {
 					onManageJobs={management.openJobs}
 					onActivationLink={management.generateActivationLink}
 					onArchive={management.setArchiveTarget}
+					onUnarchive={management.setUnarchiveTarget}
 					isGeneratingActivationLink={management.isGeneratingActivationLink}
+					isUnarchiving={management.isUnarchiving}
 				/>
 			)}
 
@@ -87,6 +89,20 @@ export default function PartnerManagementPage(): React.ReactElement {
 				confirmDisabled={management.isArchiving}
 				destructive
 				onConfirm={management.confirmArchive}
+			/>
+
+			<ConfirmDialog
+				open={!!management.unarchiveTarget}
+				onOpenChange={(open) => {
+					if (!open) management.setUnarchiveTarget(null);
+				}}
+				title={`Restore ${management.unarchiveTarget?.companyName ?? "partner"}?`}
+				description="The organization returns to the partner roster. Portal access resumes for accepted partners with a current contract; otherwise it returns as awaiting activation or expired."
+				confirmLabel={
+					management.isUnarchiving ? "Restoring..." : "Restore partner"
+				}
+				confirmDisabled={management.isUnarchiving}
+				onConfirm={management.confirmUnarchive}
 			/>
 
 			<ConfirmDialog

@@ -1,5 +1,11 @@
 import type { ManagedPartner, PartnerStatus } from "@member-manager/shared";
-import { Archive, BriefcaseBusiness, MailPlus, Pencil } from "lucide-react";
+import {
+	Archive,
+	ArchiveRestore,
+	BriefcaseBusiness,
+	MailPlus,
+	Pencil,
+} from "lucide-react";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +41,9 @@ export interface PartnerDirectoryActions {
 	onManageJobs: (partner: ManagedPartner) => void;
 	onActivationLink: (partner: ManagedPartner) => void;
 	onArchive: (partner: ManagedPartner) => void;
+	onUnarchive: (partner: ManagedPartner) => void;
 	isGeneratingActivationLink: boolean;
+	isUnarchiving: boolean;
 }
 
 interface PartnerDirectoryTableProps extends PartnerDirectoryActions {
@@ -77,7 +85,9 @@ function PartnerActions({
 	onManageJobs,
 	onActivationLink,
 	onArchive,
+	onUnarchive,
 	isGeneratingActivationLink,
+	isUnarchiving,
 }: PartnerDirectoryActions & { partner: ManagedPartner }) {
 	return (
 		<TooltipProvider>
@@ -103,7 +113,15 @@ function PartnerActions({
 						<MailPlus />
 					</ActionButton>
 				)}
-				{partner.status !== "archived" && (
+				{partner.status === "archived" ? (
+					<ActionButton
+						label={`Restore ${partner.companyName}`}
+						onClick={() => onUnarchive(partner)}
+						disabled={isUnarchiving}
+					>
+						<ArchiveRestore />
+					</ActionButton>
+				) : (
 					<ActionButton
 						label={`Archive ${partner.companyName}`}
 						onClick={() => onArchive(partner)}

@@ -58,6 +58,9 @@ export function usePartnerManagement() {
 	const [archiveTarget, setArchiveTarget] = useState<ManagedPartner | null>(
 		null,
 	);
+	const [unarchiveTarget, setUnarchiveTarget] = useState<ManagedPartner | null>(
+		null,
+	);
 	const [activation, setActivation] = useState<{
 		companyName: string;
 		link: string;
@@ -163,6 +166,19 @@ export function usePartnerManagement() {
 			await refresh();
 			setArchiveTarget(null);
 			showToast("Partner archived.", "success");
+		},
+		onError: (error) => showToast(error.message, "error"),
+	});
+
+	const unarchiveMutation = useMutation<{ ok: true }, Error, ManagedPartner>({
+		mutationFn: async (partner) =>
+			await apiClient(`/api/partners/${partner.id}/unarchive`, {
+				method: "POST",
+			}),
+		onSuccess: async () => {
+			await refresh();
+			setUnarchiveTarget(null);
+			showToast("Partner unarchived.", "success");
 		},
 		onError: (error) => showToast(error.message, "error"),
 	});
@@ -397,6 +413,12 @@ export function usePartnerManagement() {
 			if (archiveTarget) archiveMutation.mutate(archiveTarget);
 		},
 		isArchiving: archiveMutation.isPending,
+		unarchiveTarget,
+		setUnarchiveTarget,
+		confirmUnarchive: () => {
+			if (unarchiveTarget) unarchiveMutation.mutate(unarchiveTarget);
+		},
+		isUnarchiving: unarchiveMutation.isPending,
 		generateActivationLink: (partner: ManagedPartner) =>
 			activationMutation.mutate(partner),
 		isGeneratingActivationLink: activationMutation.isPending,

@@ -285,6 +285,36 @@ describe("Partner management routes", async () => {
 		assert.strictEqual(requestBody?.tierId, bronzeTierId);
 	});
 
+	test("restores a partner with the authenticated actor id", async () => {
+		grantPartnerManagementToUser();
+		let requestedUrl = "";
+		let requestMethod = "";
+		let requestHeaders = new Headers();
+		globalThis.fetch = async (input, init) => {
+			requestedUrl = String(input);
+			requestMethod = init?.method ?? "";
+			requestHeaders = new Headers(init?.headers);
+			return Response.json({ data: { ok: true } });
+		};
+
+		const response = await app.inject({
+			method: "POST",
+			url: `/api/partners/${partnerId}/unarchive`,
+			headers: authHeaders(testTokens.user),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(
+			requestedUrl,
+			`https://partnerportal.test/api/internal/member-manager/partners/${partnerId}/unarchive`,
+		);
+		assert.strictEqual(requestMethod, "POST");
+		assert.strictEqual(
+			requestHeaders.get("x-member-manager-user-id"),
+			MOCK_USER_ID,
+		);
+	});
+
 	test("falls back to legacy jobs credentials when generic values are blank", async () => {
 		grantPartnerManagementToUser();
 		const apiUrl = process.env.PARTNER_PORTAL_API_URL;

@@ -137,6 +137,27 @@ const server = createServer(async (request, response) => {
 		});
 	}
 
+	const unarchiveMatch = url.pathname.match(
+		/^\/api\/internal\/member-manager\/partners\/([^/]+)\/unarchive$/,
+	);
+	if (unarchiveMatch && request.method === "POST") {
+		const partner = partners.find((item) => item.id === unarchiveMatch[1]);
+		if (!partner) {
+			return json(response, 404, {
+				error: { code: "not_found", message: "Partner not found." },
+			});
+		}
+		const today = new Date().toISOString().slice(0, 10);
+		partner.status =
+			partner.contractEnd < today
+				? "expired"
+				: partner.acceptedAt
+					? "active"
+					: "invited";
+		partner.updatedAt = new Date().toISOString();
+		return json(response, 200, { data: { ok: true } });
+	}
+
 	const jobsCollectionMatch = url.pathname.match(
 		/^\/api\/internal\/member-manager\/partners\/([^/]+)\/jobs$/,
 	);

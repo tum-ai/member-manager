@@ -117,6 +117,18 @@ export async function partnerRoutes(server: FastifyInstance) {
 		);
 	});
 
+	server.post("/partners/:id/unarchive", { preHandler }, async (request) => {
+		const id = parsePartnerId(request.params);
+		return requestPartnerPortal(
+			`/api/internal/member-manager/partners/${encodeURIComponent(id)}/unarchive`,
+			okSchema,
+			{
+				method: "POST",
+				actorId: (request as AuthenticatedRequest).user.id,
+			},
+		);
+	});
+
 	server.post(
 		"/partners/:id/activation-link",
 		{ preHandler },
