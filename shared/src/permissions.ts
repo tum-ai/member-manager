@@ -40,7 +40,7 @@ export const PERMISSION_DETAILS: Record<
 	"partners.manage": {
 		label: "Partner Management",
 		description:
-			"Create, invite, update, and archive Partner Portal organizations and partnership tiers.",
+			"Manage Partner Portal organizations, access packages, invitations, and job postings.",
 	},
 	"tumai_days.manage": {
 		label: "TUM.ai Days Management",

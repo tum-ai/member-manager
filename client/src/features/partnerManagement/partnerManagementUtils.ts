@@ -1,6 +1,11 @@
-import type { ManagedPartner, PartnerStatus } from "@member-manager/shared";
+import type {
+	ManagedPartner,
+	PartnerJobStatus,
+	PartnerJobType,
+	PartnerStatus,
+} from "@member-manager/shared";
 
-export type PartnerStatusFilter = PartnerStatus | "all";
+export type PartnerStatusFilter = Exclude<PartnerStatus, "archived"> | "all";
 
 export const PARTNER_STATUS_LABELS: Record<PartnerStatus, string> = {
 	invited: "Awaiting activation",
@@ -14,6 +19,28 @@ export function partnerKindLabel(kind: ManagedPartner["partnerKind"]): string {
 		? "Single job posting"
 		: "Long-term partner";
 }
+
+export function partnerTierLabel(partner: ManagedPartner): string {
+	return partner.partnerKind === "single_job_buyer"
+		? "No package tier"
+		: (partner.tier?.displayName ?? "Unknown");
+}
+
+export const PARTNER_JOB_TYPE_LABELS: Record<PartnerJobType, string> = {
+	internship: "Internship",
+	working_student: "Working student",
+	full_time: "Full-time",
+	thesis: "Thesis",
+	other: "Other",
+};
+
+export const PARTNER_JOB_STATUS_LABELS: Record<PartnerJobStatus, string> = {
+	draft: "Draft",
+	pending_review: "Awaiting review",
+	approved: "Published",
+	rejected: "Rejected",
+	archived: "Archived",
+};
 
 export function formatContractRange(
 	start: string,
@@ -42,7 +69,7 @@ export function filterPartners(
 		return [
 			partner.companyName,
 			partner.primaryEmail,
-			partner.tier?.displayName ?? "",
+			partnerTierLabel(partner),
 		]
 			.join(" ")
 			.toLowerCase()

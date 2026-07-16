@@ -6,6 +6,7 @@ import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { ActivationLinkDialog } from "./components/ActivationLinkDialog";
 import { PartnerDirectorySection } from "./components/PartnerDirectorySection";
 import { PartnerFormDialog } from "./components/PartnerFormDialog";
+import { PartnerJobsDialog } from "./components/PartnerJobsDialog";
 import { usePartnerManagement } from "./hooks/usePartnerManagement";
 
 export default function PartnerManagementPage(): React.ReactElement {
@@ -14,7 +15,7 @@ export default function PartnerManagementPage(): React.ReactElement {
 	return (
 		<ToolPageShell
 			title="Partner Management"
-			description="Partner Portal accounts, contracts, and partnership tiers."
+			description="Partner Portal accounts, contracts, access packages, and job postings."
 		>
 			{management.isLoading ? (
 				<div className="space-y-3">
@@ -30,16 +31,15 @@ export default function PartnerManagementPage(): React.ReactElement {
 			) : (
 				<PartnerDirectorySection
 					partners={management.partners}
-					totalCount={Object.values(management.statusCounts).reduce(
-						(total, count) => total + count,
-						0,
-					)}
+					archivedPartners={management.archivedPartners}
+					totalCount={management.currentPartnerCount}
 					searchTerm={management.searchTerm}
 					onSearchTermChange={management.setSearchTerm}
 					statusFilter={management.statusFilter}
 					onStatusFilterChange={management.setStatusFilter}
 					onCreate={management.openCreate}
 					onEdit={management.openEdit}
+					onManageJobs={management.openJobs}
 					onActivationLink={management.generateActivationLink}
 					onArchive={management.setArchiveTarget}
 					isGeneratingActivationLink={management.isGeneratingActivationLink}
@@ -56,6 +56,24 @@ export default function PartnerManagementPage(): React.ReactElement {
 				isSaving={management.isSaving}
 			/>
 
+			<PartnerJobsDialog
+				partner={management.jobsPartner}
+				jobs={management.jobs}
+				isLoading={management.jobsLoading}
+				error={management.jobsError}
+				editorMode={management.jobEditorMode}
+				form={management.jobForm}
+				onOpenChange={(open) => {
+					if (!open) management.closeJobs();
+				}}
+				onCreate={management.openCreateJob}
+				onEdit={management.openEditJob}
+				onCancelEdit={management.cancelJobEdit}
+				onSubmit={management.submitJobForm}
+				onDelete={management.setJobDeleteTarget}
+				isSaving={management.isSavingJob}
+			/>
+
 			<ConfirmDialog
 				open={!!management.archiveTarget}
 				onOpenChange={(open) => {
@@ -69,6 +87,19 @@ export default function PartnerManagementPage(): React.ReactElement {
 				confirmDisabled={management.isArchiving}
 				destructive
 				onConfirm={management.confirmArchive}
+			/>
+
+			<ConfirmDialog
+				open={!!management.jobDeleteTarget}
+				onOpenChange={(open) => {
+					if (!open) management.setJobDeleteTarget(null);
+				}}
+				title={`Archive ${management.jobDeleteTarget?.title ?? "job"}?`}
+				description="The posting will leave the public job board while its audit history remains available."
+				confirmLabel={management.isDeletingJob ? "Archiving..." : "Archive job"}
+				confirmDisabled={management.isDeletingJob}
+				destructive
+				onConfirm={management.confirmDeleteJob}
 			/>
 
 			<ActivationLinkDialog

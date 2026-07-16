@@ -122,3 +122,75 @@ export const partnerActivationResultSchema = z.object({
 export type PartnerActivationResult = z.infer<
 	typeof partnerActivationResultSchema
 >;
+
+export const PARTNER_JOB_TYPES = [
+	"internship",
+	"working_student",
+	"full_time",
+	"thesis",
+	"other",
+] as const;
+export const partnerJobTypeSchema = z.enum(PARTNER_JOB_TYPES);
+export type PartnerJobType = z.infer<typeof partnerJobTypeSchema>;
+
+export const PARTNER_JOB_STATUSES = [
+	"draft",
+	"pending_review",
+	"approved",
+	"rejected",
+	"archived",
+] as const;
+export const partnerJobStatusSchema = z.enum(PARTNER_JOB_STATUSES);
+export type PartnerJobStatus = z.infer<typeof partnerJobStatusSchema>;
+
+const optionalHttpUrlSchema = z
+	.union([
+		z
+			.string()
+			.trim()
+			.url("Enter a valid URL including https://.")
+			.refine(
+				(value) => /^https?:\/\//i.test(value),
+				"Use an http:// or https:// URL.",
+			),
+		z.literal(""),
+	])
+	.optional();
+
+export const partnerJobInputSchema = z.object({
+	title: z.string().trim().min(2, "Job title is required.").max(160),
+	jobType: partnerJobTypeSchema,
+	location: z.string().trim().min(2, "Location is required.").max(160),
+	description: z
+		.string()
+		.trim()
+		.min(20, "Describe the role in at least 20 characters.")
+		.max(8000),
+	callToAction: z.string().trim().min(2, "Button label is required.").max(80),
+	contactName: z.string().trim().min(2, "Contact name is required.").max(120),
+	contactEmail: z.string().trim().email("Enter a valid contact email."),
+	contactRole: z.string().trim().max(120).optional(),
+	externalUrl: optionalHttpUrlSchema,
+	logoUrl: optionalHttpUrlSchema,
+});
+export type PartnerJobInput = z.infer<typeof partnerJobInputSchema>;
+
+export const managedPartnerJobSchema = partnerJobInputSchema.extend({
+	id: z.string().uuid(),
+	partnerId: z.string().uuid(),
+	contactRole: z.string().nullable(),
+	externalUrl: z.string().nullable(),
+	logoUrl: z.string().nullable(),
+	status: partnerJobStatusSchema,
+	submittedAt: z.iso.datetime({ offset: true }).nullable(),
+	publishedAt: z.iso.datetime({ offset: true }).nullable(),
+	expiresAt: z.iso.datetime({ offset: true }).nullable(),
+	createdAt: z.iso.datetime({ offset: true }),
+	updatedAt: z.iso.datetime({ offset: true }),
+});
+export type ManagedPartnerJob = z.infer<typeof managedPartnerJobSchema>;
+
+export const partnerJobsDataSchema = z.object({
+	jobs: z.array(managedPartnerJobSchema),
+});
+export type PartnerJobsData = z.infer<typeof partnerJobsDataSchema>;

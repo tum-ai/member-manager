@@ -34,6 +34,7 @@ const meta = {
 	parameters: { layout: "padded" },
 	args: {
 		partners: [partner],
+		archivedPartners: [],
 		totalCount: 1,
 		searchTerm: "",
 		onSearchTermChange: fn(),
@@ -41,6 +42,7 @@ const meta = {
 		onStatusFilterChange: fn(),
 		onCreate: fn(),
 		onEdit: fn(),
+		onManageJobs: fn(),
 		onActivationLink: fn(),
 		onArchive: fn(),
 		isGeneratingActivationLink: false,
@@ -61,6 +63,12 @@ export const Default: Story = {
 		});
 		await userEvent.click(editButtons[0]);
 		await expect(args.onEdit).toHaveBeenCalledWith(partner);
+
+		const jobButtons = canvas.getAllByRole("button", {
+			name: /manage jobs for example partner/i,
+		});
+		await userEvent.click(jobButtons[0]);
+		await expect(args.onManageJobs).toHaveBeenCalledWith(partner);
 	},
 };
 
@@ -74,5 +82,21 @@ export const ActivationPending: Story = {
 		for (const button of activationButtons) {
 			await expect(button).toBeDisabled();
 		}
+	},
+};
+
+export const ArchivedCollapsed: Story = {
+	args: {
+		partners: [],
+		archivedPartners: [{ ...partner, status: "archived" }],
+		totalCount: 0,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByText("Example Partner")).not.toBeInTheDocument();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /archived partners/i }),
+		);
+		await expect(canvas.getAllByText("Example Partner")[0]).toBeVisible();
 	},
 };
