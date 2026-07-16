@@ -97,7 +97,7 @@ export default function PartnerManagementPage(): React.ReactElement {
 					if (!open) management.setUnarchiveTarget(null);
 				}}
 				title={`Restore ${management.unarchiveTarget?.companyName ?? "partner"}?`}
-				description="The organization returns to the partner roster. Portal access resumes for accepted partners with a current contract; otherwise it returns as awaiting activation or expired."
+				description="The organization returns to the partner roster. Accepted partners return to active unless the contract has ended; otherwise the account returns as awaiting activation or expired."
 				confirmLabel={
 					management.isUnarchiving ? "Restoring..." : "Restore partner"
 				}
