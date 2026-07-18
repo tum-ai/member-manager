@@ -46,6 +46,8 @@ interface FinanceBudgetSectionProps {
 	isLoading: boolean;
 	error: Error | null;
 	savingDepartment: string | null;
+	// Reviewers edit budgets inline; department viewers see them read-only.
+	canEdit?: boolean;
 	onPeriodTypeChange: (type: FinancePeriodType) => void;
 	onPeriodKeyChange: (key: string) => void;
 	onSave: (input: SaveInput) => void;
@@ -58,6 +60,7 @@ export function FinanceBudgetSection({
 	isLoading,
 	error,
 	savingDepartment,
+	canEdit = true,
 	onPeriodTypeChange,
 	onPeriodKeyChange,
 	onSave,
@@ -128,6 +131,7 @@ export function FinanceBudgetSection({
 												key={row.department}
 												row={row}
 												saving={savingDepartment === row.department}
+												canEdit={canEdit}
 												onSave={onSave}
 											/>
 										))
@@ -240,10 +244,12 @@ function TotalsRow({
 function BudgetRow({
 	row,
 	saving,
+	canEdit,
 	onSave,
 }: {
 	row: FinanceBudgetVsActualRow;
 	saving: boolean;
+	canEdit: boolean;
 	onSave: (input: SaveInput) => void;
 }): ReactElement {
 	const [amount, setAmount] = useState<string>(
@@ -268,23 +274,29 @@ function BudgetRow({
 	return (
 		<TableRow>
 			<TableCell className="font-medium">{row.department}</TableCell>
-			<TableCell className="text-right">
-				<Input
-					type="number"
-					min={0}
-					inputMode="decimal"
-					value={amount}
-					onChange={(event) => setAmount(event.target.value)}
-					onBlur={persist}
-					onKeyDown={(event) => {
-						if (event.key === "Enter") {
-							event.currentTarget.blur();
-						}
-					}}
-					placeholder="—"
-					className="w-32 text-right tabular-nums"
-					aria-label={`Budget für ${row.department}`}
-				/>
+			<TableCell className="text-right tabular-nums">
+				{canEdit ? (
+					<Input
+						type="number"
+						min={0}
+						inputMode="decimal"
+						value={amount}
+						onChange={(event) => setAmount(event.target.value)}
+						onBlur={persist}
+						onKeyDown={(event) => {
+							if (event.key === "Enter") {
+								event.currentTarget.blur();
+							}
+						}}
+						placeholder="—"
+						className="w-32 text-right tabular-nums"
+						aria-label={`Budget für ${row.department}`}
+					/>
+				) : row.amount_planned === null ? (
+					"—"
+				) : (
+					formatFinanceAmount(row.amount_planned)
+				)}
 			</TableCell>
 			<TableCell className="text-right tabular-nums">
 				{formatFinanceAmount(row.actual_expenses)}

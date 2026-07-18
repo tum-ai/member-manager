@@ -33,7 +33,11 @@ function buildMappingsEndpoint(range: FinanceDateRange): string {
 	}`;
 }
 
-export function useFinanceDepartmentMappings() {
+export function useFinanceDepartmentMappings({
+	enabled = true,
+}: {
+	enabled?: boolean;
+} = {}) {
 	const { showToast } = useToast();
 	const queryClient = useQueryClient();
 	const defaultRange = useMemo(() => getDefaultFinanceDateRange(), []);
@@ -43,6 +47,7 @@ export function useFinanceDepartmentMappings() {
 		useQuery<FinanceDepartmentMappingsResponse>({
 			queryKey: [FINANCE_MAPPINGS_QUERY_KEY, range.dateFrom, range.dateTo],
 			queryFn: async () => await apiClient(buildMappingsEndpoint(range)),
+			enabled,
 		});
 
 	const mutation = useMutation({

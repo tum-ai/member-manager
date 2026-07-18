@@ -29,7 +29,11 @@ function buildAccountLabelsEndpoint(range: FinanceDateRange): string {
 	return `/api/finance/account-labels${queryString ? `?${queryString}` : ""}`;
 }
 
-export function useFinanceAccountLabels() {
+export function useFinanceAccountLabels({
+	enabled = true,
+}: {
+	enabled?: boolean;
+} = {}) {
 	const { showToast } = useToast();
 	const queryClient = useQueryClient();
 	const defaultRange = useMemo(() => getDefaultFinanceDateRange(), []);
@@ -43,6 +47,7 @@ export function useFinanceAccountLabels() {
 				range.dateTo,
 			],
 			queryFn: async () => await apiClient(buildAccountLabelsEndpoint(range)),
+			enabled,
 		});
 
 	const mutation = useMutation({

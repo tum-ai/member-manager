@@ -81,6 +81,23 @@ describe("FinanceBudgetSection", () => {
 		});
 	});
 
+	it("renders budgets read-only for a department viewer", () => {
+		renderWithClient(
+			<FinanceBudgetSection
+				{...baseProps}
+				canEdit={false}
+				rows={[row({ department: "Makeathon", amount_planned: 5000 })]}
+				onSave={vi.fn()}
+			/>,
+		);
+
+		// No editable input; the amount shows as formatted text.
+		expect(
+			screen.queryByLabelText("Budget für Makeathon"),
+		).not.toBeInTheDocument();
+		expect(screen.getAllByText(/5\.000,00/).length).toBeGreaterThan(0);
+	});
+
 	it("does not save when the amount is unchanged", async () => {
 		const user = userEvent.setup();
 		const onSave = vi.fn();

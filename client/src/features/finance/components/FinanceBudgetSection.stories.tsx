@@ -81,3 +81,25 @@ export const Loading: Story = {
 		onSave: () => undefined,
 	},
 };
+
+// A department viewer sees their own budget read-only (no editable inputs).
+export const ReadOnly: Story = {
+	args: {
+		period,
+		rows: [rows[1]],
+		totals: { amount_planned: 4000, actual_expenses: 2600, remaining: 1400 },
+		isLoading: false,
+		error: null,
+		savingDepartment: null,
+		canEdit: false,
+		onPeriodTypeChange: () => undefined,
+		onPeriodKeyChange: () => undefined,
+		onSave: () => undefined,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.queryByLabelText("Budget für Marketing"),
+		).not.toBeInTheDocument();
+	},
+};
