@@ -292,3 +292,121 @@ export const FinanceAnalyticsResponseSchema = z.object({
 export type FinanceAnalyticsResponse = z.infer<
 	typeof FinanceAnalyticsResponseSchema
 >;
+
+// --- Budgets (Phase 2) ------------------------------------------------------
+
+// A budget is set per department per fiscal period. The period is configurable:
+// either a calendar year ("2026") or a TUM.ai semester ("WS26" / "SS26").
+export const FINANCE_PERIOD_TYPES = ["year", "semester"] as const;
+export const FinancePeriodTypeSchema = z.enum(FINANCE_PERIOD_TYPES);
+export type FinancePeriodType = z.infer<typeof FinancePeriodTypeSchema>;
+
+const YEAR_KEY_PATTERN = /^\d{4}$/;
+// Semester keys mirror member batches: WS/SS + two-digit year >= 20.
+const SEMESTER_KEY_PATTERN = /^(WS|SS)(2\d|[3-9]\d)$/;
+
+export function isValidFinancePeriodKey(
+	type: FinancePeriodType,
+	key: string,
+): boolean {
+	return type === "year"
+		? YEAR_KEY_PATTERN.test(key)
+		: SEMESTER_KEY_PATTERN.test(key);
+}
+
+// Map a fiscal period to the civil date range its postings fall in. Winter
+// semester runs Oct–Mar (spanning the year boundary); summer semester Apr–Sep.
+export function resolveFinancePeriodRange(
+	type: FinancePeriodType,
+	key: string,
+): { dateFrom: string; dateTo: string } {
+	if (type === "year") {
+		return { dateFrom: `${key}-01-01`, dateTo: `${key}-12-31` };
+	}
+	const season = key.slice(0, 2);
+	const year = 2000 + Number(key.slice(2));
+	if (season === "WS") {
+		return { dateFrom: `${year}-10-01`, dateTo: `${year + 1}-03-31` };
+	}
+	return { dateFrom: `${year}-04-01`, dateTo: `${year}-09-30` };
+}
+
+export const FinanceBudgetSchema = z.object({
+	department: z.string().min(1),
+	period_type: FinancePeriodTypeSchema,
+	period_key: z.string().min(1),
+	amount_planned: z.number().nonnegative(),
+	currency: z.string().min(1),
+	note: z.string().nullable(),
+});
+export type FinanceBudget = z.infer<typeof FinanceBudgetSchema>;
+
+// Upsert payload. Department + period identify the row; amount + note are the
+// assignable attributes. The period key is validated against its type.
+export const FinanceBudgetUpsertSchema = z
+	.object({
+		department: z.string().trim().min(1),
+		period_type: FinancePeriodTypeSchema,
+		period_key: z.string().trim().min(1),
+		amount_planned: z.number().nonnegative(),
+		note: z.string().trim().max(500).nullable().optional(),
+	})
+	.superRefine((value, context) => {
+		if (!isValidFinancePeriodKey(value.period_type, value.period_key)) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Invalid period key for period type",
+				path: ["period_key"],
+			});
+		}
+	});
+export type FinanceBudgetUpsert = z.infer<typeof FinanceBudgetUpsertSchema>;
+
+export const FinanceBudgetQuerySchema = z
+	.object({
+		period_type: FinancePeriodTypeSchema,
+		period_key: z.string().min(1),
+	})
+	.superRefine((value, context) => {
+		if (!isValidFinancePeriodKey(value.period_type, value.period_key)) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Invalid period key for period type",
+				path: ["period_key"],
+			});
+		}
+	});
+export type FinanceBudgetQuery = z.infer<typeof FinanceBudgetQuerySchema>;
+
+// One department's budget vs. its actual (gross) expenses in the period. A
+// department may have a budget but no spend yet (actual 0), or spend with no
+// budget set (amount_planned null → remaining/pct null).
+export const FinanceBudgetVsActualRowSchema = z.object({
+	department: z.string().min(1),
+	amount_planned: z.number().nullable(),
+	actual_expenses: z.number(),
+	remaining: z.number().nullable(),
+	pct_used: z.number().nullable(),
+	over_budget: z.boolean(),
+	currency: z.string().min(1),
+	note: z.string().nullable(),
+});
+export type FinanceBudgetVsActualRow = z.infer<
+	typeof FinanceBudgetVsActualRowSchema
+>;
+
+export const FinanceBudgetVsActualResponseSchema = z.object({
+	period_type: FinancePeriodTypeSchema,
+	period_key: z.string().min(1),
+	rows: z.array(FinanceBudgetVsActualRowSchema),
+	totals: z.object({
+		amount_planned: z.number(),
+		actual_expenses: z.number(),
+		remaining: z.number(),
+	}),
+	source: z.enum(["mock", "real"]),
+	generated_at: z.string().datetime(),
+});
+export type FinanceBudgetVsActualResponse = z.infer<
+	typeof FinanceBudgetVsActualResponseSchema
+>;

@@ -61,6 +61,7 @@ interface MockData {
 	finance_department_mappings: Array<Record<string, unknown>>;
 	finance_category_mappings: Array<Record<string, unknown>>;
 	finance_account_labels: Array<Record<string, unknown>>;
+	finance_budgets: Array<Record<string, unknown>>;
 }
 
 // In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
@@ -327,6 +328,7 @@ export const mockDatabase: MockData = {
 	finance_department_mappings: [],
 	finance_category_mappings: [],
 	finance_account_labels: [],
+	finance_budgets: [],
 };
 
 type QueryResult = Promise<{
@@ -633,8 +635,12 @@ function createQueryBuilder(table: string): QueryBuilder {
 
 			for (const record of records) {
 				const conflictKey = options?.onConflict || "user_id";
-				const existingIndex = tableData.findIndex(
-					(row) => row[conflictKey] === record[conflictKey],
+				// Support composite conflict targets ("a,b,c"), matching every column.
+				const conflictColumns = conflictKey
+					.split(",")
+					.map((column) => column.trim());
+				const existingIndex = tableData.findIndex((row) =>
+					conflictColumns.every((column) => row[column] === record[column]),
 				);
 
 				if (existingIndex !== -1) {
@@ -1403,4 +1409,5 @@ export function resetMockDatabase(): void {
 	mockDatabase.finance_department_mappings = [];
 	mockDatabase.finance_category_mappings = [];
 	mockDatabase.finance_account_labels = [];
+	mockDatabase.finance_budgets = [];
 }
