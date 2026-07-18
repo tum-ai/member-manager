@@ -91,4 +91,21 @@ test.describe("Finance Analytics tool", () => {
 
 		await expect(page.getByText("Konto gespeichert.")).toBeVisible();
 	});
+
+	test("sets a department budget and shows budget vs. actual", async ({
+		page,
+	}) => {
+		await page.getByRole("tab", { name: "Budget" }).click();
+		await expect(page.getByText("Budget gesamt")).toBeVisible();
+
+		// Enter a budget for the first department row and save on blur.
+		const budgetInput = page
+			.getByRole("spinbutton", { name: /Budget für/ })
+			.first();
+		await expect(budgetInput).toBeVisible({ timeout: 20000 });
+		await budgetInput.fill("5000");
+		await budgetInput.blur();
+
+		await expect(page.getByText("Budget gespeichert.")).toBeVisible();
+	});
 });

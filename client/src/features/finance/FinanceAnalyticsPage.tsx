@@ -6,10 +6,12 @@ import { CategoryMappingEditorSection } from "./components/CategoryMappingEditor
 import { DepartmentMappingEditorSection } from "./components/DepartmentMappingEditorSection";
 import { FinanceAccountBreakdownSection } from "./components/FinanceAccountBreakdownSection";
 import { FinanceAnalyticsSection } from "./components/FinanceAnalyticsSection";
+import { FinanceBudgetSection } from "./components/FinanceBudgetSection";
 import { FinanceCategoryBreakdownSection } from "./components/FinanceCategoryBreakdownSection";
 import { FinanceVatSummarySection } from "./components/FinanceVatSummarySection";
 import { useFinanceAccountLabels } from "./hooks/useFinanceAccountLabels";
 import { useFinanceAnalytics } from "./hooks/useFinanceAnalytics";
+import { useFinanceBudgets } from "./hooks/useFinanceBudgets";
 import { useFinanceCategoryMappings } from "./hooks/useFinanceCategoryMappings";
 import { useFinanceDepartmentMappings } from "./hooks/useFinanceDepartmentMappings";
 
@@ -49,6 +51,18 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		savingAccount,
 	} = useFinanceAccountLabels();
 
+	const {
+		period,
+		rows: budgetRows,
+		totals: budgetTotals,
+		isLoading: budgetLoading,
+		error: budgetError,
+		savingDepartment,
+		setPeriodType,
+		setPeriodKey,
+		saveBudget,
+	} = useFinanceBudgets();
+
 	return (
 		<ToolPageShell
 			title="Finance Analytics"
@@ -57,6 +71,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 			<Tabs defaultValue="overview">
 				<TabsList>
 					<TabsTrigger value="overview">Übersicht</TabsTrigger>
+					<TabsTrigger value="budget">Budget</TabsTrigger>
 					<TabsTrigger value="categories">Kategorien</TabsTrigger>
 					<TabsTrigger value="accounts">Konten</TabsTrigger>
 					<TabsTrigger value="mapping">Zuordnung</TabsTrigger>
@@ -78,6 +93,19 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						totals={analytics?.totals}
 						byVatRate={analytics?.by_vat_rate}
 						isLoading={isLoading}
+					/>
+				</TabsContent>
+				<TabsContent value="budget" className="mt-5">
+					<FinanceBudgetSection
+						period={period}
+						rows={budgetRows}
+						totals={budgetTotals}
+						isLoading={budgetLoading}
+						error={budgetError}
+						savingDepartment={savingDepartment}
+						onPeriodTypeChange={setPeriodType}
+						onPeriodKeyChange={setPeriodKey}
+						onSave={saveBudget}
 					/>
 				</TabsContent>
 				<TabsContent value="categories" className="mt-5">
