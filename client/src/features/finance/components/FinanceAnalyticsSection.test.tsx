@@ -75,11 +75,13 @@ function analytics(
 				count: 2,
 			},
 		],
+		by_vat_rate: [],
 		totals: {
 			income: 0,
 			expenses: 8700,
 			net: -8700,
 			count: 2,
+			vat: 0,
 			unmapped_count: 0,
 		},
 		source: "mock",
@@ -123,6 +125,7 @@ describe("FinanceAnalyticsSection", () => {
 						expenses: 8700,
 						net: -8700,
 						count: 3,
+						vat: 0,
 						unmapped_count: 1,
 					},
 				})}

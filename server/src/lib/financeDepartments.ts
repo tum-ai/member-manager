@@ -6,6 +6,7 @@ import {
 	type FinanceDepartmentMapping,
 	type FinanceDepartmentMappingRow,
 } from "@member-manager/shared";
+import { embeddedVat } from "./financeVat.js";
 import { getSupabase } from "./supabase.js";
 
 const MAPPINGS_TABLE = "finance_department_mappings";
@@ -127,7 +128,7 @@ export function aggregateByDepartment(
 	mappings: FinanceDepartmentMapping[],
 ): Omit<
 	FinanceAnalyticsResponse,
-	"source" | "generated_at" | "by_category" | "by_account"
+	"source" | "generated_at" | "by_category" | "by_account" | "by_vat_rate"
 > {
 	const lookup = buildMappingLookup(mappings);
 
@@ -142,9 +143,13 @@ export function aggregateByDepartment(
 	>();
 	const totals = emptyBucket();
 	let unmappedCount = 0;
+	let expenseVat = 0;
 
 	for (const transaction of transactions) {
 		const amount = transaction.transaction_amount;
+		if (amount < 0) {
+			expenseVat += embeddedVat(amount, transaction.vat);
+		}
 		const resolved = lookup.get(
 			normalizeCostLocation(transaction.cost_location),
 		);
@@ -219,6 +224,7 @@ export function aggregateByDepartment(
 			income: round(totals.income),
 			expenses: round(totals.expenses),
 			net: round(totals.net),
+			vat: round(expenseVat),
 			count: totals.count,
 			unmapped_count: unmappedCount,
 		},

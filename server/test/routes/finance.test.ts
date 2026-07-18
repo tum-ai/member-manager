@@ -240,6 +240,16 @@ describe("Finance Routes", async () => {
 					(d: { unmapped: boolean }) => d.unmapped === true,
 				),
 			);
+			// VAT: the tool subscriptions in Feb are booked at 19 %, so both the
+			// per-rate breakdown and the totals VAT figure are populated.
+			assert.ok(Array.isArray(payload.by_vat_rate));
+			assert.ok(typeof payload.totals.vat === "number");
+			assert.ok(payload.totals.vat >= 0);
+			const nineteen = payload.by_vat_rate.find(
+				(r: { rate: number }) => r.rate === 19,
+			);
+			assert.ok(nineteen);
+			assert.ok(nineteen.vat > 0);
 			assert.match(payload.generated_at, /^\d{4}-\d{2}-\d{2}T/);
 		});
 

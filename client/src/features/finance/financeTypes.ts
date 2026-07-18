@@ -17,6 +17,7 @@ import type {
 	FinanceDepartmentMappingUpsert,
 	FinanceDepartmentSummary,
 	FinanceMonthlyPoint,
+	FinanceVatRateSummary,
 } from "@member-manager/shared";
 
 export type {
@@ -38,6 +39,7 @@ export type {
 	FinanceDepartmentMappingUpsert,
 	FinanceDepartmentSummary,
 	FinanceMonthlyPoint,
+	FinanceVatRateSummary,
 };
 
 export interface FinanceDateRange {

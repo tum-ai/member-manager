@@ -34,6 +34,7 @@ import {
 	loadDepartmentMappings,
 	upsertDepartmentMapping,
 } from "../lib/financeDepartments.js";
+import { aggregateByVatRate } from "../lib/financeVat.js";
 import {
 	authenticate,
 	requireReimbursementReviewer,
@@ -97,6 +98,7 @@ export async function financeRoutes(server: FastifyInstance) {
 					...aggregateByDepartment(transactions, mappings),
 					by_category: aggregateByCategory(transactions, categoryMappings),
 					by_account: aggregateByAccount(transactions, accountLabels),
+					by_vat_rate: aggregateByVatRate(transactions),
 					source,
 					generated_at: new Date().toISOString(),
 				});

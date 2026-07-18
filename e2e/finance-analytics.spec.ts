@@ -15,9 +15,10 @@ test.describe("Finance Analytics tool", () => {
 	test("shows the department overview and assigns an unmapped cost location", async ({
 		page,
 	}) => {
-		// Overview renders the aggregated totals.
+		// Overview renders the aggregated totals and the VAT summary.
 		await expect(page.getByText("Einnahmen").first()).toBeVisible();
 		await expect(page.getByText("Ausgaben").first()).toBeVisible();
+		await expect(page.getByText("Umsatzsteuer")).toBeVisible();
 
 		// Switch to the mapping editor.
 		await page.getByRole("tab", { name: "Zuordnung" }).click();
