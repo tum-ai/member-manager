@@ -33,6 +33,32 @@ const analytics: FinanceAnalyticsResponse = {
 			unmapped: true,
 		},
 	],
+	by_category: [
+		{
+			category: "Catering",
+			income: 0,
+			expenses: 6840,
+			net: -6840,
+			count: 3,
+			unmapped: false,
+		},
+		{
+			category: "Location",
+			income: 0,
+			expenses: 4800,
+			net: -4800,
+			count: 1,
+			unmapped: false,
+		},
+		{
+			category: "Ohne Kategorie",
+			income: 30000,
+			expenses: 3000,
+			net: 27000,
+			count: 10,
+			unmapped: true,
+		},
+	],
 	by_month: [
 		{ month: "2026-01", income: 15000, expenses: 3200, net: 11800 },
 		{ month: "2026-02", income: 7500, expenses: 4100, net: 3400 },

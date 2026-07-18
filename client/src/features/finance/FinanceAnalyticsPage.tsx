@@ -1,9 +1,12 @@
 import type { ReactElement } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { CategoryMappingEditorSection } from "./components/CategoryMappingEditorSection";
 import { DepartmentMappingEditorSection } from "./components/DepartmentMappingEditorSection";
 import { FinanceAnalyticsSection } from "./components/FinanceAnalyticsSection";
+import { FinanceCategoryBreakdownSection } from "./components/FinanceCategoryBreakdownSection";
 import { useFinanceAnalytics } from "./hooks/useFinanceAnalytics";
+import { useFinanceCategoryMappings } from "./hooks/useFinanceCategoryMappings";
 import { useFinanceDepartmentMappings } from "./hooks/useFinanceDepartmentMappings";
 
 export default function FinanceAnalyticsPage(): ReactElement {
@@ -26,6 +29,14 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		savingCostLocation,
 	} = useFinanceDepartmentMappings(range);
 
+	const {
+		rows: categoryRows,
+		isLoading: categoryLoading,
+		error: categoryError,
+		saveCategory,
+		savingCostLocationTwo,
+	} = useFinanceCategoryMappings();
+
 	return (
 		<ToolPageShell
 			title="Finance Analytics"
@@ -34,6 +45,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 			<Tabs defaultValue="overview">
 				<TabsList>
 					<TabsTrigger value="overview">Übersicht</TabsTrigger>
+					<TabsTrigger value="categories">Kategorien</TabsTrigger>
 					<TabsTrigger value="mapping">Zuordnung</TabsTrigger>
 				</TabsList>
 				<TabsContent value="overview" className="mt-5">
@@ -50,13 +62,26 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						}}
 					/>
 				</TabsContent>
-				<TabsContent value="mapping" className="mt-5">
+				<TabsContent value="categories" className="mt-5">
+					<FinanceCategoryBreakdownSection
+						categories={analytics?.by_category}
+						isLoading={isLoading}
+					/>
+				</TabsContent>
+				<TabsContent value="mapping" className="mt-5 flex flex-col gap-5">
 					<DepartmentMappingEditorSection
 						rows={rows}
 						isLoading={mappingsLoading}
 						error={mappingsError}
 						savingCostLocation={savingCostLocation}
 						onSave={saveMapping}
+					/>
+					<CategoryMappingEditorSection
+						rows={categoryRows}
+						isLoading={categoryLoading}
+						error={categoryError}
+						savingCostLocationTwo={savingCostLocationTwo}
+						onSave={saveCategory}
 					/>
 				</TabsContent>
 			</Tabs>

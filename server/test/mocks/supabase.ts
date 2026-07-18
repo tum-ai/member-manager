@@ -59,6 +59,7 @@ interface MockData {
 	tumai_days: Array<Record<string, unknown>>;
 	tumai_day_responses: Array<Record<string, unknown>>;
 	finance_department_mappings: Array<Record<string, unknown>>;
+	finance_category_mappings: Array<Record<string, unknown>>;
 }
 
 // In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
@@ -323,6 +324,7 @@ export const mockDatabase: MockData = {
 	tumai_days: [],
 	tumai_day_responses: [],
 	finance_department_mappings: [],
+	finance_category_mappings: [],
 };
 
 type QueryResult = Promise<{
@@ -1397,4 +1399,5 @@ export function resetMockDatabase(): void {
 	mockDatabase.tumai_days = [];
 	mockDatabase.tumai_day_responses = [];
 	mockDatabase.finance_department_mappings = [];
+	mockDatabase.finance_category_mappings = [];
 }

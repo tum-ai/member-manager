@@ -111,6 +111,65 @@ export type FinanceDepartmentMappingsResponse = z.infer<
 	typeof FinanceDepartmentMappingsResponseSchema
 >;
 
+// --- Category mapping (cost_location_two) -----------------------------------
+
+// Sentinel bucket for postings whose second cost location (Kostenstelle 2) has
+// no label assigned. In the BB data cost_location_two "0"/empty means the
+// posting has no sub-category, so those also land here.
+export const FINANCE_UNMAPPED_CATEGORY = "Ohne Kategorie";
+
+export const FinanceCategoryMappingSchema = z.object({
+	cost_location_two: z.string().min(1),
+	label: z.string().min(1).nullable(),
+	note: z.string().nullable(),
+});
+export type FinanceCategoryMapping = z.infer<
+	typeof FinanceCategoryMappingSchema
+>;
+
+// Upsert payload for the category editor. `cost_location_two` travels in the
+// URL, so the body only carries the assignable attributes.
+export const FinanceCategoryMappingUpsertSchema = z.object({
+	label: z.string().trim().min(1).nullable(),
+	note: z.string().trim().max(500).nullable().optional(),
+});
+export type FinanceCategoryMappingUpsert = z.infer<
+	typeof FinanceCategoryMappingUpsertSchema
+>;
+
+export const FinanceCategoryMappingRowSchema = z.object({
+	cost_location_two: z.string().min(1),
+	label: z.string().min(1).nullable(),
+	note: z.string().nullable(),
+	posting_count: z.number().int().nonnegative(),
+	net: z.number(),
+	sample_texts: z.array(z.string()),
+});
+export type FinanceCategoryMappingRow = z.infer<
+	typeof FinanceCategoryMappingRowSchema
+>;
+
+export const FinanceCategoryMappingsResponseSchema = z.object({
+	rows: z.array(FinanceCategoryMappingRowSchema),
+	generated_at: z.string().datetime(),
+});
+export type FinanceCategoryMappingsResponse = z.infer<
+	typeof FinanceCategoryMappingsResponseSchema
+>;
+
+export const FinanceCategorySummarySchema = z.object({
+	category: z.string().min(1),
+	income: z.number(),
+	expenses: z.number(),
+	net: z.number(),
+	count: z.number().int().nonnegative(),
+	// True for the sentinel bucket of unlabelled second cost locations.
+	unmapped: z.boolean(),
+});
+export type FinanceCategorySummary = z.infer<
+	typeof FinanceCategorySummarySchema
+>;
+
 export const FinanceDepartmentSummarySchema = z.object({
 	department: z.string().min(1),
 	bereich: FinanceBereichSchema.nullable(),
@@ -144,6 +203,7 @@ export type FinanceBereichSummary = z.infer<typeof FinanceBereichSummarySchema>;
 
 export const FinanceAnalyticsResponseSchema = z.object({
 	by_department: z.array(FinanceDepartmentSummarySchema),
+	by_category: z.array(FinanceCategorySummarySchema),
 	by_month: z.array(FinanceMonthlyPointSchema),
 	by_bereich: z.array(FinanceBereichSummarySchema),
 	totals: z.object({

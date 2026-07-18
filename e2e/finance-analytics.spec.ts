@@ -44,4 +44,27 @@ test.describe("Finance Analytics tool", () => {
 
 		await expect(page.getByText("Zuordnung gespeichert.")).toBeVisible();
 	});
+
+	test("shows the category breakdown and labels a second cost location", async ({
+		page,
+	}) => {
+		// Category breakdown tab renders the by-category table.
+		await page.getByRole("tab", { name: "Kategorien" }).click();
+		await expect(page.getByText("Ausgaben pro Kategorie")).toBeVisible();
+
+		// The category editor lives under the mapping tab, below the department one.
+		await page.getByRole("tab", { name: "Zuordnung" }).click();
+		await expect(
+			page.getByRole("columnheader", { name: "Kostenstelle 2" }),
+		).toBeVisible();
+
+		const unlabelledInput = page
+			.getByRole("textbox", { name: /Kategorie für Kostenstelle 2/ })
+			.first();
+		await expect(unlabelledInput).toBeVisible({ timeout: 20000 });
+		await unlabelledInput.fill("Catering");
+		await unlabelledInput.blur();
+
+		await expect(page.getByText("Kategorie gespeichert.")).toBeVisible();
+	});
 });

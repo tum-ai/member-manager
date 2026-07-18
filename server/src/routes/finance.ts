@@ -2,6 +2,8 @@ import {
 	BuchhaltungsButlerTransactionsQuerySchema,
 	BuchhaltungsButlerTransactionsResponseSchema,
 	FinanceAnalyticsResponseSchema,
+	FinanceCategoryMappingsResponseSchema,
+	FinanceCategoryMappingUpsertSchema,
 	FinanceDepartmentMappingsResponseSchema,
 	FinanceDepartmentMappingUpsertSchema,
 } from "@member-manager/shared";
@@ -12,6 +14,12 @@ import {
 } from "../lib/buchhaltungsbutler.js";
 import { getBuchhaltungsButlerTransactions } from "../lib/buchhaltungsbutlerPostings.js";
 import { DatabaseError } from "../lib/errors.js";
+import {
+	aggregateByCategory,
+	buildCategoryMappingRows,
+	loadCategoryMappings,
+	upsertCategoryMapping,
+} from "../lib/financeCategories.js";
 import {
 	aggregateByDepartment,
 	buildMappingRows,
@@ -66,12 +74,15 @@ export async function financeRoutes(server: FastifyInstance) {
 			}
 
 			try {
-				const [{ transactions, source }, mappings] = await Promise.all([
-					getBuchhaltungsButlerTransactions(parsed.data),
-					loadDepartmentMappings(),
-				]);
+				const [{ transactions, source }, mappings, categoryMappings] =
+					await Promise.all([
+						getBuchhaltungsButlerTransactions(parsed.data),
+						loadDepartmentMappings(),
+						loadCategoryMappings(),
+					]);
 				return FinanceAnalyticsResponseSchema.parse({
 					...aggregateByDepartment(transactions, mappings),
+					by_category: aggregateByCategory(transactions, categoryMappings),
 					source,
 					generated_at: new Date().toISOString(),
 				});
@@ -147,6 +158,73 @@ export async function financeRoutes(server: FastifyInstance) {
 					"Failed to upsert finance department mapping",
 				);
 				throw new DatabaseError("Failed to save department mapping");
+			}
+		},
+	);
+
+	// Category editor: second cost locations (stored + discovered from postings)
+	// plus their label and usage stats.
+	server.get(
+		"/finance/category-mappings",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const parsed = BuchhaltungsButlerTransactionsQuerySchema.safeParse(
+				request.query,
+			);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid query",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			try {
+				const [{ transactions }, categoryMappings] = await Promise.all([
+					getBuchhaltungsButlerTransactions(parsed.data),
+					loadCategoryMappings(),
+				]);
+				return FinanceCategoryMappingsResponseSchema.parse({
+					rows: buildCategoryMappingRows(transactions, categoryMappings),
+					generated_at: new Date().toISOString(),
+				});
+			} catch (error) {
+				return handleFinanceError(request, reply, error);
+			}
+		},
+	);
+
+	server.put(
+		"/finance/category-mappings/:costLocationTwo",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const costLocationTwo = (
+				request.params as { costLocationTwo?: string }
+			).costLocationTwo?.trim();
+			if (!costLocationTwo) {
+				return reply.status(400).send({ error: "Missing cost location" });
+			}
+
+			const parsed = FinanceCategoryMappingUpsertSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid mapping",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			try {
+				const mapping = await upsertCategoryMapping({
+					costLocationTwo,
+					label: parsed.data.label,
+					note: parsed.data.note ?? null,
+				});
+				return mapping;
+			} catch (error) {
+				request.log.error(
+					{ err: error, costLocationTwo },
+					"Failed to upsert finance category mapping",
+				);
+				throw new DatabaseError("Failed to save category mapping");
 			}
 		},
 	);
