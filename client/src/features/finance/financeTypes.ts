@@ -1,12 +1,33 @@
 import type {
 	BuchhaltungsButlerTransaction,
 	BuchhaltungsButlerTransactionsResponse,
+	FinanceAnalyticsResponse,
+	FinanceBereich,
+	FinanceBereichSummary,
+	FinanceDepartmentMappingRow,
+	FinanceDepartmentMappingsResponse,
+	FinanceDepartmentMappingUpsert,
+	FinanceDepartmentSummary,
+	FinanceMonthlyPoint,
 } from "@member-manager/shared";
 
 export type {
 	BuchhaltungsButlerTransaction,
 	BuchhaltungsButlerTransactionsResponse,
+	FinanceAnalyticsResponse,
+	FinanceBereich,
+	FinanceBereichSummary,
+	FinanceDepartmentMappingRow,
+	FinanceDepartmentMappingsResponse,
+	FinanceDepartmentMappingUpsert,
+	FinanceDepartmentSummary,
+	FinanceMonthlyPoint,
 };
+
+export interface FinanceDateRange {
+	dateFrom: string;
+	dateTo: string;
+}
 
 export type FinanceDirectionFilter = "all" | "income" | "expenses";
 export type FinanceSortOrder = "date-desc" | "date-asc";
