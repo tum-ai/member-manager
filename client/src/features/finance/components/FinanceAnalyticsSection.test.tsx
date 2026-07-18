@@ -55,6 +55,16 @@ function analytics(
 				unmapped: true,
 			},
 		],
+		by_account: [
+			{
+				account: "6850",
+				label: null,
+				income: 0,
+				expenses: 8700,
+				net: -8700,
+				count: 2,
+			},
+		],
 		by_month: [{ month: "2026-02", income: 0, expenses: 8700, net: -8700 }],
 		by_bereich: [
 			{

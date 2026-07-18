@@ -1,6 +1,10 @@
 import type {
 	BuchhaltungsButlerTransaction,
 	BuchhaltungsButlerTransactionsResponse,
+	FinanceAccountLabelRow,
+	FinanceAccountLabelsResponse,
+	FinanceAccountLabelUpsert,
+	FinanceAccountSummary,
 	FinanceAnalyticsResponse,
 	FinanceBereich,
 	FinanceBereichSummary,
@@ -18,6 +22,10 @@ import type {
 export type {
 	BuchhaltungsButlerTransaction,
 	BuchhaltungsButlerTransactionsResponse,
+	FinanceAccountLabelRow,
+	FinanceAccountLabelsResponse,
+	FinanceAccountLabelUpsert,
+	FinanceAccountSummary,
 	FinanceAnalyticsResponse,
 	FinanceBereich,
 	FinanceBereichSummary,

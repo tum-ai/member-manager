@@ -59,6 +59,32 @@ const analytics: FinanceAnalyticsResponse = {
 			unmapped: true,
 		},
 	],
+	by_account: [
+		{
+			account: "6850",
+			label: "Veranstaltungen",
+			income: 0,
+			expenses: 10200,
+			net: -10200,
+			count: 4,
+		},
+		{
+			account: "8450",
+			label: "Sponsoring",
+			income: 30000,
+			expenses: 0,
+			net: 30000,
+			count: 3,
+		},
+		{
+			account: "6840",
+			label: null,
+			income: 0,
+			expenses: 3900,
+			net: -3900,
+			count: 9,
+		},
+	],
 	by_month: [
 		{ month: "2026-01", income: 15000, expenses: 3200, net: 11800 },
 		{ month: "2026-02", income: 7500, expenses: 4100, net: 3400 },

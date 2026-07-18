@@ -362,6 +362,72 @@ describe("Finance Routes", async () => {
 		});
 	});
 
+	describe("account labels", () => {
+		test("requires finance review permission", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/account-labels",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("lists discovered ledger accounts as unlabelled rows", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/account-labels?date_from=2026-02-01&date_to=2026-02-28",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.ok(payload.rows.length > 0);
+			assert.ok(
+				payload.rows.every(
+					(row: { label: string | null }) => row.label === null,
+				),
+			);
+		});
+
+		test("upserts a label and reflects it in the by_account rollup", async () => {
+			const put = await app.inject({
+				method: "PUT",
+				url: "/api/finance/account-labels/6840",
+				headers: authHeaders(testTokens.admin),
+				payload: { label: "Software & Tools" },
+			});
+			assert.strictEqual(put.statusCode, 200);
+			assert.strictEqual(JSON.parse(put.payload).account, "6840");
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/analytics?date_from=2026-01-01&date_to=2026-03-31",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			const payload = JSON.parse(response.payload);
+			assert.ok(Array.isArray(payload.by_account));
+			const software = payload.by_account.find(
+				(a: { account: string }) => a.account === "6840",
+			);
+			assert.ok(software);
+			assert.strictEqual(software.label, "Software & Tools");
+			assert.ok(software.expenses > 0);
+		});
+
+		test("rejects an empty account label", async () => {
+			const response = await app.inject({
+				method: "PUT",
+				url: "/api/finance/account-labels/6840",
+				headers: authHeaders(testTokens.admin),
+				payload: { label: "" },
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
+	});
+
 	describe("department mappings", () => {
 		test("requires finance review permission", async () => {
 			const response = await app.inject({
