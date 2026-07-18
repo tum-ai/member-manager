@@ -210,6 +210,122 @@ describe("Finance Routes", async () => {
 			transaction_purpose: "JetBrains partnership tranche 1",
 		});
 	});
+
+	describe("analytics", () => {
+		test("requires finance review permission", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/analytics",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("buckets unmapped postings and reports totals", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/analytics?date_from=2026-02-01&date_to=2026-02-28",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.source, "mock");
+			// No mappings seeded in the mock DB → every posting is unmapped.
+			assert.ok(payload.totals.count > 0);
+			assert.strictEqual(payload.totals.unmapped_count, payload.totals.count);
+			assert.ok(
+				payload.by_department.some(
+					(d: { unmapped: boolean }) => d.unmapped === true,
+				),
+			);
+			assert.match(payload.generated_at, /^\d{4}-\d{2}-\d{2}T/);
+		});
+
+		test("reflects a stored mapping in the department rollup", async () => {
+			await app.inject({
+				method: "PUT",
+				url: "/api/finance/department-mappings/120",
+				headers: authHeaders(testTokens.admin),
+				payload: { department: "Partnerships", bereich: "ideell" },
+			});
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/analytics?date_from=2026-02-01&date_to=2026-02-28",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			const payload = JSON.parse(response.payload);
+			const partnerships = payload.by_department.find(
+				(d: { department: string }) => d.department === "Partnerships",
+			);
+			assert.ok(partnerships);
+			assert.strictEqual(partnerships.unmapped, false);
+			assert.strictEqual(partnerships.bereich, "ideell");
+		});
+	});
+
+	describe("department mappings", () => {
+		test("requires finance review permission", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/department-mappings",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("lists discovered cost locations as unassigned rows", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/department-mappings?date_from=2026-02-01&date_to=2026-02-28",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.ok(payload.rows.length > 0);
+			assert.ok(
+				payload.rows.every(
+					(row: { department: string | null }) => row.department === null,
+				),
+			);
+			assert.ok(
+				payload.rows.every(
+					(row: { posting_count: number }) => row.posting_count >= 0,
+				),
+			);
+		});
+
+		test("upserts a mapping and normalizes the cost location", async () => {
+			const response = await app.inject({
+				method: "PUT",
+				url: "/api/finance/department-mappings/082",
+				headers: authHeaders(testTokens.admin),
+				payload: { department: "Membership", bereich: "ideell" },
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.cost_location, "82");
+			assert.strictEqual(payload.department, "Membership");
+			assert.strictEqual(payload.bereich, "ideell");
+		});
+
+		test("rejects an empty department assignment", async () => {
+			const response = await app.inject({
+				method: "PUT",
+				url: "/api/finance/department-mappings/082",
+				headers: authHeaders(testTokens.admin),
+				payload: { department: "", bereich: "ideell" },
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
+	});
 });
 
 function restoreEnv(key: string, value: string | undefined): void {

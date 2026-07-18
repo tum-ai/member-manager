@@ -1,9 +1,43 @@
 import type {
 	BuchhaltungsButlerTransaction,
+	FinanceBereich,
 	FinanceDirectionFilter,
 	FinanceFilters,
 	FinanceSummary,
 } from "./financeTypes";
+
+const BEREICH_LABELS: Record<FinanceBereich, string> = {
+	ideell: "Ideeller Bereich",
+	wirtschaftlich: "Wirtschaftlicher Geschäftsbetrieb",
+	zweckbetrieb: "Zweckbetrieb",
+};
+
+export function formatBereichLabel(bereich: FinanceBereich | null): string {
+	return bereich ? BEREICH_LABELS[bereich] : "Ohne Bereich";
+}
+
+export const FINANCE_BEREICH_OPTIONS: ReadonlyArray<{
+	value: FinanceBereich;
+	label: string;
+}> = [
+	{ value: "ideell", label: BEREICH_LABELS.ideell },
+	{ value: "wirtschaftlich", label: BEREICH_LABELS.wirtschaftlich },
+	{ value: "zweckbetrieb", label: BEREICH_LABELS.zweckbetrieb },
+];
+
+// Compact month label ("Feb 2026") for chart axes from a "YYYY-MM" key.
+export function formatFinanceMonth(month: string): string {
+	const match = /^(\d{4})-(\d{2})$/.exec(month);
+	if (!match) {
+		return month;
+	}
+	const [, year, monthPart] = match;
+	const index = Number(monthPart) - 1;
+	if (index < 0 || index >= SHORT_MONTHS.length) {
+		return month;
+	}
+	return `${SHORT_MONTHS[index]} ${year}`;
+}
 
 const SHORT_MONTHS = [
 	"Jan",
@@ -44,6 +78,23 @@ export function formatFinanceAmount(value: number, currency = "EUR"): string {
 		style: "currency",
 		currency,
 	}).format(value);
+}
+
+// Magnitude-adaptive short amount for chart axes/labels: 940 → "940 €",
+// 35 500 → "36k €", 1 240 000 → "1,2 Mio €". Keeps ticks readable and lets them
+// scale automatically with the data range.
+export function formatFinanceAmountCompact(value: number): string {
+	const abs = Math.abs(value);
+	if (abs >= 1_000_000) {
+		const millions = value / 1_000_000;
+		return `${millions.toLocaleString("de-DE", {
+			maximumFractionDigits: 1,
+		})} Mio €`;
+	}
+	if (abs >= 1_000) {
+		return `${Math.round(value / 1_000).toLocaleString("de-DE")}k €`;
+	}
+	return `${Math.round(value).toLocaleString("de-DE")} €`;
 }
 
 export function formatFinanceDate(value: string): string {
@@ -114,6 +165,20 @@ export function filterFinanceTransactions(
 	);
 }
 
+// BuchhaltungsButler reports `vat` as a percentage rate (e.g. 19), not an
+// amount. Derive the tax portion contained in the (gross) posting so the total
+// is a meaningful currency figure instead of a sum of rates.
+export function computeVatAmount(
+	transaction: BuchhaltungsButlerTransaction,
+): number {
+	const rate = transaction.vat;
+	if (!rate || rate <= 0) {
+		return 0;
+	}
+	const gross = Math.abs(transaction.transaction_amount);
+	return Math.round(((gross * rate) / (100 + rate)) * 100) / 100;
+}
+
 export function summarizeFinanceTransactions(
 	transactions: BuchhaltungsButlerTransaction[],
 ): FinanceSummary {
@@ -125,7 +190,7 @@ export function summarizeFinanceTransactions(
 				income: summary.income + (amount >= 0 ? amount : 0),
 				expenses: summary.expenses + (amount < 0 ? Math.abs(amount) : 0),
 				net: summary.net + amount,
-				vat: summary.vat + transaction.vat,
+				vat: summary.vat + computeVatAmount(transaction),
 			};
 		},
 		{ count: 0, income: 0, expenses: 0, net: 0, vat: 0 },

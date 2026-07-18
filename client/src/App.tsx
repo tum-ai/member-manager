@@ -25,6 +25,7 @@ import ContractSignPage from "./features/contracts/ContractSignPage";
 import ContractSubmissionDetailPage from "./features/contracts/ContractSubmissionDetailPage";
 import ContractSubmissionsPage from "./features/contracts/ContractSubmissionsPage";
 import ContractTemplatesPage from "./features/contracts/ContractTemplatesPage";
+import FinanceAnalyticsPage from "./features/finance/FinanceAnalyticsPage";
 import FinanceTransactionsPage from "./features/finance/FinanceTransactionsPage";
 import JobPostingsPage from "./features/jobs/JobPostingsPage";
 import { MemberList } from "./features/members/MemberList";
@@ -220,6 +221,14 @@ export function AuthenticatedApp({
 					element={
 						<RequirePermission permission="finance.review">
 							<FinanceTransactionsPage />
+						</RequirePermission>
+					}
+				/>
+				<Route
+					path="/tools/finance/analytics"
+					element={
+						<RequirePermission permission="finance.review">
+							<FinanceAnalyticsPage />
 						</RequirePermission>
 					}
 				/>

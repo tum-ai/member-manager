@@ -1,0 +1,249 @@
+import { TUMAI_DEPARTMENTS } from "@member-manager/shared";
+import { Check, Loader2 } from "lucide-react";
+import { type ReactElement, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import type {
+	FinanceBereich,
+	FinanceDepartmentMappingRow,
+} from "@/features/finance/financeTypes";
+import {
+	FINANCE_BEREICH_OPTIONS,
+	formatFinanceAmount,
+} from "@/features/finance/financeUtils";
+
+const NO_BEREICH_VALUE = "__none__";
+const NO_DEPARTMENT_VALUE = "__none__";
+// Catch-all department for cost locations that don't fit any real department.
+const OTHER_DEPARTMENT = "Other";
+const DEPARTMENT_OPTIONS = [...TUMAI_DEPARTMENTS, OTHER_DEPARTMENT] as const;
+
+interface SaveInput {
+	costLocation: string;
+	department: string | null;
+	bereich: FinanceBereich | null;
+}
+
+interface DepartmentMappingEditorSectionProps {
+	rows: FinanceDepartmentMappingRow[];
+	isLoading: boolean;
+	error: Error | null;
+	savingCostLocation: string | null;
+	onSave: (input: SaveInput) => void;
+}
+
+export function DepartmentMappingEditorSection({
+	rows,
+	isLoading,
+	error,
+	savingCostLocation,
+	onSave,
+}: DepartmentMappingEditorSectionProps): ReactElement {
+	const unassignedCount = rows.filter((row) => !row.department).length;
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="text-base">Kostenstellen → Department</CardTitle>
+				<CardDescription>
+					Ordne jede BuchhaltungsButler-Kostenstelle einem Department und
+					Bereich zu. Nicht zugeordnete Kostenstellen sind markiert und landen
+					in der Auswertung unter „Nicht zugeordnet".
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				{error ? (
+					<Alert variant="destructive">
+						<AlertDescription>{error.message}</AlertDescription>
+					</Alert>
+				) : null}
+
+				{!isLoading && unassignedCount > 0 ? (
+					<Alert>
+						<AlertDescription>
+							{unassignedCount} von {rows.length} Kostenstellen sind noch nicht
+							zugeordnet.
+						</AlertDescription>
+					</Alert>
+				) : null}
+
+				{isLoading ? (
+					<Skeleton className="h-64 w-full" />
+				) : (
+					<div className="overflow-x-auto">
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead className="w-28">Kostenstelle</TableHead>
+									<TableHead>Beispiel-Buchungen</TableHead>
+									<TableHead className="text-right">Buchungen</TableHead>
+									<TableHead className="text-right">Saldo</TableHead>
+									<TableHead className="w-48">Department</TableHead>
+									<TableHead className="w-56">Bereich</TableHead>
+									<TableHead className="w-10" />
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{rows.length === 0 ? (
+									<TableRow>
+										<TableCell
+											colSpan={7}
+											className="text-center text-muted-foreground"
+										>
+											Keine Kostenstellen gefunden.
+										</TableCell>
+									</TableRow>
+								) : (
+									rows.map((row) => (
+										<MappingRow
+											key={row.cost_location}
+											row={row}
+											saving={savingCostLocation === row.cost_location}
+											onSave={onSave}
+										/>
+									))
+								)}
+							</TableBody>
+						</Table>
+					</div>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+function MappingRow({
+	row,
+	saving,
+	onSave,
+}: {
+	row: FinanceDepartmentMappingRow;
+	saving: boolean;
+	onSave: (input: SaveInput) => void;
+}): ReactElement {
+	const [department, setDepartment] = useState<string>(
+		row.department ?? NO_DEPARTMENT_VALUE,
+	);
+	const [bereich, setBereich] = useState<string>(
+		row.bereich ?? NO_BEREICH_VALUE,
+	);
+
+	// Persist immediately on any change — no separate "save" step. Selecting a
+	// department (or bereich) is the save.
+	function persist(nextDepartment: string, nextBereich: string): void {
+		onSave({
+			costLocation: row.cost_location,
+			department:
+				nextDepartment === NO_DEPARTMENT_VALUE ? null : nextDepartment,
+			bereich:
+				nextBereich === NO_BEREICH_VALUE
+					? null
+					: (nextBereich as FinanceBereich),
+		});
+	}
+
+	function handleDepartmentChange(value: string): void {
+		setDepartment(value);
+		persist(value, bereich);
+	}
+
+	function handleBereichChange(value: string): void {
+		setBereich(value);
+		persist(department, value);
+	}
+
+	return (
+		<TableRow>
+			<TableCell className="align-top font-medium tabular-nums">
+				<div className="flex flex-col gap-1">
+					<span>{row.cost_location}</span>
+					{row.department ? null : (
+						<Badge variant="outline" className="w-fit text-amber-600">
+							Nicht zugeordnet
+						</Badge>
+					)}
+				</div>
+			</TableCell>
+			<TableCell className="align-top text-sm text-muted-foreground">
+				<span
+					className="block max-w-xs truncate"
+					title={row.sample_texts.join(" · ")}
+				>
+					{row.sample_texts.join(" · ") || "—"}
+				</span>
+			</TableCell>
+			<TableCell className="align-top text-right tabular-nums">
+				{row.posting_count}
+			</TableCell>
+			<TableCell className="align-top text-right tabular-nums">
+				{formatFinanceAmount(row.net)}
+			</TableCell>
+			<TableCell className="align-top">
+				<Select value={department} onValueChange={handleDepartmentChange}>
+					<SelectTrigger
+						aria-label={`Department für Kostenstelle ${row.cost_location}`}
+					>
+						<SelectValue placeholder="Department wählen" />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value={NO_DEPARTMENT_VALUE}>
+							Nicht zugeordnet
+						</SelectItem>
+						{DEPARTMENT_OPTIONS.map((dept) => (
+							<SelectItem key={dept} value={dept}>
+								{dept}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</TableCell>
+			<TableCell className="align-top">
+				<Select value={bereich} onValueChange={handleBereichChange}>
+					<SelectTrigger
+						aria-label={`Bereich für Kostenstelle ${row.cost_location}`}
+					>
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value={NO_BEREICH_VALUE}>Ohne Bereich</SelectItem>
+						{FINANCE_BEREICH_OPTIONS.map((option) => (
+							<SelectItem key={option.value} value={option.value}>
+								{option.label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</TableCell>
+			<TableCell className="w-10 align-middle text-muted-foreground">
+				{saving ? (
+					<Loader2 aria-label="Speichern" className="size-4 animate-spin" />
+				) : row.department ? (
+					<Check aria-label="Gespeichert" className="size-4 text-emerald-600" />
+				) : null}
+			</TableCell>
+		</TableRow>
+	);
+}

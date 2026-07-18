@@ -3,8 +3,11 @@ import type { BuchhaltungsButlerTransaction } from "./financeTypes";
 import {
 	buildFinanceExportRows,
 	filterFinanceTransactions,
+	formatBereichLabel,
 	formatFinanceAmount,
+	formatFinanceAmountCompact,
 	formatFinanceDate,
+	formatFinanceMonth,
 	getDefaultFinanceDateRange,
 	summarizeFinanceTransactions,
 } from "./financeUtils";
@@ -85,7 +88,8 @@ describe("financeUtils", () => {
 			income: 7500,
 			expenses: 266,
 			net: 7234,
-			vat: 19,
+			// 19% VAT contained in the gross 266 expense: 266 * 19/119.
+			vat: 42.47,
 		});
 	});
 
@@ -97,5 +101,24 @@ describe("financeUtils", () => {
 			"Posting Text": "Sponsoring JetBrains",
 			"Transaction Amount": 7500,
 		});
+	});
+
+	it("formats Bereich labels in German, with a fallback for null", () => {
+		expect(formatBereichLabel("ideell")).toBe("Ideeller Bereich");
+		expect(formatBereichLabel("wirtschaftlich")).toBe(
+			"Wirtschaftlicher Geschäftsbetrieb",
+		);
+		expect(formatBereichLabel(null)).toBe("Ohne Bereich");
+	});
+
+	it("formats month keys as compact labels", () => {
+		expect(formatFinanceMonth("2026-02")).toBe("Feb 2026");
+		expect(formatFinanceMonth("not-a-month")).toBe("not-a-month");
+	});
+
+	it("formats amounts compactly, scaling with magnitude", () => {
+		expect(formatFinanceAmountCompact(940)).toBe("940 €");
+		expect(formatFinanceAmountCompact(35_500)).toBe("36k €");
+		expect(formatFinanceAmountCompact(1_240_000)).toBe("1,2 Mio €");
 	});
 });
