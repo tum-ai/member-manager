@@ -421,6 +421,87 @@ describe("Finance Routes", async () => {
 		});
 	});
 
+	describe("budgets", () => {
+		test("requires finance review permission", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/budgets?period_type=year&period_key=2026",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("rejects a period key that does not match its type", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/budgets?period_type=year&period_key=WS26",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
+
+		test("upserts a budget and reflects it in budget-vs-actual", async () => {
+			// Map cost location 161 to Makeathon so its postings become actuals.
+			await app.inject({
+				method: "PUT",
+				url: "/api/finance/department-mappings/161",
+				headers: authHeaders(testTokens.admin),
+				payload: { department: "Makeathon", bereich: "wirtschaftlich" },
+			});
+
+			const put = await app.inject({
+				method: "PUT",
+				url: "/api/finance/budgets",
+				headers: authHeaders(testTokens.admin),
+				payload: {
+					department: "Makeathon",
+					period_type: "year",
+					period_key: "2026",
+					amount_planned: 5000,
+				},
+			});
+			assert.strictEqual(put.statusCode, 200);
+			assert.strictEqual(JSON.parse(put.payload).amount_planned, 5000);
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/budgets?period_type=year&period_key=2026",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.period_key, "2026");
+			const makeathon = payload.rows.find(
+				(r: { department: string }) => r.department === "Makeathon",
+			);
+			assert.ok(makeathon);
+			assert.strictEqual(makeathon.amount_planned, 5000);
+			// Makeathon's mock spend in 2026 exceeds 5k → over budget.
+			assert.ok(makeathon.actual_expenses > 5000);
+			assert.strictEqual(makeathon.over_budget, true);
+			assert.ok(payload.totals.amount_planned >= 5000);
+		});
+
+		test("rejects a negative planned amount", async () => {
+			const response = await app.inject({
+				method: "PUT",
+				url: "/api/finance/budgets",
+				headers: authHeaders(testTokens.admin),
+				payload: {
+					department: "Makeathon",
+					period_type: "year",
+					period_key: "2026",
+					amount_planned: -100,
+				},
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
+	});
+
 	describe("department mappings", () => {
 		test("requires finance review permission", async () => {
 			const response = await app.inject({

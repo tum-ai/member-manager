@@ -4,10 +4,14 @@ import {
 	FinanceAccountLabelsResponseSchema,
 	FinanceAccountLabelUpsertSchema,
 	FinanceAnalyticsResponseSchema,
+	FinanceBudgetQuerySchema,
+	FinanceBudgetUpsertSchema,
+	FinanceBudgetVsActualResponseSchema,
 	FinanceCategoryMappingsResponseSchema,
 	FinanceCategoryMappingUpsertSchema,
 	FinanceDepartmentMappingsResponseSchema,
 	FinanceDepartmentMappingUpsertSchema,
+	resolveFinancePeriodRange,
 } from "@member-manager/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
@@ -22,6 +26,11 @@ import {
 	loadAccountLabels,
 	upsertAccountLabel,
 } from "../lib/financeAccounts.js";
+import {
+	computeBudgetVsActual,
+	loadBudgets,
+	upsertBudget,
+} from "../lib/financeBudgets.js";
 import {
 	aggregateByCategory,
 	buildCategoryMappingRows,
@@ -39,6 +48,7 @@ import {
 	authenticate,
 	requireReimbursementReviewer,
 } from "../middleware/auth.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 
 export async function financeRoutes(server: FastifyInstance) {
 	server.get(
@@ -306,6 +316,84 @@ export async function financeRoutes(server: FastifyInstance) {
 					"Failed to upsert finance account label",
 				);
 				throw new DatabaseError("Failed to save account label");
+			}
+		},
+	);
+
+	// Budgets: per-department ceilings for a fiscal period, joined to the actual
+	// (gross) expenses in that period so LnF sees budget vs. actual.
+	server.get(
+		"/finance/budgets",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const parsed = FinanceBudgetQuerySchema.safeParse(request.query);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid query",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const { period_type, period_key } = parsed.data;
+			const range = resolveFinancePeriodRange(period_type, period_key);
+
+			try {
+				const [{ transactions, source }, mappings, budgets] = await Promise.all(
+					[
+						getBuchhaltungsButlerTransactions({
+							date_from: range.dateFrom,
+							date_to: range.dateTo,
+						}),
+						loadDepartmentMappings(),
+						loadBudgets(period_type, period_key),
+					],
+				);
+				const { by_department } = aggregateByDepartment(transactions, mappings);
+				const { rows, totals } = computeBudgetVsActual(by_department, budgets);
+				return FinanceBudgetVsActualResponseSchema.parse({
+					period_type,
+					period_key,
+					rows,
+					totals,
+					source,
+					generated_at: new Date().toISOString(),
+				});
+			} catch (error) {
+				return handleFinanceError(request, reply, error);
+			}
+		},
+	);
+
+	server.put(
+		"/finance/budgets",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const parsed = FinanceBudgetUpsertSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid budget",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const userId = (request as AuthenticatedRequest).user.id;
+
+			try {
+				const budget = await upsertBudget({
+					department: parsed.data.department,
+					periodType: parsed.data.period_type,
+					periodKey: parsed.data.period_key,
+					amountPlanned: parsed.data.amount_planned,
+					note: parsed.data.note ?? null,
+					setBy: userId,
+				});
+				return budget;
+			} catch (error) {
+				request.log.error(
+					{ err: error, department: parsed.data.department },
+					"Failed to upsert finance budget",
+				);
+				throw new DatabaseError("Failed to save budget");
 			}
 		},
 	);
