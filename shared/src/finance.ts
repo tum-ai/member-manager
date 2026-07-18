@@ -170,6 +170,60 @@ export type FinanceCategorySummary = z.infer<
 	typeof FinanceCategorySummarySchema
 >;
 
+// --- Account labels (SKR03 ledger accounts) ---------------------------------
+
+// Sentinel bucket for postings with no ledger account number at all (rare).
+// Labelled and unlabelled accounts both keep their real number as the bucket
+// key; the label is decoration, so no per-account "unmapped" flag is needed.
+export const FINANCE_UNMAPPED_ACCOUNT = "Ohne Konto";
+
+export const FinanceAccountLabelSchema = z.object({
+	account: z.string().min(1),
+	label: z.string().min(1).nullable(),
+	note: z.string().nullable(),
+});
+export type FinanceAccountLabel = z.infer<typeof FinanceAccountLabelSchema>;
+
+// Upsert payload for the account editor. `account` travels in the URL, so the
+// body only carries the assignable attributes.
+export const FinanceAccountLabelUpsertSchema = z.object({
+	label: z.string().trim().min(1).nullable(),
+	note: z.string().trim().max(500).nullable().optional(),
+});
+export type FinanceAccountLabelUpsert = z.infer<
+	typeof FinanceAccountLabelUpsertSchema
+>;
+
+export const FinanceAccountLabelRowSchema = z.object({
+	account: z.string().min(1),
+	label: z.string().min(1).nullable(),
+	note: z.string().nullable(),
+	posting_count: z.number().int().nonnegative(),
+	net: z.number(),
+	sample_texts: z.array(z.string()),
+});
+export type FinanceAccountLabelRow = z.infer<
+	typeof FinanceAccountLabelRowSchema
+>;
+
+export const FinanceAccountLabelsResponseSchema = z.object({
+	rows: z.array(FinanceAccountLabelRowSchema),
+	generated_at: z.string().datetime(),
+});
+export type FinanceAccountLabelsResponse = z.infer<
+	typeof FinanceAccountLabelsResponseSchema
+>;
+
+export const FinanceAccountSummarySchema = z.object({
+	account: z.string().min(1),
+	label: z.string().min(1).nullable(),
+	income: z.number(),
+	expenses: z.number(),
+	net: z.number(),
+	count: z.number().int().nonnegative(),
+});
+export type FinanceAccountSummary = z.infer<typeof FinanceAccountSummarySchema>;
+
 export const FinanceDepartmentSummarySchema = z.object({
 	department: z.string().min(1),
 	bereich: FinanceBereichSchema.nullable(),
@@ -204,6 +258,7 @@ export type FinanceBereichSummary = z.infer<typeof FinanceBereichSummarySchema>;
 export const FinanceAnalyticsResponseSchema = z.object({
 	by_department: z.array(FinanceDepartmentSummarySchema),
 	by_category: z.array(FinanceCategorySummarySchema),
+	by_account: z.array(FinanceAccountSummarySchema),
 	by_month: z.array(FinanceMonthlyPointSchema),
 	by_bereich: z.array(FinanceBereichSummarySchema),
 	totals: z.object({

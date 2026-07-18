@@ -64,4 +64,27 @@ test.describe("Finance Analytics tool", () => {
 
 		await expect(page.getByText("Kategorie gespeichert.")).toBeVisible();
 	});
+
+	test("shows the account breakdown and labels a ledger account", async ({
+		page,
+	}) => {
+		// Accounts breakdown tab renders the by-account table.
+		await page.getByRole("tab", { name: "Konten" }).click();
+		await expect(page.getByText("Ausgaben pro Konto")).toBeVisible();
+
+		// The account editor lives under the mapping tab, below the others.
+		await page.getByRole("tab", { name: "Zuordnung" }).click();
+		await expect(
+			page.getByRole("columnheader", { name: "Konto", exact: true }),
+		).toBeVisible();
+
+		const unlabelledInput = page
+			.getByRole("textbox", { name: /Bezeichnung für Konto/ })
+			.first();
+		await expect(unlabelledInput).toBeVisible({ timeout: 20000 });
+		await unlabelledInput.fill("Software & Tools");
+		await unlabelledInput.blur();
+
+		await expect(page.getByText("Konto gespeichert.")).toBeVisible();
+	});
 });

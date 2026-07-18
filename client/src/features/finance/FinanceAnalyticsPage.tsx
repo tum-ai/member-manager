@@ -1,10 +1,13 @@
 import type { ReactElement } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { AccountLabelEditorSection } from "./components/AccountLabelEditorSection";
 import { CategoryMappingEditorSection } from "./components/CategoryMappingEditorSection";
 import { DepartmentMappingEditorSection } from "./components/DepartmentMappingEditorSection";
+import { FinanceAccountBreakdownSection } from "./components/FinanceAccountBreakdownSection";
 import { FinanceAnalyticsSection } from "./components/FinanceAnalyticsSection";
 import { FinanceCategoryBreakdownSection } from "./components/FinanceCategoryBreakdownSection";
+import { useFinanceAccountLabels } from "./hooks/useFinanceAccountLabels";
 import { useFinanceAnalytics } from "./hooks/useFinanceAnalytics";
 import { useFinanceCategoryMappings } from "./hooks/useFinanceCategoryMappings";
 import { useFinanceDepartmentMappings } from "./hooks/useFinanceDepartmentMappings";
@@ -37,6 +40,14 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		savingCostLocationTwo,
 	} = useFinanceCategoryMappings();
 
+	const {
+		rows: accountRows,
+		isLoading: accountLoading,
+		error: accountError,
+		saveAccount,
+		savingAccount,
+	} = useFinanceAccountLabels();
+
 	return (
 		<ToolPageShell
 			title="Finance Analytics"
@@ -46,6 +57,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 				<TabsList>
 					<TabsTrigger value="overview">Übersicht</TabsTrigger>
 					<TabsTrigger value="categories">Kategorien</TabsTrigger>
+					<TabsTrigger value="accounts">Konten</TabsTrigger>
 					<TabsTrigger value="mapping">Zuordnung</TabsTrigger>
 				</TabsList>
 				<TabsContent value="overview" className="mt-5">
@@ -68,6 +80,12 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						isLoading={isLoading}
 					/>
 				</TabsContent>
+				<TabsContent value="accounts" className="mt-5">
+					<FinanceAccountBreakdownSection
+						accounts={analytics?.by_account}
+						isLoading={isLoading}
+					/>
+				</TabsContent>
 				<TabsContent value="mapping" className="mt-5 flex flex-col gap-5">
 					<DepartmentMappingEditorSection
 						rows={rows}
@@ -82,6 +100,13 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						error={categoryError}
 						savingCostLocationTwo={savingCostLocationTwo}
 						onSave={saveCategory}
+					/>
+					<AccountLabelEditorSection
+						rows={accountRows}
+						isLoading={accountLoading}
+						error={accountError}
+						savingAccount={savingAccount}
+						onSave={saveAccount}
 					/>
 				</TabsContent>
 			</Tabs>

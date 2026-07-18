@@ -1,6 +1,8 @@
 import {
 	BuchhaltungsButlerTransactionsQuerySchema,
 	BuchhaltungsButlerTransactionsResponseSchema,
+	FinanceAccountLabelsResponseSchema,
+	FinanceAccountLabelUpsertSchema,
 	FinanceAnalyticsResponseSchema,
 	FinanceCategoryMappingsResponseSchema,
 	FinanceCategoryMappingUpsertSchema,
@@ -14,6 +16,12 @@ import {
 } from "../lib/buchhaltungsbutler.js";
 import { getBuchhaltungsButlerTransactions } from "../lib/buchhaltungsbutlerPostings.js";
 import { DatabaseError } from "../lib/errors.js";
+import {
+	aggregateByAccount,
+	buildAccountLabelRows,
+	loadAccountLabels,
+	upsertAccountLabel,
+} from "../lib/financeAccounts.js";
 import {
 	aggregateByCategory,
 	buildCategoryMappingRows,
@@ -74,15 +82,21 @@ export async function financeRoutes(server: FastifyInstance) {
 			}
 
 			try {
-				const [{ transactions, source }, mappings, categoryMappings] =
-					await Promise.all([
-						getBuchhaltungsButlerTransactions(parsed.data),
-						loadDepartmentMappings(),
-						loadCategoryMappings(),
-					]);
+				const [
+					{ transactions, source },
+					mappings,
+					categoryMappings,
+					accountLabels,
+				] = await Promise.all([
+					getBuchhaltungsButlerTransactions(parsed.data),
+					loadDepartmentMappings(),
+					loadCategoryMappings(),
+					loadAccountLabels(),
+				]);
 				return FinanceAnalyticsResponseSchema.parse({
 					...aggregateByDepartment(transactions, mappings),
 					by_category: aggregateByCategory(transactions, categoryMappings),
+					by_account: aggregateByAccount(transactions, accountLabels),
 					source,
 					generated_at: new Date().toISOString(),
 				});
@@ -225,6 +239,71 @@ export async function financeRoutes(server: FastifyInstance) {
 					"Failed to upsert finance category mapping",
 				);
 				throw new DatabaseError("Failed to save category mapping");
+			}
+		},
+	);
+
+	// Account editor: ledger accounts (stored + discovered from postings) plus
+	// their label and usage stats.
+	server.get(
+		"/finance/account-labels",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const parsed = BuchhaltungsButlerTransactionsQuerySchema.safeParse(
+				request.query,
+			);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid query",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			try {
+				const [{ transactions }, accountLabels] = await Promise.all([
+					getBuchhaltungsButlerTransactions(parsed.data),
+					loadAccountLabels(),
+				]);
+				return FinanceAccountLabelsResponseSchema.parse({
+					rows: buildAccountLabelRows(transactions, accountLabels),
+					generated_at: new Date().toISOString(),
+				});
+			} catch (error) {
+				return handleFinanceError(request, reply, error);
+			}
+		},
+	);
+
+	server.put(
+		"/finance/account-labels/:account",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const account = (request.params as { account?: string }).account?.trim();
+			if (!account) {
+				return reply.status(400).send({ error: "Missing account" });
+			}
+
+			const parsed = FinanceAccountLabelUpsertSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid label",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			try {
+				const label = await upsertAccountLabel({
+					account,
+					label: parsed.data.label,
+					note: parsed.data.note ?? null,
+				});
+				return label;
+			} catch (error) {
+				request.log.error(
+					{ err: error, account },
+					"Failed to upsert finance account label",
+				);
+				throw new DatabaseError("Failed to save account label");
 			}
 		},
 	);

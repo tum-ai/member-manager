@@ -125,7 +125,10 @@ function applyAmount(bucket: Bucket, amount: number): void {
 export function aggregateByDepartment(
 	transactions: BuchhaltungsButlerTransaction[],
 	mappings: FinanceDepartmentMapping[],
-): Omit<FinanceAnalyticsResponse, "source" | "generated_at" | "by_category"> {
+): Omit<
+	FinanceAnalyticsResponse,
+	"source" | "generated_at" | "by_category" | "by_account"
+> {
 	const lookup = buildMappingLookup(mappings);
 
 	const byDepartment = new Map<
