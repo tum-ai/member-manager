@@ -265,6 +265,84 @@ describe("Finance Routes", async () => {
 			assert.strictEqual(partnerships.unmapped, false);
 			assert.strictEqual(partnerships.bereich, "ideell");
 		});
+
+		test("reflects a stored category label in the by_category rollup", async () => {
+			await app.inject({
+				method: "PUT",
+				url: "/api/finance/category-mappings/1",
+				headers: authHeaders(testTokens.admin),
+				payload: { label: "Catering" },
+			});
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/analytics?date_from=2026-04-01&date_to=2026-06-30",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			const payload = JSON.parse(response.payload);
+			assert.ok(Array.isArray(payload.by_category));
+			const catering = payload.by_category.find(
+				(c: { category: string }) => c.category === "Catering",
+			);
+			assert.ok(catering);
+			assert.strictEqual(catering.unmapped, false);
+			assert.ok(catering.expenses > 0);
+		});
+	});
+
+	describe("category mappings", () => {
+		test("requires finance review permission", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/category-mappings",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("lists discovered second cost locations as unlabelled rows", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/category-mappings?date_from=2026-02-01&date_to=2026-02-28",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.ok(payload.rows.length > 0);
+			assert.ok(
+				payload.rows.every(
+					(row: { label: string | null }) => row.label === null,
+				),
+			);
+		});
+
+		test("upserts a label and normalizes the second cost location", async () => {
+			const response = await app.inject({
+				method: "PUT",
+				url: "/api/finance/category-mappings/003",
+				headers: authHeaders(testTokens.admin),
+				payload: { label: "Venue" },
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.cost_location_two, "3");
+			assert.strictEqual(payload.label, "Venue");
+		});
+
+		test("rejects an empty category label", async () => {
+			const response = await app.inject({
+				method: "PUT",
+				url: "/api/finance/category-mappings/003",
+				headers: authHeaders(testTokens.admin),
+				payload: { label: "" },
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+		});
 	});
 
 	describe("department mappings", () => {

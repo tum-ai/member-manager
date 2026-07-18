@@ -45,6 +45,16 @@ function analytics(
 				unmapped: false,
 			},
 		],
+		by_category: [
+			{
+				category: "Ohne Kategorie",
+				income: 0,
+				expenses: 8700,
+				net: -8700,
+				count: 2,
+				unmapped: true,
+			},
+		],
 		by_month: [{ month: "2026-02", income: 0, expenses: 8700, net: -8700 }],
 		by_bereich: [
 			{
