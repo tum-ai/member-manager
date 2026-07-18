@@ -1,6 +1,7 @@
 import type { ReactElement } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { useToolAccess } from "@/hooks/useToolAccess";
 import { AccountLabelEditorSection } from "./components/AccountLabelEditorSection";
 import { CategoryMappingEditorSection } from "./components/CategoryMappingEditorSection";
 import { DepartmentMappingEditorSection } from "./components/DepartmentMappingEditorSection";
@@ -16,6 +17,12 @@ import { useFinanceCategoryMappings } from "./hooks/useFinanceCategoryMappings";
 import { useFinanceDepartmentMappings } from "./hooks/useFinanceDepartmentMappings";
 
 export default function FinanceAnalyticsPage(): ReactElement {
+	// Full reviewers (LnF/admin) manage mappings and budgets; department-scoped
+	// members get a read-only, own-department view (the server enforces the
+	// scope regardless). Gate the reviewer-only editor queries + edit affordances.
+	const { permissions } = useToolAccess();
+	const canManage = permissions.includes("finance.review");
+
 	const {
 		range,
 		analytics,
@@ -33,7 +40,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		error: mappingsError,
 		saveMapping,
 		savingCostLocation,
-	} = useFinanceDepartmentMappings(range);
+	} = useFinanceDepartmentMappings(range, { enabled: canManage });
 
 	const {
 		rows: categoryRows,
@@ -41,7 +48,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		error: categoryError,
 		saveCategory,
 		savingCostLocationTwo,
-	} = useFinanceCategoryMappings();
+	} = useFinanceCategoryMappings({ enabled: canManage });
 
 	const {
 		rows: accountRows,
@@ -49,7 +56,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		error: accountError,
 		saveAccount,
 		savingAccount,
-	} = useFinanceAccountLabels();
+	} = useFinanceAccountLabels({ enabled: canManage });
 
 	const {
 		period,
@@ -74,7 +81,9 @@ export default function FinanceAnalyticsPage(): ReactElement {
 					<TabsTrigger value="budget">Budget</TabsTrigger>
 					<TabsTrigger value="categories">Kategorien</TabsTrigger>
 					<TabsTrigger value="accounts">Konten</TabsTrigger>
-					<TabsTrigger value="mapping">Zuordnung</TabsTrigger>
+					{canManage ? (
+						<TabsTrigger value="mapping">Zuordnung</TabsTrigger>
+					) : null}
 				</TabsList>
 				<TabsContent value="overview" className="mt-5 flex flex-col gap-5">
 					<FinanceAnalyticsSection
@@ -103,6 +112,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						isLoading={budgetLoading}
 						error={budgetError}
 						savingDepartment={savingDepartment}
+						canEdit={canManage}
 						onPeriodTypeChange={setPeriodType}
 						onPeriodKeyChange={setPeriodKey}
 						onSave={saveBudget}
@@ -120,29 +130,31 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						isLoading={isLoading}
 					/>
 				</TabsContent>
-				<TabsContent value="mapping" className="mt-5 flex flex-col gap-5">
-					<DepartmentMappingEditorSection
-						rows={rows}
-						isLoading={mappingsLoading}
-						error={mappingsError}
-						savingCostLocation={savingCostLocation}
-						onSave={saveMapping}
-					/>
-					<CategoryMappingEditorSection
-						rows={categoryRows}
-						isLoading={categoryLoading}
-						error={categoryError}
-						savingCostLocationTwo={savingCostLocationTwo}
-						onSave={saveCategory}
-					/>
-					<AccountLabelEditorSection
-						rows={accountRows}
-						isLoading={accountLoading}
-						error={accountError}
-						savingAccount={savingAccount}
-						onSave={saveAccount}
-					/>
-				</TabsContent>
+				{canManage ? (
+					<TabsContent value="mapping" className="mt-5 flex flex-col gap-5">
+						<DepartmentMappingEditorSection
+							rows={rows}
+							isLoading={mappingsLoading}
+							error={mappingsError}
+							savingCostLocation={savingCostLocation}
+							onSave={saveMapping}
+						/>
+						<CategoryMappingEditorSection
+							rows={categoryRows}
+							isLoading={categoryLoading}
+							error={categoryError}
+							savingCostLocationTwo={savingCostLocationTwo}
+							onSave={saveCategory}
+						/>
+						<AccountLabelEditorSection
+							rows={accountRows}
+							isLoading={accountLoading}
+							error={accountError}
+							savingAccount={savingAccount}
+							onSave={saveAccount}
+						/>
+					</TabsContent>
+				) : null}
 			</Tabs>
 		</ToolPageShell>
 	);

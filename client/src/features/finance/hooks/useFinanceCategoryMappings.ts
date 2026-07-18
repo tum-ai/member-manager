@@ -31,7 +31,11 @@ function buildCategoryMappingsEndpoint(range: FinanceDateRange): string {
 	}`;
 }
 
-export function useFinanceCategoryMappings() {
+export function useFinanceCategoryMappings({
+	enabled = true,
+}: {
+	enabled?: boolean;
+} = {}) {
 	const { showToast } = useToast();
 	const queryClient = useQueryClient();
 	const defaultRange = useMemo(() => getDefaultFinanceDateRange(), []);
@@ -46,6 +50,7 @@ export function useFinanceCategoryMappings() {
 			],
 			queryFn: async () =>
 				await apiClient(buildCategoryMappingsEndpoint(range)),
+			enabled,
 		});
 
 	const mutation = useMutation({

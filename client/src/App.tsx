@@ -228,9 +228,11 @@ export function AuthenticatedApp({
 				<Route
 					path="/tools/finance/analytics"
 					element={
-						<RequirePermission permission="finance.review">
+						<RequireAnyPermission
+							permissions={["finance.review", "finance.department"]}
+						>
 							<FinanceAnalyticsPage />
-						</RequirePermission>
+						</RequireAnyPermission>
 					}
 				/>
 				<Route
