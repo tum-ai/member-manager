@@ -39,9 +39,11 @@ describe("Permission Routes", async () => {
 			assert.deepStrictEqual([...data.permissions].sort(), [
 				"contracts.admin",
 				"contracts.create",
+				"finance.department",
 				"finance.review",
 				"tumai_days.manage",
 			]);
+			assert.strictEqual(data.department, null);
 		});
 
 		test("returns empty for a member whose department has no permissions", async () => {

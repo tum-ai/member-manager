@@ -10,6 +10,22 @@ import {
 	resetDatabase,
 	testTokens,
 } from "../helpers.js";
+import { MOCK_OTHER_USER_ID, mockDatabase } from "../mocks/supabase.js";
+
+// Register the "other" test user as a department-scoped finance viewer: an
+// active member of Makeathon, whose department grants only `finance.department`.
+function seedDepartmentFinanceMember(): void {
+	mockDatabase.members.push({
+		user_id: MOCK_OTHER_USER_ID,
+		department: "Makeathon",
+		member_status: "active",
+		active: true,
+	});
+	mockDatabase.department_permissions.push({
+		department: "Makeathon",
+		permissions: ["finance.department"],
+	});
+}
 
 describe("Finance Routes", async () => {
 	let app: FastifyInstance;
@@ -499,6 +515,133 @@ describe("Finance Routes", async () => {
 			});
 
 			assert.strictEqual(response.statusCode, 400);
+		});
+	});
+
+	describe("department scoping", () => {
+		test("a department viewer sees only their own department's analytics", async () => {
+			seedDepartmentFinanceMember();
+			// Map 161 → Makeathon (as admin) and 120 → Partnerships so the viewer
+			// should see Makeathon rows only.
+			await app.inject({
+				method: "PUT",
+				url: "/api/finance/department-mappings/161",
+				headers: authHeaders(testTokens.admin),
+				payload: { department: "Makeathon", bereich: "wirtschaftlich" },
+			});
+			await app.inject({
+				method: "PUT",
+				url: "/api/finance/department-mappings/120",
+				headers: authHeaders(testTokens.admin),
+				payload: { department: "Partnerships", bereich: "ideell" },
+			});
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/analytics?date_from=2026-01-01&date_to=2026-12-31",
+				headers: authHeaders(testTokens.otherUser),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.ok(payload.by_department.length > 0);
+			// Every returned department bucket is the viewer's own; nothing leaks.
+			assert.ok(
+				payload.by_department.every(
+					(d: { department: string }) => d.department === "Makeathon",
+				),
+			);
+		});
+
+		test("a department viewer cannot request another department", async () => {
+			seedDepartmentFinanceMember();
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/analytics?department=Partnerships",
+				headers: authHeaders(testTokens.otherUser),
+			});
+
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("a department viewer sees only their own budget row", async () => {
+			seedDepartmentFinanceMember();
+			await app.inject({
+				method: "PUT",
+				url: "/api/finance/department-mappings/161",
+				headers: authHeaders(testTokens.admin),
+				payload: { department: "Makeathon", bereich: "wirtschaftlich" },
+			});
+			await app.inject({
+				method: "PUT",
+				url: "/api/finance/budgets",
+				headers: authHeaders(testTokens.admin),
+				payload: {
+					department: "Makeathon",
+					period_type: "year",
+					period_key: "2026",
+					amount_planned: 5000,
+				},
+			});
+			await app.inject({
+				method: "PUT",
+				url: "/api/finance/budgets",
+				headers: authHeaders(testTokens.admin),
+				payload: {
+					department: "Partnerships",
+					period_type: "year",
+					period_key: "2026",
+					amount_planned: 9000,
+				},
+			});
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/budgets?period_type=year&period_key=2026",
+				headers: authHeaders(testTokens.otherUser),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.ok(
+				payload.rows.every(
+					(r: { department: string }) => r.department === "Makeathon",
+				),
+			);
+			assert.ok(payload.rows.some((r: { department: string }) => r.department));
+		});
+
+		test("a department viewer cannot reach the editors or set budgets", async () => {
+			seedDepartmentFinanceMember();
+
+			const mappings = await app.inject({
+				method: "GET",
+				url: "/api/finance/department-mappings",
+				headers: authHeaders(testTokens.otherUser),
+			});
+			assert.strictEqual(mappings.statusCode, 403);
+
+			const budgetPut = await app.inject({
+				method: "PUT",
+				url: "/api/finance/budgets",
+				headers: authHeaders(testTokens.otherUser),
+				payload: {
+					department: "Makeathon",
+					period_type: "year",
+					period_key: "2026",
+					amount_planned: 1000,
+				},
+			});
+			assert.strictEqual(budgetPut.statusCode, 403);
+		});
+
+		test("a user with no finance permission is refused", async () => {
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/finance/analytics",
+				headers: authHeaders(testTokens.user),
+			});
+			assert.strictEqual(response.statusCode, 403);
 		});
 	});
 

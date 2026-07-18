@@ -4,6 +4,7 @@ import {
 	checkBoardRole,
 	checkContractsAdmin,
 	checkContractsCreate,
+	checkFinanceViewer,
 	checkReimbursementReviewer,
 	checkTumaiDaysManager,
 } from "../lib/auth.js";
@@ -143,6 +144,30 @@ export async function requireReimbursementReviewer(
 		request.log.error(
 			{ err: error, userId: user?.id },
 			"Failed to check reimbursement reviewer role",
+		);
+		return reply.status(500).send({ error: "Internal Server Error" });
+	}
+}
+
+// Coarse gate for the finance tool's read views: a full reviewer (LnF/admin) or
+// a department-scoped viewer. The exact department scope is resolved per request
+// in the handler via resolveFinanceViewerScope.
+export async function requireFinanceViewer(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const user = (request as AuthenticatedRequest).user;
+
+	try {
+		const allowed = await checkFinanceViewer(user.id);
+
+		if (!allowed) {
+			return reply.status(403).send({ error: "Finance access required" });
+		}
+	} catch (error) {
+		request.log.error(
+			{ err: error, userId: user?.id },
+			"Failed to check finance viewer access",
 		);
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}

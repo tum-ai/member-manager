@@ -62,6 +62,55 @@ export async function checkReimbursementReviewer(
 	return checkDepartmentPermission(userId, "finance.review");
 }
 
+// Members whose department grants `finance.department` may view their own
+// department's finance analytics + budget (read-only), but not other
+// departments and not the editors.
+export async function checkFinanceDepartmentMember(
+	userId: string,
+): Promise<boolean> {
+	return checkDepartmentPermission(userId, "finance.department");
+}
+
+// Anyone who may open the finance tool: a full reviewer (LnF/admin) or a
+// department-scoped viewer.
+export async function checkFinanceViewer(userId: string): Promise<boolean> {
+	return (
+		(await checkReimbursementReviewer(userId)) ||
+		(await checkFinanceDepartmentMember(userId))
+	);
+}
+
+// The active member's operational department, or null (e.g. admins/executives
+// with no department). Used to scope department-restricted finance access.
+export async function getActiveMemberDepartment(
+	userId: string,
+): Promise<string | null> {
+	const { data, error } = await getSupabase()
+		.from("members")
+		.select("department, member_status, active")
+		.eq("user_id", userId)
+		.maybeSingle();
+
+	if (error) {
+		if (isNotFoundError(error)) {
+			return null;
+		}
+		throw error;
+	}
+
+	const member = data as {
+		department?: string | null;
+		member_status?: string | null;
+		active?: boolean | null;
+	} | null;
+
+	if (!member || !isActiveMember(member) || !member.department) {
+		return null;
+	}
+
+	return member.department;
+}
+
 export async function checkContractsAdmin(userId: string): Promise<boolean> {
 	return checkDepartmentPermission(userId, "contracts.admin");
 }
