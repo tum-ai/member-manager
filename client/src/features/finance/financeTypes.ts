@@ -8,6 +8,8 @@ import type {
 	FinanceAnalyticsResponse,
 	FinanceBereich,
 	FinanceBereichSummary,
+	FinanceBudgetVsActualResponse,
+	FinanceBudgetVsActualRow,
 	FinanceCategoryMappingRow,
 	FinanceCategoryMappingsResponse,
 	FinanceCategoryMappingUpsert,
@@ -17,6 +19,7 @@ import type {
 	FinanceDepartmentMappingUpsert,
 	FinanceDepartmentSummary,
 	FinanceMonthlyPoint,
+	FinancePeriodType,
 	FinanceVatRateSummary,
 } from "@member-manager/shared";
 
@@ -30,6 +33,8 @@ export type {
 	FinanceAnalyticsResponse,
 	FinanceBereich,
 	FinanceBereichSummary,
+	FinanceBudgetVsActualResponse,
+	FinanceBudgetVsActualRow,
 	FinanceCategoryMappingRow,
 	FinanceCategoryMappingsResponse,
 	FinanceCategoryMappingUpsert,
@@ -39,6 +44,7 @@ export type {
 	FinanceDepartmentMappingUpsert,
 	FinanceDepartmentSummary,
 	FinanceMonthlyPoint,
+	FinancePeriodType,
 	FinanceVatRateSummary,
 };
 
