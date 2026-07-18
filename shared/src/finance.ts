@@ -269,6 +269,26 @@ export const FinanceBereichSummarySchema = z.object({
 });
 export type FinanceBereichSummary = z.infer<typeof FinanceBereichSummarySchema>;
 
+// Analytics query: a date range plus an optional department scope. A finance
+// reviewer may pass `department` to drill into one department; a department-
+// scoped member is forced to their own department server-side regardless.
+export const FinanceAnalyticsQuerySchema = z
+	.object({
+		date_from: z.string().regex(ISO_DATE_PATTERN).optional(),
+		date_to: z.string().regex(ISO_DATE_PATTERN).optional(),
+		department: z.string().min(1).optional(),
+	})
+	.superRefine((query, context) => {
+		if (query.date_from && query.date_to && query.date_from > query.date_to) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "date_from must be before or equal to date_to",
+				path: ["date_from"],
+			});
+		}
+	});
+export type FinanceAnalyticsQuery = z.infer<typeof FinanceAnalyticsQuerySchema>;
+
 export const FinanceAnalyticsResponseSchema = z.object({
 	by_department: z.array(FinanceDepartmentSummarySchema),
 	by_category: z.array(FinanceCategorySummarySchema),
@@ -366,6 +386,8 @@ export const FinanceBudgetQuerySchema = z
 	.object({
 		period_type: FinancePeriodTypeSchema,
 		period_key: z.string().min(1),
+		// Optional department scope; enforced server-side for scoped members.
+		department: z.string().min(1).optional(),
 	})
 	.superRefine((value, context) => {
 		if (!isValidFinancePeriodKey(value.period_type, value.period_key)) {

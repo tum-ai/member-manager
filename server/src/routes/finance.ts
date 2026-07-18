@@ -3,6 +3,7 @@ import {
 	BuchhaltungsButlerTransactionsResponseSchema,
 	FinanceAccountLabelsResponseSchema,
 	FinanceAccountLabelUpsertSchema,
+	FinanceAnalyticsQuerySchema,
 	FinanceAnalyticsResponseSchema,
 	FinanceBudgetQuerySchema,
 	FinanceBudgetUpsertSchema,
@@ -43,9 +44,14 @@ import {
 	loadDepartmentMappings,
 	upsertDepartmentMapping,
 } from "../lib/financeDepartments.js";
+import {
+	filterTransactionsByScope,
+	resolveFinanceViewerScope,
+} from "../lib/financeScope.js";
 import { aggregateByVatRate } from "../lib/financeVat.js";
 import {
 	authenticate,
+	requireFinanceViewer,
 	requireReimbursementReviewer,
 } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
@@ -77,20 +83,26 @@ export async function financeRoutes(server: FastifyInstance) {
 		},
 	);
 
-	// LnF analytics: per-department / per-month / per-Bereich expense rollup.
+	// Finance analytics: per-department / per-month / per-Bereich expense rollup.
+	// Reviewers see everything (or one department); department-scoped members are
+	// restricted to their own department's postings.
 	server.get(
 		"/finance/analytics",
-		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		{ preHandler: [authenticate, requireFinanceViewer] },
 		async (request, reply) => {
-			const parsed = BuchhaltungsButlerTransactionsQuerySchema.safeParse(
-				request.query,
-			);
+			const parsed = FinanceAnalyticsQuerySchema.safeParse(request.query);
 			if (!parsed.success) {
 				return reply.status(400).send({
 					error: "Invalid query",
 					details: parsed.error.flatten(),
 				});
 			}
+
+			const userId = (request as AuthenticatedRequest).user.id;
+			const scope = await resolveFinanceViewerScope(
+				userId,
+				parsed.data.department,
+			);
 
 			try {
 				const [
@@ -99,16 +111,20 @@ export async function financeRoutes(server: FastifyInstance) {
 					categoryMappings,
 					accountLabels,
 				] = await Promise.all([
-					getBuchhaltungsButlerTransactions(parsed.data),
+					getBuchhaltungsButlerTransactions({
+						date_from: parsed.data.date_from,
+						date_to: parsed.data.date_to,
+					}),
 					loadDepartmentMappings(),
 					loadCategoryMappings(),
 					loadAccountLabels(),
 				]);
+				const scoped = filterTransactionsByScope(transactions, mappings, scope);
 				return FinanceAnalyticsResponseSchema.parse({
-					...aggregateByDepartment(transactions, mappings),
-					by_category: aggregateByCategory(transactions, categoryMappings),
-					by_account: aggregateByAccount(transactions, accountLabels),
-					by_vat_rate: aggregateByVatRate(transactions),
+					...aggregateByDepartment(scoped, mappings),
+					by_category: aggregateByCategory(scoped, categoryMappings),
+					by_account: aggregateByAccount(scoped, accountLabels),
+					by_vat_rate: aggregateByVatRate(scoped),
 					source,
 					generated_at: new Date().toISOString(),
 				});
@@ -324,7 +340,7 @@ export async function financeRoutes(server: FastifyInstance) {
 	// (gross) expenses in that period so LnF sees budget vs. actual.
 	server.get(
 		"/finance/budgets",
-		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		{ preHandler: [authenticate, requireFinanceViewer] },
 		async (request, reply) => {
 			const parsed = FinanceBudgetQuerySchema.safeParse(request.query);
 			if (!parsed.success) {
@@ -335,6 +351,11 @@ export async function financeRoutes(server: FastifyInstance) {
 			}
 
 			const { period_type, period_key } = parsed.data;
+			const userId = (request as AuthenticatedRequest).user.id;
+			const scope = await resolveFinanceViewerScope(
+				userId,
+				parsed.data.department,
+			);
 			const range = resolveFinancePeriodRange(period_type, period_key);
 
 			try {
@@ -348,8 +369,18 @@ export async function financeRoutes(server: FastifyInstance) {
 						loadBudgets(period_type, period_key),
 					],
 				);
-				const { by_department } = aggregateByDepartment(transactions, mappings);
-				const { rows, totals } = computeBudgetVsActual(by_department, budgets);
+				const scoped = filterTransactionsByScope(transactions, mappings, scope);
+				const { by_department } = aggregateByDepartment(scoped, mappings);
+				const scopedBudgets =
+					scope.department === null
+						? budgets
+						: budgets.filter(
+								(budget) => budget.department === scope.department,
+							);
+				const { rows, totals } = computeBudgetVsActual(
+					by_department,
+					scopedBudgets,
+				);
 				return FinanceBudgetVsActualResponseSchema.parse({
 					period_type,
 					period_key,

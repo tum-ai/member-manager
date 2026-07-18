@@ -10,6 +10,7 @@
 
 export const PERMISSIONS = [
 	"finance.review",
+	"finance.department",
 	"contracts.admin",
 	"contracts.create",
 	"partners.manage",
@@ -26,6 +27,11 @@ export const PERMISSION_DETAILS: Record<
 		label: "Finance Review",
 		description:
 			"Approve reimbursement and invoice requests, then mark approved requests as paid.",
+	},
+	"finance.department": {
+		label: "Department Finances",
+		description:
+			"View the department's own budget and spend analytics in the finance tool (read-only; no editing or other departments).",
 	},
 	"contracts.admin": {
 		label: "Contract Administration",
