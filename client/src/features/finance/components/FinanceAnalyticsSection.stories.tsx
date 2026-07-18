@@ -100,11 +100,13 @@ const analytics: FinanceAnalyticsResponse = {
 		},
 		{ bereich: "ideell", income: 30000, expenses: 0, net: 30000, count: 3 },
 	],
+	by_vat_rate: [],
 	totals: {
 		income: 30000,
 		expenses: 14640,
 		net: 15360,
 		count: 14,
+		vat: 0,
 		unmapped_count: 6,
 	},
 	source: "mock",

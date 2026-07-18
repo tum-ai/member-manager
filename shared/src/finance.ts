@@ -238,6 +238,20 @@ export type FinanceDepartmentSummary = z.infer<
 	typeof FinanceDepartmentSummarySchema
 >;
 
+// VAT (Umsatzsteuer) breakdown of expenses by rate. BuchhaltungsButler reports
+// `vat` as a percentage rate; the amount contained in a (gross) posting is
+// derived as gross * rate / (100 + rate). Grouping by rate keeps each row an
+// unambiguous gross/VAT/net triple an accountant can reconcile.
+export const FinanceVatRateSummarySchema = z.object({
+	rate: z.number().nonnegative(),
+	// Gross expense magnitude booked at this rate (always >= 0).
+	expenses: z.number(),
+	// VAT contained in those gross expenses (always >= 0).
+	vat: z.number(),
+	count: z.number().int().nonnegative(),
+});
+export type FinanceVatRateSummary = z.infer<typeof FinanceVatRateSummarySchema>;
+
 export const FinanceMonthlyPointSchema = z.object({
 	month: z.string().regex(/^\d{4}-\d{2}$/),
 	income: z.number(),
@@ -261,10 +275,14 @@ export const FinanceAnalyticsResponseSchema = z.object({
 	by_account: z.array(FinanceAccountSummarySchema),
 	by_month: z.array(FinanceMonthlyPointSchema),
 	by_bereich: z.array(FinanceBereichSummarySchema),
+	by_vat_rate: z.array(FinanceVatRateSummarySchema),
 	totals: z.object({
 		income: z.number(),
 		expenses: z.number(),
 		net: z.number(),
+		// VAT contained in the gross expenses (always >= 0). Net expenses excl.
+		// VAT are therefore `expenses - vat`.
+		vat: z.number(),
 		count: z.number().int().nonnegative(),
 		unmapped_count: z.number().int().nonnegative(),
 	}),

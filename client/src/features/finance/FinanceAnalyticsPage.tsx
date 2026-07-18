@@ -7,6 +7,7 @@ import { DepartmentMappingEditorSection } from "./components/DepartmentMappingEd
 import { FinanceAccountBreakdownSection } from "./components/FinanceAccountBreakdownSection";
 import { FinanceAnalyticsSection } from "./components/FinanceAnalyticsSection";
 import { FinanceCategoryBreakdownSection } from "./components/FinanceCategoryBreakdownSection";
+import { FinanceVatSummarySection } from "./components/FinanceVatSummarySection";
 import { useFinanceAccountLabels } from "./hooks/useFinanceAccountLabels";
 import { useFinanceAnalytics } from "./hooks/useFinanceAnalytics";
 import { useFinanceCategoryMappings } from "./hooks/useFinanceCategoryMappings";
@@ -60,7 +61,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 					<TabsTrigger value="accounts">Konten</TabsTrigger>
 					<TabsTrigger value="mapping">Zuordnung</TabsTrigger>
 				</TabsList>
-				<TabsContent value="overview" className="mt-5">
+				<TabsContent value="overview" className="mt-5 flex flex-col gap-5">
 					<FinanceAnalyticsSection
 						analytics={analytics}
 						range={range}
@@ -72,6 +73,11 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						onRefresh={() => {
 							void refetch();
 						}}
+					/>
+					<FinanceVatSummarySection
+						totals={analytics?.totals}
+						byVatRate={analytics?.by_vat_rate}
+						isLoading={isLoading}
 					/>
 				</TabsContent>
 				<TabsContent value="categories" className="mt-5">

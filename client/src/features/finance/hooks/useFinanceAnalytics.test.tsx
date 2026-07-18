@@ -58,11 +58,13 @@ function analyticsResponse() {
 				count: 2,
 			},
 		],
+		by_vat_rate: [],
 		totals: {
 			income: 0,
 			expenses: 8700,
 			net: -8700,
 			count: 2,
+			vat: 0,
 			unmapped_count: 0,
 		},
 		source: "mock",
