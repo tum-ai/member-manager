@@ -13,6 +13,7 @@ import {
 	getDefaultFinancePeriod,
 	listFinancePeriodKeys,
 	summarizeFinanceTransactions,
+	switchFinancePeriodType,
 } from "./financeUtils";
 
 function makeTransaction(
@@ -141,6 +142,17 @@ describe("financeUtils", () => {
 		const semesters = listFinancePeriodKeys("semester", reference);
 		expect(semesters[0]).toBe("WS27");
 		expect(semesters).toContain("SS26");
+	});
+
+	it("carries the year across a period-type switch", () => {
+		expect(switchFinancePeriodType("semester", "2026")).toEqual({
+			type: "semester",
+			key: "WS26",
+		});
+		expect(switchFinancePeriodType("year", "WS26")).toEqual({
+			type: "year",
+			key: "2026",
+		});
 	});
 
 	it("formats period labels in German", () => {

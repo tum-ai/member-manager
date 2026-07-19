@@ -9,18 +9,20 @@ import { FinanceAccountBreakdownSection } from "./components/FinanceAccountBreak
 import { FinanceAnalyticsSection } from "./components/FinanceAnalyticsSection";
 import { FinanceBudgetSection } from "./components/FinanceBudgetSection";
 import { FinanceCategoryBreakdownSection } from "./components/FinanceCategoryBreakdownSection";
+import { FinancePlanSection } from "./components/FinancePlanSection";
 import { FinanceVatSummarySection } from "./components/FinanceVatSummarySection";
 import { useFinanceAccountLabels } from "./hooks/useFinanceAccountLabels";
 import { useFinanceAnalytics } from "./hooks/useFinanceAnalytics";
 import { useFinanceBudgets } from "./hooks/useFinanceBudgets";
 import { useFinanceCategoryMappings } from "./hooks/useFinanceCategoryMappings";
 import { useFinanceDepartmentMappings } from "./hooks/useFinanceDepartmentMappings";
+import { useFinancePlanItems } from "./hooks/useFinancePlanItems";
 
 export default function FinanceAnalyticsPage(): ReactElement {
 	// Full reviewers (LnF/admin) manage mappings and budgets; department-scoped
 	// members get a read-only, own-department view (the server enforces the
 	// scope regardless). Gate the reviewer-only editor queries + edit affordances.
-	const { permissions } = useToolAccess();
+	const { permissions, department } = useToolAccess();
 	const canManage = permissions.includes("finance.review");
 
 	const {
@@ -70,6 +72,19 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		saveBudget,
 	} = useFinanceBudgets();
 
+	const {
+		period: planPeriod,
+		items: planItems,
+		totals: planTotals,
+		isLoading: planLoading,
+		error: planError,
+		createItem,
+		updateItem,
+		deleteItem,
+		setPeriodType: setPlanPeriodType,
+		setPeriodKey: setPlanPeriodKey,
+	} = useFinancePlanItems();
+
 	return (
 		<ToolPageShell
 			title="Finance Analytics"
@@ -79,6 +94,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 				<TabsList>
 					<TabsTrigger value="overview">Übersicht</TabsTrigger>
 					<TabsTrigger value="budget">Budget</TabsTrigger>
+					<TabsTrigger value="planning">Planung</TabsTrigger>
 					<TabsTrigger value="categories">Kategorien</TabsTrigger>
 					<TabsTrigger value="accounts">Konten</TabsTrigger>
 					{canManage ? (
@@ -116,6 +132,22 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						onPeriodTypeChange={setPeriodType}
 						onPeriodKeyChange={setPeriodKey}
 						onSave={saveBudget}
+					/>
+				</TabsContent>
+				<TabsContent value="planning" className="mt-5">
+					<FinancePlanSection
+						period={planPeriod}
+						items={planItems}
+						totals={planTotals}
+						isLoading={planLoading}
+						error={planError}
+						canChooseDepartment={canManage}
+						department={department}
+						onPeriodTypeChange={setPlanPeriodType}
+						onPeriodKeyChange={setPlanPeriodKey}
+						onCreate={createItem}
+						onUpdate={updateItem}
+						onDelete={deleteItem}
 					/>
 				</TabsContent>
 				<TabsContent value="categories" className="mt-5">

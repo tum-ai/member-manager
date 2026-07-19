@@ -20,6 +20,9 @@ import type {
 	FinanceDepartmentSummary,
 	FinanceMonthlyPoint,
 	FinancePeriodType,
+	FinancePlanItem,
+	FinancePlanItemsResponse,
+	FinancePlanStatus,
 	FinanceVatRateSummary,
 } from "@member-manager/shared";
 
@@ -45,6 +48,9 @@ export type {
 	FinanceDepartmentSummary,
 	FinanceMonthlyPoint,
 	FinancePeriodType,
+	FinancePlanItem,
+	FinancePlanItemsResponse,
+	FinancePlanStatus,
 	FinanceVatRateSummary,
 };
 

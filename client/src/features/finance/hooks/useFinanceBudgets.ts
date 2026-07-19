@@ -8,6 +8,7 @@ import type {
 import {
 	type FinancePeriod,
 	getDefaultFinancePeriod,
+	switchFinancePeriodType,
 } from "@/features/finance/financeUtils";
 import { apiClient } from "@/lib/apiClient";
 
@@ -71,7 +72,7 @@ export function useFinanceBudgets() {
 		setPeriod((current) =>
 			current.type === type
 				? current
-				: getDefaultPeriodForType(type, current.key),
+				: switchFinancePeriodType(type, current.key),
 		);
 	}
 
@@ -94,25 +95,4 @@ export function useFinanceBudgets() {
 		setPeriodType,
 		setPeriodKey,
 	};
-}
-
-// Switching type needs a valid key for the new type; fall back to the current
-// calendar year in the right shape.
-function getDefaultPeriodForType(
-	type: FinancePeriodType,
-	previousKey: string,
-): FinancePeriod {
-	if (type === "year") {
-		const year = /^\d{4}$/.test(previousKey)
-			? previousKey
-			: `20${previousKey.slice(2)}`;
-		return {
-			type,
-			key: /^\d{4}$/.test(year) ? year : getDefaultFinancePeriod().key,
-		};
-	}
-	const yy = /^\d{4}$/.test(previousKey)
-		? previousKey.slice(2)
-		: previousKey.slice(2) || String(new Date().getFullYear()).slice(2);
-	return { type, key: `WS${yy}` };
 }

@@ -105,4 +105,18 @@ test.describe("Finance Analytics tool", () => {
 
 		await expect(page.getByText("Budget gespeichert.")).toBeVisible();
 	});
+
+	test("adds a plan line item", async ({ page }) => {
+		await page.getByRole("tab", { name: "Planung" }).click();
+		await expect(page.getByText("Planposten hinzufügen")).toBeVisible();
+
+		// Reviewer must choose a department, then fill the line item.
+		await page.getByLabel("Department").click();
+		await page.getByRole("option", { name: "Makeathon", exact: true }).click();
+		await page.getByLabel("Bezeichnung").fill("Venue deposit");
+		await page.getByLabel("Betrag (€)").fill("3000");
+		await page.getByRole("button", { name: /Hinzufügen/ }).click();
+
+		await expect(page.getByText("Planposten hinzugefügt.")).toBeVisible();
+	});
 });
