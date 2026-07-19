@@ -12,6 +12,10 @@ import {
 	FinanceCategoryMappingUpsertSchema,
 	FinanceDepartmentMappingsResponseSchema,
 	FinanceDepartmentMappingUpsertSchema,
+	FinancePlanItemCreateSchema,
+	FinancePlanItemsResponseSchema,
+	FinancePlanItemUpdateSchema,
+	FinancePlanQuerySchema,
 	resolveFinancePeriodRange,
 } from "@member-manager/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
@@ -45,6 +49,15 @@ import {
 	upsertDepartmentMapping,
 } from "../lib/financeDepartments.js";
 import {
+	computePlanTotals,
+	createPlanItem,
+	deletePlanItem,
+	getPlanItem,
+	loadPlanItems,
+	updatePlanItem,
+} from "../lib/financePlans.js";
+import {
+	assertCanWriteDepartment,
 	filterTransactionsByScope,
 	resolveFinanceViewerScope,
 } from "../lib/financeScope.js";
@@ -425,6 +438,155 @@ export async function financeRoutes(server: FastifyInstance) {
 					"Failed to upsert finance budget",
 				);
 				throw new DatabaseError("Failed to save budget");
+			}
+		},
+	);
+
+	// Planning: bottom-up plan line items a department drafts within its budget.
+	// Viewers read their scope; reviewers write any department, scoped members
+	// only their own.
+	server.get(
+		"/finance/plan-items",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const parsed = FinancePlanQuerySchema.safeParse(request.query);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid query",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const { period_type, period_key } = parsed.data;
+			const userId = (request as AuthenticatedRequest).user.id;
+			const scope = await resolveFinanceViewerScope(
+				userId,
+				parsed.data.department,
+			);
+			const range = resolveFinancePeriodRange(period_type, period_key);
+
+			try {
+				const [{ transactions, source }, mappings, budgets, items] =
+					await Promise.all([
+						getBuchhaltungsButlerTransactions({
+							date_from: range.dateFrom,
+							date_to: range.dateTo,
+						}),
+						loadDepartmentMappings(),
+						loadBudgets(period_type, period_key),
+						loadPlanItems(period_type, period_key, scope.department),
+					]);
+				const scoped = filterTransactionsByScope(transactions, mappings, scope);
+				const { by_department } = aggregateByDepartment(scoped, mappings);
+				const scopedBudgets =
+					scope.department === null
+						? budgets
+						: budgets.filter(
+								(budget) => budget.department === scope.department,
+							);
+				return FinancePlanItemsResponseSchema.parse({
+					period_type,
+					period_key,
+					items,
+					totals: computePlanTotals(items, scopedBudgets, by_department),
+					source,
+					generated_at: new Date().toISOString(),
+				});
+			} catch (error) {
+				return handleFinanceError(request, reply, error);
+			}
+		},
+	);
+
+	server.post(
+		"/finance/plan-items",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const parsed = FinancePlanItemCreateSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid plan item",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const userId = (request as AuthenticatedRequest).user.id;
+			await assertCanWriteDepartment(userId, parsed.data.department);
+
+			try {
+				const item = await createPlanItem(parsed.data, userId);
+				return reply.status(201).send(item);
+			} catch (error) {
+				request.log.error(
+					{ err: error, department: parsed.data.department },
+					"Failed to create finance plan item",
+				);
+				throw new DatabaseError("Failed to create plan item");
+			}
+		},
+	);
+
+	server.put(
+		"/finance/plan-items/:id",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const id = (request.params as { id?: string }).id?.trim();
+			if (!id) {
+				return reply.status(400).send({ error: "Missing plan item id" });
+			}
+
+			const parsed = FinancePlanItemUpdateSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid plan item",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const userId = (request as AuthenticatedRequest).user.id;
+			const existing = await getPlanItem(id);
+			if (!existing) {
+				return reply.status(404).send({ error: "Plan item not found" });
+			}
+			await assertCanWriteDepartment(userId, existing.department);
+
+			try {
+				return await updatePlanItem(id, parsed.data);
+			} catch (error) {
+				request.log.error(
+					{ err: error, id },
+					"Failed to update finance plan item",
+				);
+				throw new DatabaseError("Failed to update plan item");
+			}
+		},
+	);
+
+	server.delete(
+		"/finance/plan-items/:id",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const id = (request.params as { id?: string }).id?.trim();
+			if (!id) {
+				return reply.status(400).send({ error: "Missing plan item id" });
+			}
+
+			const userId = (request as AuthenticatedRequest).user.id;
+			const existing = await getPlanItem(id);
+			if (!existing) {
+				return reply.status(404).send({ error: "Plan item not found" });
+			}
+			await assertCanWriteDepartment(userId, existing.department);
+
+			try {
+				await deletePlanItem(id);
+				return reply.status(204).send();
+			} catch (error) {
+				request.log.error(
+					{ err: error, id },
+					"Failed to delete finance plan item",
+				);
+				throw new DatabaseError("Failed to delete plan item");
 			}
 		},
 	);

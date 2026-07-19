@@ -61,6 +61,7 @@ interface MockData {
 	finance_category_mappings: Array<Record<string, unknown>>;
 	finance_account_labels: Array<Record<string, unknown>>;
 	finance_budgets: Array<Record<string, unknown>>;
+	finance_plan_items: Array<Record<string, unknown>>;
 }
 
 // In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
@@ -327,6 +328,7 @@ export const mockDatabase: MockData = {
 	finance_category_mappings: [],
 	finance_account_labels: [],
 	finance_budgets: [],
+	finance_plan_items: [],
 };
 
 type QueryResult = Promise<{
@@ -1136,4 +1138,5 @@ export function resetMockDatabase(): void {
 	mockDatabase.finance_category_mappings = [];
 	mockDatabase.finance_account_labels = [];
 	mockDatabase.finance_budgets = [];
+	mockDatabase.finance_plan_items = [];
 }

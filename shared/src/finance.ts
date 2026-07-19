@@ -432,3 +432,97 @@ export const FinanceBudgetVsActualResponseSchema = z.object({
 export type FinanceBudgetVsActualResponse = z.infer<
 	typeof FinanceBudgetVsActualResponseSchema
 >;
+
+// --- Planning (Phase 4) -----------------------------------------------------
+
+// Bottom-up plan line items a department drafts within its budget. `planned`
+// is an intention, `committed` is contractually locked, `spent` is realised.
+export const FINANCE_PLAN_STATUSES = ["planned", "committed", "spent"] as const;
+export const FinancePlanStatusSchema = z.enum(FINANCE_PLAN_STATUSES);
+export type FinancePlanStatus = z.infer<typeof FinancePlanStatusSchema>;
+
+const MONTH_PATTERN = /^\d{4}-\d{2}$/;
+
+export const FinancePlanItemSchema = z.object({
+	id: z.string().min(1),
+	department: z.string().min(1),
+	period_type: FinancePeriodTypeSchema,
+	period_key: z.string().min(1),
+	label: z.string().min(1),
+	category: z.string().nullable(),
+	planned_amount: z.number().nonnegative(),
+	expected_month: z.string().regex(MONTH_PATTERN).nullable(),
+	status: FinancePlanStatusSchema,
+	note: z.string().nullable(),
+});
+export type FinancePlanItem = z.infer<typeof FinancePlanItemSchema>;
+
+export const FinancePlanItemCreateSchema = z
+	.object({
+		department: z.string().trim().min(1),
+		period_type: FinancePeriodTypeSchema,
+		period_key: z.string().trim().min(1),
+		label: z.string().trim().min(1).max(200),
+		category: z.string().trim().min(1).max(200).nullable().optional(),
+		planned_amount: z.number().nonnegative(),
+		expected_month: z.string().regex(MONTH_PATTERN).nullable().optional(),
+		status: FinancePlanStatusSchema.optional(),
+		note: z.string().trim().max(500).nullable().optional(),
+	})
+	.superRefine((value, context) => {
+		if (!isValidFinancePeriodKey(value.period_type, value.period_key)) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Invalid period key for period type",
+				path: ["period_key"],
+			});
+		}
+	});
+export type FinancePlanItemCreate = z.infer<typeof FinancePlanItemCreateSchema>;
+
+// Update leaves the item's department/period fixed; only the editable
+// attributes travel in the body (the id is in the URL).
+export const FinancePlanItemUpdateSchema = z.object({
+	label: z.string().trim().min(1).max(200),
+	category: z.string().trim().min(1).max(200).nullable().optional(),
+	planned_amount: z.number().nonnegative(),
+	expected_month: z.string().regex(MONTH_PATTERN).nullable().optional(),
+	status: FinancePlanStatusSchema,
+	note: z.string().trim().max(500).nullable().optional(),
+});
+export type FinancePlanItemUpdate = z.infer<typeof FinancePlanItemUpdateSchema>;
+
+export const FinancePlanQuerySchema = z
+	.object({
+		period_type: FinancePeriodTypeSchema,
+		period_key: z.string().min(1),
+		department: z.string().min(1).optional(),
+	})
+	.superRefine((value, context) => {
+		if (!isValidFinancePeriodKey(value.period_type, value.period_key)) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Invalid period key for period type",
+				path: ["period_key"],
+			});
+		}
+	});
+export type FinancePlanQuery = z.infer<typeof FinancePlanQuerySchema>;
+
+export const FinancePlanItemsResponseSchema = z.object({
+	period_type: FinancePeriodTypeSchema,
+	period_key: z.string().min(1),
+	items: z.array(FinancePlanItemSchema),
+	// Planned = Σ line items; budget = Σ ceilings; actual = Σ gross expenses —
+	// all for the scope. The client warns when planned exceeds budget.
+	totals: z.object({
+		planned: z.number(),
+		budget: z.number(),
+		actual: z.number(),
+	}),
+	source: z.enum(["mock", "real"]),
+	generated_at: z.string().datetime(),
+});
+export type FinancePlanItemsResponse = z.infer<
+	typeof FinancePlanItemsResponseSchema
+>;

@@ -45,6 +45,27 @@ export async function resolveFinanceViewerScope(
 	return { department };
 }
 
+// Assert the caller may write finance data for a specific department. A
+// reviewer may write any department; a scoped member only their own. Throws
+// ForbiddenError otherwise. Used for plan-item create/update/delete.
+export async function assertCanWriteDepartment(
+	userId: string,
+	department: string,
+): Promise<void> {
+	if (await checkReimbursementReviewer(userId)) {
+		return;
+	}
+
+	if (!(await checkFinanceDepartmentMember(userId))) {
+		throw new ForbiddenError("Finance access required");
+	}
+
+	const own = await getActiveMemberDepartment(userId);
+	if (!own || own !== department) {
+		throw new ForbiddenError("Cannot modify another department's plan");
+	}
+}
+
 // Restrict postings to those whose cost location maps to the scope department.
 // An unrestricted scope (department null) passes everything through.
 export function filterTransactionsByScope(
