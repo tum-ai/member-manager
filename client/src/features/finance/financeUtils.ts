@@ -40,6 +40,26 @@ export function listFinancePeriodKeys(
 	});
 }
 
+// Switching the period type needs a key valid for the new type; carry the year
+// across where possible, else fall back to the current year.
+export function switchFinancePeriodType(
+	type: FinancePeriodType,
+	previousKey: string,
+): FinancePeriod {
+	const isYearKey = /^\d{4}$/.test(previousKey);
+	if (type === "year") {
+		const year = isYearKey ? previousKey : `20${previousKey.slice(2)}`;
+		return {
+			type,
+			key: /^\d{4}$/.test(year) ? year : getDefaultFinancePeriod().key,
+		};
+	}
+	const yy = isYearKey
+		? previousKey.slice(2)
+		: previousKey.slice(2) || String(new Date().getFullYear()).slice(2);
+	return { type, key: `WS${yy}` };
+}
+
 export function formatFinancePeriodLabel(period: FinancePeriod): string {
 	if (period.type === "year") {
 		return period.key;
