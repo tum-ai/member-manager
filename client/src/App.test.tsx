@@ -51,6 +51,10 @@ vi.mock("./features/reimbursements/ReimbursementReviewPage", () => ({
 	default: () => <div>Finance review route</div>,
 }));
 
+vi.mock("./features/finance/FinanceTransactionsPage", () => ({
+	default: () => <div>Finance transactions route</div>,
+}));
+
 vi.mock("./features/certificate/EngagementCertificatePage", () => ({
 	default: () => <div>Certificate route</div>,
 }));
@@ -163,6 +167,14 @@ describe("AuthenticatedApp permission-gated routes", () => {
 
 		expect(screen.getByText("Profile route")).toBeInTheDocument();
 		expect(screen.queryByText("Finance review route")).not.toBeInTheDocument();
+	});
+
+	it("renders finance transactions when the finance.review permission is present", () => {
+		toolAccessState.permissions = ["finance.review"];
+
+		renderAuthenticatedApp("/tools/finance/buchhaltungsbutler");
+
+		expect(screen.getByText("Finance transactions route")).toBeInTheDocument();
 	});
 
 	it("renders the member jobs route without extra permissions", () => {

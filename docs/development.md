@@ -67,6 +67,18 @@ BUCHHALTUNGSBUTLER_API_KEY=
 BUCHHALTUNGSBUTLER_API_BASE_URL=
 ```
 
+The Finance Transactions tool at `/tools/finance/buchhaltungsbutler` uses deterministic mock postings during local development, matching the original finance script's behavior. Production fails closed unless live postings are enabled. To read live postings from `POST /postings/get`, set the same credential vars plus:
+
+```bash
+BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API=true
+# legacy alias from the original script, also supported:
+BB_USE_REAL_API=1
+```
+
+`pnpm setup:local` preserves these values in `server/.env.local`; the credentials stay server-only and are never exposed to the browser.
+
+Regular Playwright runs always force mock postings and start their own API process. Run `pnpm test:e2e:finance-live` for the explicit live API smoke test; it uses the server-only credentials from `server/.env.local`.
+
 Slack reimbursement notifications use Block Kit buttons when `APP_BASE_URL` is set, `SLACK_BOT_TOKEN` is available, and the Slack app has `chat:write`, `users:read`, `users:read.email`, and `im:write` scopes. Footer bug-report channel-member rotation additionally needs `channels:read` for public channels (or the equivalent private-channel scope if the bug channel becomes private). Configure Slack interactivity to post to `/api/slack/interactions` and set `SLACK_SIGNING_SECRET` so the server can verify `X-Slack-Signature` before accepting approve / approve-and-sync button clicks.
 
 See `docs/buchhaltungsbutler-sync.md` for the API research and design notes.
@@ -187,7 +199,7 @@ Three test runners, each in its natural place:
 
 Run all: `pnpm test`. Run one workspace: `pnpm --filter @member-manager/server test` or `pnpm --filter @member-manager/client test`. Add coverage with `pnpm test:coverage` (enforces the ratcheting floor — see below).
 
-End-to-end smoke tests live in `e2e/` (Playwright). Run them against a running local stack: start `pnpm dev:local` in one terminal, then `pnpm test:e2e` (or `pnpm test:e2e:ui`). The login screen's "Continue as local admin" button only appears in dev mode against local Supabase, which is what the specs drive.
+End-to-end smoke tests live in `e2e/` (Playwright). Start and seed local Supabase with `pnpm supabase:start`, `pnpm supabase:reset`, and `pnpm setup:local`, then run `pnpm test:e2e` (or `pnpm test:e2e:ui`). Playwright starts its own API process, so stop any server already using the configured E2E port first. The login screen's "Continue as local admin" button only appears in dev mode against local Supabase, which is what the specs drive.
 
 Verification tests that hit a running local stack live in `scripts/verify-*.test.mjs`. They skip silently if Supabase isn't reachable, so they're safe to run by default.
 

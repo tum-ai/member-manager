@@ -4,6 +4,8 @@ import { expect, type Page } from "@playwright/test";
 // password `password123`.
 export const SEED_ADMIN_EMAIL = "admin@example.com";
 export const SEED_REGULAR_MEMBER_EMAIL = "regular-member@example.com";
+export const SEED_LEGAL_FINANCE_MEMBER_EMAIL =
+	"legal-finance-member@example.com";
 
 // A seeded contract submission in `sent_to_partner` state exposes this signing
 // token with a far-future expiry and no `signed_at`, so the public signing page
@@ -22,6 +24,25 @@ export async function loginAsLocalAdmin(page: Page): Promise<void> {
 export async function loginAsLocalMember(page: Page): Promise<void> {
 	await page.goto("/");
 	await page.getByRole("button", { name: /continue as regular user/i }).click();
+	await expectAuthenticated(page);
+}
+
+export async function loginWithSeedEmail(
+	page: Page,
+	email: string,
+): Promise<void> {
+	await page.goto("/");
+	await page.evaluate(async (seedEmail) => {
+		const { supabase } = await import("/src/lib/supabaseClient.ts");
+		const { error } = await supabase.auth.signInWithPassword({
+			email: seedEmail,
+			password: "password123",
+		});
+		if (error) {
+			throw new Error(error.message);
+		}
+	}, email);
+	await page.reload();
 	await expectAuthenticated(page);
 }
 

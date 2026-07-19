@@ -18,6 +18,7 @@
 		"test:scripts": "node --test scripts/*.test.mjs",
 		"check:filesize": "node scripts/check-file-size.mjs",
 		"test:e2e": "playwright test",
+		"test:e2e:finance-live": "E2E_BB_LIVE=true playwright test e2e/finance-transactions.spec.ts",
 		"test:e2e:ui": "playwright test --ui",
 		"lint": "biome check api && turbo run lint && pnpm check:filesize",
 		"lint:staged": "biome check --staged --no-errors-on-unmatched",
