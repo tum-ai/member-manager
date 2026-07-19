@@ -40,6 +40,7 @@ describe("Permission Routes", async () => {
 				"contracts.admin",
 				"contracts.create",
 				"finance.review",
+				"partners.manage",
 				"tumai_days.manage",
 			]);
 		});

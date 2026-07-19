@@ -1,5 +1,5 @@
 import { waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpResponse, http, server } from "@/test/mswServer";
 import { renderHookWithClient } from "@/test/renderWithClient";
 import { useAdminData } from "./useAdminData";
@@ -20,6 +20,21 @@ function membersPage(page: number, data: unknown[], total: number) {
 }
 
 describe("useAdminData", () => {
+	beforeEach(() => {
+		server.use(
+			http.get("/api/admin/member-change-requests", () =>
+				HttpResponse.json([]),
+			),
+			http.get("/api/admin/engagement-certificate-requests", () =>
+				HttpResponse.json([]),
+			),
+			http.get("/api/admin/job-requests", () => HttpResponse.json([])),
+			http.get("/api/admin/member-duplicate-candidates", () =>
+				HttpResponse.json({ data: [] }),
+			),
+		);
+	});
+
 	it("loads members, change/certificate/job requests", async () => {
 		server.use(
 			http.get("/api/admin/members", () =>
@@ -105,6 +120,52 @@ describe("useAdminData", () => {
 		expect(body).toEqual({ decision: "approved", review_note: "ok" });
 	});
 
+	it("creates and updates admin-managed jobs", async () => {
+		const calls: Array<{ method: string; body: unknown; id?: string }> = [];
+		server.use(
+			http.get("/api/admin/members", () => membersPage(1, [], 0)),
+			http.post("/api/admin/job-requests", async ({ request }) => {
+				calls.push({ method: request.method, body: await request.json() });
+				return HttpResponse.json({ id: "job-1" }, { status: 201 });
+			}),
+			http.put("/api/admin/job-requests/:id", async ({ request, params }) => {
+				calls.push({
+					method: request.method,
+					id: String(params.id),
+					body: await request.json(),
+				});
+				return HttpResponse.json({ id: params.id });
+			}),
+		);
+
+		const { result } = renderHookWithClient(() => useAdminData());
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		const payload = {
+			title: "AI Platform Engineer",
+			organization_name: "TUM.ai",
+			logo_url: null,
+			description_markdown:
+				"Build and operate the platform used by our applied AI teams.",
+			call_to_action: "Apply now",
+			job_type: "full_time" as const,
+			location: "Munich",
+			contact_name: "Admin User",
+			contact_email: "jobs@tum-ai.com",
+			contact_role: null,
+			external_url: null,
+			expires_at: null,
+		};
+
+		await result.current.createJobAsync(payload);
+		await result.current.updateJobAsync({ requestId: "job-1", payload });
+
+		expect(calls).toEqual([
+			{ method: "POST", body: payload },
+			{ method: "PUT", id: "job-1", body: payload },
+		]);
+	});
+
 	it("paginates through every members page", async () => {
 		const firstPage = Array.from({ length: 200 }, (_, i) => ({
 			user_id: `m-${i}`,
@@ -150,6 +211,26 @@ describe("useAdminData", () => {
 		const { result } = renderHookWithClient(() => useAdminData());
 
 		await waitFor(() => expect(result.current.error).toBeTruthy());
+	});
+
+	it("keeps duplicate-detection failures separate from fatal admin errors", async () => {
+		server.use(
+			http.get("/api/admin/members", () =>
+				membersPage(1, [{ user_id: "m-1" }], 1),
+			),
+			http.get("/api/admin/member-duplicate-candidates", () =>
+				HttpResponse.json({ error: "too many members" }, { status: 413 }),
+			),
+		);
+
+		const { result } = renderHookWithClient(() => useAdminData());
+
+		await waitFor(() => expect(result.current.members?.length).toBe(1));
+		await waitFor(() =>
+			expect(result.current.duplicateCandidatesError).toBeTruthy(),
+		);
+		expect(result.current.error).toBeFalsy();
+		expect(result.current.duplicateCandidates).toEqual([]);
 	});
 
 	it("PATCHes role, status, and access-role endpoints", async () => {
@@ -227,6 +308,40 @@ describe("useAdminData", () => {
 			member_role: "member",
 			batch: "2026",
 			public_location: "Munich",
+		});
+	});
+
+	it("POSTs member merge requests", async () => {
+		let body: unknown = null;
+		const sourceUserId = "11111111-1111-4111-8111-111111111111";
+		const targetUserId = "22222222-2222-4222-8222-222222222222";
+		server.use(
+			http.get("/api/admin/members", () => membersPage(1, [], 0)),
+			http.post("/api/admin/members/merge", async ({ request }) => {
+				body = await request.json();
+				return HttpResponse.json({
+					source_user_id: sourceUserId,
+					target_user_id: targetUserId,
+					audit_id: "33333333-3333-4333-8333-333333333333",
+					transferred_counts: { members: 1 },
+				});
+			}),
+		);
+
+		const { result } = renderHookWithClient(() => useAdminData());
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		await result.current.mergeMembersAsync({
+			source_user_id: sourceUserId,
+			target_user_id: targetUserId,
+			note: "Same person",
+		});
+
+		await waitFor(() => expect(body).not.toBeNull());
+		expect(body).toEqual({
+			source_user_id: sourceUserId,
+			target_user_id: targetUserId,
+			note: "Same person",
 		});
 	});
 

@@ -1,3 +1,4 @@
+import type { SheetData } from "write-excel-file/browser";
 import type {
 	BuchhaltungsButlerTransaction,
 	FinanceDirectionFilter,
@@ -150,4 +151,32 @@ export function buildFinanceExportRows(
 		"Transaction Amount": transaction.transaction_amount,
 		"Transaction Purpose": transaction.transaction_purpose,
 	}));
+}
+
+export function buildFinanceXlsxData(
+	rows: Array<Record<string, string | number>>,
+): SheetData {
+	if (rows.length === 0) {
+		return [[null]];
+	}
+
+	const columns = Object.keys(rows[0]);
+	const header = columns.map((column) => ({
+		value: column,
+		fontWeight: "bold" as const,
+		type: String,
+	}));
+	const body = rows.map((row) =>
+		columns.map((column) => {
+			const value = row[column];
+			if (value === undefined || value === "") {
+				return null;
+			}
+			return typeof value === "number"
+				? { value, type: Number }
+				: { value, type: String };
+		}),
+	);
+
+	return [header, ...body];
 }

@@ -4,6 +4,7 @@ import {
 	checkBoardRole,
 	checkContractsAdmin,
 	checkContractsCreate,
+	checkPartnerManager,
 	checkReimbursementReviewer,
 	checkTumaiDaysManager,
 } from "../lib/auth.js";
@@ -143,6 +144,28 @@ export async function requireReimbursementReviewer(
 		request.log.error(
 			{ err: error, userId: user?.id },
 			"Failed to check reimbursement reviewer role",
+		);
+		return reply.status(500).send({ error: "Internal Server Error" });
+	}
+}
+
+export async function requirePartnerManager(
+	request: FastifyRequest,
+	reply: FastifyReply,
+) {
+	const user = (request as AuthenticatedRequest).user;
+
+	try {
+		const allowed = await checkPartnerManager(user.id);
+		if (!allowed) {
+			return reply.status(403).send({
+				error: "Partner management access required",
+			});
+		}
+	} catch (error) {
+		request.log.error(
+			{ err: error, userId: user?.id },
+			"Failed to check partner management permission",
 		);
 		return reply.status(500).send({ error: "Internal Server Error" });
 	}

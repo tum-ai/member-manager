@@ -20,6 +20,7 @@ describe("Finance Routes", async () => {
 	let originalApiSecret: string | undefined;
 	let originalApiKey: string | undefined;
 	let originalApiBaseUrl: string | undefined;
+	let originalNodeEnv: string | undefined;
 
 	before(async () => {
 		originalFetch = globalThis.fetch;
@@ -30,6 +31,7 @@ describe("Finance Routes", async () => {
 		originalApiSecret = process.env.BUCHHALTUNGSBUTLER_API_SECRET;
 		originalApiKey = process.env.BUCHHALTUNGSBUTLER_API_KEY;
 		originalApiBaseUrl = process.env.BUCHHALTUNGSBUTLER_API_BASE_URL;
+		originalNodeEnv = process.env.NODE_ENV;
 		app = await getTestApp();
 	});
 
@@ -44,6 +46,7 @@ describe("Finance Routes", async () => {
 		restoreEnv("BUCHHALTUNGSBUTLER_API_SECRET", originalApiSecret);
 		restoreEnv("BUCHHALTUNGSBUTLER_API_KEY", originalApiKey);
 		restoreEnv("BUCHHALTUNGSBUTLER_API_BASE_URL", originalApiBaseUrl);
+		restoreEnv("NODE_ENV", originalNodeEnv);
 		await closeTestApp();
 	});
 
@@ -56,6 +59,7 @@ describe("Finance Routes", async () => {
 		delete process.env.BUCHHALTUNGSBUTLER_API_SECRET;
 		delete process.env.BUCHHALTUNGSBUTLER_API_KEY;
 		delete process.env.BUCHHALTUNGSBUTLER_API_BASE_URL;
+		process.env.NODE_ENV = "test";
 	});
 
 	test("formats the default BuchhaltungsButler date_to as a local civil date", () => {
@@ -121,6 +125,19 @@ describe("Finance Routes", async () => {
 
 		assert.strictEqual(response.statusCode, 400);
 		assert.match(JSON.parse(response.payload).error, /invalid query/i);
+	});
+
+	test("refuses to serve mock postings in production", async () => {
+		process.env.NODE_ENV = "production";
+
+		const response = await app.inject({
+			method: "GET",
+			url: "/api/finance/buchhaltungsbutler/transactions",
+			headers: authHeaders(testTokens.admin),
+		});
+
+		assert.strictEqual(response.statusCode, 503);
+		assert.match(JSON.parse(response.payload).error, /enabled in production/i);
 	});
 
 	test("fetches real postings when explicitly enabled", async () => {

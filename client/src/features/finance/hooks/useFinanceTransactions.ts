@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import * as XLSX from "xlsx";
+import writeXlsxFile from "write-excel-file/browser";
 import { useToast } from "@/contexts/ToastContext";
 import type {
 	BuchhaltungsButlerTransactionsResponse,
@@ -9,6 +9,7 @@ import type {
 } from "@/features/finance/financeTypes";
 import {
 	buildFinanceExportRows,
+	buildFinanceXlsxData,
 	filterFinanceTransactions,
 	getDefaultFinanceDateRange,
 	summarizeFinanceTransactions,
@@ -82,19 +83,21 @@ export function useFinanceTransactions() {
 		setFilters((current) => ({ ...current, direction: value }));
 	}
 
-	function exportTransactions() {
+	async function exportTransactions() {
 		if (filteredTransactions.length === 0) {
 			showToast("No finance transactions to export.", "warning");
 			return;
 		}
 
-		const worksheet = XLSX.utils.json_to_sheet(
-			buildFinanceExportRows(filteredTransactions),
-		);
-		const workbook = XLSX.utils.book_new();
-		XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
-		XLSX.writeFile(workbook, "buchhaltungsbutler_transactions.xlsx");
-		showToast("Finance transactions exported.", "success");
+		try {
+			const data = buildFinanceXlsxData(
+				buildFinanceExportRows(filteredTransactions),
+			);
+			await writeXlsxFile(data).toFile("buchhaltungsbutler_transactions.xlsx");
+			showToast("Finance transactions exported.", "success");
+		} catch {
+			showToast("Could not generate the finance export.", "error");
+		}
 	}
 
 	return {

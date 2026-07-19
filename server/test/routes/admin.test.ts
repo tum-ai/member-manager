@@ -17,6 +17,42 @@ import {
 } from "../helpers.js";
 import { mockDatabase, mockSupabaseErrors } from "../mocks/supabase.js";
 
+const MERGE_TARGET_ID = "11111111-1111-4111-8111-111111111111";
+const MERGE_SOURCE_ID = "22222222-2222-4222-8222-222222222222";
+
+function makeMergeMember(
+	userId: string,
+	overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+	return {
+		user_id: userId,
+		given_name: "Test",
+		surname: "User",
+		date_of_birth: "1990-01-01",
+		street: "Test St",
+		number: "7",
+		postal_code: "80802",
+		city: "Munich",
+		country: "DE",
+		phone: "+49123456789",
+		active: true,
+		member_status: "active",
+		created_at: "2025-01-01T00:00:00Z",
+		salutation: "",
+		title: "",
+		batch: "WS23",
+		department: "Software Development",
+		member_role: "Member",
+		board_role: null,
+		research_project_id: null,
+		degree: "B.Sc.",
+		school: "TUM",
+		linkedin_profile_url: null,
+		public_location: null,
+		...overrides,
+	};
+}
+
 describe("Admin Routes", async () => {
 	let app: FastifyInstance;
 
@@ -227,6 +263,303 @@ describe("Admin Routes", async () => {
 			const surnames = payload.data.map((m: { surname: string }) => m.surname);
 			const sortedSurnames = [...surnames].sort();
 			assert.deepStrictEqual(surnames, sortedSurnames);
+		});
+	});
+
+	describe("GET /api/admin/member-duplicate-candidates", () => {
+		test("flags likely duplicates by matching name and date of birth", async () => {
+			resetDatabase();
+			mockDatabase.members.push({
+				user_id: testUserIds.otherUser,
+				given_name: "Test",
+				surname: "User",
+				date_of_birth: "1990-01-01",
+				street: "Other St",
+				number: "7",
+				postal_code: "80802",
+				city: "Munich",
+				country: "DE",
+				phone: "+49123456789",
+				active: true,
+				member_status: "active",
+				created_at: "2025-01-01T00:00:00Z",
+				salutation: "",
+				title: "",
+				batch: "WS23",
+				department: "Software Development",
+				member_role: "Member",
+				board_role: null,
+				research_project_id: null,
+				degree: "B.Sc.",
+				school: "TUM",
+				linkedin_profile_url: null,
+				public_location: null,
+			});
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/admin/member-duplicate-candidates",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.data.length, 1);
+			assert.strictEqual(payload.data[0].confidence, "high");
+			assert.match(payload.data[0].reason, /same name and date of birth/i);
+			assert.deepStrictEqual(
+				payload.data[0].members
+					.map((member: { user_id: string }) => member.user_id)
+					.sort(),
+				[testUserIds.otherUser, testUserIds.user].sort(),
+			);
+		});
+
+		test("returns 413 when duplicate detection would scan too many members", async () => {
+			resetDatabase();
+			for (let index = 0; index < 5_000; index++) {
+				mockDatabase.members.push(
+					makeMergeMember(`scan-member-${index}`, {
+						given_name: `Scan${index}`,
+						surname: "Member",
+					}),
+				);
+			}
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/admin/member-duplicate-candidates",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 413);
+			assert.match(response.payload, /limited to 5000 members/i);
+		});
+	});
+
+	describe("POST /api/admin/members/merge", () => {
+		test("regular user denied access", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/admin/members/merge",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					source_user_id: MERGE_SOURCE_ID,
+					target_user_id: MERGE_TARGET_ID,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("admin merges a duplicate member into the canonical target", async () => {
+			resetDatabase();
+			mockDatabase.members.push(
+				makeMergeMember(MERGE_TARGET_ID, { given_name: "Target" }),
+				makeMergeMember(MERGE_SOURCE_ID, { given_name: "Source" }),
+			);
+			mockDatabase.user_roles.push({
+				user_id: MERGE_TARGET_ID,
+				role: "user",
+			});
+			mockDatabase.user_roles.push({
+				user_id: MERGE_SOURCE_ID,
+				role: "user",
+			});
+			mockDatabase.member_agreements.push({
+				user_id: MERGE_SOURCE_ID,
+				sepa_mandate_agreed: false,
+				privacy_policy_agreed: false,
+				data_privacy_notice_agreed: true,
+				created_at: "2025-01-01T00:00:00Z",
+				updated_at: "2025-01-01T00:00:00Z",
+			});
+			mockDatabase.reimbursements.push({
+				id: "duplicate-reimbursement",
+				user_id: MERGE_SOURCE_ID,
+				amount: 42,
+				date: "2026-05-01",
+				description: "Duplicate account reimbursement",
+				department: "Community",
+				submission_type: "reimbursement",
+				payment_iban: "DE89370400440532013000",
+				payment_bic: "COBADEFFXXX",
+				receipt_filename: "duplicate.pdf",
+				receipt_mime_type: "application/pdf",
+				receipt_base64: "JVBERi0xLjQ=",
+				status: "requested",
+				approval_status: "pending",
+				payment_status: "to_be_paid",
+				rejection_reason: null,
+				created_at: "2026-05-01T10:00:00Z",
+				updated_at: "2026-05-01T10:00:00Z",
+			});
+			mockDatabase.member_role_history.push({
+				id: "role-history-duplicate",
+				user_id: MERGE_SOURCE_ID,
+				role: "Member",
+				semester: "WS23",
+				started_at: null,
+				ended_at: null,
+				note: null,
+				created_at: "2025-01-01T00:00:00Z",
+				created_by: testUserIds.admin,
+			});
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/admin/members/merge",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					source_user_id: MERGE_SOURCE_ID,
+					target_user_id: MERGE_TARGET_ID,
+					note: "Same real person",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.source_user_id, MERGE_SOURCE_ID);
+			assert.strictEqual(payload.target_user_id, MERGE_TARGET_ID);
+			assert.strictEqual(payload.transferred_counts.members, 1);
+			assert.ok(payload.audit_id);
+			assert.strictEqual(
+				mockDatabase.members.some(
+					(member) => member.user_id === MERGE_SOURCE_ID,
+				),
+				false,
+			);
+			assert.strictEqual(
+				mockDatabase.reimbursements.find(
+					(row) => row.id === "duplicate-reimbursement",
+				)?.user_id,
+				MERGE_TARGET_ID,
+			);
+			assert.strictEqual(
+				mockDatabase.member_role_history.find(
+					(row) => row.id === "role-history-duplicate",
+				)?.user_id,
+				MERGE_TARGET_ID,
+			);
+			assert.strictEqual(
+				mockDatabase.user_roles.some(
+					(role) => role.user_id === MERGE_SOURCE_ID,
+				),
+				false,
+			);
+			assert.strictEqual(mockDatabase.member_merge_audit.length, 1);
+			assert.strictEqual(
+				mockDatabase.member_merge_audit[0].source_user_id,
+				MERGE_SOURCE_ID,
+			);
+		});
+
+		test("rejects malformed member ids before calling the database", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/admin/members/merge",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					source_user_id: "not-a-uuid",
+					target_user_id: MERGE_TARGET_ID,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			assert.match(response.payload, /invalid member merge payload/i);
+		});
+
+		test("preserves admin access when merging an admin source into a user target", async () => {
+			resetDatabase();
+			mockDatabase.members.push(
+				makeMergeMember(MERGE_TARGET_ID, { given_name: "Target" }),
+				makeMergeMember(MERGE_SOURCE_ID, { given_name: "Source" }),
+			);
+			mockDatabase.user_roles.push(
+				{ user_id: MERGE_TARGET_ID, role: "user" },
+				{ user_id: MERGE_SOURCE_ID, role: "admin" },
+			);
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/admin/members/merge",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					source_user_id: MERGE_SOURCE_ID,
+					target_user_id: MERGE_TARGET_ID,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			assert.strictEqual(
+				mockDatabase.user_roles.find((role) => role.user_id === MERGE_TARGET_ID)
+					?.role,
+				"admin",
+			);
+		});
+
+		test("blocks unresolved TUM.ai Day response conflicts", async () => {
+			resetDatabase();
+			mockDatabase.members.push(
+				makeMergeMember(MERGE_TARGET_ID, { given_name: "Target" }),
+				makeMergeMember(MERGE_SOURCE_ID, { given_name: "Source" }),
+			);
+			mockDatabase.user_roles.push(
+				{ user_id: MERGE_TARGET_ID, role: "user" },
+				{ user_id: MERGE_SOURCE_ID, role: "user" },
+			);
+			mockDatabase.tumai_day_responses.push(
+				{
+					id: "target-response",
+					tumai_day_id: "day-1",
+					user_id: MERGE_TARGET_ID,
+					status: "yes",
+					reason: null,
+				},
+				{
+					id: "source-response",
+					tumai_day_id: "day-1",
+					user_id: MERGE_SOURCE_ID,
+					status: "no",
+					reason: "Unavailable",
+				},
+			);
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/admin/members/merge",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					source_user_id: MERGE_SOURCE_ID,
+					target_user_id: MERGE_TARGET_ID,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 409);
+			assert.match(response.payload, /TUM.ai Day response conflicts/i);
+			assert.ok(
+				mockDatabase.members.some(
+					(member) => member.user_id === MERGE_SOURCE_ID,
+				),
+			);
+			assert.strictEqual(mockDatabase.member_merge_audit.length, 0);
 		});
 	});
 

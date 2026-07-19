@@ -5,12 +5,14 @@ import { renderHookWithClient } from "@/test/renderWithClient";
 import { useFinanceTransactions } from "./useFinanceTransactions";
 
 const showToast = vi.fn();
-const xlsxMock = vi.hoisted(() => ({
-	writeFile: vi.fn(),
-	jsonToSheet: vi.fn(() => ({ sheet: true })),
-	bookNew: vi.fn(() => ({ book: true })),
-	bookAppendSheet: vi.fn(),
-}));
+const { writeXlsxFileMock, toFileMock } = vi.hoisted(() => {
+	const toFileMock = vi.fn(() => Promise.resolve());
+	const writeXlsxFileMock = vi.fn(() => ({
+		toFile: toFileMock,
+		toBlob: vi.fn(),
+	}));
+	return { writeXlsxFileMock, toFileMock };
+});
 
 vi.mock("../../../contexts/ToastContext", () => ({
 	useToast: () => ({ showToast }),
@@ -27,22 +29,15 @@ vi.mock("../../../lib/supabaseClient", () => ({
 	},
 }));
 
-vi.mock("xlsx", () => ({
-	utils: {
-		json_to_sheet: xlsxMock.jsonToSheet,
-		book_new: xlsxMock.bookNew,
-		book_append_sheet: xlsxMock.bookAppendSheet,
-	},
-	writeFile: xlsxMock.writeFile,
+vi.mock("write-excel-file/browser", () => ({
+	default: writeXlsxFileMock,
 }));
 
 describe("useFinanceTransactions", () => {
 	beforeEach(() => {
 		showToast.mockClear();
-		xlsxMock.writeFile.mockClear();
-		xlsxMock.jsonToSheet.mockClear();
-		xlsxMock.bookNew.mockClear();
-		xlsxMock.bookAppendSheet.mockClear();
+		writeXlsxFileMock.mockClear();
+		toFileMock.mockClear();
 	});
 
 	it("fetches BuchhaltungsButler transactions for the selected date range", async () => {
@@ -137,9 +132,11 @@ describe("useFinanceTransactions", () => {
 			"Slack subscription",
 		);
 
-		act(() => result.current.exportTransactions());
-		expect(xlsxMock.writeFile).toHaveBeenCalledWith(
-			expect.anything(),
+		await act(async () => {
+			await result.current.exportTransactions();
+		});
+		expect(writeXlsxFileMock).toHaveBeenCalledOnce();
+		expect(toFileMock).toHaveBeenCalledWith(
 			"buchhaltungsbutler_transactions.xlsx",
 		);
 		expect(showToast).toHaveBeenCalledWith(
@@ -162,12 +159,54 @@ describe("useFinanceTransactions", () => {
 		const { result } = renderHookWithClient(() => useFinanceTransactions());
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-		act(() => result.current.exportTransactions());
+		await act(async () => {
+			await result.current.exportTransactions();
+		});
 
-		expect(xlsxMock.writeFile).not.toHaveBeenCalled();
+		expect(writeXlsxFileMock).not.toHaveBeenCalled();
 		expect(showToast).toHaveBeenCalledWith(
 			"No finance transactions to export.",
 			"warning",
+		);
+	});
+
+	it("reports Excel generation failures", async () => {
+		server.use(
+			http.get("/api/finance/buchhaltungsbutler/transactions", () =>
+				HttpResponse.json({
+					source: "mock",
+					generated_at: "2026-07-08T12:00:00.000Z",
+					transactions: [
+						{
+							external_id: "BB-1",
+							date: "2026-02-14",
+							postingtext: "Sponsoring JetBrains",
+							amount: 7500,
+							currency: "EUR",
+							vat: 0,
+							credit_type: "credit",
+							debit_postingaccount_number: "8450",
+							credit_postingaccount_number: "1200",
+							cost_location: "120",
+							cost_location_two: "0",
+							transaction_amount: 7500,
+							transaction_purpose: "JetBrains partnership tranche 1",
+						},
+					],
+				}),
+			),
+		);
+		toFileMock.mockRejectedValueOnce(new Error("write failed"));
+		const { result } = renderHookWithClient(() => useFinanceTransactions());
+		await waitFor(() => expect(result.current.transactions).toHaveLength(1));
+
+		await act(async () => {
+			await result.current.exportTransactions();
+		});
+
+		expect(showToast).toHaveBeenCalledWith(
+			"Could not generate the finance export.",
+			"error",
 		);
 	});
 });

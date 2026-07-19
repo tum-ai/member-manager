@@ -234,7 +234,7 @@ test.describe("admin job requests queue", () => {
 		await page.goto("/admin/job-requests");
 
 		await expect(
-			page.getByRole("heading", { name: "Job Posting Requests" }),
+			page.getByRole("heading", { name: "Job Postings" }),
 		).toBeVisible();
 
 		// The seeded pending posting renders its title and organization.

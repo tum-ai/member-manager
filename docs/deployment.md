@@ -62,6 +62,8 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `OPENSIGN_WIDGETS_JSON` | JSON widget array | optional; leave unset for default signature/date placement until final template positions are verified |
 | `PARTNER_PORTAL_JOBS_API_URL` | Partner Portal `/api/public/v1/jobs` URL, e.g. `https://partners.tum-ai.com/api/public/v1/jobs` | optional; enables Partner Portal jobs on the member job board and pending Partner Portal requests in the admin job queue |
 | `PARTNER_PORTAL_JOBS_API_TOKEN` | shared Member Manager jobs API token | optional with the URL; must match Partner Portal `MM_API_TOKEN` for both approved-job reads and pending-request review; this is separate from `PARTNER_EXPORT_TOKEN` |
+| `PARTNER_PORTAL_API_URL` | Partner Portal origin, e.g. `https://partners.tum-ai.com` | optional preferred base URL for partner management; falls back to the origin of `PARTNER_PORTAL_JOBS_API_URL` |
+| `PARTNER_PORTAL_API_TOKEN` | shared Partner Portal `MM_API_TOKEN` | optional preferred partner-management token; falls back to `PARTNER_PORTAL_JOBS_API_TOKEN` |
 | `BUCHHALTUNGSBUTLER_SYNC_ENABLED` | `true` | required to enable live BuchhaltungsButler sync |
 | `BUCHHALTUNGSBUTLER_API_CLIENT` | BuchhaltungsButler API client | required with sync enabled |
 | `BUCHHALTUNGSBUTLER_API_SECRET` | BuchhaltungsButler API secret | required with sync enabled |

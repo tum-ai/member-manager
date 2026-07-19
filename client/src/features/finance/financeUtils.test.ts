@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { BuchhaltungsButlerTransaction } from "./financeTypes";
 import {
 	buildFinanceExportRows,
+	buildFinanceXlsxData,
 	filterFinanceTransactions,
 	formatFinanceAmount,
 	formatFinanceDate,
@@ -97,5 +98,22 @@ describe("financeUtils", () => {
 			"Posting Text": "Sponsoring JetBrains",
 			"Transaction Amount": 7500,
 		});
+	});
+
+	it("builds typed Excel cells for finance export rows", () => {
+		const data = buildFinanceXlsxData(
+			buildFinanceExportRows([
+				makeTransaction({ transaction_purpose: "", vat: 19 }),
+			]),
+		);
+
+		expect(data[0]?.[0]).toEqual({
+			value: "External ID",
+			fontWeight: "bold",
+			type: String,
+		});
+		expect(data[1]?.[0]).toEqual({ value: "BB-1", type: String });
+		expect(data[1]?.[5]).toEqual({ value: 19, type: Number });
+		expect(data[1]?.[12]).toBeNull();
 	});
 });

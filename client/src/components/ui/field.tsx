@@ -39,7 +39,14 @@ function Field({
 			{description != null && (
 				<p className="text-xs text-muted-foreground">{description}</p>
 			)}
-			{error ? <p className="text-xs text-destructive">{error}</p> : null}
+			{error ? (
+				<p
+					id={htmlFor ? `${htmlFor}-error` : undefined}
+					className="text-xs text-destructive"
+				>
+					{error}
+				</p>
+			) : null}
 		</div>
 	);
 }

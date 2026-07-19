@@ -1,12 +1,15 @@
 import { GlassCard } from "@/components/ui/GlassCard";
 import { AdminDatabaseSkeleton } from "./components/AdminDatabaseSkeleton";
+import { AdminDuplicateCandidatesPanel } from "./components/AdminDuplicateCandidatesPanel";
 import { AdminFilterBar } from "./components/AdminFilterBar";
 import { AdminMemberEditorDialog } from "./components/AdminMemberEditorDialog";
+import { AdminMemberMergeDialog } from "./components/AdminMemberMergeDialog";
 import { AdminMembersTable } from "./components/AdminMembersTable";
 import { AdminWorkspaceHeader } from "./components/AdminWorkspaceHeader";
 import { DepartmentPermissionsCard } from "./DepartmentPermissionsCard";
 import { useAdminDatabase } from "./hooks/useAdminDatabase";
 import { useAdminMemberEditor } from "./hooks/useAdminMemberEditor";
+import { useAdminMemberMerge } from "./hooks/useAdminMemberMerge";
 
 export { AdminDatabaseSkeleton };
 
@@ -26,10 +29,15 @@ export function AdminDatabaseView() {
 		downloadEmails,
 		memberLoadingMessage,
 		updateMemberAsync,
+		duplicateCandidates,
+		duplicateCandidatesError,
+		mergeMembersAsync,
+		isMergingMembers,
 		isSavingMember,
 	} = useAdminDatabase();
 
 	const editor = useAdminMemberEditor({ updateMemberAsync, isSavingMember });
+	const merge = useAdminMemberMerge({ mergeMembersAsync, isMergingMembers });
 
 	if (isLoading) return <AdminDatabaseSkeleton />;
 	if (error)
@@ -61,6 +69,12 @@ export function AdminDatabaseView() {
 				onDownloadEmails={downloadEmails}
 			/>
 
+			<AdminDuplicateCandidatesPanel
+				candidates={duplicateCandidates}
+				error={duplicateCandidatesError}
+				onOpenMerge={merge.openMergeDialog}
+			/>
+
 			<AdminMembersTable
 				rows={filtered}
 				sortBy={sortBy}
@@ -71,6 +85,7 @@ export function AdminDatabaseView() {
 			/>
 
 			<AdminMemberEditorDialog {...editor} />
+			<AdminMemberMergeDialog {...merge} />
 		</div>
 	);
 }

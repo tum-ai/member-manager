@@ -1,5 +1,7 @@
 export * from "./contracts.js";
 export * from "./cv.js";
 export * from "./finance.js";
+export * from "./jobs.js";
 export * from "./member.js";
+export * from "./partners.js";
 export * from "./permissions.js";

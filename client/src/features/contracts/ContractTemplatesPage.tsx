@@ -1,4 +1,4 @@
-import { PanelRight, Plus, Trash2 } from "lucide-react";
+import { Copy, PanelRight, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -38,6 +38,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/contexts/ToastContext";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { cn } from "@/lib/utils";
 import {
@@ -57,6 +58,7 @@ import {
 
 const DATA_TYPES: ContractVariableDataType[] = [
 	"TEXT",
+	"EMAIL",
 	"TEXTAREA",
 	"NUMBER",
 	"DATE",
@@ -67,6 +69,7 @@ const DATA_TYPES: ContractVariableDataType[] = [
 
 const DATA_TYPE_LABELS: Record<ContractVariableDataType, string> = {
 	TEXT: "Text",
+	EMAIL: "Email",
 	TEXTAREA: "Long text",
 	NUMBER: "Number",
 	DATE: "Date",
@@ -333,7 +336,24 @@ function NewTemplateDialog({
 	);
 }
 
+// Reserved tokens the PDF renderer recognizes anywhere in a template's body
+// text — not user-created variables, so they never appear in the Variables
+// list below. Drawn inline where placed (signature image once signed, an
+// underscore placeholder before that); see server/src/lib/simplePdf.ts.
+const RESERVED_SIGNATURE_TOKENS: Array<{ token: string; description: string }> =
+	[
+		{
+			token: "{{partner_signature}}",
+			description: "Partner's signature, once they've signed.",
+		},
+		{
+			token: "{{board_signature}}",
+			description: "Board member's signature, once they've signed.",
+		},
+	];
+
 function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
+	const { showToast } = useToast();
 	const detailQuery = useContractTemplate(templateId);
 	const updateTemplate = useUpdateContractTemplate(templateId);
 	const createVariable = useCreateVariable(templateId);
@@ -412,7 +432,7 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 						label="Contract text"
 						htmlFor="template-contract-text"
 						description={
-							'Use {{variable}} to insert values and [IF {{var}} = "x" THEN {...} ELSE {...}] for conditional text.'
+							'Use {{variable}} to insert values and [IF {{var}} = "x" THEN {...} ELSE {...}] for conditional text. Reserved: {{partner_signature}} and {{board_signature}} insert the signature image at that position once signed (see below).'
 						}
 					>
 						<Textarea
@@ -523,6 +543,44 @@ function TemplateEditor({ templateId }: { templateId: string }): JSX.Element {
 						/>
 					</CollapsibleContent>
 				</Collapsible>
+			</GlassCard>
+
+			<GlassCard className="p-6">
+				<h2 className="mb-2 text-lg font-semibold">
+					Reserved signature tokens
+				</h2>
+				<Separator className="mb-4" />
+				<p className="mb-3 text-sm text-muted-foreground">
+					Not a variable — place these anywhere in the contract text to draw the
+					signature image inline at that position once signed. Leave a template
+					without them and signatures render on a trailing signature page
+					instead.
+				</p>
+				<div className="flex flex-col gap-2">
+					{RESERVED_SIGNATURE_TOKENS.map(({ token, description }) => (
+						<div key={token} className="flex flex-row items-center gap-2">
+							<p className="flex-1">
+								<code>{token}</code> —{" "}
+								<span className="text-xs text-muted-foreground">
+									{description}
+								</span>
+							</p>
+							<Button
+								variant="ghost"
+								size="icon-sm"
+								aria-label={`Copy ${token}`}
+								onClick={() => {
+									navigator.clipboard
+										.writeText(token)
+										.then(() => showToast("Copied to clipboard", "success"))
+										.catch(() => showToast("Could not copy", "error"));
+								}}
+							>
+								<Copy className="size-4" />
+							</Button>
+						</div>
+					))}
+				</div>
 			</GlassCard>
 
 			<GlassCard className="p-6">

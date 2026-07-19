@@ -35,7 +35,12 @@ The reimbursement tool can pre-fill amount, date, description, IBAN, and BIC fro
 
 If `OPENAI_API_KEY` is absent, uploads still work: the receipt stays attached and the user fills the editable fields manually.
 
-The Job Board reads approved member-submitted jobs from Member Manager and can also merge Partner Portal jobs through the server route `GET /api/jobs`. Set `PARTNER_PORTAL_JOBS_API_URL` to the Partner Portal `/api/public/v1/jobs` endpoint and `PARTNER_PORTAL_JOBS_API_TOKEN` to the same secret configured as Partner Portal `MM_API_TOKEN` to enable Partner Portal jobs. With those variables set, Member Manager admins also see pending Partner Portal submissions in the admin job request panel and approve/reject them through a server-to-server Partner Portal route. Local `pnpm setup:local` auto-fills these when `../partnerportal/apps/web/.env.local` exists. If those variables are absent, the route still serves approved Member Manager job postings. The browser never receives the token; job routes only respond to authenticated active members, and submissions stay pending until an admin approves them.
+The Job Board reads approved member-submitted jobs from Member Manager and can also merge Partner Portal jobs through the server route `GET /api/jobs`. Set `PARTNER_PORTAL_JOBS_API_URL` to the Partner Portal `/api/public/v1/jobs` endpoint and `PARTNER_PORTAL_JOBS_API_TOKEN` to the same secret configured as Partner Portal `MM_API_TOKEN` to enable Partner Portal jobs. The same server-to-server credentials back the Partner Management tool; deployments may optionally set the clearer `PARTNER_PORTAL_API_URL` and `PARTNER_PORTAL_API_TOKEN` names, otherwise the server derives the portal origin and token from the jobs values. With those variables set, authorized Partnerships & Sponsors members can create, edit, and archive Partner Portal jobs directly from the partner directory, restore archived partners, and manage partner activation links, while Member Manager admins also see pending Partner Portal submissions in the admin job request panel. Single-job accounts remain limited to one non-archived posting and never receive Partner Portal CV access; Bronze is retained only as the database compatibility tier. Local `pnpm setup:local` auto-fills the jobs values when `../partnerportal/apps/web/.env.local` exists. If those variables are absent, the job route still serves approved Member Manager job postings and the Partner Management tool reports that the portal is not configured. The browser never receives the token.
+
+Partner restore depends on the Partner Portal
+`POST /api/internal/member-manager/partners/:id/unarchive` endpoint. Deploy the
+Partner Portal change before enabling or deploying the Member Manager restore
+action; otherwise restore requests return a route-level error.
 
 Receipt files are uploaded directly from the browser to the private `reimbursement-receipts` Supabase Storage bucket through `POST /api/reimbursements/receipt-upload-url`; the reimbursement request stores only the storage reference. `POST /api/reimbursements/process-receipt` normalizes uploaded receipt payloads before submission. PDFs are returned as raw base64; JPG/PNG images are wrapped into a single-page PDF; filenames follow `DDMMYY_Name_Identifier.pdf` with `Expense` as the no-OpenAI fallback identifier.
 
@@ -62,7 +67,7 @@ BUCHHALTUNGSBUTLER_API_KEY=
 BUCHHALTUNGSBUTLER_API_BASE_URL=
 ```
 
-The Finance Transactions tool at `/tools/finance/buchhaltungsbutler` uses deterministic mock postings by default, matching the original finance script's development behavior. To read live postings from `POST /postings/get`, set the same credential vars plus:
+The Finance Transactions tool at `/tools/finance/buchhaltungsbutler` uses deterministic mock postings during local development, matching the original finance script's behavior. Production fails closed unless live postings are enabled. To read live postings from `POST /postings/get`, set the same credential vars plus:
 
 ```bash
 BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API=true
@@ -71,6 +76,8 @@ BB_USE_REAL_API=1
 ```
 
 `pnpm setup:local` preserves these values in `server/.env.local`; the credentials stay server-only and are never exposed to the browser.
+
+Regular Playwright runs always force mock postings and start their own API process. Run `pnpm test:e2e:finance-live` for the explicit live API smoke test; it uses the server-only credentials from `server/.env.local`.
 
 Slack reimbursement notifications use Block Kit buttons when `APP_BASE_URL` is set, `SLACK_BOT_TOKEN` is available, and the Slack app has `chat:write`, `users:read`, `users:read.email`, and `im:write` scopes. Footer bug-report channel-member rotation additionally needs `channels:read` for public channels (or the equivalent private-channel scope if the bug channel becomes private). Configure Slack interactivity to post to `/api/slack/interactions` and set `SLACK_SIGNING_SECRET` so the server can verify `X-Slack-Signature` before accepting approve / approve-and-sync button clicks.
 
@@ -192,7 +199,7 @@ Three test runners, each in its natural place:
 
 Run all: `pnpm test`. Run one workspace: `pnpm --filter @member-manager/server test` or `pnpm --filter @member-manager/client test`. Add coverage with `pnpm test:coverage` (enforces the ratcheting floor — see below).
 
-End-to-end smoke tests live in `e2e/` (Playwright). Run them against a running local stack: start `pnpm dev:local` in one terminal, then `pnpm test:e2e` (or `pnpm test:e2e:ui`). The login screen's "Continue as local admin" button only appears in dev mode against local Supabase, which is what the specs drive.
+End-to-end smoke tests live in `e2e/` (Playwright). Start and seed local Supabase with `pnpm supabase:start`, `pnpm supabase:reset`, and `pnpm setup:local`, then run `pnpm test:e2e` (or `pnpm test:e2e:ui`). Playwright starts its own API process, so stop any server already using the configured E2E port first. The login screen's "Continue as local admin" button only appears in dev mode against local Supabase, which is what the specs drive.
 
 Verification tests that hit a running local stack live in `scripts/verify-*.test.mjs`. They skip silently if Supabase isn't reachable, so they're safe to run by default.
 

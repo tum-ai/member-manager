@@ -593,6 +593,12 @@ export async function getBuchhaltungsButlerTransactions(
 		}
 	}
 
+	if (process.env.NODE_ENV === "production") {
+		throw new BuchhaltungsButlerConfigError(
+			"BuchhaltungsButler postings API must be enabled in production",
+		);
+	}
+
 	return {
 		transactions: generateMockTransactions().filter((transaction) =>
 			inDateRange(transaction, query),

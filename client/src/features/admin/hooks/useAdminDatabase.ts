@@ -1,7 +1,12 @@
 import { useMemo, useState } from "react";
-import * as XLSX from "xlsx";
+import writeXlsxFile from "write-excel-file/browser";
+import { useToast } from "@/contexts/ToastContext";
 import { initialFilters } from "@/features/admin/adminDatabaseViewTypes";
-import { buildExportRows, rowsToCsv } from "@/features/admin/adminExportUtils";
+import {
+	buildExportRows,
+	buildXlsxData,
+	rowsToCsv,
+} from "@/features/admin/adminExportUtils";
 import {
 	type AdminFilters,
 	type AdminMember,
@@ -33,8 +38,13 @@ export function useAdminDatabase() {
 		isRefreshingMembers,
 		error,
 		updateMemberAsync,
+		duplicateCandidates,
+		duplicateCandidatesError,
+		mergeMembersAsync,
+		isMergingMembers,
 		isSavingMember,
 	} = useAdminData();
+	const { showToast } = useToast();
 
 	const [filters, setFilters] = useState<AdminFilters>(initialFilters);
 	const [sortBy, setSortBy] = useState<AdminSortKey>("surname");
@@ -72,12 +82,13 @@ export function useAdminDatabase() {
 		setSortAsc((previousValue) => (sortBy === column ? !previousValue : true));
 	}
 
-	function exportToExcel() {
-		const exportData = buildExportRows(filtered);
-		const worksheet = XLSX.utils.json_to_sheet(exportData);
-		const workbook = XLSX.utils.book_new();
-		XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
-		XLSX.writeFile(workbook, "members_export.xlsx");
+	async function exportToExcel() {
+		const data = buildXlsxData(buildExportRows(filtered));
+		try {
+			await writeXlsxFile(data).toFile("members_export.xlsx");
+		} catch {
+			showToast("Could not generate the Excel export.", "error");
+		}
 	}
 
 	function exportToCsv() {
@@ -117,6 +128,10 @@ export function useAdminDatabase() {
 		downloadEmails,
 		memberLoadingMessage,
 		updateMemberAsync,
+		duplicateCandidates,
+		duplicateCandidatesError,
+		mergeMembersAsync,
+		isMergingMembers,
 		isSavingMember,
 	};
 }

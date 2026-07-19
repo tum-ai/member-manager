@@ -68,6 +68,72 @@ describe("simplePdf", () => {
 		assert.deepStrictEqual([...inflateSync(image.data)], [255, 255, 255]);
 	});
 
+	// Inline signature tokens in the document body.
+	test("draws a signature inline at its {{partner_signature}} token", () => {
+		const pdf = createTextPdf("Contract body text.\n\n{{partner_signature}}", [
+			{
+				role: "partner",
+				label: "Partner: Jane Doe",
+				sublabel: "2026-07-01",
+				png: tinyPng(),
+			},
+		]);
+		const raw = pdf.toString("latin1");
+
+		assert.match(raw, /\/Subtype \/Image/);
+		assert.match(raw, /\/Im0 Do/);
+		assert.match(raw, /\(Partner: Jane Doe\) Tj/);
+		// Consumed inline — no trailing signature page.
+		assert.doesNotMatch(raw, /\(Signaturen\) Tj/);
+		// The raw token never renders as text.
+		assert.doesNotMatch(raw, /partner_signature/);
+	});
+
+	test("keeps text before and after an inline signature token", () => {
+		const pdf = createTextPdf(
+			"Unterschrift Partner: {{partner_signature}} Ort, Datum",
+			[{ role: "partner", label: "Partner: Jane Doe", png: tinyPng() }],
+		);
+		const raw = pdf.toString("latin1");
+
+		assert.match(raw, /\(Unterschrift Partner:\) Tj/);
+		assert.match(raw, /\(Ort, Datum\) Tj/);
+		assert.match(raw, /\/Im0 Do/);
+		assert.doesNotMatch(raw, /partner_signature/);
+	});
+
+	test("renders a placeholder line for an unsigned inline token", () => {
+		const pdf = createTextPdf("Contract body text.\n\n{{board_signature}}");
+		const raw = pdf.toString("latin1");
+
+		assert.match(raw, /\(_+\) Tj/);
+		assert.doesNotMatch(raw, /\/Subtype \/Image/);
+		assert.doesNotMatch(raw, /board_signature/);
+	});
+
+	test("keeps unreferenced signatures on the trailing page", () => {
+		const pdf = createTextPdf("Contract body text.\n\n{{partner_signature}}", [
+			{ role: "partner", label: "Partner: Jane Doe", png: tinyPng() },
+			{ role: "board", label: "TUM.ai / Board: Max", png: tinyPng() },
+		]);
+		const raw = pdf.toString("latin1");
+
+		// Partner inline on a body page, board on the trailing signature page.
+		assert.match(raw, /\(Signaturen\) Tj/);
+		assert.match(raw, /\(TUM\.ai \/ Board: Max\) Tj/);
+		assert.match(raw, /\(Partner: Jane Doe\) Tj/);
+	});
+
+	test("keeps the trailing page for signatures without inline tokens", () => {
+		const pdf = createTextPdf("Contract body text without tokens.", [
+			{ role: "partner", label: "Partner: Jane Doe", png: tinyPng() },
+		]);
+		const raw = pdf.toString("latin1");
+
+		assert.match(raw, /\(Signaturen\) Tj/);
+		assert.match(raw, /\(Partner: Jane Doe\) Tj/);
+	});
+
 	test("skips invalid signature images instead of throwing", () => {
 		assert.doesNotThrow(() =>
 			createTextPdf("Contract body text.", [

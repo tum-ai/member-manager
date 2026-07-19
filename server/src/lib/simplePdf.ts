@@ -15,8 +15,17 @@ const MAX_CHARS_PER_LINE = 76;
 const SIGNATURE_MAX_WIDTH = 220;
 const SIGNATURE_MAX_HEIGHT = 90;
 
+/** Which party a signature belongs to; matches the inline template tokens. */
+export type PdfSignatureRole = "partner" | "board";
+
 /** One signature to embed on the appended signature page. */
 export interface PdfSignatureImage {
+	/**
+	 * When set and the document body contains the matching
+	 * `{{partner_signature}}` / `{{board_signature}}` token, the image is drawn
+	 * inline at that position instead of on the trailing signature page.
+	 */
+	role?: PdfSignatureRole;
 	/** Caption shown above the image, e.g. "Partner: Jane Doe". */
 	label: string;
 	/** Optional second caption line, e.g. the signing date. */
@@ -34,7 +43,16 @@ interface PdfLine {
 	lineHeight: number;
 	x: number;
 	wordSpacing?: number;
+	/** Marks the anchor line of an inline signature block. */
+	signatureRole?: PdfSignatureRole;
 }
+
+// Inline signature token handling: a body line containing one of these tokens
+// is replaced by a fixed-height block (label + image, or an underscore
+// placeholder while unsigned) so line-based pagination stays exact.
+const SIGNATURE_TOKEN_REGEX = /\{\{(partner|board)_signature\}\}/;
+const SIGNATURE_BLOCK_LINES = 8;
+const SIGNATURE_PLACEHOLDER = "_______________________________";
 
 function escapePdfText(value: string): string {
 	const normalized = Array.from(value)
@@ -197,8 +215,55 @@ function buildLines(text: string): PdfLine[] {
 	return lines;
 }
 
+/**
+ * Replace each signature token in the body with a fixed-size block of line
+ * slots: one anchor line carrying the role plus blank fillers that reserve
+ * vertical space for the image. Text before/after a token on the same line is
+ * kept as its own line. Lines without tokens pass through untouched.
+ */
+function expandSignatureTokens(lines: PdfLine[]): PdfLine[] {
+	const expanded: PdfLine[] = [];
+	for (const line of lines) {
+		let remaining = line.text;
+		let match = SIGNATURE_TOKEN_REGEX.exec(remaining);
+		if (!match) {
+			expanded.push(line);
+			continue;
+		}
+		while (match) {
+			const before = remaining.slice(0, match.index).trim();
+			if (before) {
+				expanded.push({ ...line, text: before, wordSpacing: undefined });
+			}
+			expanded.push({
+				text: "",
+				font: "F1",
+				fontSize: FONT_SIZE,
+				lineHeight: LINE_HEIGHT,
+				x: MARGIN_X,
+				signatureRole: match[1] as PdfSignatureRole,
+			});
+			for (let i = 1; i < SIGNATURE_BLOCK_LINES; i++) {
+				expanded.push({
+					text: "",
+					font: "F1",
+					fontSize: FONT_SIZE,
+					lineHeight: LINE_HEIGHT,
+					x: MARGIN_X,
+				});
+			}
+			remaining = remaining.slice(match.index + match[0].length).trim();
+			match = SIGNATURE_TOKEN_REGEX.exec(remaining);
+		}
+		if (remaining) {
+			expanded.push({ ...line, text: remaining, wordSpacing: undefined });
+		}
+	}
+	return expanded;
+}
+
 function paginate(text: string): PdfLine[][] {
-	const lines = buildLines(text);
+	const lines = expandSignatureTokens(buildLines(text));
 	const pages: PdfLine[][] = [];
 	for (let i = 0; i < lines.length; i += MAX_LINES_PER_PAGE) {
 		pages.push(lines.slice(i, i + MAX_LINES_PER_PAGE));
@@ -206,12 +271,88 @@ function paginate(text: string): PdfLine[][] {
 	return pages.length > 0 ? pages : [[]];
 }
 
-function contentStream(lines: PdfLine[]): string {
-	const commands = ["BT"];
+/**
+ * Render a body page. Regular lines become text runs; signature anchor lines
+ * draw the matching signature image inline (or an underscore placeholder when
+ * the party has not signed yet). Roles actually drawn are added to
+ * `drawnRoles` so createTextPdf can leave them off the trailing page.
+ */
+function renderBodyPage(
+	lines: PdfLine[],
+	signaturesByRole: ReadonlyMap<PdfSignatureRole, PdfSignatureImage>,
+	drawnRoles: Set<PdfSignatureRole>,
+): { stream: string; images: ImageDataForPdf[] } {
+	const commands: string[] = [];
+	const images: ImageDataForPdf[] = [];
 	let y = START_Y;
 	for (const line of lines) {
-		commands.push(`/${line.font} ${line.fontSize} Tf`);
-		commands.push(`1 0 0 1 ${line.x.toFixed(2)} ${y.toFixed(2)} Tm`);
+		if (line.signatureRole) {
+			const signature = signaturesByRole.get(line.signatureRole);
+			let image: ImageDataForPdf | null = null;
+			if (signature) {
+				// Decode defensively: a corrupt image falls back to the placeholder
+				// instead of breaking the whole PDF.
+				try {
+					image = imageDataForPdf(signature.png, "image/png");
+				} catch {
+					image = null;
+				}
+			}
+			if (signature && image) {
+				drawSignatureText(
+					commands,
+					"F2",
+					FONT_SIZE,
+					MARGIN_X,
+					y,
+					signature.label,
+				);
+				let imageTop = y - LINE_HEIGHT;
+				if (signature.sublabel) {
+					drawSignatureText(
+						commands,
+						"F1",
+						FONT_SIZE - 1,
+						MARGIN_X,
+						imageTop,
+						signature.sublabel,
+					);
+					imageTop -= LINE_HEIGHT;
+				}
+				const scale = Math.min(
+					SIGNATURE_MAX_WIDTH / image.width,
+					SIGNATURE_MAX_HEIGHT / image.height,
+				);
+				const width = image.width * scale;
+				const height = image.height * scale;
+				const imageBottom = imageTop - height - 4;
+				const index = images.length;
+				images.push(image);
+				commands.push(
+					"q",
+					`${width.toFixed(2)} 0 0 ${height.toFixed(2)} ${MARGIN_X.toFixed(2)} ${imageBottom.toFixed(2)} cm`,
+					`/Im${index} Do`,
+					"Q",
+				);
+				drawnRoles.add(line.signatureRole);
+			} else {
+				drawSignatureText(
+					commands,
+					"F1",
+					FONT_SIZE,
+					MARGIN_X,
+					y,
+					SIGNATURE_PLACEHOLDER,
+				);
+			}
+			y -= line.lineHeight;
+			continue;
+		}
+		commands.push(
+			"BT",
+			`/${line.font} ${line.fontSize} Tf`,
+			`1 0 0 1 ${line.x.toFixed(2)} ${y.toFixed(2)} Tm`,
+		);
 		if (line.wordSpacing !== undefined) {
 			commands.push(`${line.wordSpacing.toFixed(2)} Tw`);
 		}
@@ -219,10 +360,10 @@ function contentStream(lines: PdfLine[]): string {
 		if (line.wordSpacing !== undefined) {
 			commands.push("0 Tw");
 		}
+		commands.push("ET");
 		y -= line.lineHeight;
 	}
-	commands.push("ET");
-	return commands.join("\n");
+	return { stream: commands.join("\n"), images };
 }
 
 function streamObject(dictionary: string, data: Buffer): Buffer {
@@ -331,17 +472,13 @@ export function createTextPdf(
 	);
 	const pageIds: number[] = [];
 
-	for (const pageLines of pages) {
-		const stream = contentStream(pageLines);
-		const contentId = addObject(streamObject("", Buffer.from(stream, "utf8")));
-		const pageId = addObject(
-			`<< /Type /Page /Parent ${pagesObjectIndex} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`,
-		);
-		pageIds.push(pageId);
+	const signaturesByRole = new Map<PdfSignatureRole, PdfSignatureImage>();
+	for (const signature of signatures) {
+		if (signature.role) signaturesByRole.set(signature.role, signature);
 	}
+	const drawnRoles = new Set<PdfSignatureRole>();
 
-	if (signatures.length > 0) {
-		const { stream, images } = buildSignaturePage(signatures);
+	const addPage = (stream: string, images: ImageDataForPdf[]): void => {
 		const imageIds = images.map((image) =>
 			addObject(
 				streamObject(
@@ -351,13 +488,35 @@ export function createTextPdf(
 			),
 		);
 		const contentId = addObject(streamObject("", Buffer.from(stream, "utf8")));
-		const xobjectResources = imageIds
-			.map((id, index) => `/Im${index} ${id} 0 R`)
-			.join(" ");
+		const xobjectResources =
+			imageIds.length > 0
+				? ` /XObject << ${imageIds
+						.map((id, index) => `/Im${index} ${id} 0 R`)
+						.join(" ")} >>`
+				: "";
 		const pageId = addObject(
-			`<< /Type /Page /Parent ${pagesObjectIndex} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontId} 0 R /F2 ${boldFontId} 0 R >> /XObject << ${xobjectResources} >> >> /Contents ${contentId} 0 R >>`,
+			`<< /Type /Page /Parent ${pagesObjectIndex} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontId} 0 R /F2 ${boldFontId} 0 R >>${xobjectResources} >> /Contents ${contentId} 0 R >>`,
 		);
 		pageIds.push(pageId);
+	};
+
+	for (const pageLines of pages) {
+		const { stream, images } = renderBodyPage(
+			pageLines,
+			signaturesByRole,
+			drawnRoles,
+		);
+		addPage(stream, images);
+	}
+
+	// Signatures drawn inline via a body token stay off the trailing page;
+	// everything else keeps the existing appended-signature-page behavior.
+	const trailingSignatures = signatures.filter(
+		(signature) => !signature.role || !drawnRoles.has(signature.role),
+	);
+	if (trailingSignatures.length > 0) {
+		const { stream, images } = buildSignaturePage(trailingSignatures);
+		addPage(stream, images);
 	}
 
 	objects[pagesObjectIndex - 1] = Buffer.from(

@@ -1,4 +1,14 @@
-import { isActiveMember } from "@member-manager/shared";
+import type {
+	JobPostingInput,
+	JobPostingReview,
+	JobType,
+} from "@member-manager/shared";
+import {
+	isActiveMember,
+	JOB_TYPES,
+	jobPostingInputSchema,
+	jobPostingReviewSchema,
+} from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { DatabaseError, ForbiddenError } from "../lib/errors.js";
@@ -7,19 +17,11 @@ import { getSupabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
-const PUBLIC_JOB_TYPES = [
-	"internship",
-	"working_student",
-	"full_time",
-	"thesis",
-	"other",
-] as const;
-
 const PublicJobsQuerySchema = z.object({
 	limit: z.coerce.number().int().min(1).max(200).optional(),
 	cursor: z.string().trim().min(1).optional(),
 	since: z.string().datetime({ offset: true }).optional(),
-	job_type: z.enum(PUBLIC_JOB_TYPES).optional(),
+	job_type: z.enum(JOB_TYPES).optional(),
 });
 
 const PublicJobSchema = z.object({
@@ -32,7 +34,7 @@ const PublicJobSchema = z.object({
 	logo_url: z.string().nullable(),
 	description_markdown: z.string(),
 	call_to_action: z.string(),
-	job_type: z.enum(PUBLIC_JOB_TYPES),
+	job_type: z.enum(JOB_TYPES),
 	location: z.string(),
 	contact: z.object({
 		name: z.string(),
@@ -59,7 +61,7 @@ const PartnerPortalJobRequestSchema = z.object({
 	logo_url: z.string().nullable().optional(),
 	description_markdown: z.string(),
 	call_to_action: z.string().nullable().optional(),
-	job_type: z.enum(PUBLIC_JOB_TYPES),
+	job_type: z.enum(JOB_TYPES),
 	location: z.string(),
 	contact_name: z.string(),
 	contact_email: z.string(),
@@ -75,82 +77,10 @@ const PartnerPortalJobRequestsResponseSchema = z.array(
 	PartnerPortalJobRequestSchema,
 );
 
-function isHttpUrl(value: string): boolean {
-	if (!URL.canParse(value)) return false;
-	const url = new URL(value);
-	return url.protocol === "https:" || url.protocol === "http:";
-}
-
-const OptionalUrlSchema = z
-	.string()
-	.trim()
-	.optional()
-	.nullable()
-	.transform((value) => value || null)
-	.refine((value) => value === null || isHttpUrl(value), {
-		message: "Must be a valid HTTP or HTTPS URL",
-	});
-
-const OptionalTextSchema = z
-	.string()
-	.trim()
-	.max(140)
-	.optional()
-	.nullable()
-	.transform((value) => value || null);
-
-const OptionalExpiresAtSchema = z
-	.string()
-	.trim()
-	.optional()
-	.nullable()
-	.transform((value, context) => {
-		if (!value) return null;
-		const normalized = /^\d{4}-\d{2}-\d{2}$/.test(value)
-			? `${value}T23:59:59.000Z`
-			: value;
-		const date = new Date(normalized);
-		if (Number.isNaN(date.getTime())) {
-			context.addIssue({
-				code: "custom",
-				message: "Must be a valid date",
-			});
-			return z.NEVER;
-		}
-		return date.toISOString();
-	});
-
-const CreateJobRequestSchema = z.object({
-	title: z.string().trim().min(3).max(140),
-	organization_name: z.string().trim().min(2).max(140),
-	logo_url: OptionalUrlSchema,
-	description_markdown: z.string().trim().min(20).max(5_000),
-	call_to_action: z
-		.string()
-		.trim()
-		.max(80)
-		.optional()
-		.nullable()
-		.transform((value) => value || "Apply now"),
-	job_type: z.enum(PUBLIC_JOB_TYPES),
-	location: z.string().trim().min(2).max(140),
-	contact_name: z.string().trim().min(2).max(140),
-	contact_email: z.string().trim().email().max(254),
-	contact_role: OptionalTextSchema,
-	external_url: OptionalUrlSchema,
-	expires_at: OptionalExpiresAtSchema,
-});
-
-const ReviewJobRequestSchema = z.object({
-	decision: z.enum(["approved", "rejected"]),
-	review_note: z.string().trim().min(1).max(500).optional(),
-});
-
 type PublicJob = z.infer<typeof PublicJobSchema>;
 type PublicJobsResponse = z.infer<typeof PublicJobsResponseSchema>;
 type PublicJobsQuery = z.infer<typeof PublicJobsQuerySchema>;
 type PartnerPortalJobRequest = z.infer<typeof PartnerPortalJobRequestSchema>;
-type ReviewJobRequest = z.infer<typeof ReviewJobRequestSchema>;
 
 type JobPostingRequestRow = {
 	id: string;
@@ -161,7 +91,7 @@ type JobPostingRequestRow = {
 	logo_url: string | null;
 	description_markdown: string;
 	call_to_action: string | null;
-	job_type: (typeof PUBLIC_JOB_TYPES)[number];
+	job_type: JobType;
 	location: string;
 	contact_name: string;
 	contact_email: string;
@@ -495,7 +425,7 @@ async function fetchPartnerJobRequests(
 async function reviewPartnerJobRequest(
 	request: AuthenticatedRequest,
 	partnerRequestId: string,
-	review: ReviewJobRequest,
+	review: JobPostingReview,
 ): Promise<{ statusCode: number; payload: unknown }> {
 	let config: { url: URL; token: string } | null = null;
 	let upstreamUrl: URL | null = null;
@@ -742,7 +672,7 @@ export async function jobRoutes(server: FastifyInstance) {
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			await assertActiveMember(user.id);
-			const parsed = CreateJobRequestSchema.parse(request.body);
+			const parsed = jobPostingInputSchema.parse(request.body);
 
 			const { data, error } = await getSupabase()
 				.from("job_posting_requests")
@@ -808,13 +738,94 @@ export async function jobRoutes(server: FastifyInstance) {
 		},
 	);
 
+	server.post(
+		"/admin/job-requests",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
+			const parsed = jobPostingInputSchema.parse(request.body);
+			const reviewedAt = new Date().toISOString();
+
+			const { data, error } = await getSupabase()
+				.from("job_posting_requests")
+				.insert({
+					user_id: user.id,
+					status: "approved",
+					...parsed,
+					reviewed_by: user.id,
+					reviewed_at: reviewedAt,
+					published_at: reviewedAt,
+				})
+				.select()
+				.single();
+
+			if (error) {
+				if (isMissingJobPostingRequestsTable(error)) {
+					return reply
+						.status(503)
+						.send({ error: "Job management is not available yet" });
+				}
+				request.log.error({ err: error }, "Failed to create admin job");
+				throw new DatabaseError();
+			}
+
+			return reply.status(201).send(data);
+		},
+	);
+
+	server.put<{ Params: { requestId: string }; Body: JobPostingInput }>(
+		"/admin/job-requests/:requestId",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const { requestId } = request.params;
+			const parsed = jobPostingInputSchema.parse(request.body);
+
+			if (parsePartnerJobRequestId(requestId)) {
+				return reply.status(409).send({
+					error:
+						"Partner Portal submissions must be changed in the Partner Portal",
+				});
+			}
+
+			const { data, error } = await getSupabase()
+				.from("job_posting_requests")
+				.update({
+					...parsed,
+					updated_at: new Date().toISOString(),
+				})
+				.eq("id", requestId)
+				.select()
+				.single();
+
+			if (error) {
+				if (
+					typeof error === "object" &&
+					error !== null &&
+					"code" in error &&
+					error.code === "PGRST116"
+				) {
+					return reply.status(404).send({ error: "Job request not found" });
+				}
+				if (isMissingJobPostingRequestsTable(error)) {
+					return reply
+						.status(503)
+						.send({ error: "Job management is not available yet" });
+				}
+				request.log.error({ err: error }, "Failed to update admin job");
+				throw new DatabaseError();
+			}
+
+			return data;
+		},
+	);
+
 	server.patch<{ Params: { requestId: string } }>(
 		"/admin/job-requests/:requestId",
 		{ preHandler: [authenticate, requireAdmin] },
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const { requestId } = request.params;
-			const review = ReviewJobRequestSchema.parse(request.body);
+			const review = jobPostingReviewSchema.parse(request.body);
 			const partnerRequestId = parsePartnerJobRequestId(requestId);
 
 			if (partnerRequestId) {

@@ -1,3 +1,4 @@
+import type { JobPostingInput } from "@member-manager/shared";
 import {
 	useInfiniteQuery,
 	useMutation,
@@ -10,6 +11,9 @@ import type {
 	EngagementCertificateRequest,
 	JobPostingRequest,
 	MemberChangeRequest,
+	MemberDuplicateCandidate,
+	MemberMergeRequest,
+	MemberMergeResponse,
 } from "@/features/admin/adminTypes";
 import { apiClient } from "@/lib/apiClient";
 
@@ -85,10 +89,25 @@ export function useAdminData() {
 		},
 	});
 
+	const { data: duplicateCandidates, error: duplicateCandidatesError } =
+		useQuery({
+			queryKey: ["admin-member-duplicate-candidates"],
+			retry: false,
+			queryFn: async () => {
+				const response = await apiClient<{ data: MemberDuplicateCandidate[] }>(
+					"/api/admin/member-duplicate-candidates",
+				);
+				return response.data;
+			},
+		});
+
 	function invalidateMemberViews() {
 		queryClient.invalidateQueries({ queryKey: ["admin-members"] });
 		queryClient.invalidateQueries({ queryKey: ["members-list"] });
 		queryClient.invalidateQueries({ queryKey: ["member"] });
+		queryClient.invalidateQueries({
+			queryKey: ["admin-member-duplicate-candidates"],
+		});
 	}
 
 	const updateDepartmentMutation = useMutation({
@@ -203,6 +222,29 @@ export function useAdminData() {
 		},
 	});
 
+	const mergeMembersMutation = useMutation({
+		mutationFn: async (request: MemberMergeRequest) => {
+			return await apiClient<MemberMergeResponse>("/api/admin/members/merge", {
+				method: "POST",
+				body: JSON.stringify(request),
+			});
+		},
+		onSuccess: () => {
+			invalidateMemberViews();
+			queryClient.invalidateQueries({
+				queryKey: ["admin-member-change-requests"],
+			});
+			queryClient.invalidateQueries({
+				queryKey: ["admin-engagement-certificate-requests"],
+			});
+			queryClient.invalidateQueries({ queryKey: ["admin-job-requests"] });
+			queryClient.invalidateQueries({ queryKey: ["job-requests"] });
+			queryClient.invalidateQueries({
+				queryKey: ["engagement-certificate-requests"],
+			});
+		},
+	});
+
 	const reviewChangeRequestMutation = useMutation({
 		mutationFn: async ({
 			requestId,
@@ -278,6 +320,43 @@ export function useAdminData() {
 		},
 	});
 
+	function invalidateJobViews() {
+		queryClient.invalidateQueries({
+			queryKey: ["admin-job-requests"],
+		});
+		queryClient.invalidateQueries({ queryKey: ["job-requests"] });
+		queryClient.invalidateQueries({ queryKey: ["partner-jobs"] });
+	}
+
+	const createJobMutation = useMutation({
+		mutationFn: async (payload: JobPostingInput) => {
+			return await apiClient<JobPostingRequest>("/api/admin/job-requests", {
+				method: "POST",
+				body: JSON.stringify(payload),
+			});
+		},
+		onSuccess: invalidateJobViews,
+	});
+
+	const updateJobMutation = useMutation({
+		mutationFn: async ({
+			requestId,
+			payload,
+		}: {
+			requestId: string;
+			payload: JobPostingInput;
+		}) => {
+			return await apiClient<JobPostingRequest>(
+				`/api/admin/job-requests/${requestId}`,
+				{
+					method: "PUT",
+					body: JSON.stringify(payload),
+				},
+			);
+		},
+		onSuccess: invalidateJobViews,
+	});
+
 	const removeJobRequestMutation = useMutation({
 		mutationFn: async (requestId: string) => {
 			await apiClient(`/api/admin/job-requests/${requestId}`, {
@@ -299,6 +378,8 @@ export function useAdminData() {
 		changeRequests: changeRequests ?? [],
 		certificateRequests: certificateRequests ?? [],
 		jobRequests: jobRequests ?? [],
+		duplicateCandidates: duplicateCandidates ?? [],
+		duplicateCandidatesError,
 		isLoading: membersQuery.isLoading,
 		isLoadingMoreMembers: membersQuery.isFetchingNextPage,
 		isRefreshingMembers:
@@ -313,9 +394,12 @@ export function useAdminData() {
 		updateStatusAsync: updateStatusMutation.mutateAsync,
 		updateAccessRoleAsync: updateAccessRoleMutation.mutateAsync,
 		updateMemberAsync: updateMemberMutation.mutateAsync,
+		mergeMembersAsync: mergeMembersMutation.mutateAsync,
 		reviewChangeRequestAsync: reviewChangeRequestMutation.mutateAsync,
 		reviewCertificateRequestAsync: reviewCertificateRequestMutation.mutateAsync,
 		reviewJobRequestAsync: reviewJobRequestMutation.mutateAsync,
+		createJobAsync: createJobMutation.mutateAsync,
+		updateJobAsync: updateJobMutation.mutateAsync,
 		removeJobRequestAsync: removeJobRequestMutation.mutateAsync,
 		isSavingMember:
 			updateDepartmentMutation.isPending ||
@@ -323,9 +407,11 @@ export function useAdminData() {
 			updateStatusMutation.isPending ||
 			updateAccessRoleMutation.isPending ||
 			updateMemberMutation.isPending,
+		isMergingMembers: mergeMembersMutation.isPending,
 		isReviewingChangeRequest: reviewChangeRequestMutation.isPending,
 		isReviewingCertificateRequest: reviewCertificateRequestMutation.isPending,
 		isReviewingJobRequest: reviewJobRequestMutation.isPending,
+		isSavingJob: createJobMutation.isPending || updateJobMutation.isPending,
 		isRemovingJobRequest: removeJobRequestMutation.isPending,
 	};
 }

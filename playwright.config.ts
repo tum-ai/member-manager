@@ -1,11 +1,24 @@
+import { existsSync, readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { defineConfig, devices } from "@playwright/test";
+import dotenv from "dotenv";
 
 // Smoke E2E against the local stack. In CI the harness starts Supabase and
 // writes .env.local first (see .github/workflows/e2e.yml); Playwright then
 // boots the API server and the Vite dev client via the webServer entries
-// below. Locally, run `pnpm dev:local` in another terminal and these reuse it.
+// below. Locally, only the seeded Supabase stack must already be running; the
+// E2E API process is always isolated so finance settings cannot leak in.
 const CLIENT_URL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
 const SERVER_URL = process.env.E2E_SERVER_URL ?? "http://127.0.0.1:8787";
+const CLIENT_PORT = new URL(CLIENT_URL).port || "5173";
+const SERVER_PORT = new URL(SERVER_URL).port || "8787";
+const PARTNER_PORTAL_STUB_PORT = process.env.PARTNER_PORTAL_STUB_PORT ?? "8791";
+const PARTNER_PORTAL_STUB_URL = `http://127.0.0.1:${PARTNER_PORTAL_STUB_PORT}`;
+const USE_REAL_BB_POSTINGS = process.env.E2E_BB_LIVE === "true";
+const serverEnvPath = resolve("server/.env.local");
+const serverLocalEnv = existsSync(serverEnvPath)
+	? dotenv.parse(readFileSync(serverEnvPath))
+	: {};
 
 export default defineConfig({
 	testDir: "./e2e",
@@ -39,20 +52,48 @@ export default defineConfig({
 	projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
 	webServer: [
 		{
-			command: "pnpm --filter @member-manager/server dev:local",
-			url: `${SERVER_URL}/health`,
+			command: "node e2e/partner-portal-stub.mjs",
+			url: `${PARTNER_PORTAL_STUB_URL}/health`,
 			reuseExistingServer: !process.env.CI,
-			timeout: 120_000,
+			timeout: 30_000,
 			stdout: "pipe",
 			stderr: "pipe",
 		},
 		{
-			command: "pnpm --filter @member-manager/client dev",
+			command: "pnpm --filter @member-manager/server dev:local",
+			url: `${SERVER_URL}/health`,
+			// Never reuse an API process with unknown finance settings. The E2E
+			// server is forced to mock mode unless the dedicated live smoke command
+			// explicitly opts in.
+			reuseExistingServer: false,
+			timeout: 120_000,
+			stdout: "pipe",
+			stderr: "pipe",
+			env: {
+				...process.env,
+				...serverLocalEnv,
+				CORS_ORIGIN: CLIENT_URL,
+				DOTENV_CONFIG_PATH: "/dev/null",
+				PARTNER_PORTAL_API_URL: PARTNER_PORTAL_STUB_URL,
+				PARTNER_PORTAL_API_TOKEN: "e2e-partner-management-token",
+				BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API: USE_REAL_BB_POSTINGS
+					? "true"
+					: "false",
+				BB_USE_REAL_API: USE_REAL_BB_POSTINGS ? "1" : "0",
+				PORT: SERVER_PORT,
+			},
+		},
+		{
+			command: `pnpm --filter @member-manager/client exec vite --host 127.0.0.1 --port ${CLIENT_PORT}`,
 			url: CLIENT_URL,
 			reuseExistingServer: !process.env.CI,
 			timeout: 120_000,
 			stdout: "pipe",
 			stderr: "pipe",
+			env: {
+				...process.env,
+				VITE_API_PROXY_TARGET: SERVER_URL,
+			},
 		},
 	],
 });

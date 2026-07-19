@@ -14,14 +14,14 @@
 	"files": [
 		"dist"
 	],
-	"dependencies": {
-		"zod": "^4.4.3"
-	},
 	"scripts": {
 		"build": "tsc",
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write"
+	},
+	"dependencies": {
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"typescript": "^5.9.3"

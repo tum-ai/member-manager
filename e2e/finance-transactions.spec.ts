@@ -4,9 +4,7 @@ import { loginWithSeedEmail, SEED_LEGAL_FINANCE_MEMBER_EMAIL } from "./helpers";
 const FINANCE_TRANSACTIONS_ROUTE = "/tools/finance/buchhaltungsbutler";
 const FINANCE_2026_FROM = "2026-01-01";
 const FINANCE_2026_TO = "2026-07-13";
-const USE_REAL_API =
-	process.env.BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API === "true" ||
-	process.env.BB_USE_REAL_API === "1";
+const USE_REAL_API = process.env.E2E_BB_LIVE === "true";
 
 test.describe("Finance Transactions tool", () => {
 	test.beforeEach(async ({ page }) => {

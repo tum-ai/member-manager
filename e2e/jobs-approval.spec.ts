@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { loginAsLocalAdmin, loginAsLocalMember } from "./helpers";
+import { expectToast, loginAsLocalAdmin, loginAsLocalMember } from "./helpers";
 
 // Full publish loop: a member submits a job posting (POST /api/jobs/requests),
 // an admin approves it from the review queue (PATCH /api/admin/job-requests/:id),
@@ -52,7 +52,7 @@ test("a member's job posting is published after an admin approves it", async ({
 	await adminPage.goto("/admin/job-requests");
 
 	await expect(
-		adminPage.getByRole("heading", { name: "Job Posting Requests" }),
+		adminPage.getByRole("heading", { name: "Job Postings" }),
 	).toBeVisible();
 
 	// Locate the pending review card by its unique title (rendered as an <h2>),
@@ -89,5 +89,70 @@ test("a member's job posting is published after an admin approves it", async ({
 		memberPage.getByRole("heading", { name: title }).first(),
 	).toBeVisible();
 
+	await memberContext.close();
+});
+
+test("an admin can create and edit a published job posting", async ({
+	browser,
+}) => {
+	const initialTitle = `E2E Admin Job ${Date.now()}`;
+	const editedTitle = `${initialTitle} Edited`;
+
+	const adminContext = await browser.newContext();
+	const adminPage = await adminContext.newPage();
+	await loginAsLocalAdmin(adminPage);
+	await adminPage.goto("/admin/job-requests");
+
+	await adminPage.getByRole("button", { name: "Create job" }).click();
+	const createDialog = adminPage.getByRole("dialog");
+	await createDialog.getByLabel("Job title").fill(initialTitle);
+	await createDialog.getByLabel("Organization").fill("Admin Created Org");
+	await createDialog.getByLabel("Location").fill("Munich, Germany");
+	await createDialog
+		.getByLabel("Description")
+		.fill("A deterministic admin-created job posting for end-to-end testing.");
+	await createDialog.getByLabel("Contact name").fill("Admin Hiring");
+	await createDialog.getByLabel("Contact email").fill("admin-jobs@example.com");
+
+	const created = adminPage.waitForResponse(
+		(response) =>
+			response.url().endsWith("/api/admin/job-requests") &&
+			response.request().method() === "POST",
+	);
+	await createDialog.getByRole("button", { name: "Publish job" }).click();
+	expect((await created).status()).toBe(201);
+	await expectToast(adminPage, "Job posting published");
+
+	await adminPage.getByRole("tab", { name: /managed/i }).click();
+	const managedCard = adminPage
+		.locator('[data-slot="glass-card"]')
+		.filter({ has: adminPage.getByRole("heading", { name: initialTitle }) });
+	await expect(managedCard).toBeVisible();
+	await managedCard
+		.getByRole("button", { name: `Edit job posting ${initialTitle}` })
+		.click();
+
+	const editDialog = adminPage.getByRole("dialog");
+	await editDialog.getByLabel("Job title").fill(editedTitle);
+	const updated = adminPage.waitForResponse(
+		(response) =>
+			/\/api\/admin\/job-requests\/[^/]+$/.test(response.url()) &&
+			response.request().method() === "PUT",
+	);
+	await editDialog.getByRole("button", { name: "Save changes" }).click();
+	expect((await updated).status()).toBe(200);
+	await expectToast(adminPage, "Job posting updated");
+	await adminContext.close();
+
+	const memberContext = await browser.newContext();
+	const memberPage = await memberContext.newPage();
+	await loginAsLocalMember(memberPage);
+	await memberPage.goto("/tools/jobs");
+	await expect(
+		memberPage.getByRole("heading", { name: editedTitle }).first(),
+	).toBeVisible();
+	await expect(
+		memberPage.getByRole("heading", { name: initialTitle, exact: true }),
+	).toBeHidden();
 	await memberContext.close();
 });
