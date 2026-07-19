@@ -662,6 +662,119 @@ describe("Finance Routes", async () => {
 		});
 	});
 
+	describe("plan items", () => {
+		async function createItem(
+			token: string,
+			overrides: Record<string, unknown> = {},
+		) {
+			return app.inject({
+				method: "POST",
+				url: "/api/finance/plan-items",
+				headers: authHeaders(token),
+				payload: {
+					department: "Makeathon",
+					period_type: "year",
+					period_key: "2026",
+					label: "Venue deposit",
+					planned_amount: 3000,
+					...overrides,
+				},
+			});
+		}
+
+		test("a reviewer creates, lists, updates and deletes a plan item", async () => {
+			const created = await createItem(testTokens.admin);
+			assert.strictEqual(created.statusCode, 201);
+			const item = JSON.parse(created.payload);
+			assert.strictEqual(item.department, "Makeathon");
+			assert.strictEqual(item.status, "planned");
+
+			const list = await app.inject({
+				method: "GET",
+				url: "/api/finance/plan-items?period_type=year&period_key=2026",
+				headers: authHeaders(testTokens.admin),
+			});
+			assert.strictEqual(list.statusCode, 200);
+			const payload = JSON.parse(list.payload);
+			assert.strictEqual(payload.items.length, 1);
+			assert.strictEqual(payload.totals.planned, 3000);
+
+			const updated = await app.inject({
+				method: "PUT",
+				url: `/api/finance/plan-items/${item.id}`,
+				headers: authHeaders(testTokens.admin),
+				payload: {
+					label: "Venue deposit",
+					planned_amount: 4200,
+					status: "committed",
+				},
+			});
+			assert.strictEqual(updated.statusCode, 200);
+			assert.strictEqual(JSON.parse(updated.payload).planned_amount, 4200);
+			assert.strictEqual(JSON.parse(updated.payload).status, "committed");
+
+			const removed = await app.inject({
+				method: "DELETE",
+				url: `/api/finance/plan-items/${item.id}`,
+				headers: authHeaders(testTokens.admin),
+			});
+			assert.strictEqual(removed.statusCode, 204);
+		});
+
+		test("a department member manages only their own department's items", async () => {
+			seedDepartmentFinanceMember();
+
+			// Can create for own department (Makeathon).
+			const own = await createItem(testTokens.otherUser);
+			assert.strictEqual(own.statusCode, 201);
+
+			// Cannot create for another department.
+			const other = await createItem(testTokens.otherUser, {
+				department: "Partnerships",
+			});
+			assert.strictEqual(other.statusCode, 403);
+		});
+
+		test("a department member cannot edit another department's item", async () => {
+			seedDepartmentFinanceMember();
+			// Reviewer creates an item for Partnerships.
+			const created = await createItem(testTokens.admin, {
+				department: "Partnerships",
+			});
+			const item = JSON.parse(created.payload);
+
+			const update = await app.inject({
+				method: "PUT",
+				url: `/api/finance/plan-items/${item.id}`,
+				headers: authHeaders(testTokens.otherUser),
+				payload: {
+					label: "Hijack",
+					planned_amount: 1,
+					status: "planned",
+				},
+			});
+			assert.strictEqual(update.statusCode, 403);
+		});
+
+		test("a user with no finance permission cannot create a plan item", async () => {
+			const response = await createItem(testTokens.user);
+			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("rejects an invalid plan item and a missing one", async () => {
+			const invalid = await createItem(testTokens.admin, { label: "" });
+			assert.strictEqual(invalid.statusCode, 400);
+
+			const missing = await app.inject({
+				method: "PUT",
+				url: "/api/finance/plan-items/00000000-0000-4000-8000-000000000000",
+				headers: authHeaders(testTokens.admin),
+				payload: { label: "x", planned_amount: 1, status: "planned" },
+			});
+			assert.strictEqual(missing.statusCode, 404);
+		});
+	});
+
 	describe("department mappings", () => {
 		test("requires finance review permission", async () => {
 			const response = await app.inject({
