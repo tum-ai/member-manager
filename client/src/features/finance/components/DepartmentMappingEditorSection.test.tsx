@@ -47,13 +47,13 @@ describe("DepartmentMappingEditorSection", () => {
 		).toBeInTheDocument();
 	});
 
-	it("auto-saves a new department assignment on selection", async () => {
+	it("saves a new department assignment explicitly and preserves its note", async () => {
 		const user = userEvent.setup();
 		const onSave = vi.fn();
 		renderWithClient(
 			<DepartmentMappingEditorSection
 				{...baseProps}
-				rows={[row({ cost_location: "161" })]}
+				rows={[row({ cost_location: "161", note: "Event cost center" })]}
 				onSave={onSave}
 			/>,
 		);
@@ -64,11 +64,18 @@ describe("DepartmentMappingEditorSection", () => {
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: "Makeathon" }));
+		expect(onSave).not.toHaveBeenCalled();
+		await user.click(
+			screen.getByRole("button", {
+				name: "Zuordnung für Kostenstelle 161 speichern",
+			}),
+		);
 
 		expect(onSave).toHaveBeenCalledWith({
 			costLocation: "161",
 			department: "Makeathon",
 			bereich: null,
+			note: "Event cost center",
 		});
 	});
 
@@ -89,11 +96,43 @@ describe("DepartmentMappingEditorSection", () => {
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: "Venture" }));
+		await user.click(
+			screen.getByRole("button", {
+				name: "Zuordnung für Kostenstelle 120 speichern",
+			}),
+		);
 
 		expect(onSave).toHaveBeenCalledWith({
 			costLocation: "120",
 			department: "Venture",
 			bereich: null,
+			note: null,
 		});
+	});
+
+	it("keeps a failed draft visibly unsaved so it can be retried", async () => {
+		const user = userEvent.setup();
+		const onSave = vi.fn().mockRejectedValue(new Error("save failed"));
+		renderWithClient(
+			<DepartmentMappingEditorSection
+				{...baseProps}
+				rows={[row({ cost_location: "161" })]}
+				onSave={onSave}
+			/>,
+		);
+
+		await user.click(
+			screen.getByRole("combobox", {
+				name: "Department für Kostenstelle 161",
+			}),
+		);
+		await user.click(await screen.findByRole("option", { name: "Makeathon" }));
+		const saveButton = screen.getByRole("button", {
+			name: "Zuordnung für Kostenstelle 161 speichern",
+		});
+		await user.click(saveButton);
+
+		expect(saveButton).toBeInTheDocument();
+		expect(screen.queryByLabelText("Gespeichert")).not.toBeInTheDocument();
 	});
 });

@@ -130,7 +130,10 @@ export function aggregateByDepartment(
 
 	const byDepartment = new Map<
 		string,
-		Bucket & { bereich: FinanceBereich | null; unmapped: boolean }
+		Bucket & {
+			bereiche: Set<FinanceBereich | null>;
+			unmapped: boolean;
+		}
 	>();
 	const byMonth = new Map<string, Bucket>();
 	const byBereich = new Map<
@@ -149,13 +152,16 @@ export function aggregateByDepartment(
 		const bereich = resolved?.department ? (resolved.bereich ?? null) : null;
 		const isUnmapped = !resolved?.department;
 
-		const deptBucket =
-			byDepartment.get(department) ??
-			(() => {
-				const created = { ...emptyBucket(), bereich, unmapped: isUnmapped };
-				byDepartment.set(department, created);
-				return created;
-			})();
+		let deptBucket = byDepartment.get(department);
+		if (!deptBucket) {
+			deptBucket = {
+				...emptyBucket(),
+				bereiche: new Set<FinanceBereich | null>(),
+				unmapped: isUnmapped,
+			};
+			byDepartment.set(department, deptBucket);
+		}
+		deptBucket.bereiche.add(bereich);
 		applyAmount(deptBucket, amount);
 
 		const month = monthKey(transaction.date);
@@ -181,7 +187,10 @@ export function aggregateByDepartment(
 		by_department: [...byDepartment.entries()]
 			.map(([department, bucket]) => ({
 				department,
-				bereich: bucket.bereich,
+				bereich:
+					bucket.bereiche.size === 1
+						? (bucket.bereiche.values().next().value ?? null)
+						: null,
 				income: round(bucket.income),
 				expenses: round(bucket.expenses),
 				net: round(bucket.net),

@@ -1,12 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import type {
 	FinanceBereich,
 	FinanceDateRange,
 	FinanceDepartmentMappingsResponse,
 } from "@/features/finance/financeTypes";
-import { getDefaultFinanceDateRange } from "@/features/finance/financeUtils";
 import { FINANCE_ANALYTICS_QUERY_KEY } from "@/features/finance/hooks/useFinanceAnalytics";
 import { apiClient } from "@/lib/apiClient";
 
@@ -16,7 +14,7 @@ interface MappingUpsertInput {
 	costLocation: string;
 	department: string | null;
 	bereich: FinanceBereich | null;
-	note?: string | null;
+	note: string | null;
 }
 
 function buildMappingsEndpoint(range: FinanceDateRange): string {
@@ -33,11 +31,9 @@ function buildMappingsEndpoint(range: FinanceDateRange): string {
 	}`;
 }
 
-export function useFinanceDepartmentMappings() {
+export function useFinanceDepartmentMappings(range: FinanceDateRange) {
 	const { showToast } = useToast();
 	const queryClient = useQueryClient();
-	const defaultRange = useMemo(() => getDefaultFinanceDateRange(), []);
-	const [range] = useState<FinanceDateRange>(defaultRange);
 
 	const { data, isLoading, isFetching, error } =
 		useQuery<FinanceDepartmentMappingsResponse>({
@@ -56,10 +52,11 @@ export function useFinanceDepartmentMappings() {
 					body: JSON.stringify({
 						department: input.department,
 						bereich: input.bereich,
-						note: input.note ?? null,
+						note: input.note,
 					}),
 				},
 			),
+		scope: { id: "finance-department-mappings" },
 		onSuccess: () => {
 			showToast("Zuordnung gespeichert.", "success");
 			void queryClient.invalidateQueries({
@@ -84,7 +81,7 @@ export function useFinanceDepartmentMappings() {
 		isLoading,
 		isFetching,
 		error: error as Error | null,
-		saveMapping: mutation.mutate,
+		saveMapping: mutation.mutateAsync,
 		isSaving: mutation.isPending,
 		savingCostLocation: mutation.isPending
 			? (mutation.variables?.costLocation ?? null)

@@ -24,14 +24,15 @@ export const DEFAULT_MEMBER_STATUS: MemberStatus = "active";
 // BuchhaltungsButler cost locations to a department in the finance analytics
 // tool. Keep in sync with the `department` values seeded in supabase/seed.sql.
 export const TUMAI_DEPARTMENTS = [
-	"Makeathon",
-	"Venture",
-	"Software Development",
-	"Legal & Finance",
 	"Community",
+	"Innovation Department",
+	"Legal & Finance",
+	"Makeathon",
 	"Marketing",
 	"Partners & Sponsors",
 	"Research",
+	"Software Development",
+	"Venture",
 ] as const;
 export type TumaiDepartment = (typeof TUMAI_DEPARTMENTS)[number];
 

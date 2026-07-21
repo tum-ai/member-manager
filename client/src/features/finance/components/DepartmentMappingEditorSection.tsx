@@ -1,8 +1,9 @@
 import { TUMAI_DEPARTMENTS } from "@member-manager/shared";
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Save } from "lucide-react";
 import { type ReactElement, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -45,6 +46,7 @@ interface SaveInput {
 	costLocation: string;
 	department: string | null;
 	bereich: FinanceBereich | null;
+	note: string | null;
 }
 
 interface DepartmentMappingEditorSectionProps {
@@ -52,7 +54,7 @@ interface DepartmentMappingEditorSectionProps {
 	isLoading: boolean;
 	error: Error | null;
 	savingCostLocation: string | null;
-	onSave: (input: SaveInput) => void;
+	onSave: (input: SaveInput) => unknown;
 }
 
 export function DepartmentMappingEditorSection({
@@ -63,6 +65,7 @@ export function DepartmentMappingEditorSection({
 	onSave,
 }: DepartmentMappingEditorSectionProps): ReactElement {
 	const unassignedCount = rows.filter((row) => !row.department).length;
+	const isSaving = savingCostLocation !== null;
 
 	return (
 		<Card>
@@ -124,6 +127,7 @@ export function DepartmentMappingEditorSection({
 											key={row.cost_location}
 											row={row}
 											saving={savingCostLocation === row.cost_location}
+											disabled={isSaving}
 											onSave={onSave}
 										/>
 									))
@@ -140,11 +144,13 @@ export function DepartmentMappingEditorSection({
 function MappingRow({
 	row,
 	saving,
+	disabled,
 	onSave,
 }: {
 	row: FinanceDepartmentMappingRow;
 	saving: boolean;
-	onSave: (input: SaveInput) => void;
+	disabled: boolean;
+	onSave: (input: SaveInput) => unknown;
 }): ReactElement {
 	const [department, setDepartment] = useState<string>(
 		row.department ?? NO_DEPARTMENT_VALUE,
@@ -153,28 +159,29 @@ function MappingRow({
 		row.bereich ?? NO_BEREICH_VALUE,
 	);
 
-	// Persist immediately on any change — no separate "save" step. Selecting a
-	// department (or bereich) is the save.
-	function persist(nextDepartment: string, nextBereich: string): void {
-		onSave({
-			costLocation: row.cost_location,
-			department:
-				nextDepartment === NO_DEPARTMENT_VALUE ? null : nextDepartment,
-			bereich:
-				nextBereich === NO_BEREICH_VALUE
-					? null
-					: (nextBereich as FinanceBereich),
-		});
+	const persistedDepartment = row.department ?? NO_DEPARTMENT_VALUE;
+	const persistedBereich = row.bereich ?? NO_BEREICH_VALUE;
+	const isDirty =
+		department !== persistedDepartment || bereich !== persistedBereich;
+
+	function persist(): void {
+		void Promise.resolve(
+			onSave({
+				costLocation: row.cost_location,
+				department: department === NO_DEPARTMENT_VALUE ? null : department,
+				bereich:
+					bereich === NO_BEREICH_VALUE ? null : (bereich as FinanceBereich),
+				note: row.note,
+			}),
+		).catch(() => undefined);
 	}
 
 	function handleDepartmentChange(value: string): void {
 		setDepartment(value);
-		persist(value, bereich);
 	}
 
 	function handleBereichChange(value: string): void {
 		setBereich(value);
-		persist(department, value);
 	}
 
 	return (
@@ -204,7 +211,11 @@ function MappingRow({
 				{formatFinanceAmount(row.net)}
 			</TableCell>
 			<TableCell className="align-top">
-				<Select value={department} onValueChange={handleDepartmentChange}>
+				<Select
+					value={department}
+					onValueChange={handleDepartmentChange}
+					disabled={disabled}
+				>
 					<SelectTrigger
 						aria-label={`Department für Kostenstelle ${row.cost_location}`}
 					>
@@ -223,7 +234,11 @@ function MappingRow({
 				</Select>
 			</TableCell>
 			<TableCell className="align-top">
-				<Select value={bereich} onValueChange={handleBereichChange}>
+				<Select
+					value={bereich}
+					onValueChange={handleBereichChange}
+					disabled={disabled}
+				>
 					<SelectTrigger
 						aria-label={`Bereich für Kostenstelle ${row.cost_location}`}
 					>
@@ -242,6 +257,16 @@ function MappingRow({
 			<TableCell className="w-10 align-middle text-muted-foreground">
 				{saving ? (
 					<Loader2 aria-label="Speichern" className="size-4 animate-spin" />
+				) : isDirty ? (
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={persist}
+						disabled={disabled}
+						aria-label={`Zuordnung für Kostenstelle ${row.cost_location} speichern`}
+					>
+						<Save />
+					</Button>
 				) : row.department ? (
 					<Check aria-label="Gespeichert" className="size-4 text-emerald-600" />
 				) : null}

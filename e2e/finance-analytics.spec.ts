@@ -33,11 +33,14 @@ test.describe("Finance Analytics tool", () => {
 			.first();
 		await expect(unassignedRow).toBeVisible({ timeout: 20000 });
 
-		// Department is picked from a dropdown; selecting auto-saves.
+		// Department is picked from a dropdown, then saved explicitly.
 		await unassignedRow
 			.getByRole("combobox", { name: /Department für Kostenstelle/ })
 			.click();
 		await page.getByRole("option", { name: "Makeathon", exact: true }).click();
+		await unassignedRow
+			.getByRole("button", { name: /Zuordnung für Kostenstelle .* speichern/ })
+			.click();
 
 		await expect(page.getByText("Zuordnung gespeichert.")).toBeVisible();
 	});

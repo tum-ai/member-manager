@@ -55,7 +55,8 @@ create policy "Finance reviewers manage department mappings"
     using (public.is_finance_reviewer())
     with check (public.is_finance_reviewer());
 
-revoke all on table "public"."finance_department_mappings" from "anon";
+revoke all on table "public"."finance_department_mappings"
+    from "anon", "authenticated";
 grant select, insert, update, delete
     on table "public"."finance_department_mappings" to "authenticated";
 grant all on table "public"."finance_department_mappings" to "service_role";

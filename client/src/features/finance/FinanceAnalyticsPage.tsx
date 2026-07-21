@@ -24,7 +24,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		error: mappingsError,
 		saveMapping,
 		savingCostLocation,
-	} = useFinanceDepartmentMappings();
+	} = useFinanceDepartmentMappings(range);
 
 	return (
 		<ToolPageShell

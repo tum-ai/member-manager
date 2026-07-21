@@ -144,6 +144,32 @@ describe("aggregateByDepartment", () => {
 		);
 		assert.strictEqual(wirtschaftlich?.expenses, 300);
 	});
+
+	test("reports a department spanning multiple Bereiche deterministically", () => {
+		const transactions = [
+			tx({ cost_location: "120", transaction_amount: 500 }),
+			tx({ cost_location: "121", transaction_amount: -200 }),
+		];
+		const mappings = [
+			mapping("120", "Partners & Sponsors", "ideell"),
+			mapping("121", "Partners & Sponsors", "wirtschaftlich"),
+		];
+
+		const forward = aggregateByDepartment(transactions, mappings);
+		const reverse = aggregateByDepartment(
+			[...transactions].reverse(),
+			mappings,
+		);
+		const forwardDepartment = forward.by_department.find(
+			(row) => row.department === "Partners & Sponsors",
+		);
+		const reverseDepartment = reverse.by_department.find(
+			(row) => row.department === "Partners & Sponsors",
+		);
+
+		assert.strictEqual(forwardDepartment?.bereich, null);
+		assert.deepStrictEqual(reverseDepartment, forwardDepartment);
+	});
 });
 
 describe("buildMappingRows", () => {

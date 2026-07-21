@@ -59,7 +59,11 @@ export const Default: Story = {
 		await userEvent.click(
 			await body.findByRole("option", { name: "Makeathon" }),
 		);
-		// Selecting auto-saves; the trigger now reflects the chosen department.
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Zuordnung für Kostenstelle 161 speichern",
+			}),
+		);
 		await expect(
 			canvas.getByRole("combobox", {
 				name: "Department für Kostenstelle 161",
