@@ -252,7 +252,7 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			}
 			promises.push(updateMemberAsync(memberPayload));
 			if (shouldSubmitSepa) {
-				promises.push(updateSepaAsync(sepaForm.getValues()));
+				promises.push(updateSepaAsync(sepaSchema.parse(sepaForm.getValues())));
 			}
 
 			await Promise.all(promises);

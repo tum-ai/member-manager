@@ -1,6 +1,5 @@
+import { sepaSchema, updateSepaSchema } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
-import { electronicFormatIBAN, isValidIBAN } from "ibantools";
-import { z } from "zod";
 import { ensureOwnerOrAdmin } from "../lib/auth.js";
 import {
 	DatabaseError,
@@ -16,31 +15,6 @@ import {
 import { getSupabase } from "../lib/supabase.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
-
-const SepaSchema = z.object({
-	user_id: z.string(),
-	iban: z
-		.string()
-		.transform((val) => electronicFormatIBAN(val))
-		.refine((val): val is string => !!val && isValidIBAN(val), {
-			message: "Invalid IBAN",
-		}),
-	bic: z.string().optional(),
-	bank_name: z.string(),
-	mandate_agreed: z.boolean().refine((value) => value, {
-		message: "You must agree to the SEPA mandate",
-	}),
-	privacy_agreed: z.boolean().refine((value) => value, {
-		message: "You must agree to the Privacy Policy",
-	}),
-	data_privacy_notice_agreed: z.boolean().refine((value) => value, {
-		message: "You must agree to the Data Privacy Notice",
-	}),
-});
-
-const UpdateSepaSchema = SepaSchema.omit({
-	user_id: true,
-});
 
 type SepaAgreementInput = {
 	mandate_agreed: boolean;
@@ -93,7 +67,7 @@ export async function sepaRoutes(server: FastifyInstance) {
 		"/sepa",
 		{ preHandler: authenticate },
 		async (request, _reply) => {
-			const body = SepaSchema.parse(request.body);
+			const body = sepaSchema.parse(request.body);
 			const user = (request as AuthenticatedRequest).user;
 
 			// Verify ownership
@@ -204,7 +178,7 @@ export async function sepaRoutes(server: FastifyInstance) {
 				"You can only update your own SEPA data",
 			);
 
-			const body = UpdateSepaSchema.parse(request.body);
+			const body = updateSepaSchema.parse(request.body);
 
 			const encryptedBody = encryptRecord(
 				{

@@ -1,3 +1,4 @@
+import { normalizeIban } from "@member-manager/shared";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
@@ -244,7 +245,7 @@ export function useReimbursementForm(userId: string) {
 			description: values.description.trim(),
 			department: values.department,
 			submission_type: values.submissionType,
-			payment_iban: values.paymentIban.trim(),
+			payment_iban: normalizeIban(values.paymentIban),
 			payment_bic: values.paymentBic.trim(),
 			receipt_filename: values.receipt?.fileName ?? "",
 			receipt_mime_type: values.receipt?.mimeType ?? "",

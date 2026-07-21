@@ -18,10 +18,12 @@
 		"build": "tsc",
 		"typecheck": "tsc --noEmit",
 		"test": "pnpm build && node --test test/**/*.test.ts",
+		"test:coverage": "pnpm build && node --test --experimental-test-coverage test/**/*.test.ts",
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write"
 	},
 	"dependencies": {
+		"ibantools": "^4.5.4",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {

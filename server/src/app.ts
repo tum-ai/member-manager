@@ -4,6 +4,7 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import { installLocalBugReportStub } from "./lib/githubIssues.js";
 import { isLocalAdminBootstrapEnabled } from "./lib/localAdmin.js";
+import { assertFieldEncryptionConfigured } from "./lib/sensitiveData.js";
 import { installLocalBugReportSlackStub } from "./lib/slackNotifier.js";
 import { errorHandler } from "./plugins/errorHandler.js";
 import { adminRoutes } from "./routes/admin.js";
@@ -40,6 +41,8 @@ function getVercelPreviewOrigin(): string | null {
 }
 
 export const buildApp = async (): Promise<FastifyInstance> => {
+	assertFieldEncryptionConfigured();
+
 	const server = Fastify({
 		logger: true,
 		bodyLimit: API_BODY_LIMIT_BYTES,

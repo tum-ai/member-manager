@@ -8,7 +8,8 @@
 		"dev": "tsx watch src/index.ts",
 		"dev:local": "tsx watch src/index.ts",
 		"build": "tsc",
-		"backfill:encryption": "tsx src/scripts/backfillSensitiveData.ts",
+		"backfill:encryption": "tsx src/scripts/rotateSensitiveData.ts --apply --plaintext-only",
+		"rotate:encryption": "tsx src/scripts/rotateSensitiveData.ts",
 		"backfill:member-cvs": "tsx src/scripts/backfillMemberCvs.ts",
 		"start": "node dist/index.js",
 		"lint": "biome check .",
@@ -26,7 +27,6 @@
 		"dotenv": "^16.6.1",
 		"fastify": "^5.8.5",
 		"fastify-plugin": "^5.1.0",
-		"ibantools": "^4.5.4",
 		"jszip": "^3.10.1",
 		"zod": "^4.4.3"
 	},

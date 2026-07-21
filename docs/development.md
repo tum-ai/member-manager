@@ -273,8 +273,13 @@ E2E is not a required merge check yet — let it stabilize across a few runs fir
 The server encrypts certain columns before insert (`server/src/lib/sensitiveData.ts` has the full list). Relevant consequences:
 
 - You can't SELECT decrypted values directly in Studio — they look like hex.
-- Changing `FIELD_ENCRYPTION_KEY` orphans all existing rows. See the deployment guide for rotation warnings.
-- If an older environment still has plaintext rows, run `pnpm --filter @member-manager/server backfill:encryption` once.
+- Local seed bank details are encrypted with the default local fixture key.
+  `pnpm setup:local` adds that key to `FIELD_ENCRYPTION_KEY_FALLBACKS` when a
+  developer uses a custom current key.
+- If an older environment still has plaintext rows, run
+  `pnpm --filter @member-manager/server backfill:encryption` once.
+- For key changes, follow the fallback-key and `rotate:encryption` procedure in
+  the deployment guide.
 
 ## The Vercel function wrapper
 

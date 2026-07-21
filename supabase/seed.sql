@@ -161,12 +161,12 @@ begin
         seed.surname,
         'Mx.',
         '',
-        '1995-01-01',
-        'Seed Lane',
-        '1',
-        '80333',
-        'Munich',
-        'Germany',
+        'enc-v1:PdayjKDOvLrZMvx8:xaHiqMnPTTIA_5_QoVTl5A:Rp2u_WN-8II1kg',
+        'enc-v1:KayxX15tC5KsZjmV:XD6OlMbTzQ8jgNhi4b4s0g:4rtmTi7apV9d',
+        'enc-v1:4nzjSgR9J9GRvgg_:29setZNZRF45zRpI6d7IAw:Ug',
+        'enc-v1:yTsQTkeGtBWuP7K6:iFXk_mYsMGRIipjMEwYcRg:GtEZaOc',
+        'enc-v1:EYlRk3adH607ILIa:xOZ7xlx4Pwb7Dhcrh9QeBA:sZa6AUZ3',
+        'enc-v1:Y77LXHDOldiZ1ebq:FE_F7G5bHEGYGHy-pdDkrw:KExwzY-SXg',
         true,
         seed.batch,
         seed.department,
@@ -217,21 +217,21 @@ set
     public_location = seed.public_location
 from (
     values
-        ('00000000-0000-0000-0000-000000000001'::uuid, '+4915110000001', 'active', null, 'https://linkedin.com/in/ada-president', 'Munich, Germany'),
-        ('00000000-0000-0000-0000-000000000003'::uuid, '+4915110000003', 'active', null, 'https://linkedin.com/in/bianca-boardlead', 'Garching, Germany'),
+        ('00000000-0000-0000-0000-000000000001'::uuid, 'enc-v1:sgZXsPSycaTwe0Kq:GV_c8-J7Ksht5oQ16AWmpw:bFYrlagwDie3xlcS-bI', 'active', null, 'https://linkedin.com/in/ada-president', 'Munich, Germany'),
+        ('00000000-0000-0000-0000-000000000003'::uuid, 'enc-v1:hKoXvXPwNDemTulk:K2tZWud-ne1NqNrIt3Vz2A:QOl2iwAO0GWDw6ZxqbY', 'active', null, 'https://linkedin.com/in/bianca-boardlead', 'Garching, Germany'),
         ('00000000-0000-0000-0000-000000000006'::uuid, null, 'active', null, null, null),
-        ('00000000-0000-0000-0000-000000000009'::uuid, '+4915110000009', 'active', null, 'https://linkedin.com/in/lea-finance', 'Munich, Germany'),
-        ('00000000-0000-0000-0000-000000000011'::uuid, '+4915110000011', 'active', null, 'https://linkedin.com/in/maya-makeathon', 'Munich, Germany'),
-        ('00000000-0000-0000-0000-000000000017'::uuid, '+4915110000017', 'active', 'applied-ai-research', 'https://linkedin.com/in/rita-research', 'Munich, Germany'),
-        ('00000000-0000-0000-0000-000000000018'::uuid, '+4915110000018', 'alumni', 'robotics-lab', 'https://linkedin.com/in/robin-research', 'Berlin, Germany'),
-        ('00000000-0000-0000-0000-000000000020'::uuid, '+4915110000020', 'active', null, 'https://linkedin.com/in/regular-user', 'Munich, Germany'),
+        ('00000000-0000-0000-0000-000000000009'::uuid, 'enc-v1:RWCXcjr53__9HfPa:p28knmcVA315wdEcsZdJWA:Zb33zVgWaLzAGAcflNA', 'active', null, 'https://linkedin.com/in/lea-finance', 'Munich, Germany'),
+        ('00000000-0000-0000-0000-000000000011'::uuid, 'enc-v1:xdfzQFf58uesW3Rt:F32vcNWqooqYVPAIWepLQA:qKb10QfcDkye0VsHYW4', 'active', null, 'https://linkedin.com/in/maya-makeathon', 'Munich, Germany'),
+        ('00000000-0000-0000-0000-000000000017'::uuid, 'enc-v1:jcmnq9qOSj22Qfwz:K4_39VPBtfCaR-Jlao7NQg:i0IvNLLurkCpUJyh8bw', 'active', 'applied-ai-research', 'https://linkedin.com/in/rita-research', 'Munich, Germany'),
+        ('00000000-0000-0000-0000-000000000018'::uuid, 'enc-v1:WNTSAsGcm_G7l2tb:oFnWF4J20R_htkYu9ioVmg:PRfVcBDZRkTXiPSCtiI', 'alumni', 'robotics-lab', 'https://linkedin.com/in/robin-research', 'Berlin, Germany'),
+        ('00000000-0000-0000-0000-000000000020'::uuid, 'enc-v1:Ttex0cwMpLSF1f8Y:JT_3yLRlQ2evpmjDMA3ulQ:W3aH9gEtzKtNmYwG0cs', 'active', null, 'https://linkedin.com/in/regular-user', 'Munich, Germany'),
         ('00000000-0000-0000-0000-000000000022'::uuid, null, 'inactive', null, null, 'Remote')
 ) as seed(user_id, phone, member_status, research_project_id, linkedin_profile_url, public_location)
 where member.user_id = seed.user_id;
 
--- Seed SEPA data for local test accounts. The regular user, finance reviewer,
--- and admin have bank details so reimbursement and admin flows can be tested
--- immediately after `pnpm dev` / `pnpm supabase:reset`.
+-- Seed SEPA data for local test accounts. Values use the local fixture
+-- FIELD_ENCRYPTION_KEY from scripts/setup-local-env.mjs; never put plaintext
+-- bank details in this file.
 insert into public.sepa (
     user_id,
     iban,
@@ -242,33 +242,33 @@ insert into public.sepa (
 ) values
     (
         '00000000-0000-0000-0000-000000000001',
-        'DE89370400440532013000',
-        'COBADEFFXXX',
-        'Commerzbank',
+        'enc-v1:E2I_KLowkHdM-n9Z:OEnMYTwkgQRnVzzuwcI1lg:Za1nGGjQUJRYiTDQGEYT7ACrg-KSqA',
+        'enc-v1:bY8E0a6BFgepkeqP:l64uBscW7LkzZviYiCk8Tg:GHMQbhYQHkcp8F4',
+        'enc-v1:i2MaKOdWh5oC7v1o:QgupJ8CIB0xrY5x4PPn6XA:koPDlqjFnrgDTSU',
         true,
         true
     ),
     (
         '00000000-0000-0000-0000-000000000009',
-        'DE12500105170648489890',
-        'INGDDEFFXXX',
-        'ING-DiBa',
+        'enc-v1:Ekoon2EwfRQP7Hlx:B8o6WdarxLcizaNURTTvCg:RWIR7IC1UDedhMo1ymWA8zcp7J_baw',
+        'enc-v1:NdN4FTJySiu1e8i2:0KlU0xtHk-tPQt9h6FD7IQ:u_vcnoNiNUm4RQg',
+        'enc-v1:U80B8plAN0s70vns:SZrsaVu-hPtPzLKS_EbwqA:h7wKk93Gb8Y',
         true,
         true
     ),
     (
         '00000000-0000-0000-0000-000000000011',
-        'DE89370400440532013000',
-        'COBADEFFXXX',
-        'Commerzbank',
+        'enc-v1:E2I_KLowkHdM-n9Z:OEnMYTwkgQRnVzzuwcI1lg:Za1nGGjQUJRYiTDQGEYT7ACrg-KSqA',
+        'enc-v1:bY8E0a6BFgepkeqP:l64uBscW7LkzZviYiCk8Tg:GHMQbhYQHkcp8F4',
+        'enc-v1:i2MaKOdWh5oC7v1o:QgupJ8CIB0xrY5x4PPn6XA:koPDlqjFnrgDTSU',
         true,
         true
     ),
     (
         '00000000-0000-0000-0000-000000000020',
-        'DE89370400440532013000',
-        'COBADEFFXXX',
-        'Commerzbank',
+        'enc-v1:E2I_KLowkHdM-n9Z:OEnMYTwkgQRnVzzuwcI1lg:Za1nGGjQUJRYiTDQGEYT7ACrg-KSqA',
+        'enc-v1:bY8E0a6BFgepkeqP:l64uBscW7LkzZviYiCk8Tg:GHMQbhYQHkcp8F4',
+        'enc-v1:i2MaKOdWh5oC7v1o:QgupJ8CIB0xrY5x4PPn6XA:koPDlqjFnrgDTSU',
         true,
         true
     )
@@ -549,8 +549,8 @@ insert into public.reimbursements (
         'Train ticket to Munich AI meetup',
         'Software Development',
         'reimbursement',
-        'DE89370400440532013000',
-        'COBADEFFXXX',
+        'enc-v1:E2I_KLowkHdM-n9Z:OEnMYTwkgQRnVzzuwcI1lg:Za1nGGjQUJRYiTDQGEYT7ACrg-KSqA',
+        'enc-v1:bY8E0a6BFgepkeqP:l64uBscW7LkzZviYiCk8Tg:GHMQbhYQHkcp8F4',
         'train-ticket.pdf',
         'application/pdf',
         'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyA+PgplbmRvYmoKdHJhaWxlcgo8PCAvUm9vdCAxIDAgUiA+PgolJUVPRgo=',
@@ -576,8 +576,8 @@ insert into public.reimbursements (
         'Makeathon prototype materials',
         'Makeathon',
         'invoice',
-        'DE89370400440532013000',
-        'COBADEFFXXX',
+        'enc-v1:E2I_KLowkHdM-n9Z:OEnMYTwkgQRnVzzuwcI1lg:Za1nGGjQUJRYiTDQGEYT7ACrg-KSqA',
+        'enc-v1:bY8E0a6BFgepkeqP:l64uBscW7LkzZviYiCk8Tg:GHMQbhYQHkcp8F4',
         'prototype-materials.pdf',
         'application/pdf',
         'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyA+PgplbmRvYmoKdHJhaWxlcgo8PCAvUm9vdCAxIDAgUiA+PgolJUVPRgo=',
@@ -603,8 +603,8 @@ insert into public.reimbursements (
         'Finance workshop catering',
         'Legal & Finance',
         'reimbursement',
-        'DE12500105170648489890',
-        'INGDDEFFXXX',
+        'enc-v1:Ekoon2EwfRQP7Hlx:B8o6WdarxLcizaNURTTvCg:RWIR7IC1UDedhMo1ymWA8zcp7J_baw',
+        'enc-v1:NdN4FTJySiu1e8i2:0KlU0xtHk-tPQt9h6FD7IQ:u_vcnoNiNUm4RQg',
         'finance-catering.pdf',
         'application/pdf',
         'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyA+PgplbmRvYmoKdHJhaWxlcgo8PCAvUm9vdCAxIDAgUiA+PgolJUVPRgo=',
@@ -630,8 +630,8 @@ insert into public.reimbursements (
         'Community stickers without budget approval',
         'Community',
         'reimbursement',
-        'DE89370400440532013000',
-        'COBADEFFXXX',
+        'enc-v1:E2I_KLowkHdM-n9Z:OEnMYTwkgQRnVzzuwcI1lg:Za1nGGjQUJRYiTDQGEYT7ACrg-KSqA',
+        'enc-v1:bY8E0a6BFgepkeqP:l64uBscW7LkzZviYiCk8Tg:GHMQbhYQHkcp8F4',
         'stickers.pdf',
         'application/pdf',
         'JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyA+PgplbmRvYmoKdHJhaWxlcgo8PCAvUm9vdCAxIDAgUiA+PgolJUVPRgo=',
@@ -681,7 +681,13 @@ on conflict (id) do update set
 -- accounts above). Existing rows are left untouched (`do nothing`).
 -- =========================================================================
 insert into public.sepa (user_id, iban, bic, bank_name, mandate_agreed, privacy_agreed)
-select m.user_id, 'DE89370400440532013000', 'COBADEFFXXX', 'Commerzbank', true, true
+select
+    m.user_id,
+    'enc-v1:E2I_KLowkHdM-n9Z:OEnMYTwkgQRnVzzuwcI1lg:Za1nGGjQUJRYiTDQGEYT7ACrg-KSqA',
+    'enc-v1:bY8E0a6BFgepkeqP:l64uBscW7LkzZviYiCk8Tg:GHMQbhYQHkcp8F4',
+    'enc-v1:i2MaKOdWh5oC7v1o:QgupJ8CIB0xrY5x4PPn6XA:koPDlqjFnrgDTSU',
+    true,
+    true
 from public.members m
 on conflict (user_id) do nothing;
 
