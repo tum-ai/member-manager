@@ -44,7 +44,12 @@ export const Default: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Nicht zugeordnet")).toBeInTheDocument();
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(
+			canvas.getByText("Nicht zugeordnet", {
+				selector: '[data-slot="badge"]',
+			}),
+		).toBeInTheDocument();
 
 		await userEvent.click(
 			canvas.getByRole("combobox", {
@@ -52,7 +57,7 @@ export const Default: Story = {
 			}),
 		);
 		await userEvent.click(
-			await canvas.findByRole("option", { name: "Makeathon" }),
+			await body.findByRole("option", { name: "Makeathon" }),
 		);
 		// Selecting auto-saves; the trigger now reflects the chosen department.
 		await expect(

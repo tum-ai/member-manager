@@ -70,8 +70,8 @@ export function DepartmentMappingEditorSection({
 				<CardTitle className="text-base">Kostenstellen → Department</CardTitle>
 				<CardDescription>
 					Ordne jede BuchhaltungsButler-Kostenstelle einem Department und
-					Bereich zu. Nicht zugeordnete Kostenstellen sind markiert und landen
-					in der Auswertung unter „Nicht zugeordnet".
+					Bereich zu. Nicht zugeordnete Kostenstellen sind markiert. In der
+					Auswertung lautet das Department „Nicht zugeordnet".
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
@@ -103,7 +103,9 @@ export function DepartmentMappingEditorSection({
 									<TableHead className="text-right">Saldo</TableHead>
 									<TableHead className="w-48">Department</TableHead>
 									<TableHead className="w-56">Bereich</TableHead>
-									<TableHead className="w-10" />
+									<TableHead className="w-10">
+										<span className="sr-only">Status</span>
+									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>

@@ -25,6 +25,7 @@ returns boolean
 security definer
 stable
 language plpgsql
+set search_path = ''
 as $$
 begin
   return (

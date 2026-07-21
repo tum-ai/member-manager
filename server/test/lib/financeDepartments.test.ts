@@ -5,11 +5,12 @@ import type {
 	FinanceDepartmentMapping,
 } from "@member-manager/shared";
 import { FINANCE_UNMAPPED_DEPARTMENT } from "@member-manager/shared";
-import {
-	aggregateByDepartment,
-	buildMappingRows,
-	normalizeCostLocation,
-} from "../../src/lib/financeDepartments.js";
+
+process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+
+const { aggregateByDepartment, buildMappingRows, normalizeCostLocation } =
+	await import("../../src/lib/financeDepartments.js");
 
 function tx(
 	overrides: Partial<BuchhaltungsButlerTransaction> &

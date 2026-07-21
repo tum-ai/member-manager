@@ -119,8 +119,8 @@ export function FinanceAnalyticsSection({
 					<AlertTriangle className="size-4" />
 					<AlertDescription>
 						{analytics.totals.unmapped_count} Buchung(en) haben eine noch nicht
-						zugeordnete Kostenstelle und erscheinen unter „Nicht zugeordnet".
-						Ordne sie im Tab „Zuordnung" einem Department zu.
+						zugeordnete Kostenstelle und haben das Department „Nicht
+						zugeordnet". Die Zuordnung erfolgt im Tab „Zuordnung".
 					</AlertDescription>
 				</Alert>
 			) : null}
