@@ -5,7 +5,9 @@ import type {
 	BuchhaltungsButlerTransaction,
 	FinanceDirectionFilter,
 	FinanceFilters,
+	FinanceSortOrder,
 } from "@/features/finance/financeTypes";
+import { filterFinanceTransactions } from "@/features/finance/financeUtils";
 import { BuchhaltungsButlerTransactionsSection } from "./BuchhaltungsButlerTransactionsSection";
 
 const transactions: BuchhaltungsButlerTransaction[] = [
@@ -59,23 +61,14 @@ function InteractiveSection() {
 		dateTo: "2026-07-08",
 		searchTerm: "",
 		direction: "all",
+		sortOrder: "date-desc",
 	});
-	const visibleTransactions = transactions.filter((transaction) => {
-		const matchesSearch = transaction.postingtext
-			.toLowerCase()
-			.includes(filters.searchTerm.toLowerCase());
-		const matchesDirection =
-			filters.direction === "all" ||
-			(filters.direction === "income" && transaction.transaction_amount >= 0) ||
-			(filters.direction === "expenses" && transaction.transaction_amount < 0);
-		return matchesSearch && matchesDirection;
-	});
+	const visibleTransactions = filterFinanceTransactions(transactions, filters);
 
 	return (
 		<BuchhaltungsButlerTransactionsSection
 			filters={filters}
 			transactions={visibleTransactions}
-			source="mock"
 			generatedAt="2026-07-08T12:00:00.000Z"
 			isLoading={false}
 			isFetching={false}
@@ -92,6 +85,9 @@ function InteractiveSection() {
 			onDirectionChange={(direction: FinanceDirectionFilter) =>
 				setFilters((current) => ({ ...current, direction }))
 			}
+			onSortOrderChange={(sortOrder: FinanceSortOrder) =>
+				setFilters((current) => ({ ...current, sortOrder }))
+			}
 			onRefresh={() => undefined}
 			onExport={() => undefined}
 		/>
@@ -105,9 +101,9 @@ export const Default: Story = {
 			dateTo: "2026-07-08",
 			searchTerm: "",
 			direction: "all",
+			sortOrder: "date-desc",
 		},
 		transactions,
-		source: "mock",
 		generatedAt: "2026-07-08T12:00:00.000Z",
 		isLoading: false,
 		isFetching: false,
@@ -116,6 +112,7 @@ export const Default: Story = {
 		onDateToChange: () => undefined,
 		onSearchTermChange: () => undefined,
 		onDirectionChange: () => undefined,
+		onSortOrderChange: () => undefined,
 		onRefresh: () => undefined,
 		onExport: () => undefined,
 	},
@@ -123,6 +120,9 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Sponsoring JetBrains")).toBeInTheDocument();
+		await expect(canvas.getAllByRole("row")[1]).toHaveTextContent(
+			"14 Feb 2026",
+		);
 
 		await userEvent.type(canvas.getByLabelText("Search"), "slack");
 		await expect(

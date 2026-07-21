@@ -77,7 +77,7 @@ describe("useFinanceTransactions", () => {
 		await waitFor(() => expect(result.current.transactions).toHaveLength(1));
 		expect(requestedUrl).toContain("date_from=");
 		expect(requestedUrl).toContain("date_to=");
-		expect(result.current.source).toBe("mock");
+		expect(result.current.filters.sortOrder).toBe("date-desc");
 		expect(result.current.summary.income).toBe(7500);
 	});
 
@@ -125,6 +125,18 @@ describe("useFinanceTransactions", () => {
 
 		const { result } = renderHookWithClient(() => useFinanceTransactions());
 		await waitFor(() => expect(result.current.transactions).toHaveLength(2));
+		expect(
+			result.current.filteredTransactions.map(
+				(transaction) => transaction.postingtext,
+			),
+		).toEqual(["Sponsoring JetBrains", "Slack subscription"]);
+
+		act(() => result.current.updateSortOrder("date-asc"));
+		expect(
+			result.current.filteredTransactions.map(
+				(transaction) => transaction.postingtext,
+			),
+		).toEqual(["Slack subscription", "Sponsoring JetBrains"]);
 
 		act(() => result.current.updateDirection("expenses"));
 		expect(result.current.filteredTransactions).toHaveLength(1);

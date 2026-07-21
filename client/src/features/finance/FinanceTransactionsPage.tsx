@@ -9,7 +9,6 @@ export default function FinanceTransactionsPage(): ReactElement {
 		filters,
 		filteredTransactions,
 		summary,
-		source,
 		generatedAt,
 		isLoading,
 		isFetching,
@@ -18,6 +17,7 @@ export default function FinanceTransactionsPage(): ReactElement {
 		updateDateTo,
 		updateSearchTerm,
 		updateDirection,
+		updateSortOrder,
 		refetchTransactions,
 		exportTransactions,
 	} = useFinanceTransactions();
@@ -32,7 +32,6 @@ export default function FinanceTransactionsPage(): ReactElement {
 				<BuchhaltungsButlerTransactionsSection
 					filters={filters}
 					transactions={filteredTransactions}
-					source={source}
 					generatedAt={generatedAt}
 					isLoading={isLoading}
 					isFetching={isFetching}
@@ -41,6 +40,7 @@ export default function FinanceTransactionsPage(): ReactElement {
 					onDateToChange={updateDateTo}
 					onSearchTermChange={updateSearchTerm}
 					onDirectionChange={updateDirection}
+					onSortOrderChange={updateSortOrder}
 					onRefresh={() => {
 						void refetchTransactions();
 					}}

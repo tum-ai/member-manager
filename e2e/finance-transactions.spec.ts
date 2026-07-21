@@ -22,20 +22,28 @@ test.describe("Finance Transactions tool", () => {
 		await page.locator("#finance-date-to").fill(FINANCE_2026_TO);
 
 		if (USE_REAL_API) {
-			await expect(page.getByText("Real API")).toBeVisible();
 			await expect
 				.poll(() => page.getByRole("table").locator("tbody tr").count())
 				.toBeGreaterThan(0);
 			return;
 		}
 
-		await expect(page.getByText("Mock data")).toBeVisible();
 		await expect(page.getByText("Sponsoring JetBrains").first()).toBeVisible();
 		await expect(page.getByText("Slack subscription").first()).toBeVisible();
 
+		const transactionsTable = page.getByRole("table");
+		await expect(
+			transactionsTable.locator("tbody tr").first().locator("td").first(),
+		).toHaveText("01 Jul 2026");
+
+		await page.getByLabel("Sort order").click();
+		await page.getByRole("option", { name: "Oldest first" }).click();
+		await expect(
+			transactionsTable.locator("tbody tr").first().locator("td").first(),
+		).toHaveText("01 Jan 2026");
+
 		await page.getByLabel("Search").fill("slack");
 
-		const transactionsTable = page.getByRole("table");
 		await expect(
 			transactionsTable.getByText("Slack subscription").first(),
 		).toBeVisible();

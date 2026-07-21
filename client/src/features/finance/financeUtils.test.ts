@@ -67,8 +67,38 @@ describe("financeUtils", () => {
 				dateTo: "2026-12-31",
 				searchTerm: "slack",
 				direction: "expenses",
+				sortOrder: "date-desc",
 			}),
 		).toEqual([transactions[1]]);
+	});
+
+	it("sorts transactions by date with newest first by default", () => {
+		const oldest = makeTransaction({
+			external_id: "BB-oldest",
+			date: "2026-01-05",
+		});
+		const newest = makeTransaction({
+			external_id: "BB-newest",
+			date: "2026-06-12",
+		});
+		const filters = {
+			dateFrom: "2026-01-01",
+			dateTo: "2026-12-31",
+			searchTerm: "",
+			direction: "all" as const,
+			sortOrder: "date-desc" as const,
+		};
+
+		expect(filterFinanceTransactions([oldest, newest], filters)).toEqual([
+			newest,
+			oldest,
+		]);
+		expect(
+			filterFinanceTransactions([oldest, newest], {
+				...filters,
+				sortOrder: "date-asc",
+			}),
+		).toEqual([oldest, newest]);
 	});
 
 	it("summarizes income, expenses, net, and count", () => {

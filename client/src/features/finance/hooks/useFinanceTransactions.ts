@@ -6,6 +6,7 @@ import type {
 	BuchhaltungsButlerTransactionsResponse,
 	FinanceDirectionFilter,
 	FinanceFilters,
+	FinanceSortOrder,
 } from "@/features/finance/financeTypes";
 import {
 	buildFinanceExportRows,
@@ -40,6 +41,7 @@ export function useFinanceTransactions() {
 		...defaultRange,
 		searchTerm: "",
 		direction: "all",
+		sortOrder: "date-desc",
 	});
 
 	const {
@@ -83,6 +85,10 @@ export function useFinanceTransactions() {
 		setFilters((current) => ({ ...current, direction: value }));
 	}
 
+	function updateSortOrder(value: FinanceSortOrder) {
+		setFilters((current) => ({ ...current, sortOrder: value }));
+	}
+
 	async function exportTransactions() {
 		if (filteredTransactions.length === 0) {
 			showToast("No finance transactions to export.", "warning");
@@ -105,7 +111,6 @@ export function useFinanceTransactions() {
 		transactions,
 		filteredTransactions,
 		summary,
-		source: data?.source,
 		generatedAt: data?.generated_at,
 		isLoading,
 		isFetching,
@@ -114,6 +119,7 @@ export function useFinanceTransactions() {
 		updateDateTo,
 		updateSearchTerm,
 		updateDirection,
+		updateSortOrder,
 		refetchTransactions,
 		exportTransactions,
 	};
