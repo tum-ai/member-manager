@@ -108,11 +108,20 @@ export function filterFinanceTransactions(
 	transactions: BuchhaltungsButlerTransaction[],
 	filters: FinanceFilters,
 ): BuchhaltungsButlerTransaction[] {
-	return transactions.filter(
+	const filtered = transactions.filter(
 		(transaction) =>
 			matchesDirection(transaction, filters.direction) &&
 			matchesSearch(transaction, filters.searchTerm),
 	);
+	const dateDirection = filters.sortOrder === "date-desc" ? -1 : 1;
+
+	return [...filtered].sort((left, right) => {
+		const dateComparison = left.date.localeCompare(right.date);
+		if (dateComparison !== 0) {
+			return dateComparison * dateDirection;
+		}
+		return left.external_id.localeCompare(right.external_id);
+	});
 }
 
 export function summarizeFinanceTransactions(

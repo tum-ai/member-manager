@@ -32,9 +32,9 @@ function renderSection(
 			dateTo: "2026-07-08",
 			searchTerm: "",
 			direction: "all",
+			sortOrder: "date-desc",
 		},
 		transactions: [transaction],
-		source: "mock",
 		generatedAt: "2026-07-08T12:00:00.000Z",
 		isLoading: false,
 		isFetching: false,
@@ -43,6 +43,7 @@ function renderSection(
 		onDateToChange: vi.fn(),
 		onSearchTermChange: vi.fn(),
 		onDirectionChange: vi.fn(),
+		onSortOrderChange: vi.fn(),
 		onRefresh: vi.fn(),
 		onExport: vi.fn(),
 		...overrides,
@@ -52,11 +53,12 @@ function renderSection(
 }
 
 describe("BuchhaltungsButlerTransactionsSection", () => {
-	it("renders transaction rows and source metadata", () => {
+	it("renders transaction rows without exposing the data source", () => {
 		renderSection();
 
 		expect(screen.getByText("BuchhaltungsButler Postings")).toBeInTheDocument();
-		expect(screen.getByText("Mock data")).toBeInTheDocument();
+		expect(screen.queryByText("Mock data")).not.toBeInTheDocument();
+		expect(screen.queryByText("Real API")).not.toBeInTheDocument();
 		expect(screen.getByText("Sponsoring JetBrains")).toBeInTheDocument();
 		expect(
 			screen.getByText("JetBrains partnership tranche 1"),
@@ -78,6 +80,14 @@ describe("BuchhaltungsButlerTransactionsSection", () => {
 			}),
 		);
 		expect(props.onDirectionChange).toHaveBeenCalledWith("expenses");
+
+		await user.click(screen.getByLabelText("Sort order"));
+		await user.click(
+			await within(await screen.findByRole("listbox")).findByRole("option", {
+				name: "Oldest first",
+			}),
+		);
+		expect(props.onSortOrderChange).toHaveBeenCalledWith("date-asc");
 
 		await user.click(screen.getByRole("button", { name: /refresh/i }));
 		await user.click(screen.getByRole("button", { name: /export/i }));

@@ -1,7 +1,12 @@
-import { Download, RefreshCw, Search, SlidersHorizontal } from "lucide-react";
+import {
+	ArrowDownUp,
+	Download,
+	RefreshCw,
+	Search,
+	SlidersHorizontal,
+} from "lucide-react";
 import type { ReactElement } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -26,6 +31,7 @@ import type {
 	BuchhaltungsButlerTransaction,
 	FinanceDirectionFilter,
 	FinanceFilters,
+	FinanceSortOrder,
 } from "@/features/finance/financeTypes";
 import {
 	formatFinanceAmount,
@@ -35,7 +41,6 @@ import {
 interface BuchhaltungsButlerTransactionsSectionProps {
 	filters: FinanceFilters;
 	transactions: BuchhaltungsButlerTransaction[];
-	source?: "mock" | "real";
 	generatedAt?: string;
 	isLoading: boolean;
 	isFetching: boolean;
@@ -44,6 +49,7 @@ interface BuchhaltungsButlerTransactionsSectionProps {
 	onDateToChange: (value: string) => void;
 	onSearchTermChange: (value: string) => void;
 	onDirectionChange: (value: FinanceDirectionFilter) => void;
+	onSortOrderChange: (value: FinanceSortOrder) => void;
 	onRefresh: () => void;
 	onExport: () => void;
 }
@@ -51,7 +57,6 @@ interface BuchhaltungsButlerTransactionsSectionProps {
 export function BuchhaltungsButlerTransactionsSection({
 	filters,
 	transactions,
-	source,
 	generatedAt,
 	isLoading,
 	isFetching,
@@ -60,6 +65,7 @@ export function BuchhaltungsButlerTransactionsSection({
 	onDateToChange,
 	onSearchTermChange,
 	onDirectionChange,
+	onSortOrderChange,
 	onRefresh,
 	onExport,
 }: BuchhaltungsButlerTransactionsSectionProps): ReactElement {
@@ -68,14 +74,7 @@ export function BuchhaltungsButlerTransactionsSection({
 			<CardHeader className="gap-4">
 				<div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
 					<div>
-						<div className="flex flex-wrap items-center gap-2">
-							<CardTitle>BuchhaltungsButler Postings</CardTitle>
-							{source && (
-								<Badge variant={source === "real" ? "success" : "neutral"}>
-									{source === "real" ? "Real API" : "Mock data"}
-								</Badge>
-							)}
-						</div>
+						<CardTitle>BuchhaltungsButler Postings</CardTitle>
 						{generatedAt && (
 							<p className="mt-1 text-sm text-muted-foreground">
 								Loaded {formatFinanceDate(generatedAt)}
@@ -98,7 +97,7 @@ export function BuchhaltungsButlerTransactionsSection({
 					</div>
 				</div>
 
-				<div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1.5fr_12rem]">
+				<div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-[1fr_1fr_1.5fr_11rem_12rem]">
 					<div className="grid gap-2">
 						<Label htmlFor="finance-date-from">From</Label>
 						<Input
@@ -145,6 +144,23 @@ export function BuchhaltungsButlerTransactionsSection({
 								<SelectItem value="all">All</SelectItem>
 								<SelectItem value="income">Income</SelectItem>
 								<SelectItem value="expenses">Expenses</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+					<div className="grid gap-2">
+						<Label htmlFor="finance-sort-order">Sort</Label>
+						<Select value={filters.sortOrder} onValueChange={onSortOrderChange}>
+							<SelectTrigger
+								id="finance-sort-order"
+								aria-label="Sort order"
+								className="w-full"
+							>
+								<ArrowDownUp className="size-4" />
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="date-desc">Newest first</SelectItem>
+								<SelectItem value="date-asc">Oldest first</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
