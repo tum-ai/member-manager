@@ -1,6 +1,6 @@
+import type { ContractConditionalBlock } from "@member-manager/shared";
 import { describe, expect, it } from "vitest";
 import { renderContractText } from "./renderContract";
-import type { ContractConditionalBlock } from "./useContracts";
 
 function block(
 	overrides: Partial<ContractConditionalBlock> &

@@ -3,6 +3,7 @@ import { describe, test } from "node:test";
 import {
 	classifyFile,
 	countLinesInSource,
+	filterExistingPaths,
 	findCrossFeatureImports,
 	findStaleAllowlist,
 	HARD_LIMIT,
@@ -11,6 +12,16 @@ import {
 } from "./check-file-size.mjs";
 
 const ALLOWLISTED = "client/src/features/profile/ProfilePage.tsx";
+
+test("filterExistingPaths ignores unstaged deletions", () => {
+	const existing = new Set(["kept.tsx"]);
+	assert.deepEqual(
+		filterExistingPaths(["kept.tsx", "deleted.tsx"], (path) =>
+			existing.has(path),
+		),
+		["kept.tsx"],
+	);
+});
 
 describe("classifyFile size policy", () => {
 	test("hard-fails a non-allowlisted gated file over the hard limit", () => {

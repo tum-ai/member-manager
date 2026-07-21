@@ -1,3 +1,26 @@
+export const CONTRACT_DATA_TYPES = [
+	"TEXT",
+	"TEXTAREA",
+	"NUMBER",
+	"DATE",
+	"BOOLEAN",
+	"SELECT",
+	"FILE",
+	"EMAIL",
+] as const;
+
+export type ContractVariableDataType = (typeof CONTRACT_DATA_TYPES)[number];
+export const CONTRACT_VARIABLE_DATA_TYPES = CONTRACT_DATA_TYPES;
+
+export const CONTRACT_CONDITION_TYPES = [
+	"ALWAYS",
+	"IF_YES",
+	"IF_NO",
+	"IF_VALUE",
+] as const;
+
+export type ContractConditionType = (typeof CONTRACT_CONDITION_TYPES)[number];
+
 export const CONTRACT_WORKFLOW_STATUSES = [
 	"draft",
 	"submitted",
@@ -17,24 +40,112 @@ export const CONTRACT_WORKFLOW_STATUSES = [
 export type ContractWorkflowStatus =
 	(typeof CONTRACT_WORKFLOW_STATUSES)[number];
 
-/**
- * Data types a template author can assign to a contract variable. EMAIL
- * behaves like TEXT but gets email-format validation on both client and
- * server.
- */
-export const CONTRACT_VARIABLE_DATA_TYPES = [
-	"TEXT",
-	"TEXTAREA",
-	"NUMBER",
-	"DATE",
-	"BOOLEAN",
-	"SELECT",
-	"FILE",
-	"EMAIL",
-] as const;
+export const CONTRACT_REVIEW_STATUSES = [
+	"draft",
+	"submitted",
+	"legal_review",
+	"in_review",
+	"approved",
+	"rejected",
+	"inquiry",
+	"signed",
+	"completed",
+] as const satisfies readonly ContractWorkflowStatus[];
 
-export type ContractVariableDataType =
-	(typeof CONTRACT_VARIABLE_DATA_TYPES)[number];
+export type ContractReviewStatus = (typeof CONTRACT_REVIEW_STATUSES)[number];
+
+export interface ContractTemplate {
+	id: string;
+	name: string;
+	description: string | null;
+	contract_text: string;
+	is_active: boolean;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface ContractTemplateVariable {
+	id: string;
+	template_id: string;
+	variable_name: string;
+	label: string;
+	data_type: ContractVariableDataType;
+	help_text: string | null;
+	options: unknown | null;
+	is_required: boolean;
+	is_multiselect: boolean;
+	show_if_variable: string | null;
+	show_if_value: string | null;
+	sort_order: number;
+}
+
+export interface ContractConditionalBlock {
+	id: string;
+	template_id: string;
+	name: string;
+	condition_type: ContractConditionType;
+	condition_variable: string | null;
+	condition_value: string | null;
+	block_text: string;
+	sort_order: number;
+}
+
+export type ContractRenderableBlock = Pick<
+	ContractConditionalBlock,
+	| "condition_type"
+	| "condition_variable"
+	| "condition_value"
+	| "block_text"
+	| "sort_order"
+>;
+
+export interface ContractTemplateDetail {
+	template: ContractTemplate;
+	variables: ContractTemplateVariable[];
+	blocks: ContractConditionalBlock[];
+}
+
+export interface RenderedContractDocument {
+	text: string;
+	html: string;
+	pages: string[];
+}
+
+export interface ContractPartnerComment {
+	id: string;
+	submission_id: string;
+	author_type: "partner" | "internal";
+	author_name: string | null;
+	author_email: string | null;
+	comment: string;
+	document_version_id: string | null;
+	created_at: string;
+}
+
+export interface PublicContractPartnerComment {
+	author_type: "partner" | "internal";
+	author_name: string | null;
+	comment: string;
+	created_at: string;
+}
+
+export interface PublicSignPayload {
+	contract_text: string;
+	html: string;
+	pages: string[];
+	status: ContractWorkflowStatus;
+	comments: PublicContractPartnerComment[];
+}
+
+export interface PublicBoardSignPayload {
+	contract_text: string;
+	html: string;
+	pages: string[];
+	status: ContractWorkflowStatus;
+	partner_signer_name: string | null;
+	partner_signature_data: string | null;
+	partner_signed_at: string | null;
+}
 
 /**
  * A single status transition recorded for a contract submission. Appended

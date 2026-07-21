@@ -1,42 +1,35 @@
-import type { BadgeVariant } from "@/components/ui/badge";
 import type {
-	ContractSubmissionReviewStatus,
-	ContractSubmissionStatus,
-} from "./useContracts";
+	ContractReviewStatus,
+	ContractWorkflowStatus,
+} from "@member-manager/shared";
+import type { BadgeVariant } from "@/components/ui/badge";
 
-/**
- * Statuses that Legal can set directly via the manual override dropdown, and
- * the only statuses the dropdown is shown for. Mirrors the server's
- * MANUAL_STATUSES — partner/board/signing transitions stay exclusive to their
- * dedicated flows, and "rejected" requires a reason via the Reject button.
- */
-export const CONTRACT_MANUAL_STATUSES: ContractSubmissionReviewStatus[] = [
+export const CONTRACT_MANUAL_STATUSES = [
 	"submitted",
 	"legal_review",
 	"in_review",
 	"inquiry",
 	"approved",
-];
+] as const satisfies readonly ContractReviewStatus[];
 
-export const CONTRACT_STATUS_LABELS: Record<ContractSubmissionStatus, string> =
-	{
-		draft: "Draft",
-		submitted: "Submitted",
-		legal_review: "Legal review",
-		in_review: "In review",
-		approved: "Approved",
-		sent_to_partner: "Sent to partner",
-		partner_comments: "Partner comments",
-		partner_signed: "Partner signed",
-		board_signed: "Board signed",
-		rejected: "Rejected",
-		inquiry: "Inquiry",
-		signed: "Signed",
-		completed: "Completed",
-	};
+export const CONTRACT_STATUS_LABELS: Record<ContractWorkflowStatus, string> = {
+	draft: "Draft",
+	submitted: "Submitted",
+	legal_review: "Legal review",
+	in_review: "In review",
+	approved: "Approved",
+	sent_to_partner: "Sent to partner",
+	partner_comments: "Partner comments",
+	partner_signed: "Partner signed",
+	board_signed: "Board signed",
+	rejected: "Rejected",
+	inquiry: "Inquiry",
+	signed: "Signed",
+	completed: "Completed",
+};
 
 export const CONTRACT_STATUS_TONE: Record<
-	ContractSubmissionStatus,
+	ContractWorkflowStatus,
 	BadgeVariant
 > = {
 	draft: "neutral",
@@ -54,14 +47,12 @@ export const CONTRACT_STATUS_TONE: Record<
 	completed: "success",
 };
 
-export function getContractStatusLabel(
-	status: ContractSubmissionStatus,
-): string {
+export function getContractStatusLabel(status: ContractWorkflowStatus): string {
 	return CONTRACT_STATUS_LABELS[status] ?? status;
 }
 
 export function getContractStatusTone(
-	status: ContractSubmissionStatus,
+	status: ContractWorkflowStatus,
 ): BadgeVariant {
 	return CONTRACT_STATUS_TONE[status] ?? "neutral";
 }

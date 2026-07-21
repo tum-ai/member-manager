@@ -1,3 +1,4 @@
+import type { PublicSignPayload } from "@member-manager/shared";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -9,13 +10,12 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
-import { SignaturePad } from "./SignaturePad";
 import {
 	fetchPublicSignPayload,
-	type PublicSignPayload,
 	postPublicComment,
 	postPublicSignature,
-} from "./useContracts";
+} from "./contractApi";
+import { SignaturePad } from "./SignaturePad";
 
 export default function ContractSignPage(): JSX.Element {
 	const { token } = useParams<{ token: string }>();

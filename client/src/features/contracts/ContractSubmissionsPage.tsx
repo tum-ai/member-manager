@@ -1,3 +1,4 @@
+import type { ContractWorkflowStatus } from "@member-manager/shared";
 import { useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -29,18 +30,15 @@ import {
 	getContractStatusLabel,
 	getContractStatusTone,
 } from "./contractStatus";
-import {
-	type ContractSubmissionStatus,
-	useContractSubmissions,
-	useContractTemplates,
-} from "./useContracts";
+import { useContractSubmissions } from "./hooks/useContractSubmissions";
+import { useContractTemplates } from "./hooks/useContractTemplates";
 
 const STATUS_FILTERS: Array<{
-	value: ContractSubmissionStatus | "all";
+	value: ContractWorkflowStatus | "all";
 	label: string;
 }> = [
 	{ value: "all", label: "All" },
-	...(Object.keys(CONTRACT_STATUS_LABELS) as ContractSubmissionStatus[]).map(
+	...(Object.keys(CONTRACT_STATUS_LABELS) as ContractWorkflowStatus[]).map(
 		(value) => ({ value, label: CONTRACT_STATUS_LABELS[value] }),
 	),
 ];
@@ -50,7 +48,7 @@ export default function ContractSubmissionsPage(): JSX.Element {
 	const templatesQuery = useContractTemplates();
 	const { currentUserId, isAdmin } = useCurrentUserIsAdmin();
 	const [statusFilter, setStatusFilter] = useState<
-		ContractSubmissionStatus | "all"
+		ContractWorkflowStatus | "all"
 	>("all");
 
 	const templateNames = useMemo(() => {
@@ -76,7 +74,7 @@ export default function ContractSubmissionsPage(): JSX.Element {
 				<Select
 					value={statusFilter}
 					onValueChange={(value) =>
-						setStatusFilter(value as ContractSubmissionStatus | "all")
+						setStatusFilter(value as ContractWorkflowStatus | "all")
 					}
 				>
 					<SelectTrigger

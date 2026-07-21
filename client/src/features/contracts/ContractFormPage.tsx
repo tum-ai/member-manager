@@ -19,13 +19,15 @@ import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import { DynamicForm, isVisible } from "./DynamicForm";
 import {
-	useContractPreview,
 	useContractSubmission,
-	useContractTemplate,
-	useContractTemplates,
 	useCreateContractSubmission,
 	useUpdateContractDraft,
-} from "./useContracts";
+} from "./hooks/useContractSubmissions";
+import {
+	useContractPreview,
+	useContractTemplate,
+	useContractTemplates,
+} from "./hooks/useContractTemplates";
 
 export default function ContractFormPage(): JSX.Element {
 	const navigate = useNavigate();

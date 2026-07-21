@@ -1,3 +1,4 @@
+import type { PublicBoardSignPayload } from "@member-manager/shared";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -7,12 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
-import { SignaturePad } from "./SignaturePad";
 import {
 	fetchPublicBoardSignPayload,
-	type PublicBoardSignPayload,
 	postPublicBoardSignature,
-} from "./useContracts";
+} from "./contractApi";
+import { SignaturePad } from "./SignaturePad";
 
 export default function ContractBoardSignPage(): JSX.Element {
 	const { token } = useParams<{ token: string }>();
