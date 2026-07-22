@@ -11,15 +11,15 @@ process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
 
 const {
-	FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT,
 	aggregateByDepartment,
 	applySavedPostingAllocations,
 	buildEffectiveDepartmentTransactions,
 	buildEffectivePostingSplits,
+	buildMappingLookup,
 	buildMappingRows,
-	deriveAutomaticDepartment,
 	loadEffectiveDepartmentTransactions,
 	normalizeCostLocation,
+	resolveTransactionDepartment,
 } = await import("../../src/lib/financeDepartments.js");
 const { setSupabaseClient } = await import("../../src/lib/supabase.js");
 
@@ -67,54 +67,31 @@ describe("normalizeCostLocation", () => {
 	});
 });
 
-describe("automatic department fallback", () => {
-	test("exports the canonical operational department digit map", () => {
-		assert.deepStrictEqual(FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT, {
-			"1": "Community",
-			"2": "Partners & Sponsors",
-			"3": "Software Development",
-			"4": "Marketing",
-			"5": "Venture",
-			"6": "Makeathon",
-			"7": "Innovation Department",
-			"8": "Legal & Finance",
-			"9": "Research",
-		});
+describe("resolveTransactionDepartment", () => {
+	test("resolves the department from the saved cost-location mapping", () => {
+		const lookup = buildMappingLookup([mapping("82", "Makeathon", "verein")]);
+		assert.deepStrictEqual(
+			resolveTransactionDepartment(
+				tx({ cost_location: "082", transaction_amount: -50 }),
+				lookup,
+			),
+			{ department: "Makeathon", bereich: "verein" },
+		);
 	});
 
-	test("uses booking numbers first and assigned invoice numbers as fallback", () => {
-		assert.strictEqual(
-			deriveAutomaticDepartment(
+	test("leaves unmapped cost locations without a department (no digit fallback)", () => {
+		const lookup = buildMappingLookup([mapping("82", "Makeathon")]);
+		assert.deepStrictEqual(
+			resolveTransactionDepartment(
 				tx({
 					cost_location: "999",
 					transaction_amount: -50,
 					booking_number: "6-2026-001",
-					receipts_assigned_invoice_numbers: "INV-42026",
-				}),
-			),
-			"Makeathon",
-		);
-		assert.strictEqual(
-			deriveAutomaticDepartment(
-				tx({
-					cost_location: "999",
-					transaction_amount: -50,
-					booking_number: "",
-					receipts_assigned_invoice_numbers: "INV-42026",
-				}),
-			),
-			"Marketing",
-		);
-		assert.strictEqual(
-			deriveAutomaticDepartment(
-				tx({
-					cost_location: "999",
-					transaction_amount: -50,
-					booking_number: "0-2026-001",
 					receipts_assigned_invoice_numbers: "INV-62026",
 				}),
+				lookup,
 			),
-			null,
+			{ department: null, bereich: null },
 		);
 	});
 });
@@ -242,7 +219,7 @@ describe("aggregateByDepartment", () => {
 		assert.deepStrictEqual(reverseDepartment, forwardDepartment);
 	});
 
-	test("uses the document fallback while stored mappings remain authoritative", () => {
+	test("leaves postings unmapped unless a stored mapping assigns them", () => {
 		const transaction = tx({
 			cost_location: "999",
 			transaction_amount: -100,
@@ -250,8 +227,11 @@ describe("aggregateByDepartment", () => {
 		});
 
 		const automatic = aggregateByDepartment([transaction], []);
-		assert.strictEqual(automatic.by_department[0].department, "Makeathon");
-		assert.strictEqual(automatic.by_department[0].unmapped, false);
+		assert.strictEqual(
+			automatic.by_department[0].department,
+			FINANCE_UNMAPPED_DEPARTMENT,
+		);
+		assert.strictEqual(automatic.by_department[0].unmapped, true);
 
 		const overridden = aggregateByDepartment(
 			[transaction],
