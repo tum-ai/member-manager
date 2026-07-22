@@ -1,9 +1,23 @@
 import {
 	BuchhaltungsButlerTransactionsQuerySchema,
 	BuchhaltungsButlerTransactionsResponseSchema,
+	FinanceAccountLabelsResponseSchema,
+	FinanceAccountLabelUpsertSchema,
+	FinanceAnalyticsQuerySchema,
 	FinanceAnalyticsResponseSchema,
+	FinanceBudgetQuerySchema,
+	FinanceBudgetUpsertSchema,
+	FinanceBudgetVsActualResponseSchema,
+	FinanceCategoryMappingsResponseSchema,
+	FinanceCategoryMappingUpsertSchema,
 	FinanceDepartmentMappingsResponseSchema,
 	FinanceDepartmentMappingUpsertSchema,
+	FinancePlanItemCreateSchema,
+	FinancePlanItemsResponseSchema,
+	FinancePlanItemUpdateSchema,
+	FinancePlanQuerySchema,
+	resolveFinancePeriodRange,
+	TUMAI_DEPARTMENTS,
 } from "@member-manager/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
@@ -11,17 +25,51 @@ import {
 	BuchhaltungsButlerConfigError,
 } from "../lib/buchhaltungsbutler.js";
 import { getBuchhaltungsButlerTransactions } from "../lib/buchhaltungsbutlerPostings.js";
-import { DatabaseError } from "../lib/errors.js";
+import { AppError, DatabaseError } from "../lib/errors.js";
+import {
+	aggregateByAccount,
+	buildAccountLabelRows,
+	loadAccountLabels,
+	upsertAccountLabel,
+} from "../lib/financeAccounts.js";
+import {
+	computeBudgetVsActual,
+	loadBudgets,
+	upsertBudget,
+} from "../lib/financeBudgets.js";
+import {
+	aggregateByCategory,
+	buildCategoryMappingRows,
+	loadCategoryMappings,
+	upsertCategoryMapping,
+} from "../lib/financeCategories.js";
 import {
 	aggregateByDepartment,
 	buildMappingRows,
 	loadDepartmentMappings,
+	loadEffectiveDepartmentTransactions,
 	upsertDepartmentMapping,
 } from "../lib/financeDepartments.js";
 import {
+	computePlanTotals,
+	createPlanItem,
+	deletePlanItem,
+	getPlanItem,
+	loadPlanItems,
+	updatePlanItem,
+} from "../lib/financePlans.js";
+import {
+	assertCanWriteDepartment,
+	filterTransactionsByScope,
+	resolveFinanceViewerScope,
+} from "../lib/financeScope.js";
+import { aggregateByVatRate } from "../lib/financeVat.js";
+import {
 	authenticate,
+	requireFinanceViewer,
 	requireReimbursementReviewer,
 } from "../middleware/auth.js";
+import type { AuthenticatedRequest } from "../types/index.js";
 
 export async function financeRoutes(server: FastifyInstance) {
 	server.get(
@@ -50,14 +98,14 @@ export async function financeRoutes(server: FastifyInstance) {
 		},
 	);
 
-	// LnF analytics: per-department / per-month / per-Bereich expense rollup.
+	// Finance analytics: per-department / per-month / per-Bereich expense rollup.
+	// Reviewers see everything (or one department); department-scoped members are
+	// restricted to their own department's postings.
 	server.get(
 		"/finance/analytics",
-		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		{ preHandler: [authenticate, requireFinanceViewer] },
 		async (request, reply) => {
-			const parsed = BuchhaltungsButlerTransactionsQuerySchema.safeParse(
-				request.query,
-			);
+			const parsed = FinanceAnalyticsQuerySchema.safeParse(request.query);
 			if (!parsed.success) {
 				return reply.status(400).send({
 					error: "Invalid query",
@@ -65,13 +113,41 @@ export async function financeRoutes(server: FastifyInstance) {
 				});
 			}
 
+			const userId = (request as AuthenticatedRequest).user.id;
+			const scope = await resolveFinanceViewerScope(
+				userId,
+				parsed.data.department,
+			);
+
 			try {
-				const [{ transactions, source }, mappings] = await Promise.all([
-					getBuchhaltungsButlerTransactions(parsed.data),
+				const [
+					{ transactions, source },
+					mappings,
+					categoryMappings,
+					accountLabels,
+				] = await Promise.all([
+					getBuchhaltungsButlerTransactions({
+						date_from: parsed.data.date_from,
+						date_to: parsed.data.date_to,
+					}),
 					loadDepartmentMappings(),
+					loadCategoryMappings(),
+					loadAccountLabels(),
 				]);
+				const effectiveTransactions = await loadEffectiveDepartmentTransactions(
+					transactions,
+					mappings,
+				);
+				const scoped = filterTransactionsByScope(
+					effectiveTransactions,
+					mappings,
+					scope,
+				);
 				return FinanceAnalyticsResponseSchema.parse({
-					...aggregateByDepartment(transactions, mappings),
+					...aggregateByDepartment(scoped, mappings),
+					by_category: aggregateByCategory(scoped, categoryMappings),
+					by_account: aggregateByAccount(scoped, accountLabels),
+					by_vat_rate: aggregateByVatRate(scoped),
 					source,
 					generated_at: new Date().toISOString(),
 				});
@@ -147,6 +223,400 @@ export async function financeRoutes(server: FastifyInstance) {
 					"Failed to upsert finance department mapping",
 				);
 				throw new DatabaseError("Failed to save department mapping");
+			}
+		},
+	);
+
+	// Category editor: second cost locations (stored + discovered from postings)
+	// plus their label and usage stats.
+	server.get(
+		"/finance/category-mappings",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const parsed = BuchhaltungsButlerTransactionsQuerySchema.safeParse(
+				request.query,
+			);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid query",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			try {
+				const [{ transactions }, categoryMappings] = await Promise.all([
+					getBuchhaltungsButlerTransactions(parsed.data),
+					loadCategoryMappings(),
+				]);
+				return FinanceCategoryMappingsResponseSchema.parse({
+					rows: buildCategoryMappingRows(transactions, categoryMappings),
+					generated_at: new Date().toISOString(),
+				});
+			} catch (error) {
+				return handleFinanceError(request, reply, error);
+			}
+		},
+	);
+
+	server.put(
+		"/finance/category-mappings/:costLocationTwo",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const costLocationTwo = (
+				request.params as { costLocationTwo?: string }
+			).costLocationTwo?.trim();
+			if (!costLocationTwo) {
+				return reply.status(400).send({ error: "Missing cost location" });
+			}
+
+			const parsed = FinanceCategoryMappingUpsertSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid mapping",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			try {
+				const mapping = await upsertCategoryMapping({
+					costLocationTwo,
+					label: parsed.data.label,
+					note: parsed.data.note ?? null,
+				});
+				return mapping;
+			} catch (error) {
+				request.log.error(
+					{ err: error, costLocationTwo },
+					"Failed to upsert finance category mapping",
+				);
+				throw new DatabaseError("Failed to save category mapping");
+			}
+		},
+	);
+
+	// Account editor: ledger accounts (stored + discovered from postings) plus
+	// their label and usage stats.
+	server.get(
+		"/finance/account-labels",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const parsed = BuchhaltungsButlerTransactionsQuerySchema.safeParse(
+				request.query,
+			);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid query",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			try {
+				const [{ transactions }, accountLabels] = await Promise.all([
+					getBuchhaltungsButlerTransactions(parsed.data),
+					loadAccountLabels(),
+				]);
+				return FinanceAccountLabelsResponseSchema.parse({
+					rows: buildAccountLabelRows(transactions, accountLabels),
+					generated_at: new Date().toISOString(),
+				});
+			} catch (error) {
+				return handleFinanceError(request, reply, error);
+			}
+		},
+	);
+
+	server.put(
+		"/finance/account-labels/:account",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const account = (request.params as { account?: string }).account?.trim();
+			if (!account) {
+				return reply.status(400).send({ error: "Missing account" });
+			}
+
+			const parsed = FinanceAccountLabelUpsertSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid label",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			try {
+				const label = await upsertAccountLabel({
+					account,
+					label: parsed.data.label,
+					note: parsed.data.note ?? null,
+				});
+				return label;
+			} catch (error) {
+				request.log.error(
+					{ err: error, account },
+					"Failed to upsert finance account label",
+				);
+				throw new DatabaseError("Failed to save account label");
+			}
+		},
+	);
+
+	// Budgets: per-department ceilings for a fiscal period, joined to the actual
+	// (gross) expenses in that period so LnF sees budget vs. actual.
+	server.get(
+		"/finance/budgets",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const parsed = FinanceBudgetQuerySchema.safeParse(request.query);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid query",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const { period_type, period_key } = parsed.data;
+			const userId = (request as AuthenticatedRequest).user.id;
+			const scope = await resolveFinanceViewerScope(
+				userId,
+				parsed.data.department,
+			);
+			const range = resolveFinancePeriodRange(period_type, period_key);
+
+			try {
+				const [{ transactions, source }, mappings, budgets] = await Promise.all(
+					[
+						getBuchhaltungsButlerTransactions({
+							date_from: range.dateFrom,
+							date_to: range.dateTo,
+						}),
+						loadDepartmentMappings(),
+						loadBudgets(period_type, period_key),
+					],
+				);
+				const effectiveTransactions = await loadEffectiveDepartmentTransactions(
+					transactions,
+					mappings,
+				);
+				const scoped = filterTransactionsByScope(
+					effectiveTransactions,
+					mappings,
+					scope,
+				);
+				const { by_department } = aggregateByDepartment(scoped, mappings);
+				const scopedBudgets =
+					scope.department === null
+						? budgets
+						: budgets.filter(
+								(budget) => budget.department === scope.department,
+							);
+				const { rows, totals } = computeBudgetVsActual(
+					by_department,
+					scopedBudgets,
+					scope.department === null ? TUMAI_DEPARTMENTS : [scope.department],
+				);
+				return FinanceBudgetVsActualResponseSchema.parse({
+					period_type,
+					period_key,
+					rows,
+					totals,
+					source,
+					generated_at: new Date().toISOString(),
+				});
+			} catch (error) {
+				return handleFinanceError(request, reply, error);
+			}
+		},
+	);
+
+	server.put(
+		"/finance/budgets",
+		{ preHandler: [authenticate, requireReimbursementReviewer] },
+		async (request, reply) => {
+			const parsed = FinanceBudgetUpsertSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid budget",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const userId = (request as AuthenticatedRequest).user.id;
+
+			try {
+				const budget = await upsertBudget({
+					department: parsed.data.department,
+					periodType: parsed.data.period_type,
+					periodKey: parsed.data.period_key,
+					amountPlanned: parsed.data.amount_planned,
+					note: parsed.data.note ?? null,
+					setBy: userId,
+				});
+				return budget;
+			} catch (error) {
+				request.log.error(
+					{ err: error, department: parsed.data.department },
+					"Failed to upsert finance budget",
+				);
+				throw new DatabaseError("Failed to save budget");
+			}
+		},
+	);
+
+	// Planning: bottom-up plan line items a department drafts within its budget.
+	// Viewers read their scope; reviewers write any department, scoped members
+	// only their own.
+	server.get(
+		"/finance/plan-items",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const parsed = FinancePlanQuerySchema.safeParse(request.query);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid query",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const { period_type, period_key } = parsed.data;
+			const userId = (request as AuthenticatedRequest).user.id;
+			const scope = await resolveFinanceViewerScope(
+				userId,
+				parsed.data.department,
+			);
+			const range = resolveFinancePeriodRange(period_type, period_key);
+
+			try {
+				const [{ transactions, source }, mappings, budgets, items] =
+					await Promise.all([
+						getBuchhaltungsButlerTransactions({
+							date_from: range.dateFrom,
+							date_to: range.dateTo,
+						}),
+						loadDepartmentMappings(),
+						loadBudgets(period_type, period_key),
+						loadPlanItems(period_type, period_key, scope.department),
+					]);
+				const effectiveTransactions = await loadEffectiveDepartmentTransactions(
+					transactions,
+					mappings,
+				);
+				const scoped = filterTransactionsByScope(
+					effectiveTransactions,
+					mappings,
+					scope,
+				);
+				const { by_department } = aggregateByDepartment(scoped, mappings);
+				const scopedBudgets =
+					scope.department === null
+						? budgets
+						: budgets.filter(
+								(budget) => budget.department === scope.department,
+							);
+				return FinancePlanItemsResponseSchema.parse({
+					period_type,
+					period_key,
+					items,
+					totals: computePlanTotals(items, scopedBudgets, by_department),
+					source,
+					generated_at: new Date().toISOString(),
+				});
+			} catch (error) {
+				return handleFinanceError(request, reply, error);
+			}
+		},
+	);
+
+	server.post(
+		"/finance/plan-items",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const parsed = FinancePlanItemCreateSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid plan item",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const userId = (request as AuthenticatedRequest).user.id;
+			await assertCanWriteDepartment(userId, parsed.data.department);
+
+			try {
+				const item = await createPlanItem(parsed.data, userId);
+				return reply.status(201).send(item);
+			} catch (error) {
+				request.log.error(
+					{ err: error, department: parsed.data.department },
+					"Failed to create finance plan item",
+				);
+				throw new DatabaseError("Failed to create plan item");
+			}
+		},
+	);
+
+	server.put(
+		"/finance/plan-items/:id",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const id = (request.params as { id?: string }).id?.trim();
+			if (!id) {
+				return reply.status(400).send({ error: "Missing plan item id" });
+			}
+
+			const parsed = FinancePlanItemUpdateSchema.safeParse(request.body);
+			if (!parsed.success) {
+				return reply.status(400).send({
+					error: "Invalid plan item",
+					details: parsed.error.flatten(),
+				});
+			}
+
+			const userId = (request as AuthenticatedRequest).user.id;
+			const existing = await getPlanItem(id);
+			if (!existing) {
+				return reply.status(404).send({ error: "Plan item not found" });
+			}
+			await assertCanWriteDepartment(userId, existing.department);
+
+			try {
+				return await updatePlanItem(id, parsed.data);
+			} catch (error) {
+				if (error instanceof AppError) {
+					throw error;
+				}
+				request.log.error(
+					{ err: error, id },
+					"Failed to update finance plan item",
+				);
+				throw new DatabaseError("Failed to update plan item");
+			}
+		},
+	);
+
+	server.delete(
+		"/finance/plan-items/:id",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const id = (request.params as { id?: string }).id?.trim();
+			if (!id) {
+				return reply.status(400).send({ error: "Missing plan item id" });
+			}
+
+			const userId = (request as AuthenticatedRequest).user.id;
+			const existing = await getPlanItem(id);
+			if (!existing) {
+				return reply.status(404).send({ error: "Plan item not found" });
+			}
+			await assertCanWriteDepartment(userId, existing.department);
+
+			try {
+				await deletePlanItem(id);
+				return reply.status(204).send();
+			} catch (error) {
+				request.log.error(
+					{ err: error, id },
+					"Failed to delete finance plan item",
+				);
+				throw new DatabaseError("Failed to delete plan item");
 			}
 		},
 	);

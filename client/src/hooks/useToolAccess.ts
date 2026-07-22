@@ -9,19 +9,23 @@ import { apiClient } from "@/lib/apiClient";
 export function useToolAccess(): {
 	permissions: Permission[];
 	isBoardMember: boolean;
+	department: string | null;
 	isLoading: boolean;
 } {
 	const { data, isLoading } = useQuery({
 		queryKey: ["tool-access"],
 		queryFn: async () =>
-			await apiClient<{ permissions: Permission[]; isBoardMember: boolean }>(
-				"/api/me/tool-access",
-			),
+			await apiClient<{
+				permissions: Permission[];
+				isBoardMember: boolean;
+				department: string | null;
+			}>("/api/me/tool-access"),
 	});
 
 	return {
 		permissions: data?.permissions ?? [],
 		isBoardMember: data?.isBoardMember ?? false,
+		department: data?.department ?? null,
 		isLoading,
 	};
 }

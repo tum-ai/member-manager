@@ -81,6 +81,11 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		isSyncingBuchhaltungsButler,
 		updateDepartmentAsync,
 		isUpdatingDepartment,
+		financeProjects = [],
+		financePlanItems = [],
+		financePostings = [],
+		updateFinanceLinksAsync,
+		isUpdatingFinanceLinks,
 	} = useReimbursementReview();
 	const [search, setSearch] = useState("");
 	const [departmentFilter, setDepartmentFilter] = useState(
@@ -189,6 +194,28 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		} catch (syncError) {
 			showToast(
 				`Could not sync to BuchhaltungsButler: ${getErrorMessage(syncError)}`,
+				"error",
+			);
+		}
+	};
+
+	const handleFinanceLinksChange = async (
+		requestId: string,
+		financeProjectId: string | null,
+		financePlanItemId: string | null,
+		bbPostingExternalId: string | null,
+	): Promise<void> => {
+		try {
+			await updateFinanceLinksAsync({
+				requestId,
+				finance_project_id: financeProjectId,
+				finance_plan_item_id: financePlanItemId,
+				bb_posting_external_id: bbPostingExternalId,
+			});
+			showToast("Finance links updated.", "success");
+		} catch (updateError) {
+			showToast(
+				`Could not update finance links: ${getErrorMessage(updateError)}`,
 				"error",
 			);
 		}
@@ -358,6 +385,11 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 						onDepartmentChange={handleDepartmentChange}
 						hasBulkDownload={canBulkDownloadReceipts}
 						isUpdatingDepartment={isUpdatingDepartment}
+						financeProjects={financeProjects}
+						financePlanItems={financePlanItems}
+						financePostings={financePostings}
+						onFinanceLinksChange={handleFinanceLinksChange}
+						isUpdatingFinanceLinks={isUpdatingFinanceLinks}
 						onReceiptOpen={handleReceiptOpen}
 						buchhaltungsButlerSyncStatus={buchhaltungsButlerSyncStatus}
 						isLoadingBuchhaltungsButlerSyncStatus={

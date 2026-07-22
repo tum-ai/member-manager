@@ -5,12 +5,23 @@ import type {
 	FinanceDepartmentMapping,
 } from "@member-manager/shared";
 import { FINANCE_UNMAPPED_DEPARTMENT } from "@member-manager/shared";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
 
-const { aggregateByDepartment, buildMappingRows, normalizeCostLocation } =
-	await import("../../src/lib/financeDepartments.js");
+const {
+	aggregateByDepartment,
+	applySavedPostingAllocations,
+	buildEffectiveDepartmentTransactions,
+	buildEffectivePostingSplits,
+	buildMappingLookup,
+	buildMappingRows,
+	loadEffectiveDepartmentTransactions,
+	normalizeCostLocation,
+	resolveTransactionDepartment,
+} = await import("../../src/lib/financeDepartments.js");
+const { setSupabaseClient } = await import("../../src/lib/supabase.js");
 
 function tx(
 	overrides: Partial<BuchhaltungsButlerTransaction> &
@@ -53,6 +64,35 @@ describe("normalizeCostLocation", () => {
 	test("maps empty / all-zero to a stable 0 bucket", () => {
 		assert.strictEqual(normalizeCostLocation(""), "0");
 		assert.strictEqual(normalizeCostLocation("000"), "0");
+	});
+});
+
+describe("resolveTransactionDepartment", () => {
+	test("resolves the department from the saved cost-location mapping", () => {
+		const lookup = buildMappingLookup([mapping("82", "Makeathon", "verein")]);
+		assert.deepStrictEqual(
+			resolveTransactionDepartment(
+				tx({ cost_location: "082", transaction_amount: -50 }),
+				lookup,
+			),
+			{ department: "Makeathon", bereich: "verein" },
+		);
+	});
+
+	test("leaves unmapped cost locations without a department (no digit fallback)", () => {
+		const lookup = buildMappingLookup([mapping("82", "Makeathon")]);
+		assert.deepStrictEqual(
+			resolveTransactionDepartment(
+				tx({
+					cost_location: "999",
+					transaction_amount: -50,
+					booking_number: "6-2026-001",
+					receipts_assigned_invoice_numbers: "INV-62026",
+				}),
+				lookup,
+			),
+			{ department: null, bereich: null },
+		);
 	});
 });
 
@@ -147,8 +187,16 @@ describe("aggregateByDepartment", () => {
 
 	test("reports a department spanning multiple Bereiche deterministically", () => {
 		const transactions = [
-			tx({ cost_location: "120", transaction_amount: 500 }),
-			tx({ cost_location: "121", transaction_amount: -200 }),
+			tx({
+				cost_location: "120",
+				transaction_amount: 500,
+				debit_postingaccount_number: "6810",
+			}),
+			tx({
+				cost_location: "121",
+				transaction_amount: -200,
+				debit_postingaccount_number: "6840",
+			}),
 		];
 		const mappings = [
 			mapping("120", "Partners & Sponsors", "ideell"),
@@ -169,6 +217,188 @@ describe("aggregateByDepartment", () => {
 
 		assert.strictEqual(forwardDepartment?.bereich, null);
 		assert.deepStrictEqual(reverseDepartment, forwardDepartment);
+	});
+
+	test("leaves postings unmapped unless a stored mapping assigns them", () => {
+		const transaction = tx({
+			cost_location: "999",
+			transaction_amount: -100,
+			booking_number: "62026",
+		});
+
+		const automatic = aggregateByDepartment([transaction], []);
+		assert.strictEqual(
+			automatic.by_department[0].department,
+			FINANCE_UNMAPPED_DEPARTMENT,
+		);
+		assert.strictEqual(automatic.by_department[0].unmapped, true);
+
+		const overridden = aggregateByDepartment(
+			[transaction],
+			[mapping("999", "Research", "ideell")],
+		);
+		assert.strictEqual(overridden.by_department[0].department, "Research");
+		assert.strictEqual(overridden.by_department[0].bereich, "wirtschaftlich");
+	});
+
+	test("splits saved allocations proportionally and overrides department mappings", () => {
+		const transaction = tx({
+			external_id: "BB-allocated",
+			cost_location: "161",
+			transaction_amount: -100,
+			amount: -100,
+			vat: 19,
+			booking_number: "62026",
+		});
+		const effective = applySavedPostingAllocations(
+			[transaction],
+			[mapping("161", "Marketing", "wirtschaftlich")],
+			[
+				{
+					posting_external_id: "BB-allocated",
+					department: "Community",
+					tax_area: "ideell",
+					allocated_amount: -25,
+					allocated_percentage: 25,
+				},
+				{
+					posting_external_id: "BB-allocated",
+					department: "Research",
+					tax_area: null,
+					allocated_amount: -75,
+					allocated_percentage: 75,
+				},
+			],
+		);
+
+		assert.deepStrictEqual(
+			effective.map((posting) => posting.transaction_amount),
+			[-25, -75],
+		);
+		assert.deepStrictEqual(
+			effective.map((posting) => posting.amount),
+			[-25, -75],
+		);
+		const result = aggregateByDepartment(effective, [
+			mapping("161", "Marketing", "wirtschaftlich"),
+		]);
+		assert.strictEqual(
+			result.by_department.find((row) => row.department === "Community")
+				?.expenses,
+			25,
+		);
+		assert.strictEqual(
+			result.by_department.find((row) => row.department === "Research")
+				?.expenses,
+			75,
+		);
+		assert.strictEqual(
+			result.by_department.some((row) => row.department === "Marketing"),
+			false,
+		);
+		assert.strictEqual(result.totals.expenses, 100);
+		assert.strictEqual(result.totals.vat, 15.96);
+	});
+
+	test("rescales persisted percentages when BuchhaltungsButler corrects an amount", () => {
+		const transaction = tx({
+			external_id: "BB-corrected",
+			cost_location: "161",
+			transaction_amount: -100.01,
+			amount: -100.01,
+		});
+		const allocations = [
+			{
+				posting_external_id: "BB-corrected",
+				department: "Research",
+				tax_area: "wirtschaftlich" as const,
+				allocated_amount: -75,
+				allocated_percentage: 66.67,
+			},
+			{
+				posting_external_id: "BB-corrected",
+				department: "Community",
+				tax_area: "ideell" as const,
+				allocated_amount: -25,
+				allocated_percentage: 33.33,
+			},
+		];
+
+		const reportEffectiveSplits = buildEffectivePostingSplits(
+			[transaction],
+			[],
+			allocations,
+		);
+		assert.deepStrictEqual(
+			reportEffectiveSplits.map(({ department, amount }) => ({
+				department,
+				amount,
+			})),
+			[
+				{ department: "Community", amount: -33.33 },
+				{ department: "Research", amount: -66.68 },
+			],
+		);
+
+		const analytics = aggregateByDepartment(
+			buildEffectiveDepartmentTransactions([transaction], [], allocations),
+			[],
+		);
+		assert.strictEqual(analytics.totals.expenses, 100.01);
+		assert.strictEqual(
+			analytics.by_department.find(
+				({ department }) => department === "Community",
+			)?.expenses,
+			33.33,
+		);
+		assert.strictEqual(
+			analytics.by_department.find(
+				({ department }) => department === "Research",
+			)?.expenses,
+			66.68,
+		);
+	});
+
+	test("loads persisted allocation percentages for effective transactions", async () => {
+		let selectedColumns = "";
+		const query = {
+			select(columns: string) {
+				selectedColumns = columns;
+				return this;
+			},
+			async in() {
+				return {
+					data: [
+						{
+							posting_external_id: "BB-loaded",
+							department: "Research",
+							tax_area: "wirtschaftlich",
+							allocated_amount: -100,
+							allocated_percentage: 100,
+						},
+					],
+					error: null,
+				};
+			},
+		};
+		setSupabaseClient({
+			from: () => query,
+		} as unknown as SupabaseClient);
+
+		const effective = await loadEffectiveDepartmentTransactions(
+			[
+				tx({
+					external_id: "BB-loaded",
+					cost_location: "161",
+					transaction_amount: -125,
+					amount: -125,
+				}),
+			],
+			[],
+		);
+
+		assert.match(selectedColumns, /allocated_percentage/);
+		assert.strictEqual(effective[0].transaction_amount, -125);
 	});
 });
 

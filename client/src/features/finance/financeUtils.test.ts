@@ -9,8 +9,12 @@ import {
 	formatFinanceAmountCompact,
 	formatFinanceDate,
 	formatFinanceMonth,
+	formatFinancePeriodLabel,
 	getDefaultFinanceDateRange,
+	getDefaultFinancePeriod,
+	listFinancePeriodKeys,
 	summarizeFinanceTransactions,
+	switchFinancePeriodType,
 } from "./financeUtils";
 
 function makeTransaction(
@@ -156,6 +160,7 @@ describe("financeUtils", () => {
 		expect(formatBereichLabel("wirtschaftlich")).toBe(
 			"Wirtschaftlicher Geschäftsbetrieb",
 		);
+		expect(formatBereichLabel("gemischt")).toBe("Gemischt (50)");
 		expect(formatBereichLabel(null)).toBe("Ohne Bereich");
 	});
 
@@ -168,5 +173,46 @@ describe("financeUtils", () => {
 		expect(formatFinanceAmountCompact(940)).toBe("940 €");
 		expect(formatFinanceAmountCompact(35_500)).toBe("36k €");
 		expect(formatFinanceAmountCompact(1_240_000)).toBe("1,2 Mio €");
+	});
+
+	it("defaults the budget period to the current calendar year", () => {
+		const period = getDefaultFinancePeriod(new Date("2026-07-18T00:00:00Z"));
+		expect(period).toEqual({ type: "year", key: "2026" });
+	});
+
+	it("lists selectable period keys per type, newest first", () => {
+		const reference = new Date("2026-07-18T00:00:00Z");
+		expect(listFinancePeriodKeys("year", reference)).toEqual([
+			"2027",
+			"2026",
+			"2025",
+			"2024",
+		]);
+		const semesters = listFinancePeriodKeys("semester", reference);
+		expect(semesters[0]).toBe("WS27");
+		expect(semesters).toContain("SS26");
+	});
+
+	it("carries the year across a period-type switch", () => {
+		expect(switchFinancePeriodType("semester", "2026")).toEqual({
+			type: "semester",
+			key: "WS26",
+		});
+		expect(switchFinancePeriodType("year", "WS26")).toEqual({
+			type: "year",
+			key: "2026",
+		});
+	});
+
+	it("formats period labels in German", () => {
+		expect(formatFinancePeriodLabel({ type: "year", key: "2026" })).toBe(
+			"2026",
+		);
+		expect(formatFinancePeriodLabel({ type: "semester", key: "WS26" })).toBe(
+			"Wintersemester 2026",
+		);
+		expect(formatFinancePeriodLabel({ type: "semester", key: "SS26" })).toBe(
+			"Sommersemester 2026",
+		);
 	});
 });

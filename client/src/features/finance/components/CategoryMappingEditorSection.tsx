@@ -1,0 +1,205 @@
+import { Check, Loader2, Save } from "lucide-react";
+import { type ReactElement, useState } from "react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+	Card,
+	CardContent,
+	CardDescription,
+	CardHeader,
+	CardTitle,
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "@/components/ui/table";
+import type { FinanceCategoryMappingRow } from "@/features/finance/financeTypes";
+import { formatFinanceAmount } from "@/features/finance/financeUtils";
+
+interface SaveInput {
+	costLocationTwo: string;
+	label: string | null;
+	note: string | null;
+}
+
+interface CategoryMappingEditorSectionProps {
+	rows: FinanceCategoryMappingRow[];
+	isLoading: boolean;
+	error: Error | null;
+	savingCostLocationTwo: string | null;
+	onSave: (input: SaveInput) => unknown;
+}
+
+export function CategoryMappingEditorSection({
+	rows,
+	isLoading,
+	error,
+	savingCostLocationTwo,
+	onSave,
+}: CategoryMappingEditorSectionProps): ReactElement {
+	const unlabelledCount = rows.filter((row) => !row.label).length;
+	const isSaving = savingCostLocationTwo !== null;
+
+	return (
+		<Card>
+			<CardHeader>
+				<CardTitle className="text-base">Kostenstelle 2 → Kategorie</CardTitle>
+				<CardDescription>
+					Gib jeder zweiten BuchhaltungsButler-Kostenstelle eine sprechende
+					Kategorie (z. B. Catering, Reise, Software). Buchungen ohne Kategorie
+					landen in der Auswertung unter „Ohne Kategorie".
+				</CardDescription>
+			</CardHeader>
+			<CardContent className="flex flex-col gap-4">
+				{error ? (
+					<Alert variant="destructive">
+						<AlertDescription>{error.message}</AlertDescription>
+					</Alert>
+				) : null}
+
+				{!isLoading && unlabelledCount > 0 ? (
+					<Alert>
+						<AlertDescription>
+							{unlabelledCount} von {rows.length} Kostenstellen haben noch keine
+							Kategorie.
+						</AlertDescription>
+					</Alert>
+				) : null}
+
+				{isLoading ? (
+					<Skeleton className="h-64 w-full" />
+				) : (
+					<div className="overflow-x-auto">
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead className="w-28">Kostenstelle 2</TableHead>
+									<TableHead>Beispiel-Buchungen</TableHead>
+									<TableHead className="text-right">Buchungen</TableHead>
+									<TableHead className="text-right">Saldo</TableHead>
+									<TableHead className="w-56">Kategorie</TableHead>
+									<TableHead className="w-10">
+										<span className="sr-only">Status</span>
+									</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{rows.length === 0 ? (
+									<TableRow>
+										<TableCell
+											colSpan={6}
+											className="text-center text-muted-foreground"
+										>
+											Keine Kostenstellen gefunden.
+										</TableCell>
+									</TableRow>
+								) : (
+									rows.map((row) => (
+										<CategoryRow
+											key={row.cost_location_two}
+											row={row}
+											saving={savingCostLocationTwo === row.cost_location_two}
+											disabled={isSaving}
+											onSave={onSave}
+										/>
+									))
+								)}
+							</TableBody>
+						</Table>
+					</div>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+function CategoryRow({
+	row,
+	saving,
+	disabled,
+	onSave,
+}: {
+	row: FinanceCategoryMappingRow;
+	saving: boolean;
+	disabled: boolean;
+	onSave: (input: SaveInput) => unknown;
+}): ReactElement {
+	const [label, setLabel] = useState<string>(row.label ?? "");
+	const trimmed = label.trim();
+	const isDirty = trimmed !== (row.label ?? "");
+
+	function persist(): void {
+		if (!isDirty) {
+			return;
+		}
+		void Promise.resolve(
+			onSave({
+				costLocationTwo: row.cost_location_two,
+				label: trimmed === "" ? null : trimmed,
+				note: row.note,
+			}),
+		).catch(() => undefined);
+	}
+
+	return (
+		<TableRow>
+			<TableCell className="align-top font-medium tabular-nums">
+				<div className="flex flex-col gap-1">
+					<span>{row.cost_location_two}</span>
+					{row.label ? null : (
+						<Badge variant="outline" className="w-fit text-amber-600">
+							Ohne Kategorie
+						</Badge>
+					)}
+				</div>
+			</TableCell>
+			<TableCell className="align-top text-sm text-muted-foreground">
+				<span
+					className="block max-w-xs truncate"
+					title={row.sample_texts.join(" · ")}
+				>
+					{row.sample_texts.join(" · ") || "—"}
+				</span>
+			</TableCell>
+			<TableCell className="align-top text-right tabular-nums">
+				{row.posting_count}
+			</TableCell>
+			<TableCell className="align-top text-right tabular-nums">
+				{formatFinanceAmount(row.net)}
+			</TableCell>
+			<TableCell className="align-top">
+				<Input
+					value={label}
+					onChange={(event) => setLabel(event.target.value)}
+					disabled={disabled}
+					placeholder="Kategorie eingeben"
+					aria-label={`Kategorie für Kostenstelle 2 ${row.cost_location_two}`}
+				/>
+			</TableCell>
+			<TableCell className="w-10 align-middle text-muted-foreground">
+				{saving ? (
+					<Loader2 aria-label="Speichern" className="size-4 animate-spin" />
+				) : isDirty ? (
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={persist}
+						disabled={disabled}
+						aria-label={`Kategorie für Kostenstelle 2 ${row.cost_location_two} speichern`}
+					>
+						<Save />
+					</Button>
+				) : row.label ? (
+					<Check aria-label="Gespeichert" className="size-4 text-emerald-600" />
+				) : null}
+			</TableCell>
+		</TableRow>
+	);
+}

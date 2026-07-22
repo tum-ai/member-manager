@@ -12,12 +12,14 @@ const {
 	openReceiptAsync,
 	downloadReceiptAsync,
 	syncBuchhaltungsButlerAsync,
+	updateFinanceLinksAsync,
 } = vi.hoisted(() => ({
 	reviewRequestAsync: vi.fn(),
 	updateDepartmentAsync: vi.fn(),
 	openReceiptAsync: vi.fn(),
 	downloadReceiptAsync: vi.fn(),
 	syncBuchhaltungsButlerAsync: vi.fn(),
+	updateFinanceLinksAsync: vi.fn(),
 	hookState: {
 		requests: [
 			{
@@ -41,6 +43,9 @@ const {
 				approval_status: "pending",
 				payment_status: "to_be_paid",
 				created_at: "2026-04-12T10:00:00Z",
+				finance_project_id: "10000000-0000-4000-8000-000000000001",
+				finance_plan_item_id: "30000000-0000-4000-8000-000000000001",
+				bb_posting_external_id: "BB-1001",
 			},
 			{
 				id: "request-2",
@@ -88,6 +93,68 @@ const {
 		error: null as Error | null,
 		isReviewing: false,
 		isUpdatingDepartment: false,
+		isUpdatingFinanceLinks: false,
+		financeProjects: [
+			{
+				id: "10000000-0000-4000-8000-000000000001",
+				parent_project_id: null,
+				name: "Community Events 2026",
+				department: "Community",
+				period_type: "year",
+				period_key: "2026",
+				tax_area: null,
+				target_amount: 1000,
+				status: "active",
+				description: null,
+				created_at: "2026-01-01T00:00:00.000Z",
+				updated_at: "2026-01-01T00:00:00.000Z",
+			},
+			{
+				id: "10000000-0000-4000-8000-000000000002",
+				parent_project_id: null,
+				name: "Community Events 2027",
+				department: "Community",
+				period_type: "year",
+				period_key: "2027",
+				tax_area: null,
+				target_amount: 1000,
+				status: "active",
+				description: null,
+				created_at: "2026-01-01T00:00:00.000Z",
+				updated_at: "2026-01-01T00:00:00.000Z",
+			},
+		],
+		financePlanItems: [
+			{
+				id: "30000000-0000-4000-8000-000000000001",
+				department: "Community",
+				period_type: "year",
+				period_key: "2026",
+				label: "Workshop catering",
+				category: null,
+				planned_amount: 250,
+				expected_month: null,
+				status: "planned",
+				note: null,
+			},
+		],
+		financePostings: [
+			{
+				external_id: "BB-1001",
+				date: "2026-04-12",
+				postingtext: "Workshop supplies",
+				amount: -42.5,
+				currency: "EUR",
+				vat: 19,
+				credit_type: "debit",
+				debit_postingaccount_number: "6840",
+				credit_postingaccount_number: "1200",
+				cost_location: "110",
+				cost_location_two: "4",
+				transaction_amount: -42.5,
+				transaction_purpose: "Onboarding workshop",
+			},
+		],
 		buchhaltungsButlerSyncStatus: {
 			sync_enabled: true,
 			configured: true,
@@ -117,6 +184,11 @@ vi.mock("../../hooks/useReimbursementRequests", () => ({
 		updateDepartmentAsync,
 		isReviewing: hookState.isReviewing,
 		isUpdatingDepartment: hookState.isUpdatingDepartment,
+		financeProjects: hookState.financeProjects,
+		financePlanItems: hookState.financePlanItems,
+		financePostings: hookState.financePostings,
+		updateFinanceLinksAsync,
+		isUpdatingFinanceLinks: hookState.isUpdatingFinanceLinks,
 		canBulkDownloadReceipts: hookState.canBulkDownloadReceipts,
 		isBulkDownloadingReceipts: hookState.isBulkDownloadingReceipts,
 		bulkDownloadReceiptsAsync: hookState.bulkDownloadReceiptsAsync,
@@ -146,6 +218,8 @@ describe("ReimbursementReviewPage", () => {
 		reviewRequestAsync.mockResolvedValue({});
 		updateDepartmentAsync.mockReset();
 		updateDepartmentAsync.mockResolvedValue({});
+		updateFinanceLinksAsync.mockReset();
+		updateFinanceLinksAsync.mockResolvedValue({});
 		openReceiptAsync.mockReset();
 		openReceiptAsync.mockResolvedValue({});
 		downloadReceiptAsync.mockReset();
@@ -158,6 +232,7 @@ describe("ReimbursementReviewPage", () => {
 		hookState.error = null;
 		hookState.isReviewing = false;
 		hookState.isUpdatingDepartment = false;
+		hookState.isUpdatingFinanceLinks = false;
 		hookState.buchhaltungsButlerSyncStatus = {
 			sync_enabled: true,
 			configured: true,
@@ -252,6 +327,59 @@ describe("ReimbursementReviewPage", () => {
 			expect(updateDepartmentAsync).toHaveBeenCalledWith({
 				requestId: "request-1",
 				department: "Makeathon",
+			}),
+		);
+	});
+
+	it("clears an existing plan item when changing the linked project", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		await user.click(
+			screen.getByRole("button", {
+				name: /snacks for onboarding workshop guests/i,
+			}),
+		);
+		expect(screen.getByLabelText("Finance plan item")).toHaveTextContent(
+			"Workshop catering",
+		);
+		await user.click(screen.getByLabelText("Finance project"));
+		await user.click(
+			screen.getByRole("option", { name: "Community Events 2027" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save links" }));
+
+		await waitFor(() =>
+			expect(updateFinanceLinksAsync).toHaveBeenCalledWith({
+				requestId: "request-1",
+				finance_project_id: "10000000-0000-4000-8000-000000000002",
+				finance_plan_item_id: null,
+				bb_posting_external_id: "BB-1001",
+			}),
+		);
+	});
+
+	it("submits explicit nulls when a reviewer clears finance links", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		await user.click(
+			screen.getByRole("button", {
+				name: /snacks for onboarding workshop guests/i,
+			}),
+		);
+		await user.click(screen.getByLabelText("Finance project"));
+		await user.click(screen.getByRole("option", { name: "No project" }));
+		await user.click(screen.getByLabelText("BB posting"));
+		await user.click(screen.getByText("No posting"));
+		await user.click(screen.getByRole("button", { name: "Save links" }));
+
+		await waitFor(() =>
+			expect(updateFinanceLinksAsync).toHaveBeenCalledWith({
+				requestId: "request-1",
+				finance_project_id: null,
+				finance_plan_item_id: null,
+				bb_posting_external_id: null,
 			}),
 		);
 	});

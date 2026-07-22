@@ -27,10 +27,12 @@ interface RawBuchhaltungsButlerPosting {
 	credit_type?: unknown;
 	debit_postingaccount_number?: unknown;
 	credit_postingaccount_number?: unknown;
+	booking_number?: unknown;
 	cost_location?: unknown;
 	cost_location_two?: unknown;
 	transaction_amount?: unknown;
 	transaction_purpose?: unknown;
+	receipts_assigned_invoice_numbers?: unknown;
 }
 
 interface BuchhaltungsButlerPostingsPayload {
@@ -109,10 +111,14 @@ function normalizePosting(
 		credit_postingaccount_number: String(
 			item.credit_postingaccount_number ?? "",
 		),
+		booking_number: String(item.booking_number ?? ""),
 		cost_location: String(item.cost_location ?? ""),
 		cost_location_two: String(item.cost_location_two ?? ""),
 		transaction_amount: signed,
 		transaction_purpose: String(item.transaction_purpose ?? ""),
+		receipts_assigned_invoice_numbers: String(
+			item.receipts_assigned_invoice_numbers ?? "",
+		),
 	};
 
 	return BuchhaltungsButlerTransactionSchema.parse(transaction);
@@ -132,6 +138,9 @@ function addMockTransaction(
 		vat?: number;
 	},
 ): void {
+	const departmentDigit = String(
+		Math.floor(Math.abs(input.costLocation) / 10) % 10,
+	);
 	rows.push({
 		external_id: `BB-${input.id}`,
 		date: input.date,
@@ -142,10 +151,12 @@ function addMockTransaction(
 		credit_type: input.amount >= 0 ? "credit" : "debit",
 		debit_postingaccount_number: String(input.debitAccount),
 		credit_postingaccount_number: "1200",
+		booking_number: `${departmentDigit}${input.id}`,
 		cost_location: String(input.costLocation),
 		cost_location_two: String(input.costLocationTwo),
 		transaction_amount: Math.round(input.amount * 100) / 100,
 		transaction_purpose: input.transactionPurpose,
+		receipts_assigned_invoice_numbers: `INV-${departmentDigit}${input.id}`,
 	});
 }
 

@@ -11,6 +11,7 @@ describe("useToolAccess", () => {
 				HttpResponse.json({
 					permissions: ["contracts.admin"],
 					isBoardMember: true,
+					department: "Legal & Finance",
 				}),
 			),
 		);
@@ -20,6 +21,7 @@ describe("useToolAccess", () => {
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 		expect(result.current.permissions).toEqual(["contracts.admin"]);
 		expect(result.current.isBoardMember).toBe(true);
+		expect(result.current.department).toBe("Legal & Finance");
 	});
 
 	it("defaults isBoardMember to false when the field is missing", async () => {
