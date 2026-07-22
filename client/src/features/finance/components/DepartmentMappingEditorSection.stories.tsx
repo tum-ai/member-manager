@@ -46,14 +46,14 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		const body = within(canvasElement.ownerDocument.body);
 		await expect(
-			canvas.getByText("Nicht zugeordnet", {
+			canvas.getByText("Unassigned", {
 				selector: '[data-slot="badge"]',
 			}),
 		).toBeInTheDocument();
 
 		await userEvent.click(
 			canvas.getByRole("combobox", {
-				name: "Department für Kostenstelle 161",
+				name: "Department for cost location 161",
 			}),
 		);
 		await userEvent.click(
@@ -61,12 +61,12 @@ export const Default: Story = {
 		);
 		await userEvent.click(
 			canvas.getByRole("button", {
-				name: "Zuordnung für Kostenstelle 161 speichern",
+				name: "Save mapping for cost location 161",
 			}),
 		);
 		await expect(
 			canvas.getByRole("combobox", {
-				name: "Department für Kostenstelle 161",
+				name: "Department for cost location 161",
 			}),
 		).toHaveTextContent("Makeathon");
 	},

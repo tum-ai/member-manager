@@ -67,7 +67,7 @@ export function FinancePlanMatchForm({
 			onSubmit={form.handleSubmit(submit)}
 		>
 			<Field
-				label="Planposten"
+				label="Plan item"
 				htmlFor={`match-plan-item-${postingExternalId}`}
 				error={form.formState.errors.plan_item_id?.message}
 			>
@@ -78,9 +78,9 @@ export function FinancePlanMatchForm({
 						<Select value={field.value} onValueChange={field.onChange}>
 							<SelectTrigger
 								id={`match-plan-item-${postingExternalId}`}
-								aria-label="Planposten zuordnen"
+								aria-label="Match plan item"
 							>
-								<SelectValue placeholder="Planposten wählen" />
+								<SelectValue placeholder="Select plan item" />
 							</SelectTrigger>
 							<SelectContent>
 								{planItems.map((item) => (
@@ -95,7 +95,7 @@ export function FinancePlanMatchForm({
 				/>
 			</Field>
 			<Field
-				label="Betrag (€)"
+				label="Amount (€)"
 				htmlFor={`match-amount-${postingExternalId}`}
 				error={form.formState.errors.matched_amount?.message}
 			>
@@ -112,7 +112,7 @@ export function FinancePlanMatchForm({
 			</Field>
 			<Button type="submit" size="sm" disabled={isPending}>
 				{isPending ? <Loader2 className="animate-spin" /> : <Link2 />}
-				Abgleichen
+				Match
 			</Button>
 		</form>
 	);

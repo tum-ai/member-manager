@@ -90,10 +90,7 @@ describe("useFinanceCategoryMappings", () => {
 		});
 
 		await waitFor(() =>
-			expect(showToast).toHaveBeenCalledWith(
-				"Kategorie gespeichert.",
-				"success",
-			),
+			expect(showToast).toHaveBeenCalledWith("Category saved.", "success"),
 		);
 		expect(putCostLocationTwo).toBe("1");
 		expect(putBody).toMatchObject({

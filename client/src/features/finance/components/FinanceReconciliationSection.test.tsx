@@ -148,9 +148,9 @@ describe("FinanceReconciliationSection", () => {
 		renderWithClient(<FinanceReconciliationSection {...sectionProps} />);
 
 		await user.click(screen.getByRole("button", { name: /Makeathon venue/ }));
-		await user.click(screen.getByLabelText("Planposten zuordnen"));
+		await user.click(screen.getByLabelText("Match plan item"));
 		await user.click(await screen.findByRole("option", { name: /Venue/ }));
-		await user.click(screen.getByRole("button", { name: "Abgleichen" }));
+		await user.click(screen.getByRole("button", { name: "Match" }));
 
 		expect(sectionProps.onMatchPlanItem).toHaveBeenCalledWith({
 			plan_item_id: PLAN_ITEM_ID,
@@ -160,10 +160,10 @@ describe("FinanceReconciliationSection", () => {
 		});
 
 		await user.type(
-			screen.getByLabelText("Begründung *"),
+			screen.getByLabelText("Reason *"),
 			"Charge the complete venue to Makeathon",
 		);
-		await user.click(screen.getByRole("button", { name: "Anfrage senden" }));
+		await user.click(screen.getByRole("button", { name: "Submit request" }));
 
 		expect(sectionProps.onCreateReallocation).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -199,16 +199,14 @@ describe("FinanceReconciliationSection", () => {
 			/>,
 		);
 
-		expect(screen.getByText("Überabgleich 200,00 €")).toBeInTheDocument();
+		expect(screen.getByText("Overmatched 200,00 €")).toBeInTheDocument();
 		await user.click(screen.getByRole("button", { name: /Makeathon venue/ }));
 		expect(screen.getByRole("alert")).toHaveTextContent(
-			"Der Planabgleich übersteigt den Buchungsanteil um 200,00 €",
+			"The matched plan amount exceeds this posting share by 200,00 €",
 		);
+		expect(screen.queryByLabelText("Match plan item")).not.toBeInTheDocument();
 		expect(
-			screen.queryByLabelText("Planposten zuordnen"),
-		).not.toBeInTheDocument();
-		expect(
-			screen.queryByRole("button", { name: "Abgleichen" }),
+			screen.queryByRole("button", { name: "Match" }),
 		).not.toBeInTheDocument();
 	});
 
@@ -218,25 +216,21 @@ describe("FinanceReconciliationSection", () => {
 		renderWithClient(<FinanceReconciliationSection {...sectionProps} />);
 
 		await user.click(screen.getByRole("button", { name: /Makeathon venue/ }));
-		await user.click(
-			screen.getByLabelText("Projekt für vollständige Zuordnung"),
-		);
+		await user.click(screen.getByLabelText("Project for full allocation"));
 		await user.click(
 			await screen.findByRole("option", { name: /Makeathon 2026/ }),
 		);
-		await user.click(
-			screen.getByRole("button", { name: "Vollständig zuordnen" }),
-		);
+		await user.click(screen.getByRole("button", { name: "Allocate fully" }));
 		expect(sectionProps.onAllocateToProject).toHaveBeenCalledWith({
 			postingExternalId: "BB-1",
 			projectId: PROJECT_ID,
 		});
 
 		await user.type(
-			screen.getByLabelText("Review-Notiz für Makeathon"),
+			screen.getByLabelText("Review note for Makeathon"),
 			"Confirmed",
 		);
-		await user.click(screen.getByRole("button", { name: "Genehmigen" }));
+		await user.click(screen.getByRole("button", { name: "Approve" }));
 		expect(sectionProps.onReviewReallocation).toHaveBeenCalledWith({
 			requestId: REQUEST_ID,
 			review: { decision: "approved", review_note: "Confirmed" },

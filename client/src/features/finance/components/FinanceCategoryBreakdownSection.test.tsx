@@ -35,7 +35,7 @@ const categories: FinanceCategorySummary[] = [
 		unmapped: false,
 	},
 	{
-		category: "Ohne Kategorie",
+		category: "Uncategorized",
 		income: 7500,
 		expenses: 0,
 		net: 7500,
@@ -54,7 +54,7 @@ describe("FinanceCategoryBreakdownSection", () => {
 		);
 
 		expect(screen.getByText("Catering")).toBeInTheDocument();
-		expect(screen.getByText("Ohne Kategorie")).toBeInTheDocument();
+		expect(screen.getByText("Uncategorized")).toBeInTheDocument();
 		expect(screen.getAllByText(/6\.840,00/).length).toBeGreaterThan(0);
 	});
 
@@ -64,7 +64,7 @@ describe("FinanceCategoryBreakdownSection", () => {
 		);
 
 		expect(
-			screen.getByText("Keine Ausgaben im gewählten Zeitraum."),
+			screen.getByText("No expenses for the selected period."),
 		).toBeInTheDocument();
 	});
 });

@@ -24,7 +24,7 @@ const analytics: FinanceAnalyticsResponse = {
 			unmapped: false,
 		},
 		{
-			department: "Nicht zugeordnet",
+			department: "Unassigned",
 			bereich: null,
 			income: 0,
 			expenses: 540,
@@ -51,7 +51,7 @@ const analytics: FinanceAnalyticsResponse = {
 			unmapped: false,
 		},
 		{
-			category: "Ohne Kategorie",
+			category: "Uncategorized",
 			income: 30000,
 			expenses: 3000,
 			net: 27000,
@@ -62,7 +62,7 @@ const analytics: FinanceAnalyticsResponse = {
 	by_account: [
 		{
 			account: "6850",
-			label: "Veranstaltungen",
+			label: "Events",
 			income: 0,
 			expenses: 10200,
 			net: -10200,
@@ -138,10 +138,10 @@ export const Default: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByText("Ausgaben pro Department"),
+			canvas.getByText("Expenses by department"),
 		).toBeInTheDocument();
 		await expect(
-			canvas.getByText(/noch nicht\s+zugeordnete Kostenstelle/),
+			canvas.getByText(/posting\(s\) use an unmapped cost location/),
 		).toBeInTheDocument();
 	},
 };

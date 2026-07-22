@@ -91,7 +91,7 @@ describe("useFinanceBudgets", () => {
 		);
 
 		await waitFor(() =>
-			expect(showToast).toHaveBeenCalledWith("Budget gespeichert.", "success"),
+			expect(showToast).toHaveBeenCalledWith("Budget saved.", "success"),
 		);
 		expect(putBody).toMatchObject({
 			department: "Makeathon",

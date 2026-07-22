@@ -118,9 +118,9 @@ export function FinanceAnalyticsSection({
 				<Alert>
 					<AlertTriangle className="size-4" />
 					<AlertDescription>
-						{analytics.totals.unmapped_count} Buchung(en) haben eine noch nicht
-						zugeordnete Kostenstelle und haben das Department „Nicht
-						zugeordnet". Die Zuordnung erfolgt im Tab „Zuordnung".
+						{analytics.totals.unmapped_count} posting(s) use an unmapped cost
+						location and are assigned to "Unassigned". Configure them in the
+						"Mapping" tab.
 					</AlertDescription>
 				</Alert>
 			) : null}
@@ -129,8 +129,8 @@ export function FinanceAnalyticsSection({
 
 			<div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
 				<ChartCard
-					title="Ausgaben pro Department"
-					description="Summe der Ausgaben je Department im Zeitraum."
+					title="Expenses by department"
+					description="Total expenses by department for the selected period."
 				>
 					{isLoading ? (
 						<ChartSkeleton />
@@ -139,8 +139,8 @@ export function FinanceAnalyticsSection({
 					)}
 				</ChartCard>
 				<ChartCard
-					title="Ausgabenanteil"
-					description="Verteilung der Ausgaben auf die Departments."
+					title="Expense share"
+					description="Distribution of expenses across departments."
 				>
 					{isLoading ? (
 						<ChartSkeleton />
@@ -151,8 +151,8 @@ export function FinanceAnalyticsSection({
 			</div>
 
 			<ChartCard
-				title="Einnahmen & Ausgaben pro Monat"
-				description="Monatlicher Verlauf im gewählten Zeitraum."
+				title="Monthly income and expenses"
+				description="Monthly trend for the selected period."
 			>
 				{isLoading ? <ChartSkeleton /> : <MonthlyTrend analytics={analytics} />}
 			</ChartCard>
@@ -180,7 +180,7 @@ function Controls({
 	return (
 		<div className="flex flex-wrap items-end gap-3">
 			<div className="flex flex-col gap-1">
-				<Label htmlFor="finance-analytics-from">Von</Label>
+				<Label htmlFor="finance-analytics-from">From</Label>
 				<Input
 					id="finance-analytics-from"
 					type="date"
@@ -190,7 +190,7 @@ function Controls({
 				/>
 			</div>
 			<div className="flex flex-col gap-1">
-				<Label htmlFor="finance-analytics-to">Bis</Label>
+				<Label htmlFor="finance-analytics-to">To</Label>
 				<Input
 					id="finance-analytics-to"
 					type="date"
@@ -206,11 +206,11 @@ function Controls({
 				disabled={isFetching}
 			>
 				<RefreshCw className={`size-4 ${isFetching ? "animate-spin" : ""}`} />
-				Aktualisieren
+				Refresh
 			</Button>
 			{source ? (
 				<Badge variant={source === "real" ? "default" : "secondary"}>
-					{source === "real" ? "Live-Daten" : "Testdaten"}
+					{source === "real" ? "Live data" : "Test data"}
 				</Badge>
 			) : null}
 		</div>
@@ -227,17 +227,17 @@ function TotalsRow({
 	const totals = analytics?.totals;
 	const metrics = [
 		{
-			label: "Einnahmen",
+			label: "Income",
 			value: formatFinanceAmount(totals?.income ?? 0),
 			className: "text-emerald-700 dark:text-emerald-400",
 		},
 		{
-			label: "Ausgaben",
+			label: "Expenses",
 			value: formatFinanceAmount(totals?.expenses ?? 0),
 			className: "text-destructive",
 		},
 		{
-			label: "Netto",
+			label: "Net",
 			value: formatFinanceAmount(totals?.net ?? 0),
 			className:
 				(totals?.net ?? 0) >= 0
@@ -245,7 +245,7 @@ function TotalsRow({
 					: "text-destructive",
 		},
 		{
-			label: "Buchungen",
+			label: "Postings",
 			value: String(totals?.count ?? 0),
 			className: "text-foreground",
 		},
@@ -253,7 +253,7 @@ function TotalsRow({
 
 	return (
 		<section
-			aria-label="Finanzkennzahlen"
+			aria-label="Finance metrics"
 			className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
 		>
 			{metrics.map((metric) => (
@@ -342,7 +342,7 @@ function DepartmentBars({
 					tickLine={false}
 					axisLine={{ stroke: GRID_STROKE }}
 					tickFormatter={formatFinanceAmountCompact}
-					label={valueAxisLabel("Ausgaben (€)", "x")}
+					label={valueAxisLabel("Expenses (€)", "x")}
 				/>
 				<YAxis
 					type="category"
@@ -356,7 +356,7 @@ function DepartmentBars({
 					cursor={{ fill: "var(--muted)", opacity: 0.4 }}
 					formatter={(value) => [
 						formatFinanceAmount(Number(value)),
-						"Ausgaben",
+						"Expenses",
 					]}
 					contentStyle={TOOLTIP_STYLE}
 				/>
@@ -426,7 +426,7 @@ function DepartmentPie({
 						`${formatFinanceAmount(Number(value))} (${Math.round(
 							(Number(value) / total) * 100,
 						)}%)`,
-						"Ausgaben",
+						"Expenses",
 					]}
 					contentStyle={TOOLTIP_STYLE}
 				/>
@@ -442,8 +442,8 @@ function MonthlyTrend({
 }): ReactElement {
 	const data = (analytics?.by_month ?? []).map((point) => ({
 		month: formatFinanceMonth(point.month),
-		Einnahmen: point.income,
-		Ausgaben: point.expenses,
+		Income: point.income,
+		Expenses: point.expenses,
 	}));
 
 	if (data.length === 0) {
@@ -451,69 +451,100 @@ function MonthlyTrend({
 	}
 
 	return (
-		<ResponsiveContainer width="100%" height={300}>
-			<AreaChart
-				data={data}
-				margin={{ top: 8, left: 12, right: 24, bottom: 24 }}
+		<div className="flex flex-col">
+			<ResponsiveContainer width="100%" height={300}>
+				<AreaChart
+					data={data}
+					margin={{ top: 8, left: 12, right: 24, bottom: 30 }}
+				>
+					<defs>
+						<linearGradient id="area-income" x1="0" y1="0" x2="0" y2="1">
+							<stop offset="0%" stopColor={INCOME_COLOR} stopOpacity={0.35} />
+							<stop offset="100%" stopColor={INCOME_COLOR} stopOpacity={0.02} />
+						</linearGradient>
+						<linearGradient id="area-expense" x1="0" y1="0" x2="0" y2="1">
+							<stop offset="0%" stopColor={EXPENSE_COLOR} stopOpacity={0.35} />
+							<stop
+								offset="100%"
+								stopColor={EXPENSE_COLOR}
+								stopOpacity={0.02}
+							/>
+						</linearGradient>
+					</defs>
+					<CartesianGrid
+						stroke={GRID_STROKE}
+						strokeDasharray="3 3"
+						vertical={false}
+					/>
+					<XAxis
+						dataKey="month"
+						tick={AXIS_TICK}
+						tickLine={false}
+						axisLine={{ stroke: GRID_STROKE }}
+						label={valueAxisLabel("Month", "x")}
+					/>
+					<YAxis
+						tick={AXIS_TICK}
+						tickLine={false}
+						axisLine={false}
+						width={72}
+						tickFormatter={formatFinanceAmountCompact}
+						label={valueAxisLabel("Amount (€)", "y")}
+					/>
+					<Tooltip
+						formatter={(value, name) => [
+							formatFinanceAmount(Number(value)),
+							name,
+						]}
+						contentStyle={TOOLTIP_STYLE}
+					/>
+					<Area
+						type="monotone"
+						dataKey="Income"
+						stroke={INCOME_COLOR}
+						strokeWidth={2}
+						fill="url(#area-income)"
+						dot={{ r: 3, strokeWidth: 0, fill: INCOME_COLOR }}
+						activeDot={{ r: 5 }}
+					/>
+					<Area
+						type="monotone"
+						dataKey="Expenses"
+						stroke={EXPENSE_COLOR}
+						strokeWidth={2}
+						fill="url(#area-expense)"
+						dot={{ r: 3, strokeWidth: 0, fill: EXPENSE_COLOR }}
+						activeDot={{ r: 5 }}
+					/>
+				</AreaChart>
+			</ResponsiveContainer>
+			<fieldset
+				aria-label="Chart legend"
+				className="m-0 mt-3 flex items-center justify-center gap-5 border-0 p-0 text-xs text-muted-foreground"
 			>
-				<defs>
-					<linearGradient id="area-income" x1="0" y1="0" x2="0" y2="1">
-						<stop offset="0%" stopColor={INCOME_COLOR} stopOpacity={0.35} />
-						<stop offset="100%" stopColor={INCOME_COLOR} stopOpacity={0.02} />
-					</linearGradient>
-					<linearGradient id="area-expense" x1="0" y1="0" x2="0" y2="1">
-						<stop offset="0%" stopColor={EXPENSE_COLOR} stopOpacity={0.35} />
-						<stop offset="100%" stopColor={EXPENSE_COLOR} stopOpacity={0.02} />
-					</linearGradient>
-				</defs>
-				<CartesianGrid
-					stroke={GRID_STROKE}
-					strokeDasharray="3 3"
-					vertical={false}
-				/>
-				<XAxis
-					dataKey="month"
-					tick={AXIS_TICK}
-					tickLine={false}
-					axisLine={{ stroke: GRID_STROKE }}
-					label={valueAxisLabel("Monat", "x")}
-				/>
-				<YAxis
-					tick={AXIS_TICK}
-					tickLine={false}
-					axisLine={false}
-					width={72}
-					tickFormatter={formatFinanceAmountCompact}
-					label={valueAxisLabel("Betrag (€)", "y")}
-				/>
-				<Tooltip
-					formatter={(value, name) => [
-						formatFinanceAmount(Number(value)),
-						name,
-					]}
-					contentStyle={TOOLTIP_STYLE}
-				/>
-				<Legend iconType="circle" wrapperStyle={{ fontSize: 12 }} />
-				<Area
-					type="monotone"
-					dataKey="Einnahmen"
-					stroke={INCOME_COLOR}
-					strokeWidth={2}
-					fill="url(#area-income)"
-					dot={{ r: 3, strokeWidth: 0, fill: INCOME_COLOR }}
-					activeDot={{ r: 5 }}
-				/>
-				<Area
-					type="monotone"
-					dataKey="Ausgaben"
-					stroke={EXPENSE_COLOR}
-					strokeWidth={2}
-					fill="url(#area-expense)"
-					dot={{ r: 3, strokeWidth: 0, fill: EXPENSE_COLOR }}
-					activeDot={{ r: 5 }}
-				/>
-			</AreaChart>
-		</ResponsiveContainer>
+				<LegendItem color={INCOME_COLOR} label="Income" />
+				<LegendItem color={EXPENSE_COLOR} label="Expenses" />
+			</fieldset>
+		</div>
+	);
+}
+
+function LegendItem({
+	color,
+	label,
+}: {
+	color: string;
+	label: string;
+}): ReactElement {
+	return (
+		<span className="inline-flex items-center gap-1.5">
+			<span
+				aria-hidden="true"
+				className="size-2.5 rounded-full"
+				style={{ backgroundColor: color }}
+			/>
+			{label}
+		</span>
 	);
 }
 
@@ -534,7 +565,7 @@ function BereichBreakdown({
 
 	return (
 		<section
-			aria-label="Auswertung nach Bereich"
+			aria-label="Analysis by tax realm"
 			className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3"
 		>
 			{rows.map((row) => (
@@ -543,12 +574,12 @@ function BereichBreakdown({
 						<CardTitle className="text-sm font-medium">
 							{formatBereichLabel(row.bereich)}
 						</CardTitle>
-						<CardDescription>{row.count} Buchungen</CardDescription>
+						<CardDescription>{row.count} postings</CardDescription>
 					</CardHeader>
 					<CardContent className="flex flex-col gap-1 text-sm">
-						<Row label="Einnahmen" value={formatFinanceAmount(row.income)} />
-						<Row label="Ausgaben" value={formatFinanceAmount(row.expenses)} />
-						<Row label="Netto" value={formatFinanceAmount(row.net)} strong />
+						<Row label="Income" value={formatFinanceAmount(row.income)} />
+						<Row label="Expenses" value={formatFinanceAmount(row.expenses)} />
+						<Row label="Net" value={formatFinanceAmount(row.net)} strong />
 					</CardContent>
 				</Card>
 			))}
@@ -602,7 +633,7 @@ function ChartSkeleton(): ReactElement {
 function EmptyChart(): ReactElement {
 	return (
 		<div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
-			Keine Daten im gewählten Zeitraum.
+			No data for the selected period.
 		</div>
 	);
 }

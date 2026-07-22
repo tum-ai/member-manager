@@ -21,15 +21,15 @@ test.describe("Finance Analytics tool", () => {
 		page,
 	}) => {
 		// Overview renders the aggregated totals and the VAT summary.
-		await expect(page.getByText("Einnahmen").first()).toBeVisible();
-		await expect(page.getByText("Ausgaben").first()).toBeVisible();
-		await expect(page.getByText("Umsatzsteuer")).toBeVisible();
+		await expect(page.getByText("Income").first()).toBeVisible();
+		await expect(page.getByText("Expenses").first()).toBeVisible();
+		await expect(page.getByText("VAT", { exact: true }).first()).toBeVisible();
 
 		// Switch to the mapping editor.
-		await page.getByRole("tab", { name: "Zuordnung" }).click();
+		await page.getByRole("tab", { name: "Mapping" }).click();
 		await expect(
 			page.getByRole("columnheader", {
-				name: "Kostenstelle",
+				name: "Cost location",
 				exact: true,
 			}),
 		).toBeVisible();
@@ -38,114 +38,114 @@ test.describe("Finance Analytics tool", () => {
 		// Loading the postings can take a moment against the live API.
 		const unassignedRow = page
 			.getByRole("row")
-			.filter({ hasText: "Nicht zugeordnet" })
+			.filter({ hasText: "Unassigned" })
 			.first();
 		await expect(unassignedRow).toBeVisible({ timeout: 20000 });
 
 		// Department is picked from a dropdown, then saved explicitly.
 		await unassignedRow
-			.getByRole("combobox", { name: /Department für Kostenstelle/ })
+			.getByRole("combobox", { name: /Department for cost location/ })
 			.click();
 		await page.getByRole("option", { name: "Makeathon", exact: true }).click();
 		await unassignedRow
-			.getByRole("button", { name: /Zuordnung für Kostenstelle .* speichern/ })
+			.getByRole("button", { name: /Save mapping for cost location .*/ })
 			.click();
 
-		await expect(page.getByText("Zuordnung gespeichert.")).toBeVisible();
+		await expect(page.getByText("Mapping saved.")).toBeVisible();
 	});
 
 	test("shows the category breakdown and labels a second cost location", async ({
 		page,
 	}) => {
 		// Category breakdown tab renders the by-category table.
-		await page.getByRole("tab", { name: "Kategorien" }).click();
-		await expect(page.getByText("Ausgaben pro Kategorie")).toBeVisible();
+		await page.getByRole("tab", { name: "Categories" }).click();
+		await expect(page.getByText("Expenses by category")).toBeVisible();
 
 		// The category editor lives under the mapping tab, below the department one.
-		await page.getByRole("tab", { name: "Zuordnung" }).click();
+		await page.getByRole("tab", { name: "Mapping" }).click();
 		await expect(
-			page.getByRole("columnheader", { name: "Kostenstelle 2" }),
+			page.getByRole("columnheader", { name: "Cost location 2" }),
 		).toBeVisible();
 
 		const unlabelledInput = page
-			.getByRole("textbox", { name: /Kategorie für Kostenstelle 2/ })
+			.getByRole("textbox", { name: /Category for cost location 2/ })
 			.first();
 		await expect(unlabelledInput).toBeVisible({ timeout: 20000 });
 		await unlabelledInput.fill("Catering");
 		const categoryRow = unlabelledInput.locator("xpath=ancestor::tr");
 		await categoryRow
 			.getByRole("button", {
-				name: /Kategorie für Kostenstelle 2 .* speichern/,
+				name: /Save category for cost location 2 .*/,
 			})
 			.click();
 
-		await expect(page.getByText("Kategorie gespeichert.")).toBeVisible();
+		await expect(page.getByText("Category saved.")).toBeVisible();
 	});
 
 	test("shows the account breakdown and labels a ledger account", async ({
 		page,
 	}) => {
 		// Accounts breakdown tab renders the by-account table.
-		await page.getByRole("tab", { name: "Konten" }).click();
-		await expect(page.getByText("Ausgaben pro Konto")).toBeVisible();
+		await page.getByRole("tab", { name: "Accounts" }).click();
+		await expect(page.getByText("Expenses by account")).toBeVisible();
 
 		// The account editor lives under the mapping tab, below the others.
-		await page.getByRole("tab", { name: "Zuordnung" }).click();
+		await page.getByRole("tab", { name: "Mapping" }).click();
 		await expect(
-			page.getByRole("columnheader", { name: "Konto", exact: true }),
+			page.getByRole("columnheader", { name: "Account", exact: true }),
 		).toBeVisible();
 
 		const unlabelledInput = page
-			.getByRole("textbox", { name: /Bezeichnung für Konto/ })
+			.getByRole("textbox", { name: /Label for account/ })
 			.first();
 		await expect(unlabelledInput).toBeVisible({ timeout: 20000 });
 		await unlabelledInput.fill("Software & Tools");
 		const accountRow = unlabelledInput.locator("xpath=ancestor::tr");
 		await accountRow
-			.getByRole("button", { name: /Bezeichnung für Konto .* speichern/ })
+			.getByRole("button", { name: /Save label for account .*/ })
 			.click();
 
-		await expect(page.getByText("Konto gespeichert.")).toBeVisible();
+		await expect(page.getByText("Account label saved.")).toBeVisible();
 	});
 
 	test("sets a department budget and shows budget vs. actual", async ({
 		page,
 	}) => {
 		await page.getByRole("tab", { name: "Budget" }).click();
-		await expect(page.getByText("Budget gesamt")).toBeVisible();
+		await expect(page.getByText("Total budget")).toBeVisible();
 
 		// Enter a budget for the first department row and save on blur.
 		const budgetInput = page
-			.getByRole("spinbutton", { name: /Budget für/ })
+			.getByRole("spinbutton", { name: /Budget for/ })
 			.first();
 		await expect(budgetInput).toBeVisible({ timeout: 20000 });
 		await budgetInput.fill("5000");
 		await budgetInput.blur();
 
-		await expect(page.getByText("Budget gespeichert.")).toBeVisible();
+		await expect(page.getByText("Budget saved.")).toBeVisible();
 	});
 
 	test("adds a plan line item", async ({ page }) => {
-		await page.getByRole("tab", { name: "Planung" }).click();
-		await expect(page.getByText("Planposten hinzufügen")).toBeVisible();
+		await page.getByRole("tab", { name: "Planning" }).click();
+		await expect(page.getByText("Add plan item")).toBeVisible();
 
 		// Reviewer must choose a department, then fill the line item.
 		await page.getByLabel("Department").click();
 		await page.getByRole("option", { name: "Makeathon", exact: true }).click();
-		await page.getByLabel("Bezeichnung").fill("Venue deposit");
-		await page.getByLabel("Betrag (€)").fill("3000");
-		await page.getByRole("button", { name: /Hinzufügen/ }).click();
+		await page.getByLabel("Label").fill("Venue deposit");
+		await page.getByLabel("Amount (€)").fill("3000");
+		await page.getByRole("button", { name: /Add/ }).click();
 
-		await expect(page.getByText("Planposten hinzugefügt.")).toBeVisible();
+		await expect(page.getByText("Plan item added.")).toBeVisible();
 	});
 
 	test("runs planning, allocation, reallocation, matching, reporting, and reimbursement linkage", async ({
 		page,
 		browser,
 	}) => {
-		await page.getByRole("tab", { name: "Projekte" }).click();
+		await page.getByRole("tab", { name: "Projects" }).click();
 		await expect(
-			page.getByRole("heading", { name: "Projekt anlegen" }),
+			page.getByRole("heading", { name: "Create project" }),
 		).toBeVisible();
 
 		const unique = Date.now();
@@ -153,36 +153,38 @@ test.describe("Finance Analytics tool", () => {
 		const templateName = `E2E Event Template ${unique}`;
 		const planItemName = `E2E Venue Plan ${unique}`;
 
-		await page.getByLabel("Neue Vorlage").fill(templateName);
-		await page.getByRole("button", { name: "Anlegen", exact: true }).click();
+		await page.getByLabel("New template").fill(templateName);
+		await page.getByRole("button", { name: "Create", exact: true }).click();
 		await expect(page.getByText("Plan template created.")).toBeVisible();
 		await page.getByRole("button", { name: new RegExp(templateName) }).click();
 		const templateRegion = page.getByRole("region", { name: templateName });
 		await templateRegion
-			.getByRole("textbox", { name: "Position" })
+			.getByRole("textbox", { name: "Item" })
 			.fill(planItemName);
 		await templateRegion
-			.getByRole("spinbutton", { name: "Betrag (€)" })
+			.getByRole("spinbutton", { name: "Amount (€)" })
 			.fill("5000");
 		await templateRegion
-			.getByRole("textbox", { name: "Position" })
+			.getByRole("textbox", { name: "Item" })
 			.locator("xpath=ancestor::form")
-			.getByRole("button", { name: "Position", exact: true })
+			.getByRole("button", { name: "Add item", exact: true })
 			.click();
 		await expect(page.getByText("Template item added.")).toBeVisible();
 
 		await page.getByLabel("Name *").fill(projectName);
-		await page.getByLabel("Projekt-Department").click();
+		await page.getByLabel("Project department").click();
 		await page.getByRole("option", { name: "Makeathon", exact: true }).click();
-		await page.getByLabel("Zielbetrag (€) *").fill("-5000");
-		await page.getByRole("button", { name: "Projekt anlegen" }).click();
+		await page.getByLabel("Target amount (€) *").fill("-5000");
+		await page.getByRole("button", { name: "Create project" }).click();
 		await expect(page.getByText("Finance project created.")).toBeVisible();
 		const projectRow = page.getByRole("row").filter({ hasText: projectName });
 		await expect(projectRow).toBeVisible();
-		await projectRow.getByRole("combobox", { name: /Vorlage für/ }).click();
+		await projectRow.getByRole("combobox", { name: /Template for/ }).click();
 		await page.getByRole("option", { name: templateName }).click();
 		await projectRow
-			.getByRole("button", { name: new RegExp(`Vorlage auf ${projectName}`) })
+			.getByRole("button", {
+				name: new RegExp(`Apply template to ${projectName}`),
+			})
 			.click();
 		await expect(page.getByText("1 plan item(s) created.")).toBeVisible();
 
@@ -258,20 +260,20 @@ test.describe("Finance Analytics tool", () => {
 		const departmentPage = await departmentContext.newPage();
 		await loginWithSeedEmail(departmentPage, SEED_MAKEATHON_LEAD_EMAIL);
 		await departmentPage.goto(FINANCE_ANALYTICS_ROUTE);
-		await departmentPage.getByRole("tab", { name: "Abgleich" }).click();
+		await departmentPage.getByRole("tab", { name: "Reconciliation" }).click();
 		const budgetTransferSection = departmentPage.getByRole("region", {
-			name: "Budgetübertragungen",
+			name: "Budget transfers",
 		});
-		await budgetTransferSection.getByLabel("Budgetziel").click();
+		await budgetTransferSection.getByLabel("Budget destination").click();
 		await departmentPage
 			.getByRole("option", { name: "Community", exact: true })
 			.click();
-		await budgetTransferSection.getByLabel("Betrag (€)").fill("250");
+		await budgetTransferSection.getByLabel("Amount (€)").fill("250");
 		await budgetTransferSection
-			.getByLabel("Begründung")
+			.getByLabel("Reason")
 			.fill("Share unused Makeathon venue budget");
 		await budgetTransferSection
-			.getByRole("button", { name: "Anfragen" })
+			.getByRole("button", { name: "Request" })
 			.click();
 		await expect(
 			departmentPage.getByText("Budget transfer request submitted."),
@@ -282,33 +284,31 @@ test.describe("Finance Analytics tool", () => {
 			.first();
 		await expect(departmentVenue).toBeVisible();
 		await departmentVenue.click();
-		await departmentPage.getByLabel("Projekt für Aufteilung 1").click();
+		await departmentPage.getByLabel("Project for allocation 1").click();
 		await departmentPage.getByRole("option", { name: projectName }).click();
 		await departmentPage
-			.getByLabel("Begründung *")
+			.getByLabel("Reason *")
 			.fill("Assign the venue to the approved Makeathon project");
 		await departmentPage
-			.getByRole("button", { name: "Anfrage senden" })
+			.getByRole("button", { name: "Submit request" })
 			.click();
 		await expect(
 			departmentPage.getByText("Reallocation request submitted."),
 		).toBeVisible();
 		await departmentContext.close();
 
-		await page.getByRole("tab", { name: "Abgleich" }).click();
-		await expect(page.getByText("Nicht abgeglichen").first()).toBeVisible();
-		await expect(page.getByText("Nicht geplant").first()).toBeVisible();
+		await page.getByRole("tab", { name: "Reconciliation" }).click();
+		await expect(page.getByText("Unmatched").first()).toBeVisible();
+		await expect(page.getByText("Unplanned").first()).toBeVisible();
 		await page.reload();
-		await page.getByRole("tab", { name: "Abgleich" }).click();
+		await page.getByRole("tab", { name: "Reconciliation" }).click();
 
 		const budgetTransferReview = page
 			.locator("div.grid")
 			.filter({ hasText: "Share unused Makeathon venue budget" })
 			.first();
 		await expect(budgetTransferReview).toBeVisible();
-		await budgetTransferReview
-			.getByRole("button", { name: "Genehmigen" })
-			.click();
+		await budgetTransferReview.getByRole("button", { name: "Approve" }).click();
 		await expect(page.getByText("Budget transfer approved.")).toBeVisible();
 		const transferredBudgets = await page.evaluate(async () => {
 			const { apiClient } = await import("/src/lib/apiClient.ts");
@@ -328,12 +328,12 @@ test.describe("Finance Analytics tool", () => {
 				?.amount_planned,
 		).toBe(1250);
 
-		const reallocationReview = page.getByLabel("Review-Notiz für Makeathon");
+		const reallocationReview = page.getByLabel("Review note for Makeathon");
 		await expect(reallocationReview).toBeVisible();
 		await reallocationReview.fill("Project assignment confirmed");
 		await reallocationReview
 			.locator("xpath=ancestor::div[contains(@class,'lg:grid-cols')][1]")
-			.getByRole("button", { name: "Genehmigen" })
+			.getByRole("button", { name: "Approve" })
 			.click();
 		await expect(page.getByText("Reallocation approved.")).toBeVisible();
 
@@ -342,9 +342,9 @@ test.describe("Finance Analytics tool", () => {
 			.first();
 		await expect(venueRow).toBeVisible();
 		await venueRow.click();
-		await page.getByLabel("Planposten zuordnen").click();
+		await page.getByLabel("Match plan item").click();
 		await page.getByRole("option", { name: new RegExp(planItemName) }).click();
-		await page.getByRole("button", { name: "Abgleichen" }).click();
+		await page.getByRole("button", { name: "Match" }).click();
 		await expect(page.getByText("Posting matched to plan item.")).toBeVisible();
 
 		const cateringRow = page
@@ -352,16 +352,16 @@ test.describe("Finance Analytics tool", () => {
 			.first();
 		await expect(cateringRow).toBeVisible();
 		await cateringRow.click();
-		await page.getByLabel("Projekt für vollständige Zuordnung").click();
+		await page.getByLabel("Project for full allocation").click();
 		await page.getByRole("option", { name: new RegExp(projectName) }).click();
-		await page.getByRole("button", { name: "Vollständig zuordnen" }).click();
+		await page.getByRole("button", { name: "Allocate fully" }).click();
 		await expect(page.getByText("Posting allocation saved.")).toBeVisible();
 
-		await page.getByRole("tab", { name: "Berichte" }).click();
+		await page.getByRole("tab", { name: "Reports" }).click();
 		await expect(page.getByText("Budget").first()).toBeVisible();
 		await expect(page.getByText("Forecast").first()).toBeVisible();
 		await expect(
-			page.getByRole("button", { name: "XLSX exportieren" }),
+			page.getByRole("button", { name: "Export XLSX" }),
 		).toBeEnabled();
 
 		const report = await page.evaluate(async () => {

@@ -67,7 +67,7 @@ export const Default: ReportStory = {
 			canvas.getByRole("heading", { name: "Departments" }),
 		).toBeInTheDocument();
 		await expect(
-			canvas.getByRole("heading", { name: "Steuerbereiche" }),
+			canvas.getByRole("heading", { name: "Tax realms" }),
 		).toBeInTheDocument();
 		await expect(canvas.getByText("Makeathon")).toBeInTheDocument();
 	},

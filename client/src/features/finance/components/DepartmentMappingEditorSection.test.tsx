@@ -39,11 +39,11 @@ describe("DepartmentMappingEditorSection", () => {
 			/>,
 		);
 
-		// The unassigned row shows the "Nicht zugeordnet" badge (and its select
+		// The unassigned row shows the "Unassigned" badge (and its select
 		// value), the assigned one does not.
-		expect(screen.getAllByText("Nicht zugeordnet").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Unassigned").length).toBeGreaterThan(0);
 		expect(
-			screen.getByText(/1 von 2 Kostenstellen sind noch nicht zugeordnet/),
+			screen.getByText(/1 of 2 cost locations are still unassigned/),
 		).toBeInTheDocument();
 	});
 
@@ -60,14 +60,14 @@ describe("DepartmentMappingEditorSection", () => {
 
 		await user.click(
 			screen.getByRole("combobox", {
-				name: "Department für Kostenstelle 161",
+				name: "Department for cost location 161",
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: "Makeathon" }));
 		expect(onSave).not.toHaveBeenCalled();
 		await user.click(
 			screen.getByRole("button", {
-				name: "Zuordnung für Kostenstelle 161 speichern",
+				name: "Save mapping for cost location 161",
 			}),
 		);
 
@@ -92,13 +92,13 @@ describe("DepartmentMappingEditorSection", () => {
 
 		await user.click(
 			screen.getByRole("combobox", {
-				name: "Department für Kostenstelle 120",
+				name: "Department for cost location 120",
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: "Venture" }));
 		await user.click(
 			screen.getByRole("button", {
-				name: "Zuordnung für Kostenstelle 120 speichern",
+				name: "Save mapping for cost location 120",
 			}),
 		);
 
@@ -123,16 +123,16 @@ describe("DepartmentMappingEditorSection", () => {
 
 		await user.click(
 			screen.getByRole("combobox", {
-				name: "Department für Kostenstelle 161",
+				name: "Department for cost location 161",
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: "Makeathon" }));
 		const saveButton = screen.getByRole("button", {
-			name: "Zuordnung für Kostenstelle 161 speichern",
+			name: "Save mapping for cost location 161",
 		});
 		await user.click(saveButton);
 
 		expect(saveButton).toBeInTheDocument();
-		expect(screen.queryByLabelText("Gespeichert")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Saved")).not.toBeInTheDocument();
 	});
 });

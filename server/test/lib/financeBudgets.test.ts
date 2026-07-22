@@ -82,7 +82,7 @@ describe("computeBudgetVsActual", () => {
 		const summaries = [
 			summary("Makeathon", 12000),
 			summary("Community", 500),
-			summary("Nicht zugeordnet", 999, true),
+			summary("Unassigned", 999, true),
 		];
 		const budgets = [budget("Makeathon", 10000), budget("Venture", 4000)];
 
@@ -110,7 +110,7 @@ describe("computeBudgetVsActual", () => {
 		assert.strictEqual(community?.pct_used, null);
 
 		// The unmapped bucket is excluded from budget rows.
-		assert.ok(!rows.some((r) => r.department === "Nicht zugeordnet"));
+		assert.ok(!rows.some((r) => r.department === "Unassigned"));
 
 		// Over-budget department sorts first.
 		assert.strictEqual(rows[0].department, "Makeathon");

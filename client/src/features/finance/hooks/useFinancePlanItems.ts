@@ -92,11 +92,10 @@ export function useFinancePlanItems({
 				}),
 			}),
 		onSuccess: () => {
-			showToast("Planposten hinzugefügt.", "success");
+			showToast("Plan item added.", "success");
 			invalidate();
 		},
-		onError: (err) =>
-			reportError(err, "Planposten konnte nicht angelegt werden."),
+		onError: (err) => reportError(err, "Could not create the plan item."),
 	});
 
 	const updateMutation = useMutation({
@@ -117,11 +116,10 @@ export function useFinancePlanItems({
 				},
 			),
 		onSuccess: () => {
-			showToast("Planposten aktualisiert.", "success");
+			showToast("Plan item updated.", "success");
 			invalidate();
 		},
-		onError: (err) =>
-			reportError(err, "Planposten konnte nicht gespeichert werden."),
+		onError: (err) => reportError(err, "Could not save the plan item."),
 	});
 
 	const deleteMutation = useMutation({
@@ -130,11 +128,10 @@ export function useFinancePlanItems({
 				method: "DELETE",
 			}),
 		onSuccess: () => {
-			showToast("Planposten gelöscht.", "success");
+			showToast("Plan item deleted.", "success");
 			invalidate();
 		},
-		onError: (err) =>
-			reportError(err, "Planposten konnte nicht gelöscht werden."),
+		onError: (err) => reportError(err, "Could not delete the plan item."),
 	});
 
 	function setPeriodType(type: FinancePeriodType): void {

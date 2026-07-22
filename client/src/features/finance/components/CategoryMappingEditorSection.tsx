@@ -50,11 +50,11 @@ export function CategoryMappingEditorSection({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Kostenstelle 2 → Kategorie</CardTitle>
+				<CardTitle className="text-base">Cost location 2 → Category</CardTitle>
 				<CardDescription>
-					Gib jeder zweiten BuchhaltungsButler-Kostenstelle eine sprechende
-					Kategorie (z. B. Catering, Reise, Software). Buchungen ohne Kategorie
-					landen in der Auswertung unter „Ohne Kategorie".
+					Assign a clear category to each secondary BuchhaltungsButler cost
+					location, such as Catering, Travel, or Software. Unmapped postings
+					appear as "Uncategorized".
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
@@ -67,8 +67,8 @@ export function CategoryMappingEditorSection({
 				{!isLoading && unlabelledCount > 0 ? (
 					<Alert>
 						<AlertDescription>
-							{unlabelledCount} von {rows.length} Kostenstellen haben noch keine
-							Kategorie.
+							{unlabelledCount} of {rows.length} cost locations do not have a
+							category yet.
 						</AlertDescription>
 					</Alert>
 				) : null}
@@ -80,11 +80,11 @@ export function CategoryMappingEditorSection({
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead className="w-28">Kostenstelle 2</TableHead>
-									<TableHead>Beispiel-Buchungen</TableHead>
-									<TableHead className="text-right">Buchungen</TableHead>
-									<TableHead className="text-right">Saldo</TableHead>
-									<TableHead className="w-56">Kategorie</TableHead>
+									<TableHead className="w-28">Cost location 2</TableHead>
+									<TableHead>Sample postings</TableHead>
+									<TableHead className="text-right">Postings</TableHead>
+									<TableHead className="text-right">Balance</TableHead>
+									<TableHead className="w-56">Category</TableHead>
 									<TableHead className="w-10">
 										<span className="sr-only">Status</span>
 									</TableHead>
@@ -97,7 +97,7 @@ export function CategoryMappingEditorSection({
 											colSpan={6}
 											className="text-center text-muted-foreground"
 										>
-											Keine Kostenstellen gefunden.
+											No cost locations found.
 										</TableCell>
 									</TableRow>
 								) : (
@@ -155,7 +155,7 @@ function CategoryRow({
 					<span>{row.cost_location_two}</span>
 					{row.label ? null : (
 						<Badge variant="outline" className="w-fit text-amber-600">
-							Ohne Kategorie
+							Uncategorized
 						</Badge>
 					)}
 				</div>
@@ -179,25 +179,25 @@ function CategoryRow({
 					value={label}
 					onChange={(event) => setLabel(event.target.value)}
 					disabled={disabled}
-					placeholder="Kategorie eingeben"
-					aria-label={`Kategorie für Kostenstelle 2 ${row.cost_location_two}`}
+					placeholder="Enter category"
+					aria-label={`Category for cost location 2 ${row.cost_location_two}`}
 				/>
 			</TableCell>
 			<TableCell className="w-10 align-middle text-muted-foreground">
 				{saving ? (
-					<Loader2 aria-label="Speichern" className="size-4 animate-spin" />
+					<Loader2 aria-label="Save" className="size-4 animate-spin" />
 				) : isDirty ? (
 					<Button
 						variant="ghost"
 						size="icon-sm"
 						onClick={persist}
 						disabled={disabled}
-						aria-label={`Kategorie für Kostenstelle 2 ${row.cost_location_two} speichern`}
+						aria-label={`Save category for cost location 2 ${row.cost_location_two}`}
 					>
 						<Save />
 					</Button>
 				) : row.label ? (
-					<Check aria-label="Gespeichert" className="size-4 text-emerald-600" />
+					<Check aria-label="Saved" className="size-4 text-emerald-600" />
 				) : null}
 			</TableCell>
 		</TableRow>

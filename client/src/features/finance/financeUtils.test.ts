@@ -5,6 +5,7 @@ import {
 	buildFinanceXlsxData,
 	filterFinanceTransactions,
 	formatBereichLabel,
+	formatFinanceAccount,
 	formatFinanceAmount,
 	formatFinanceAmountCompact,
 	formatFinanceDate,
@@ -155,13 +156,18 @@ describe("financeUtils", () => {
 		expect(data[1]?.[12]).toBeNull();
 	});
 
-	it("formats Bereich labels in German, with a fallback for null", () => {
+	it("keeps German tax-realm labels with an English fallback", () => {
 		expect(formatBereichLabel("ideell")).toBe("Ideeller Bereich");
 		expect(formatBereichLabel("wirtschaftlich")).toBe(
 			"Wirtschaftlicher Geschäftsbetrieb",
 		);
 		expect(formatBereichLabel("gemischt")).toBe("Gemischt (50)");
-		expect(formatBereichLabel(null)).toBe("Ohne Bereich");
+		expect(formatBereichLabel(null)).toBe("No tax realm");
+	});
+
+	it("localizes the persisted missing-account sentinel", () => {
+		expect(formatFinanceAccount("Ohne Konto")).toBe("No account");
+		expect(formatFinanceAccount("6850")).toBe("6850");
 	});
 
 	it("formats month keys as compact labels", () => {
@@ -172,7 +178,7 @@ describe("financeUtils", () => {
 	it("formats amounts compactly, scaling with magnitude", () => {
 		expect(formatFinanceAmountCompact(940)).toBe("940 €");
 		expect(formatFinanceAmountCompact(35_500)).toBe("36k €");
-		expect(formatFinanceAmountCompact(1_240_000)).toBe("1,2 Mio €");
+		expect(formatFinanceAmountCompact(1_240_000)).toBe("1,2 M €");
 	});
 
 	it("defaults the budget period to the current calendar year", () => {
@@ -204,15 +210,15 @@ describe("financeUtils", () => {
 		});
 	});
 
-	it("formats period labels in German", () => {
+	it("formats period labels in English", () => {
 		expect(formatFinancePeriodLabel({ type: "year", key: "2026" })).toBe(
 			"2026",
 		);
 		expect(formatFinancePeriodLabel({ type: "semester", key: "WS26" })).toBe(
-			"Wintersemester 2026",
+			"Winter semester 2026",
 		);
 		expect(formatFinancePeriodLabel({ type: "semester", key: "SS26" })).toBe(
-			"Sommersemester 2026",
+			"Summer semester 2026",
 		);
 	});
 });

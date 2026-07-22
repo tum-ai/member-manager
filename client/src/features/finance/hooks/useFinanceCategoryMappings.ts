@@ -64,7 +64,7 @@ export function useFinanceCategoryMappings(
 			),
 		scope: { id: "finance-category-mappings" },
 		onSuccess: () => {
-			showToast("Kategorie gespeichert.", "success");
+			showToast("Category saved.", "success");
 			void queryClient.invalidateQueries({
 				queryKey: [FINANCE_CATEGORY_MAPPINGS_QUERY_KEY],
 			});
@@ -76,7 +76,7 @@ export function useFinanceCategoryMappings(
 			showToast(
 				mutationError instanceof Error
 					? mutationError.message
-					: "Kategorie konnte nicht gespeichert werden.",
+					: "Could not save the category.",
 				"error",
 			);
 		},

@@ -59,7 +59,7 @@ export function useFinanceAccountLabels(
 			),
 		scope: { id: "finance-account-labels" },
 		onSuccess: () => {
-			showToast("Konto gespeichert.", "success");
+			showToast("Account label saved.", "success");
 			void queryClient.invalidateQueries({
 				queryKey: [FINANCE_ACCOUNT_LABELS_QUERY_KEY],
 			});
@@ -71,7 +71,7 @@ export function useFinanceAccountLabels(
 			showToast(
 				mutationError instanceof Error
 					? mutationError.message
-					: "Konto konnte nicht gespeichert werden.",
+					: "Could not save the account label.",
 				"error",
 			);
 		},

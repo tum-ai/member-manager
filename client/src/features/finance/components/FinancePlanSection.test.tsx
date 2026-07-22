@@ -47,7 +47,7 @@ describe("FinancePlanSection", () => {
 			/>,
 		);
 
-		expect(screen.getByText(/übersteigt das Budget/)).toBeInTheDocument();
+		expect(screen.getByText(/exceeds the budget/)).toBeInTheDocument();
 	});
 
 	it("creates a plan item for a scoped member's own department", async () => {
@@ -64,11 +64,11 @@ describe("FinancePlanSection", () => {
 			/>,
 		);
 
-		await user.type(screen.getByLabelText("Bezeichnung"), "Catering");
-		await user.click(screen.getByLabelText("Richtung"));
-		await user.click(await screen.findByRole("option", { name: "Einnahme" }));
-		await user.type(screen.getByLabelText("Betrag (€)"), "900");
-		await user.click(screen.getByRole("button", { name: /Hinzufügen/ }));
+		await user.type(screen.getByLabelText("Label"), "Catering");
+		await user.click(screen.getByLabelText("Direction"));
+		await user.click(await screen.findByRole("option", { name: "Income" }));
+		await user.type(screen.getByLabelText("Amount (€)"), "900");
+		await user.click(screen.getByRole("button", { name: /Add/ }));
 
 		await waitFor(() => {
 			expect(onCreate).toHaveBeenCalledWith(
@@ -82,8 +82,8 @@ describe("FinancePlanSection", () => {
 			);
 		});
 		await waitFor(() => {
-			expect(screen.getByLabelText("Bezeichnung")).toHaveValue("");
-			expect(screen.getByLabelText("Betrag (€)")).toHaveValue(null);
+			expect(screen.getByLabelText("Label")).toHaveValue("");
+			expect(screen.getByLabelText("Amount (€)")).toHaveValue(null);
 		});
 	});
 
@@ -101,17 +101,17 @@ describe("FinancePlanSection", () => {
 			/>,
 		);
 
-		await user.type(screen.getByLabelText("Bezeichnung"), "Invalid item");
-		await user.type(screen.getByLabelText("Betrag (€)"), "-1");
+		await user.type(screen.getByLabelText("Label"), "Invalid item");
+		await user.type(screen.getByLabelText("Amount (€)"), "-1");
 
 		expect(
 			await screen.findByText(/expected number to be >=0/),
 		).toBeInTheDocument();
-		expect(screen.getByLabelText("Betrag (€)")).toHaveAttribute(
+		expect(screen.getByLabelText("Amount (€)")).toHaveAttribute(
 			"aria-invalid",
 			"true",
 		);
-		expect(screen.getByRole("button", { name: /Hinzufügen/ })).toBeDisabled();
+		expect(screen.getByRole("button", { name: /Add/ })).toBeDisabled();
 		expect(onCreate).not.toHaveBeenCalled();
 	});
 
@@ -130,8 +130,8 @@ describe("FinancePlanSection", () => {
 			/>,
 		);
 
-		await user.click(screen.getByLabelText("Status für Venue"));
-		await user.click(await screen.findByRole("option", { name: "Zugesagt" }));
+		await user.click(screen.getByLabelText("Status for Venue"));
+		await user.click(await screen.findByRole("option", { name: "Committed" }));
 
 		await waitFor(() => {
 			expect(onUpdate).toHaveBeenCalledWith({
@@ -163,7 +163,7 @@ describe("FinancePlanSection", () => {
 		);
 
 		await user.click(
-			screen.getByRole("button", { name: "Planposten Venue löschen" }),
+			screen.getByRole("button", { name: "Delete plan item Venue" }),
 		);
 
 		expect(onDelete).toHaveBeenCalledWith("plan-1");

@@ -61,15 +61,13 @@ describe("FinanceReportSection", () => {
 		);
 
 		expect(screen.getByRole("heading", { name: "Departments" })).toBeVisible();
-		expect(
-			screen.getByRole("heading", { name: "Steuerbereiche" }),
-		).toBeVisible();
+		expect(screen.getByRole("heading", { name: "Tax realms" })).toBeVisible();
 		expect(screen.getByText("Makeathon")).toBeVisible();
 		expect(screen.getByText("Wirtschaftlicher Geschäftsbetrieb")).toBeVisible();
 		expect(screen.getAllByText(/15\.000,00/).length).toBeGreaterThan(0);
 
-		await user.click(screen.getByRole("button", { name: "XLSX exportieren" }));
-		await user.click(screen.getByRole("button", { name: "Drucken" }));
+		await user.click(screen.getByRole("button", { name: "Export XLSX" }));
+		await user.click(screen.getByRole("button", { name: "Print" }));
 		expect(onExport).toHaveBeenCalledOnce();
 		expect(onPrint).toHaveBeenCalledOnce();
 	});
@@ -90,9 +88,7 @@ describe("FinanceReportSection", () => {
 		);
 
 		expect(screen.getByText("Report unavailable")).toBeVisible();
-		expect(
-			screen.getByRole("button", { name: "XLSX exportieren" }),
-		).toBeDisabled();
-		expect(screen.getByRole("button", { name: "Drucken" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Export XLSX" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Print" })).toBeDisabled();
 	});
 });

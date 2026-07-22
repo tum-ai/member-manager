@@ -118,7 +118,7 @@ export function FinanceReconciliationSection({
 					onPeriodKeyChange={onPeriodKeyChange}
 				/>
 				<div className="grid gap-1.5">
-					<Label htmlFor="finance-reconciliation-project">Projektfilter</Label>
+					<Label htmlFor="finance-reconciliation-project">Project filter</Label>
 					<Select
 						value={selectedProjectId ?? ALL_PROJECTS}
 						onValueChange={(value) =>
@@ -128,12 +128,12 @@ export function FinanceReconciliationSection({
 						<SelectTrigger
 							id="finance-reconciliation-project"
 							className="w-64"
-							aria-label="Projektfilter"
+							aria-label="Project filter"
 						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value={ALL_PROJECTS}>Alle Projekte</SelectItem>
+							<SelectItem value={ALL_PROJECTS}>All projects</SelectItem>
 							{projects.map((project) => (
 								<SelectItem key={project.id} value={project.id}>
 									{project.name} · {project.department}
@@ -152,17 +152,17 @@ export function FinanceReconciliationSection({
 
 			<div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
 				<Metric
-					label="Nicht abgeglichen"
+					label="Unmatched"
 					value={unmatched.length}
 					icon={<ListChecks className="size-4" />}
 				/>
 				<Metric
-					label="Nicht geplant"
+					label="Unplanned"
 					value={unplanned.length}
 					icon={<ReceiptText className="size-4" />}
 				/>
 				<Metric
-					label="Offene Umverteilungen"
+					label="Pending reallocations"
 					value={
 						reallocationRequests.filter(
 							(request) => request.status === "pending",
@@ -177,17 +177,17 @@ export function FinanceReconciliationSection({
 					<div className="flex flex-wrap items-center justify-between gap-2 border-b px-3 py-2">
 						<TabsList>
 							<TabsTrigger value="unmatched">
-								Nicht abgeglichen
+								Unmatched
 								<Badge variant="neutral">{unmatched.length}</Badge>
 							</TabsTrigger>
 							<TabsTrigger value="unplanned">
-								Nicht geplant
+								Unplanned
 								<Badge variant="neutral">{unplanned.length}</Badge>
 							</TabsTrigger>
 						</TabsList>
 						{reconciliation ? (
 							<span className="text-xs text-muted-foreground">
-								Quelle: {reconciliation.source === "real" ? "Live" : "Mock"}
+								Source: {reconciliation.source === "real" ? "Live" : "Mock"}
 							</span>
 						) : null}
 					</div>
@@ -294,7 +294,7 @@ function PostingList({
 	if (rows.length === 0) {
 		return (
 			<p className="p-6 text-center text-sm text-muted-foreground">
-				Keine offenen Buchungen in dieser Ansicht.
+				No open postings in this view.
 			</p>
 		);
 	}
