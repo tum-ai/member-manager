@@ -20,6 +20,22 @@ export type MemberStatus = (typeof MEMBER_STATUSES)[number];
 export const DEFAULT_MEMBER_ROLE: MemberRole = "Member";
 export const DEFAULT_MEMBER_STATUS: MemberStatus = "active";
 
+// Operational TUM.ai departments members are assigned to. Used e.g. to map
+// BuchhaltungsButler cost locations to a department in the finance analytics
+// tool. Keep in sync with the `department` values seeded in supabase/seed.sql.
+export const TUMAI_DEPARTMENTS = [
+	"Community",
+	"Innovation Department",
+	"Legal & Finance",
+	"Makeathon",
+	"Marketing",
+	"Partners & Sponsors",
+	"Research",
+	"Software Development",
+	"Venture",
+] as const;
+export type TumaiDepartment = (typeof TUMAI_DEPARTMENTS)[number];
+
 // Batch identifiers look like WS24 / SS25 (semester + two-digit year >= 20).
 export const MEMBER_BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
 

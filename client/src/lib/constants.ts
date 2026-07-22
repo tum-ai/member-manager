@@ -1,15 +1,3 @@
-export const DEPARTMENTS = [
-	"Community",
-	"Innovation Department",
-	"Legal & Finance",
-	"Makeathon",
-	"Marketing",
-	"Partners & Sponsors",
-	"Research",
-	"Software Development",
-	"Venture",
-] as const;
-
 export const WEEKLY_HOURS_OPTIONS = [2, 5, 10, 15, 20] as const;
 
 export const ENGAGEMENT_SPECIAL_ROLES = [
@@ -28,6 +16,7 @@ export {
 	DEFAULT_MEMBER_ROLE,
 	MEMBER_ROLES,
 	type MemberRole,
+	TUMAI_DEPARTMENTS as DEPARTMENTS,
 } from "@member-manager/shared";
 
 // School/University presets. "Other" unlocks a free-text field.
