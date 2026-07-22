@@ -269,7 +269,7 @@ describe("Finance Routes", async () => {
 			assert.strictEqual(response.statusCode, 403);
 		});
 
-		test("uses automatic department fallback and reports unmapped postings", async () => {
+		test("reports unmapped postings without any digit-based department fallback", async () => {
 			const response = await app.inject({
 				method: "GET",
 				url: "/api/finance/analytics?date_from=2026-02-01&date_to=2026-02-28",
@@ -280,17 +280,19 @@ describe("Finance Routes", async () => {
 			const payload = JSON.parse(response.payload);
 			assert.strictEqual(payload.source, "mock");
 			assert.ok(payload.totals.count > 0);
-			assert.ok(payload.totals.unmapped_count > 0);
-			assert.ok(payload.totals.unmapped_count < payload.totals.count);
+			// No cost-location mappings exist yet, so every posting is unmapped —
+			// the automatic booking/invoice-digit fallback has been removed.
+			assert.strictEqual(payload.totals.unmapped_count, payload.totals.count);
 			assert.ok(
-				payload.by_department.some(
-					(d: { department: string }) => d.department === "Partners & Sponsors",
+				payload.by_department.every(
+					(d: { unmapped: boolean }) => d.unmapped === true,
 				),
 			);
 			assert.ok(
-				payload.by_department.some(
-					(d: { department: string }) =>
-						d.department === "Software Development",
+				!payload.by_department.some((d: { department: string }) =>
+					["Partners & Sponsors", "Software Development"].includes(
+						d.department,
+					),
 				),
 			);
 			assert.ok(
