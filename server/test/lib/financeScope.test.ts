@@ -72,31 +72,35 @@ describe("filterTransactionsByScope", () => {
 		assert.strictEqual(result.length, 0);
 	});
 
-	test("uses the automatic document fallback unless a stored mapping overrides it", () => {
+	test("ignores document numbers and only honours stored cost-location mappings", () => {
 		const transaction = {
 			...tx("999", -50),
 			booking_number: "62026",
 		};
+		// Without a stored mapping the posting is unmapped, so a scoped view of
+		// "Makeathon" must not surface it just because the booking number starts
+		// with a 6 — the automatic digit fallback has been removed.
 		assert.strictEqual(
 			filterTransactionsByScope([transaction], [], {
 				department: "Makeathon",
 			}).length,
-			1,
+			0,
 		);
+		// A stored mapping is the only thing that assigns the department.
 		assert.strictEqual(
 			filterTransactionsByScope(
 				[transaction],
 				[
 					{
 						cost_location: "999",
-						department: "Research",
+						department: "Makeathon",
 						bereich: null,
 						note: null,
 					},
 				],
 				{ department: "Makeathon" },
 			).length,
-			0,
+			1,
 		);
 	});
 

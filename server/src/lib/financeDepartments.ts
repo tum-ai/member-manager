@@ -14,18 +14,6 @@ const ALLOCATIONS_TABLE = "finance_posting_allocations";
 const ALLOCATION_QUERY_BATCH_SIZE = 500;
 const MAX_SAMPLE_TEXTS = 3;
 
-export const FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT = {
-	"1": "Community",
-	"2": "Partners & Sponsors",
-	"3": "Software Development",
-	"4": "Marketing",
-	"5": "Venture",
-	"6": "Makeathon",
-	"7": "Innovation Department",
-	"8": "Legal & Finance",
-	"9": "Research",
-} as const;
-
 // Cost locations arrive zero-padded but inconsistently ("82" vs "082"), so we
 // key everything on a normalized form: leading zeros stripped, empty -> "0".
 export function normalizeCostLocation(value: string): string {
@@ -81,32 +69,6 @@ export interface EffectivePostingSplit {
 	amount: number;
 }
 
-function firstDigit(value: string | undefined): string | null {
-	return value?.match(/\d/)?.[0] ?? null;
-}
-
-export function deriveAutomaticDepartment(
-	transaction: BuchhaltungsButlerTransaction,
-): string | null {
-	const bookingDigit = firstDigit(transaction.booking_number);
-	if (bookingDigit !== null) {
-		return (
-			FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT[
-				bookingDigit as keyof typeof FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT
-			] ?? null
-		);
-	}
-
-	const invoiceDigit = firstDigit(
-		transaction.receipts_assigned_invoice_numbers,
-	);
-	return invoiceDigit === null
-		? null
-		: (FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT[
-				invoiceDigit as keyof typeof FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT
-			] ?? null);
-}
-
 export function resolveTransactionDepartment(
 	transaction: BuchhaltungsButlerTransaction,
 	lookup: Map<string, ResolvedDepartmentMapping>,
@@ -128,7 +90,7 @@ export function resolveTransactionDepartment(
 	}
 
 	return {
-		department: deriveAutomaticDepartment(transaction),
+		department: null,
 		bereich: null,
 	};
 }

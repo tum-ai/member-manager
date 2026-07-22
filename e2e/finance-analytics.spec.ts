@@ -206,6 +206,13 @@ test.describe("Finance Analytics tool", () => {
 		expect(postingIds.catering).toBeTruthy();
 		await page.evaluate(async () => {
 			const { apiClient } = await import("/src/lib/apiClient.ts");
+			// Assign the Makeathon cost location (161 — venue & catering) to the
+			// Makeathon department. There is no automatic department fallback, so a
+			// department member only sees postings mapped to them via the Zuordnung.
+			await apiClient("/api/finance/department-mappings/161", {
+				method: "PUT",
+				body: JSON.stringify({ department: "Makeathon", bereich: null }),
+			});
 			for (const budget of [
 				{ department: "Makeathon", amount_planned: 10000 },
 				{ department: "Community", amount_planned: 1000 },
