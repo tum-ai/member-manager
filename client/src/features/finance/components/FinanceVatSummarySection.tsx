@@ -43,18 +43,18 @@ export function FinanceVatSummarySection({
 	const netExpenses = grossExpenses - vat;
 
 	const metrics = [
-		{ label: "Ausgaben brutto", value: grossExpenses },
-		{ label: "enthaltene USt.", value: vat },
-		{ label: "Ausgaben netto", value: netExpenses },
+		{ label: "Gross expenses", value: grossExpenses },
+		{ label: "Included VAT (USt.)", value: vat },
+		{ label: "Net expenses", value: netExpenses },
 	];
 
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Umsatzsteuer</CardTitle>
+				<CardTitle className="text-base">VAT (Umsatzsteuer)</CardTitle>
 				<CardDescription>
-					In den Bruttoausgaben enthaltene USt. und der Nettobetrag, aufgeteilt
-					nach Steuersatz.
+					VAT (Umsatzsteuer) included in gross expenses and the resulting net
+					amount, grouped by tax rate (Steuersatz).
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-5">
@@ -94,7 +94,7 @@ function VatRateTable({
 	if (rows.length === 0) {
 		return (
 			<div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
-				Keine Ausgaben im gewählten Zeitraum.
+				No expenses for the selected period.
 			</div>
 		);
 	}
@@ -104,11 +104,11 @@ function VatRateTable({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead>Steuersatz</TableHead>
-						<TableHead className="text-right">Brutto</TableHead>
-						<TableHead className="text-right">USt.</TableHead>
-						<TableHead className="text-right">Netto</TableHead>
-						<TableHead className="text-right">Buchungen</TableHead>
+						<TableHead>Tax rate (Steuersatz)</TableHead>
+						<TableHead className="text-right">Gross</TableHead>
+						<TableHead className="text-right">VAT (USt.)</TableHead>
+						<TableHead className="text-right">Net</TableHead>
+						<TableHead className="text-right">Postings</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>

@@ -60,7 +60,7 @@ describe("computePlanTotals", () => {
 		const totals = computePlanTotals(
 			[planItem(3000), planItem(4500)],
 			[budget],
-			[summary("Makeathon", 6000), summary("Nicht zugeordnet", 999, true)],
+			[summary("Makeathon", 6000), summary("Unassigned", 999, true)],
 		);
 
 		assert.strictEqual(totals.planned, 7500);

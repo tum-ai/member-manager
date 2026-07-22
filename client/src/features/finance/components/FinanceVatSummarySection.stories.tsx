@@ -39,7 +39,7 @@ export const Default: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("enthaltene USt.")).toBeInTheDocument();
+		await expect(canvas.getByText("Included VAT (USt.)")).toBeInTheDocument();
 		await expect(canvas.getByText("19 %")).toBeInTheDocument();
 	},
 };

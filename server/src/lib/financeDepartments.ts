@@ -402,7 +402,7 @@ export async function loadDepartmentMappings(): Promise<
 }
 
 // Upsert a single mapping. Keyed on the normalized cost location so the same
-// Kostenstelle can never end up split across padded/unpadded rows.
+// A cost location can never end up split across padded/unpadded rows.
 export async function upsertDepartmentMapping(input: {
 	costLocation: string;
 	department: string | null;
@@ -462,7 +462,7 @@ function applyAmount(bucket: Bucket, amount: number): void {
 	bucket.count += 1;
 }
 
-// Aggregate postings into the per-department / per-month / per-Bereich rollups
+// Aggregate postings into the per-department / per-month / per-tax-realm rollups
 // the LnF analytics page renders. Postings whose (normalized) cost location has
 // no assignment land in the FINANCE_UNMAPPED_DEPARTMENT bucket so nothing is
 // silently dropped.
@@ -588,7 +588,7 @@ export function aggregateByDepartment(
 
 // Build the rows the mapping editor shows: every stored mapping unioned with
 // the cost locations actually seen in the postings, enriched with usage stats
-// so the LnF can tell which Kostenstellen still need assigning.
+// so the LnF can tell which cost locations still need assigning.
 export function buildMappingRows(
 	transactions: BuchhaltungsButlerTransaction[],
 	mappings: FinanceDepartmentMapping[],

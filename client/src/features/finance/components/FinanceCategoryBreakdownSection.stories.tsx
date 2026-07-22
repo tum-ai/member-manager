@@ -29,7 +29,7 @@ const categories: FinanceCategorySummary[] = [
 		unmapped: false,
 	},
 	{
-		category: "Ohne Kategorie",
+		category: "Uncategorized",
 		income: 30000,
 		expenses: 3000,
 		net: 27000,
@@ -59,7 +59,7 @@ export const Default: Story = {
 			canvas.getByText("Catering", { selector: '[data-slot="table-cell"]' }),
 		).toBeInTheDocument();
 		await expect(
-			canvas.getByText("Ohne Kategorie", {
+			canvas.getByText("Uncategorized", {
 				selector: '[data-slot="table-cell"]',
 			}),
 		).toBeInTheDocument();

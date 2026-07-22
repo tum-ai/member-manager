@@ -95,9 +95,9 @@ export function FinanceReconciliationPostingRow({
 						className="justify-self-start md:justify-self-end"
 					>
 						{isOvermatched ? (
-							<>Überabgleich {formatFinanceAmount(row.overmatched_amount)}</>
+							<>Overmatched {formatFinanceAmount(row.overmatched_amount)}</>
 						) : (
-							<>Offen {formatFinanceAmount(row.unmatched_amount)}</>
+							<>Open {formatFinanceAmount(row.unmatched_amount)}</>
 						)}
 					</Badge>
 				</span>
@@ -106,11 +106,11 @@ export function FinanceReconciliationPostingRow({
 				<div className="grid gap-2 lg:grid-cols-2">
 					<div className="rounded-md bg-muted/40 p-3">
 						<h4 className="text-xs font-semibold uppercase text-muted-foreground">
-							Aktuelle Aufteilung
+							Current allocation
 						</h4>
 						{row.allocations.length === 0 ? (
 							<p className="mt-2 text-sm text-muted-foreground">
-								Automatische Zuordnung aus der Kostenstelle.
+								Automatic allocation from the cost center (Kostenstelle).
 							</p>
 						) : (
 							<ul className="mt-2 grid gap-1 text-sm">
@@ -120,7 +120,7 @@ export function FinanceReconciliationPostingRow({
 										className="flex flex-wrap justify-between gap-2"
 									>
 										<span>
-											{allocation.department ?? "Ohne Department"} ·{" "}
+											{allocation.department ?? "No department"} ·{" "}
 											{formatBereichLabel(allocation.tax_area)}
 										</span>
 										<span className="tabular-nums">
@@ -134,11 +134,11 @@ export function FinanceReconciliationPostingRow({
 					</div>
 					<div className="rounded-md bg-muted/40 p-3">
 						<h4 className="text-xs font-semibold uppercase text-muted-foreground">
-							Planabgleich
+							Plan matching
 						</h4>
 						{row.matches.length === 0 ? (
 							<p className="mt-2 text-sm text-muted-foreground">
-								Noch kein Planposten verknüpft.
+								No plan item linked yet.
 							</p>
 						) : (
 							<ul className="mt-2 grid gap-1">
@@ -148,7 +148,7 @@ export function FinanceReconciliationPostingRow({
 										className="flex items-center justify-between gap-2 text-sm"
 									>
 										<span className="min-w-0 truncate">
-											{itemNames.get(match.plan_item_id) ?? "Planposten"} ·{" "}
+											{itemNames.get(match.plan_item_id) ?? "Plan item"} ·{" "}
 											{formatFinanceAmount(match.matched_amount)}
 										</span>
 										<Button
@@ -156,7 +156,7 @@ export function FinanceReconciliationPostingRow({
 											variant="ghost"
 											size="icon-xs"
 											disabled={deletingMatchId === match.id}
-											aria-label={`Planabgleich ${itemNames.get(match.plan_item_id) ?? match.id} entfernen`}
+											aria-label={`Remove plan match ${itemNames.get(match.plan_item_id) ?? match.id}`}
 											onClick={() => {
 												void onDeleteMatch(match.id);
 											}}
@@ -179,9 +179,9 @@ export function FinanceReconciliationPostingRow({
 						role="alert"
 						className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
 					>
-						Der Planabgleich übersteigt den Buchungsanteil um{" "}
-						{formatFinanceAmount(row.overmatched_amount)}. Entferne zuerst einen
-						bestehenden Abgleich.
+						The matched plan amount exceeds this posting share by{" "}
+						{formatFinanceAmount(row.overmatched_amount)}. Remove an existing
+						match first.
 					</p>
 				) : (
 					<FinancePlanMatchForm

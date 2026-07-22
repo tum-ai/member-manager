@@ -28,7 +28,7 @@ vi.mock("recharts", () => {
 const accounts: FinanceAccountSummary[] = [
 	{
 		account: "6850",
-		label: "Veranstaltungen",
+		label: "Events",
 		income: 0,
 		expenses: 10200,
 		net: -10200,
@@ -50,7 +50,7 @@ describe("FinanceAccountBreakdownSection", () => {
 			<FinanceAccountBreakdownSection accounts={accounts} isLoading={false} />,
 		);
 
-		expect(screen.getByText("Veranstaltungen")).toBeInTheDocument();
+		expect(screen.getByText("Events")).toBeInTheDocument();
 		// Unlabelled account shows a dash for its label but keeps its number.
 		expect(screen.getByText("8450")).toBeInTheDocument();
 		expect(screen.getAllByText(/10\.200,00/).length).toBeGreaterThan(0);
@@ -62,7 +62,7 @@ describe("FinanceAccountBreakdownSection", () => {
 		);
 
 		expect(
-			screen.getByText("Keine Ausgaben im gewählten Zeitraum."),
+			screen.getByText("No expenses for the selected period."),
 		).toBeInTheDocument();
 	});
 });

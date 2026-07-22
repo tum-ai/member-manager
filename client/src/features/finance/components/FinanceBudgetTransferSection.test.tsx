@@ -40,13 +40,13 @@ describe("FinanceBudgetTransferSection", () => {
 			/>,
 		);
 
-		await user.click(screen.getByLabelText("Budgetquelle"));
+		await user.click(screen.getByLabelText("Budget source"));
 		await user.click(await screen.findByRole("option", { name: "Makeathon" }));
-		await user.click(screen.getByLabelText("Budgetziel"));
+		await user.click(screen.getByLabelText("Budget destination"));
 		await user.click(await screen.findByRole("option", { name: "Community" }));
-		await user.type(screen.getByLabelText("Betrag (€)"), "500");
-		await user.type(screen.getByLabelText("Begründung"), "Share venue funds");
-		await user.click(screen.getByRole("button", { name: "Anfragen" }));
+		await user.type(screen.getByLabelText("Amount (€)"), "500");
+		await user.type(screen.getByLabelText("Reason"), "Share venue funds");
+		await user.click(screen.getByRole("button", { name: "Request" }));
 
 		await waitFor(() => {
 			expect(onCreate).toHaveBeenCalledWith({
@@ -59,15 +59,15 @@ describe("FinanceBudgetTransferSection", () => {
 			});
 		});
 		await waitFor(() => {
-			expect(screen.getByLabelText("Betrag (€)")).toHaveValue(null);
-			expect(screen.getByLabelText("Begründung")).toHaveValue("");
+			expect(screen.getByLabelText("Amount (€)")).toHaveValue(null);
+			expect(screen.getByLabelText("Reason")).toHaveValue("");
 		});
 
 		await user.type(
-			screen.getByLabelText("Review-Notiz für Budgettransfer Makeathon"),
+			screen.getByLabelText("Review note for budget transfer from Makeathon"),
 			"Confirmed",
 		);
-		await user.click(screen.getByRole("button", { name: "Genehmigen" }));
+		await user.click(screen.getByRole("button", { name: "Approve" }));
 		expect(onReview).toHaveBeenCalledWith({
 			requestId: request.id,
 			review: { decision: "approved", review_note: "Confirmed" },
@@ -90,21 +90,21 @@ describe("FinanceBudgetTransferSection", () => {
 			/>,
 		);
 
-		await user.click(screen.getByLabelText("Budgetquelle"));
+		await user.click(screen.getByLabelText("Budget source"));
 		await user.click(await screen.findByRole("option", { name: "Makeathon" }));
-		await user.click(screen.getByLabelText("Budgetziel"));
+		await user.click(screen.getByLabelText("Budget destination"));
 		await user.click(await screen.findByRole("option", { name: "Community" }));
-		await user.type(screen.getByLabelText("Betrag (€)"), "0");
-		await user.type(screen.getByLabelText("Begründung"), "Invalid amount");
+		await user.type(screen.getByLabelText("Amount (€)"), "0");
+		await user.type(screen.getByLabelText("Reason"), "Invalid amount");
 
 		expect(
 			await screen.findByText(/expected number to be >0/),
 		).toBeInTheDocument();
-		expect(screen.getByLabelText("Betrag (€)")).toHaveAttribute(
+		expect(screen.getByLabelText("Amount (€)")).toHaveAttribute(
 			"aria-invalid",
 			"true",
 		);
-		expect(screen.getByRole("button", { name: "Anfragen" })).toBeDisabled();
+		expect(screen.getByRole("button", { name: "Request" })).toBeDisabled();
 		expect(onCreate).not.toHaveBeenCalled();
 	});
 });

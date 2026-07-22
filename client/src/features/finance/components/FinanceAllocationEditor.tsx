@@ -107,7 +107,7 @@ export function FinanceAllocationEditor({
 		);
 		if (Math.abs(total - 100) > 0.01) {
 			form.setError("root", {
-				message: "Die prozentuale Aufteilung muss genau 100 % ergeben.",
+				message: "The percentage allocation must total exactly 100%.",
 			});
 			return;
 		}
@@ -127,9 +127,9 @@ export function FinanceAllocationEditor({
 		<div className="grid gap-3 rounded-md border border-brand/20 bg-brand/5 p-3">
 			<div className="flex flex-wrap items-center justify-between gap-2">
 				<div>
-					<h4 className="text-sm font-semibold">Buchung zuordnen</h4>
+					<h4 className="text-sm font-semibold">Allocate posting</h4>
 					<p className="text-xs text-muted-foreground">
-						Direkte Zuordnung durch Finance Reviewer.
+						Direct allocation by a Finance reviewer.
 					</p>
 				</div>
 				<ToggleGroup
@@ -142,15 +142,15 @@ export function FinanceAllocationEditor({
 							setMode(value);
 						}
 					}}
-					aria-label="Zuordnungsmodus"
+					aria-label="Allocation mode"
 				>
-					<ToggleGroupItem value="project" aria-label="100 % Projekt">
+					<ToggleGroupItem value="project" aria-label="100% project">
 						<Target />
-						100 % Projekt
+						100% project
 					</ToggleGroupItem>
-					<ToggleGroupItem value="split" aria-label="Prozentuale Aufteilung">
+					<ToggleGroupItem value="split" aria-label="Percentage split">
 						<Split />
-						Aufteilen
+						Split
 					</ToggleGroupItem>
 				</ToggleGroup>
 			</div>
@@ -158,15 +158,15 @@ export function FinanceAllocationEditor({
 			{mode === "project" ? (
 				<div className="grid grid-cols-1 items-end gap-2 sm:grid-cols-[minmax(12rem,1fr)_auto]">
 					<Field
-						label="Projekt"
+						label="Project"
 						htmlFor={`allocation-project-${postingExternalId}`}
 					>
 						<Select value={projectId} onValueChange={setProjectId}>
 							<SelectTrigger
 								id={`allocation-project-${postingExternalId}`}
-								aria-label="Projekt für vollständige Zuordnung"
+								aria-label="Project for full allocation"
 							>
-								<SelectValue placeholder="Projekt wählen" />
+								<SelectValue placeholder="Select project" />
 							</SelectTrigger>
 							<SelectContent>
 								{projects
@@ -188,7 +188,7 @@ export function FinanceAllocationEditor({
 						}}
 					>
 						{isPending ? <Loader2 className="animate-spin" /> : <Target />}
-						Vollständig zuordnen
+						Allocate fully
 					</Button>
 				</div>
 			) : (
@@ -220,7 +220,7 @@ export function FinanceAllocationEditor({
 						className="w-fit bg-[#9A64D9] text-white hover:bg-[#523573]"
 					>
 						{isPending ? <Loader2 className="animate-spin" /> : <Save />}
-						Aufteilung speichern
+						Save allocation
 					</Button>
 				</form>
 			)}

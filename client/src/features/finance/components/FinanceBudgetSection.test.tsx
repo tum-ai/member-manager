@@ -54,9 +54,9 @@ describe("FinanceBudgetSection", () => {
 		);
 
 		expect(
-			screen.getByText(/1 Department\(s\) über Budget/),
+			screen.getByText(/1 department\(s\) are over budget/),
 		).toBeInTheDocument();
-		expect(screen.getAllByText("Über").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("Over").length).toBeGreaterThan(0);
 	});
 
 	it("saves a changed budget amount on blur", async () => {
@@ -70,7 +70,7 @@ describe("FinanceBudgetSection", () => {
 			/>,
 		);
 
-		const input = screen.getByLabelText("Budget für Makeathon");
+		const input = screen.getByLabelText("Budget for Makeathon");
 		await user.clear(input);
 		await user.type(input, "8000");
 		await user.tab();
@@ -93,7 +93,7 @@ describe("FinanceBudgetSection", () => {
 
 		// No editable input; the amount shows as formatted text.
 		expect(
-			screen.queryByLabelText("Budget für Makeathon"),
+			screen.queryByLabelText("Budget for Makeathon"),
 		).not.toBeInTheDocument();
 		expect(screen.getAllByText(/5\.000,00/).length).toBeGreaterThan(0);
 	});
@@ -109,7 +109,7 @@ describe("FinanceBudgetSection", () => {
 			/>,
 		);
 
-		await user.click(screen.getByLabelText("Budget für Makeathon"));
+		await user.click(screen.getByLabelText("Budget for Makeathon"));
 		await user.tab();
 
 		expect(onSave).not.toHaveBeenCalled();
@@ -124,7 +124,7 @@ describe("FinanceBudgetSection", () => {
 			/>,
 		);
 
-		expect(screen.getByLabelText("Budget für Makeathon")).toHaveValue(5000);
+		expect(screen.getByLabelText("Budget for Makeathon")).toHaveValue(5000);
 
 		rerender(
 			<FinanceBudgetSection
@@ -135,6 +135,6 @@ describe("FinanceBudgetSection", () => {
 			/>,
 		);
 
-		expect(screen.getByLabelText("Budget für Makeathon")).toHaveValue(9000);
+		expect(screen.getByLabelText("Budget for Makeathon")).toHaveValue(9000);
 	});
 });

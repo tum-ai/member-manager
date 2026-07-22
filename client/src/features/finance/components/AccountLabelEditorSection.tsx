@@ -21,7 +21,10 @@ import {
 	TableRow,
 } from "@/components/ui/table";
 import type { FinanceAccountLabelRow } from "@/features/finance/financeTypes";
-import { formatFinanceAmount } from "@/features/finance/financeUtils";
+import {
+	formatFinanceAccount,
+	formatFinanceAmount,
+} from "@/features/finance/financeUtils";
 
 interface SaveInput {
 	account: string;
@@ -50,11 +53,13 @@ export function AccountLabelEditorSection({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Konto → Bezeichnung</CardTitle>
+				<CardTitle className="text-base">
+					Ledger account (Sachkonto) → Label
+				</CardTitle>
 				<CardDescription>
-					Gib jedem SKR03-Sachkonto (z. B. 6810 Aufwand, 8450 Erlös) eine
-					sprechende Bezeichnung. Nicht benannte Konten erscheinen in der
-					Auswertung weiterhin mit ihrer Kontonummer.
+					Give each SKR03 ledger account (Sachkonto), such as 6810 expense or
+					8450 revenue, a clear label. Unlabelled accounts still appear by
+					account number.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
@@ -67,8 +72,8 @@ export function AccountLabelEditorSection({
 				{!isLoading && unlabelledCount > 0 ? (
 					<Alert>
 						<AlertDescription>
-							{unlabelledCount} von {rows.length} Konten haben noch keine
-							Bezeichnung.
+							{unlabelledCount} of {rows.length} accounts do not have a label
+							yet.
 						</AlertDescription>
 					</Alert>
 				) : null}
@@ -80,11 +85,13 @@ export function AccountLabelEditorSection({
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead className="w-28">Konto</TableHead>
-									<TableHead>Beispiel-Buchungen</TableHead>
-									<TableHead className="text-right">Buchungen</TableHead>
-									<TableHead className="text-right">Saldo</TableHead>
-									<TableHead className="w-56">Bezeichnung</TableHead>
+									<TableHead className="w-28">
+										Ledger account (Sachkonto)
+									</TableHead>
+									<TableHead>Sample postings</TableHead>
+									<TableHead className="text-right">Postings</TableHead>
+									<TableHead className="text-right">Balance</TableHead>
+									<TableHead className="w-56">Label</TableHead>
 									<TableHead className="w-10">
 										<span className="sr-only">Status</span>
 									</TableHead>
@@ -97,7 +104,7 @@ export function AccountLabelEditorSection({
 											colSpan={6}
 											className="text-center text-muted-foreground"
 										>
-											Keine Konten gefunden.
+											No accounts found.
 										</TableCell>
 									</TableRow>
 								) : (
@@ -134,6 +141,7 @@ function AccountRow({
 	const [label, setLabel] = useState<string>(row.label ?? "");
 	const trimmed = label.trim();
 	const isDirty = trimmed !== (row.label ?? "");
+	const displayAccount = formatFinanceAccount(row.account);
 
 	function persist(): void {
 		if (!isDirty) {
@@ -152,10 +160,10 @@ function AccountRow({
 		<TableRow>
 			<TableCell className="align-top font-medium tabular-nums">
 				<div className="flex flex-col gap-1">
-					<span>{row.account}</span>
+					<span>{displayAccount}</span>
 					{row.label ? null : (
 						<Badge variant="outline" className="w-fit text-amber-600">
-							Ohne Bezeichnung
+							No label
 						</Badge>
 					)}
 				</div>
@@ -179,25 +187,25 @@ function AccountRow({
 					value={label}
 					onChange={(event) => setLabel(event.target.value)}
 					disabled={disabled}
-					placeholder="Bezeichnung eingeben"
-					aria-label={`Bezeichnung für Konto ${row.account}`}
+					placeholder="Enter label"
+					aria-label={`Label for ledger account (Sachkonto) ${displayAccount}`}
 				/>
 			</TableCell>
 			<TableCell className="w-10 align-middle text-muted-foreground">
 				{saving ? (
-					<Loader2 aria-label="Speichern" className="size-4 animate-spin" />
+					<Loader2 aria-label="Save" className="size-4 animate-spin" />
 				) : isDirty ? (
 					<Button
 						variant="ghost"
 						size="icon-sm"
 						onClick={persist}
 						disabled={disabled}
-						aria-label={`Bezeichnung für Konto ${row.account} speichern`}
+						aria-label={`Save label for ledger account (Sachkonto) ${displayAccount}`}
 					>
 						<Save />
 					</Button>
 				) : row.label ? (
-					<Check aria-label="Gespeichert" className="size-4 text-emerald-600" />
+					<Check aria-label="Saved" className="size-4 text-emerald-600" />
 				) : null}
 			</TableCell>
 		</TableRow>

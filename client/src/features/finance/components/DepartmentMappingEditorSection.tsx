@@ -38,7 +38,7 @@ import {
 
 const NO_BEREICH_VALUE = "__none__";
 const NO_DEPARTMENT_VALUE = "__none__";
-// Catch-all department for cost locations that don't fit any real department.
+// Catch-all department for cost centers that don't fit any real department.
 const OTHER_DEPARTMENT = "Other";
 const DEPARTMENT_OPTIONS = [...TUMAI_DEPARTMENTS, OTHER_DEPARTMENT] as const;
 
@@ -70,11 +70,13 @@ export function DepartmentMappingEditorSection({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Kostenstellen → Department</CardTitle>
+				<CardTitle className="text-base">
+					Cost centers (Kostenstellen) → Department
+				</CardTitle>
 				<CardDescription>
-					Ordne jede BuchhaltungsButler-Kostenstelle einem Department und
-					Bereich zu. Nicht zugeordnete Kostenstellen sind markiert. In der
-					Auswertung lautet das Department „Nicht zugeordnet".
+					Assign each BuchhaltungsButler cost center (Kostenstelle) to a
+					department and tax realm. Unassigned cost centers are highlighted and
+					appear as "Unassigned" in analytics.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
@@ -87,8 +89,8 @@ export function DepartmentMappingEditorSection({
 				{!isLoading && unassignedCount > 0 ? (
 					<Alert>
 						<AlertDescription>
-							{unassignedCount} von {rows.length} Kostenstellen sind noch nicht
-							zugeordnet.
+							{unassignedCount} of {rows.length} cost centers are still
+							unassigned.
 						</AlertDescription>
 					</Alert>
 				) : null}
@@ -100,12 +102,14 @@ export function DepartmentMappingEditorSection({
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead className="w-28">Kostenstelle</TableHead>
-									<TableHead>Beispiel-Buchungen</TableHead>
-									<TableHead className="text-right">Buchungen</TableHead>
-									<TableHead className="text-right">Saldo</TableHead>
+									<TableHead className="w-28">
+										Cost center (Kostenstelle)
+									</TableHead>
+									<TableHead>Sample postings</TableHead>
+									<TableHead className="text-right">Postings</TableHead>
+									<TableHead className="text-right">Balance</TableHead>
 									<TableHead className="w-48">Department</TableHead>
-									<TableHead className="w-56">Bereich</TableHead>
+									<TableHead className="w-56">Tax realm</TableHead>
 									<TableHead className="w-10">
 										<span className="sr-only">Status</span>
 									</TableHead>
@@ -118,7 +122,7 @@ export function DepartmentMappingEditorSection({
 											colSpan={7}
 											className="text-center text-muted-foreground"
 										>
-											Keine Kostenstellen gefunden.
+											No cost centers found.
 										</TableCell>
 									</TableRow>
 								) : (
@@ -191,7 +195,7 @@ function MappingRow({
 					<span>{row.cost_location}</span>
 					{row.department ? null : (
 						<Badge variant="outline" className="w-fit text-amber-600">
-							Nicht zugeordnet
+							Unassigned
 						</Badge>
 					)}
 				</div>
@@ -217,14 +221,12 @@ function MappingRow({
 					disabled={disabled}
 				>
 					<SelectTrigger
-						aria-label={`Department für Kostenstelle ${row.cost_location}`}
+						aria-label={`Department for cost center (Kostenstelle) ${row.cost_location}`}
 					>
-						<SelectValue placeholder="Department wählen" />
+						<SelectValue placeholder="Select department" />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value={NO_DEPARTMENT_VALUE}>
-							Nicht zugeordnet
-						</SelectItem>
+						<SelectItem value={NO_DEPARTMENT_VALUE}>Unassigned</SelectItem>
 						{DEPARTMENT_OPTIONS.map((dept) => (
 							<SelectItem key={dept} value={dept}>
 								{dept}
@@ -240,12 +242,12 @@ function MappingRow({
 					disabled={disabled}
 				>
 					<SelectTrigger
-						aria-label={`Bereich für Kostenstelle ${row.cost_location}`}
+						aria-label={`Tax realm for cost center (Kostenstelle) ${row.cost_location}`}
 					>
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value={NO_BEREICH_VALUE}>Ohne Bereich</SelectItem>
+						<SelectItem value={NO_BEREICH_VALUE}>No tax realm</SelectItem>
 						{FINANCE_BEREICH_OPTIONS.map((option) => (
 							<SelectItem key={option.value} value={option.value}>
 								{option.label}
@@ -256,19 +258,19 @@ function MappingRow({
 			</TableCell>
 			<TableCell className="w-10 align-middle text-muted-foreground">
 				{saving ? (
-					<Loader2 aria-label="Speichern" className="size-4 animate-spin" />
+					<Loader2 aria-label="Save" className="size-4 animate-spin" />
 				) : isDirty ? (
 					<Button
 						variant="ghost"
 						size="icon-sm"
 						onClick={persist}
 						disabled={disabled}
-						aria-label={`Zuordnung für Kostenstelle ${row.cost_location} speichern`}
+						aria-label={`Save mapping for cost center (Kostenstelle) ${row.cost_location}`}
 					>
 						<Save />
 					</Button>
 				) : row.department ? (
-					<Check aria-label="Gespeichert" className="size-4 text-emerald-600" />
+					<Check aria-label="Saved" className="size-4 text-emerald-600" />
 				) : null}
 			</TableCell>
 		</TableRow>

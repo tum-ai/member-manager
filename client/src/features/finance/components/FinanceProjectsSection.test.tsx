@@ -84,13 +84,13 @@ describe("FinanceProjectsSection", () => {
 		renderWithClient(<FinanceProjectsSection {...sectionProps} />);
 
 		await user.type(screen.getByLabelText("Name *"), "Venue operations");
-		await user.click(screen.getByLabelText("Übergeordnetes Projekt"));
+		await user.click(screen.getByLabelText("Parent project"));
 		await user.click(
 			await screen.findByRole("option", { name: "Makeathon 2026" }),
 		);
-		await user.clear(screen.getByLabelText("Zielbetrag (€) *"));
-		await user.type(screen.getByLabelText("Zielbetrag (€) *"), "-5000");
-		await user.click(screen.getByRole("button", { name: "Projekt anlegen" }));
+		await user.clear(screen.getByLabelText("Target amount (€) *"));
+		await user.type(screen.getByLabelText("Target amount (€) *"), "-5000");
+		await user.click(screen.getByRole("button", { name: "Create project" }));
 
 		expect(sectionProps.onCreateProject).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -102,13 +102,13 @@ describe("FinanceProjectsSection", () => {
 			}),
 		);
 
-		await user.click(screen.getByLabelText("Vorlage für Makeathon 2026"));
+		await user.click(screen.getByLabelText("Template for Makeathon 2026"));
 		await user.click(
 			await screen.findByRole("option", { name: "Event baseline" }),
 		);
 		await user.click(
 			screen.getByRole("button", {
-				name: "Vorlage auf Makeathon 2026 anwenden",
+				name: "Apply template to Makeathon 2026",
 			}),
 		);
 		expect(sectionProps.onAssignTemplate).toHaveBeenCalledWith({
@@ -122,31 +122,31 @@ describe("FinanceProjectsSection", () => {
 		const sectionProps = { ...props(), canManage: true, department: null };
 		renderWithClient(<FinanceProjectsSection {...sectionProps} />);
 
-		await user.type(screen.getByLabelText("Neue Vorlage"), "Workshop");
-		await user.click(screen.getByRole("button", { name: "Anlegen" }));
+		await user.type(screen.getByLabelText("New template"), "Workshop");
+		await user.click(screen.getByRole("button", { name: "Create" }));
 		expect(sectionProps.onCreateTemplate).toHaveBeenCalledWith(
 			expect.objectContaining({ name: "Workshop", is_active: true }),
 		);
 
 		await user.click(screen.getByRole("button", { name: /Event baseline/ }));
 		await user.type(
-			screen.getByLabelText("Position", { selector: "input" }),
+			screen.getByLabelText("Item", { selector: "input" }),
 			"Catering",
 		);
 		await user.clear(
-			screen.getByLabelText("Betrag (€)", { selector: "input" }),
+			screen.getByLabelText("Amount (€)", { selector: "input" }),
 		);
 		await user.type(
-			screen.getByLabelText("Betrag (€)", { selector: "input" }),
+			screen.getByLabelText("Amount (€)", { selector: "input" }),
 			"1200",
 		);
 		const templateItemForm = screen
-			.getByLabelText("Position", { selector: "input" })
+			.getByLabelText("Item", { selector: "input" })
 			.closest("form");
 		expect(templateItemForm).not.toBeNull();
 		await user.click(
 			within(templateItemForm as HTMLFormElement).getByRole("button", {
-				name: "Position",
+				name: "Add item",
 			}),
 		);
 

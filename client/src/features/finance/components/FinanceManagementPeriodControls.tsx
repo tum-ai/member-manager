@@ -30,7 +30,7 @@ export function FinanceManagementPeriodControls({
 	return (
 		<div className="flex flex-wrap items-end gap-3 print:hidden">
 			<div className="grid gap-1.5">
-				<Label htmlFor={`${idPrefix}-period-type`}>Zeitraumtyp</Label>
+				<Label htmlFor={`${idPrefix}-period-type`}>Period type</Label>
 				<Select
 					value={period.type}
 					onValueChange={(value) =>
@@ -40,23 +40,23 @@ export function FinanceManagementPeriodControls({
 					<SelectTrigger
 						id={`${idPrefix}-period-type`}
 						className="w-40"
-						aria-label="Zeitraumtyp"
+						aria-label="Period type"
 					>
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="year">Jahr</SelectItem>
+						<SelectItem value="year">Year</SelectItem>
 						<SelectItem value="semester">Semester</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
 			<div className="grid gap-1.5">
-				<Label htmlFor={`${idPrefix}-period-key`}>Zeitraum</Label>
+				<Label htmlFor={`${idPrefix}-period-key`}>Period</Label>
 				<Select value={period.key} onValueChange={onPeriodKeyChange}>
 					<SelectTrigger
 						id={`${idPrefix}-period-key`}
 						className="w-48"
-						aria-label="Zeitraum"
+						aria-label="Period"
 					>
 						<SelectValue />
 					</SelectTrigger>

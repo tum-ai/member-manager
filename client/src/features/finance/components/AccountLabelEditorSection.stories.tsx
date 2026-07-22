@@ -14,7 +14,7 @@ const rows: FinanceAccountLabelRow[] = [
 	},
 	{
 		account: "8450",
-		label: "Erlöse Sponsoring",
+		label: "Sponsorship revenue",
 		note: null,
 		posting_count: 3,
 		net: 30000,
@@ -42,13 +42,15 @@ export const Default: Story = {
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Ohne Bezeichnung")).toBeInTheDocument();
+		await expect(canvas.getByText("No label")).toBeInTheDocument();
 
-		const input = canvas.getByLabelText("Bezeichnung für Konto 6840");
+		const input = canvas.getByLabelText(
+			"Label for ledger account (Sachkonto) 6840",
+		);
 		await userEvent.type(input, "Software & Tools");
 		await userEvent.click(
 			canvas.getByRole("button", {
-				name: "Bezeichnung für Konto 6840 speichern",
+				name: "Save label for ledger account (Sachkonto) 6840",
 			}),
 		);
 		await expect(args.onSave).toHaveBeenCalledWith({

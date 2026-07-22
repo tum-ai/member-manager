@@ -97,10 +97,7 @@ describe("useFinanceDepartmentMappings", () => {
 		});
 
 		await waitFor(() =>
-			expect(showToast).toHaveBeenCalledWith(
-				"Zuordnung gespeichert.",
-				"success",
-			),
+			expect(showToast).toHaveBeenCalledWith("Mapping saved.", "success"),
 		);
 		expect(putCostLocation).toBe("82");
 		expect(putBody).toMatchObject({
@@ -176,7 +173,7 @@ describe("useFinanceDepartmentMappings", () => {
 		});
 
 		expect(maxActiveRequests).toBe(1);
-		expect(showToast).toHaveBeenCalledWith("Zuordnung gespeichert.", "success");
+		expect(showToast).toHaveBeenCalledWith("Mapping saved.", "success");
 		expect(showToast).toHaveBeenCalledWith("save failed", "error");
 	});
 });

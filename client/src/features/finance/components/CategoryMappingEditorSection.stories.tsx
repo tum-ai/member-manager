@@ -42,13 +42,15 @@ export const Default: Story = {
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Ohne Kategorie")).toBeInTheDocument();
+		await expect(canvas.getByText("Uncategorized")).toBeInTheDocument();
 
-		const input = canvas.getByLabelText("Kategorie für Kostenstelle 2 1");
+		const input = canvas.getByLabelText(
+			"Category for cost center 2 (Kostenstelle 2) 1",
+		);
 		await userEvent.type(input, "Catering");
 		await userEvent.click(
 			canvas.getByRole("button", {
-				name: "Kategorie für Kostenstelle 2 1 speichern",
+				name: "Save category for cost center 2 (Kostenstelle 2) 1",
 			}),
 		);
 		await expect(args.onSave).toHaveBeenCalledWith({

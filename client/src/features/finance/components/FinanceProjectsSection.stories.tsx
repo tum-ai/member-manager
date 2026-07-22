@@ -97,14 +97,14 @@ export const DepartmentView: Story = {
 		const body = within(canvasElement.ownerDocument.body);
 
 		await userEvent.type(canvas.getByLabelText("Name *"), "Venue operations");
-		await userEvent.click(canvas.getByLabelText("Übergeordnetes Projekt"));
+		await userEvent.click(canvas.getByLabelText("Parent project"));
 		await userEvent.click(
 			await body.findByRole("option", { name: "Makeathon 2026" }),
 		);
-		await userEvent.clear(canvas.getByLabelText("Zielbetrag (€) *"));
-		await userEvent.type(canvas.getByLabelText("Zielbetrag (€) *"), "-5000");
+		await userEvent.clear(canvas.getByLabelText("Target amount (€) *"));
+		await userEvent.type(canvas.getByLabelText("Target amount (€) *"), "-5000");
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Projekt anlegen" }),
+			canvas.getByRole("button", { name: "Create project" }),
 		);
 
 		await expect(args.onCreateProject).toHaveBeenCalledWith(
@@ -123,8 +123,8 @@ export const ReviewerManagement: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByLabelText("Projekt-Department")).toBeVisible();
-		await expect(canvas.getByLabelText("Neue Vorlage")).toBeVisible();
+		await expect(canvas.getByLabelText("Project department")).toBeVisible();
+		await expect(canvas.getByLabelText("New template")).toBeVisible();
 	},
 };
 

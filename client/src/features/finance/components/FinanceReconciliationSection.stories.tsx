@@ -137,8 +137,8 @@ export const DepartmentWorkflow: Story = {
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Makeathon venue/ }),
 		);
-		await expect(canvas.getByLabelText("Planposten zuordnen")).toBeVisible();
-		await expect(canvas.getByLabelText("Begründung *")).toBeVisible();
+		await expect(canvas.getByLabelText("Match plan item")).toBeVisible();
+		await expect(canvas.getByLabelText("Reason *")).toBeVisible();
 	},
 };
 
@@ -150,10 +150,10 @@ export const ReviewerWorkflow: Story = {
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.type(
-			canvas.getByLabelText("Review-Notiz für Makeathon"),
+			canvas.getByLabelText("Review note for Makeathon"),
 			"Confirmed",
 		);
-		await userEvent.click(canvas.getByRole("button", { name: "Genehmigen" }));
+		await userEvent.click(canvas.getByRole("button", { name: "Approve" }));
 		await expect(args.onReviewReallocation).toHaveBeenCalledWith({
 			requestId: REQUEST_ID,
 			review: { decision: "approved", review_note: "Confirmed" },
@@ -177,13 +177,13 @@ export const OvermatchedPosting: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Überabgleich 200,00 €")).toBeVisible();
+		await expect(canvas.getByText("Overmatched 200,00 €")).toBeVisible();
 		await userEvent.click(
 			canvas.getByRole("button", { name: /Makeathon venue/ }),
 		);
 		await expect(canvas.getByRole("alert")).toBeVisible();
 		await expect(
-			canvas.queryByLabelText("Planposten zuordnen"),
+			canvas.queryByLabelText("Match plan item"),
 		).not.toBeInTheDocument();
 	},
 };

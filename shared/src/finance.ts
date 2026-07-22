@@ -65,7 +65,7 @@ export type FinanceBereich = z.infer<typeof FinanceBereichSchema>;
 
 // Sentinel department label for postings whose cost location has not (yet)
 // been assigned by the LnF team. Kept in shared so client and server agree.
-export const FINANCE_UNMAPPED_DEPARTMENT = "Nicht zugeordnet";
+export const FINANCE_UNMAPPED_DEPARTMENT = "Unassigned";
 
 export const FinanceDepartmentMappingSchema = z.object({
 	cost_location: z.string().min(1),
@@ -114,10 +114,10 @@ export type FinanceDepartmentMappingsResponse = z.infer<
 
 // --- Category mapping (cost_location_two) -----------------------------------
 
-// Sentinel bucket for postings whose second cost location (Kostenstelle 2) has
+// Sentinel bucket for postings whose secondary cost location has
 // no label assigned. In the BB data cost_location_two "0"/empty means the
 // posting has no sub-category, so those also land here.
-export const FINANCE_UNMAPPED_CATEGORY = "Ohne Kategorie";
+export const FINANCE_UNMAPPED_CATEGORY = "Uncategorized";
 
 export const FinanceCategoryMappingSchema = z.object({
 	cost_location_two: z.string().min(1),
@@ -176,6 +176,8 @@ export type FinanceCategorySummary = z.infer<
 // Sentinel bucket for postings with no ledger account number at all (rare).
 // Labelled and unlabelled accounts both keep their real number as the bucket
 // key; the label is decoration, so no per-account "unmapped" flag is needed.
+// This value is persisted in finance_account_labels, so keep it stable and
+// localize it only at the presentation layer.
 export const FINANCE_UNMAPPED_ACCOUNT = "Ohne Konto";
 
 export const FinanceAccountLabelSchema = z.object({
@@ -239,7 +241,7 @@ export type FinanceDepartmentSummary = z.infer<
 	typeof FinanceDepartmentSummarySchema
 >;
 
-// VAT (Umsatzsteuer) breakdown of expenses by rate. BuchhaltungsButler reports
+// VAT breakdown of expenses by rate. BuchhaltungsButler reports
 // `vat` as a percentage rate; the amount contained in a (gross) posting is
 // derived as gross * rate / (100 + rate). Grouping by rate keeps each row an
 // unambiguous gross/VAT/net triple an accountant can reconcile.

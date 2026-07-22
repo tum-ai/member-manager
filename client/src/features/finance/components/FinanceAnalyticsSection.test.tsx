@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { FinanceAnalyticsResponse } from "@/features/finance/financeTypes";
@@ -47,7 +47,7 @@ function analytics(
 		],
 		by_category: [
 			{
-				category: "Ohne Kategorie",
+				category: "Uncategorized",
 				income: 0,
 				expenses: 8700,
 				net: -8700,
@@ -107,12 +107,15 @@ describe("FinanceAnalyticsSection", () => {
 			<FinanceAnalyticsSection {...baseProps} analytics={analytics()} />,
 		);
 
-		expect(screen.getByText("Ausgaben pro Department")).toBeInTheDocument();
+		expect(screen.getByText("Expenses by department")).toBeInTheDocument();
 		expect(
 			screen.getByText("Wirtschaftlicher Geschäftsbetrieb"),
 		).toBeInTheDocument();
 		// Totals row shows the aggregated expenses.
 		expect(screen.getAllByText(/8\.700,00/).length).toBeGreaterThan(0);
+		const legend = screen.getByRole("group", { name: "Chart legend" });
+		expect(within(legend).getByText("Income")).toBeInTheDocument();
+		expect(within(legend).getByText("Expenses")).toBeInTheDocument();
 	});
 
 	it("warns when unmapped postings exist", () => {
@@ -133,7 +136,9 @@ describe("FinanceAnalyticsSection", () => {
 		);
 
 		expect(
-			screen.getByText(/noch nicht\s+zugeordnete Kostenstelle/),
+			screen.getByText(
+				/posting\(s\) use an unmapped cost center \(Kostenstelle\)/,
+			),
 		).toBeInTheDocument();
 	});
 

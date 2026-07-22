@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/table";
 import type { FinanceAccountSummary } from "@/features/finance/financeTypes";
 import {
+	formatFinanceAccount,
 	formatFinanceAmount,
 	formatFinanceAmountCompact,
 } from "@/features/finance/financeUtils";
@@ -56,7 +57,8 @@ const TOOLTIP_STYLE = {
 // Bar/table label: prefer the human name, but always keep the account number
 // visible so the SKR03 origin stays traceable.
 function accountDisplayName(entry: FinanceAccountSummary): string {
-	return entry.label ? `${entry.account} · ${entry.label}` : entry.account;
+	const account = formatFinanceAccount(entry.account);
+	return entry.label ? `${account} · ${entry.label}` : account;
 }
 
 interface FinanceAccountBreakdownSectionProps {
@@ -71,10 +73,12 @@ export function FinanceAccountBreakdownSection({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Ausgaben pro Konto</CardTitle>
+				<CardTitle className="text-base">
+					Expenses by ledger account (Sachkonto)
+				</CardTitle>
 				<CardDescription>
-					Auswertung nach SKR03-Sachkonto. Benenne die Konten im Tab
-					„Zuordnung".
+					Analysis by SKR03 ledger account (Sachkonto). Manage account labels in
+					the "Mapping" tab.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-5">
@@ -107,7 +111,7 @@ function AccountBars({
 	if (data.length === 0) {
 		return (
 			<div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
-				Keine Ausgaben im gewählten Zeitraum.
+				No expenses for the selected period.
 			</div>
 		);
 	}
@@ -146,7 +150,7 @@ function AccountBars({
 					cursor={{ fill: "var(--muted)", opacity: 0.4 }}
 					formatter={(value) => [
 						formatFinanceAmount(Number(value)),
-						"Ausgaben",
+						"Expenses",
 					]}
 					contentStyle={TOOLTIP_STYLE}
 				/>
@@ -184,19 +188,19 @@ function AccountTable({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead>Konto</TableHead>
-						<TableHead>Bezeichnung</TableHead>
-						<TableHead className="text-right">Einnahmen</TableHead>
-						<TableHead className="text-right">Ausgaben</TableHead>
-						<TableHead className="text-right">Netto</TableHead>
-						<TableHead className="text-right">Buchungen</TableHead>
+						<TableHead>Ledger account (Sachkonto)</TableHead>
+						<TableHead>Label</TableHead>
+						<TableHead className="text-right">Income</TableHead>
+						<TableHead className="text-right">Expenses</TableHead>
+						<TableHead className="text-right">Net</TableHead>
+						<TableHead className="text-right">Postings</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
 					{rows.map((row) => (
 						<TableRow key={row.account}>
 							<TableCell className="font-medium tabular-nums">
-								{row.account}
+								{formatFinanceAccount(row.account)}
 							</TableCell>
 							<TableCell className="text-muted-foreground">
 								{row.label ?? "—"}
