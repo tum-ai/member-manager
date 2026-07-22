@@ -55,12 +55,14 @@ describe("AccountLabelEditorSection", () => {
 			/>,
 		);
 
-		const input = screen.getByLabelText("Label for account 6840");
+		const input = screen.getByLabelText(
+			"Label for ledger account (Sachkonto) 6840",
+		);
 		await user.type(input, "Software & Tools");
 		expect(onSave).not.toHaveBeenCalled();
 		await user.click(
 			screen.getByRole("button", {
-				name: "Save label for account 6840",
+				name: "Save label for ledger account (Sachkonto) 6840",
 			}),
 		);
 
@@ -82,12 +84,14 @@ describe("AccountLabelEditorSection", () => {
 			/>,
 		);
 
-		await user.click(screen.getByLabelText("Label for account 8450"));
+		await user.click(
+			screen.getByLabelText("Label for ledger account (Sachkonto) 8450"),
+		);
 
 		expect(onSave).not.toHaveBeenCalled();
 		expect(
 			screen.queryByRole("button", {
-				name: "Save label for account 8450",
+				name: "Save label for ledger account (Sachkonto) 8450",
 			}),
 		).not.toBeInTheDocument();
 	});
@@ -105,12 +109,12 @@ describe("AccountLabelEditorSection", () => {
 
 		expect(screen.getByText("No account")).toBeInTheDocument();
 		await user.type(
-			screen.getByLabelText("Label for account No account"),
+			screen.getByLabelText("Label for ledger account (Sachkonto) No account"),
 			"Other",
 		);
 		await user.click(
 			screen.getByRole("button", {
-				name: "Save label for account No account",
+				name: "Save label for ledger account (Sachkonto) No account",
 			}),
 		);
 

@@ -67,8 +67,8 @@ export function FinanceCategoryBreakdownSection({
 			<CardHeader>
 				<CardTitle className="text-base">Expenses by category</CardTitle>
 				<CardDescription>
-					Analysis by secondary cost location. Manage category labels in the
-					"Mapping" tab.
+					Analysis by secondary cost center (Kostenstelle 2). Manage category
+					labels in the "Mapping" tab.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-5">

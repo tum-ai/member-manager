@@ -124,7 +124,7 @@ export function BuchhaltungsButlerTransactionsSection({
 								id="finance-search"
 								value={filters.searchTerm}
 								onChange={(event) => onSearchTermChange(event.target.value)}
-								placeholder="Posting text, account, cost location"
+								placeholder="Posting text, ledger account (Sachkonto), cost center (Kostenstelle)"
 								className="pl-9"
 							/>
 						</div>
@@ -202,8 +202,10 @@ function TransactionsTable({
 					<TableHead>Date</TableHead>
 					<TableHead>Posting</TableHead>
 					<TableHead>Purpose</TableHead>
-					<TableHead>Accounts</TableHead>
-					<TableHead>Cost Locations</TableHead>
+					<TableHead>
+						Debit / credit accounts (Sollkonto / Habenkonto)
+					</TableHead>
+					<TableHead>Cost centers (Kostenstellen)</TableHead>
 					<TableHead className="text-right">Amount</TableHead>
 				</TableRow>
 			</TableHeader>

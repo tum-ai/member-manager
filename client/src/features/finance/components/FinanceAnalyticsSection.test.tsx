@@ -136,7 +136,9 @@ describe("FinanceAnalyticsSection", () => {
 		);
 
 		expect(
-			screen.getByText(/posting\(s\) use an unmapped cost location/),
+			screen.getByText(
+				/posting\(s\) use an unmapped cost center \(Kostenstelle\)/,
+			),
 		).toBeInTheDocument();
 	});
 

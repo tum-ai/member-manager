@@ -27,7 +27,7 @@ const baseProps = {
 };
 
 describe("DepartmentMappingEditorSection", () => {
-	it("marks unassigned cost locations and counts them", () => {
+	it("marks unassigned cost centers and counts them", () => {
 		renderWithClient(
 			<DepartmentMappingEditorSection
 				{...baseProps}
@@ -43,7 +43,7 @@ describe("DepartmentMappingEditorSection", () => {
 		// value), the assigned one does not.
 		expect(screen.getAllByText("Unassigned").length).toBeGreaterThan(0);
 		expect(
-			screen.getByText(/1 of 2 cost locations are still unassigned/),
+			screen.getByText(/1 of 2 cost centers are still unassigned/),
 		).toBeInTheDocument();
 	});
 
@@ -60,14 +60,14 @@ describe("DepartmentMappingEditorSection", () => {
 
 		await user.click(
 			screen.getByRole("combobox", {
-				name: "Department for cost location 161",
+				name: "Department for cost center (Kostenstelle) 161",
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: "Makeathon" }));
 		expect(onSave).not.toHaveBeenCalled();
 		await user.click(
 			screen.getByRole("button", {
-				name: "Save mapping for cost location 161",
+				name: "Save mapping for cost center (Kostenstelle) 161",
 			}),
 		);
 
@@ -92,13 +92,13 @@ describe("DepartmentMappingEditorSection", () => {
 
 		await user.click(
 			screen.getByRole("combobox", {
-				name: "Department for cost location 120",
+				name: "Department for cost center (Kostenstelle) 120",
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: "Venture" }));
 		await user.click(
 			screen.getByRole("button", {
-				name: "Save mapping for cost location 120",
+				name: "Save mapping for cost center (Kostenstelle) 120",
 			}),
 		);
 
@@ -123,12 +123,12 @@ describe("DepartmentMappingEditorSection", () => {
 
 		await user.click(
 			screen.getByRole("combobox", {
-				name: "Department for cost location 161",
+				name: "Department for cost center (Kostenstelle) 161",
 			}),
 		);
 		await user.click(await screen.findByRole("option", { name: "Makeathon" }));
 		const saveButton = screen.getByRole("button", {
-			name: "Save mapping for cost location 161",
+			name: "Save mapping for cost center (Kostenstelle) 161",
 		});
 		await user.click(saveButton);
 

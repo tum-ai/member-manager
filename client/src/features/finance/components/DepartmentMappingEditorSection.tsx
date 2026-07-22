@@ -38,7 +38,7 @@ import {
 
 const NO_BEREICH_VALUE = "__none__";
 const NO_DEPARTMENT_VALUE = "__none__";
-// Catch-all department for cost locations that don't fit any real department.
+// Catch-all department for cost centers that don't fit any real department.
 const OTHER_DEPARTMENT = "Other";
 const DEPARTMENT_OPTIONS = [...TUMAI_DEPARTMENTS, OTHER_DEPARTMENT] as const;
 
@@ -70,11 +70,13 @@ export function DepartmentMappingEditorSection({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Cost locations → Department</CardTitle>
+				<CardTitle className="text-base">
+					Cost centers (Kostenstellen) → Department
+				</CardTitle>
 				<CardDescription>
-					Assign each BuchhaltungsButler cost location to a department and tax
-					realm. Unassigned cost locations are highlighted and appear as
-					"Unassigned" in analytics.
+					Assign each BuchhaltungsButler cost center (Kostenstelle) to a
+					department and tax realm. Unassigned cost centers are highlighted and
+					appear as "Unassigned" in analytics.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
@@ -87,7 +89,7 @@ export function DepartmentMappingEditorSection({
 				{!isLoading && unassignedCount > 0 ? (
 					<Alert>
 						<AlertDescription>
-							{unassignedCount} of {rows.length} cost locations are still
+							{unassignedCount} of {rows.length} cost centers are still
 							unassigned.
 						</AlertDescription>
 					</Alert>
@@ -100,7 +102,9 @@ export function DepartmentMappingEditorSection({
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead className="w-28">Cost location</TableHead>
+									<TableHead className="w-28">
+										Cost center (Kostenstelle)
+									</TableHead>
 									<TableHead>Sample postings</TableHead>
 									<TableHead className="text-right">Postings</TableHead>
 									<TableHead className="text-right">Balance</TableHead>
@@ -118,7 +122,7 @@ export function DepartmentMappingEditorSection({
 											colSpan={7}
 											className="text-center text-muted-foreground"
 										>
-											No cost locations found.
+											No cost centers found.
 										</TableCell>
 									</TableRow>
 								) : (
@@ -217,7 +221,7 @@ function MappingRow({
 					disabled={disabled}
 				>
 					<SelectTrigger
-						aria-label={`Department for cost location ${row.cost_location}`}
+						aria-label={`Department for cost center (Kostenstelle) ${row.cost_location}`}
 					>
 						<SelectValue placeholder="Select department" />
 					</SelectTrigger>
@@ -238,7 +242,7 @@ function MappingRow({
 					disabled={disabled}
 				>
 					<SelectTrigger
-						aria-label={`Tax realm for cost location ${row.cost_location}`}
+						aria-label={`Tax realm for cost center (Kostenstelle) ${row.cost_location}`}
 					>
 						<SelectValue />
 					</SelectTrigger>
@@ -261,7 +265,7 @@ function MappingRow({
 						size="icon-sm"
 						onClick={persist}
 						disabled={disabled}
-						aria-label={`Save mapping for cost location ${row.cost_location}`}
+						aria-label={`Save mapping for cost center (Kostenstelle) ${row.cost_location}`}
 					>
 						<Save />
 					</Button>

@@ -44,11 +44,13 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("No label")).toBeInTheDocument();
 
-		const input = canvas.getByLabelText("Label for account 6840");
+		const input = canvas.getByLabelText(
+			"Label for ledger account (Sachkonto) 6840",
+		);
 		await userEvent.type(input, "Software & Tools");
 		await userEvent.click(
 			canvas.getByRole("button", {
-				name: "Save label for account 6840",
+				name: "Save label for ledger account (Sachkonto) 6840",
 			}),
 		);
 		await expect(args.onSave).toHaveBeenCalledWith({

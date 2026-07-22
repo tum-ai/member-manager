@@ -25,7 +25,7 @@ export default function FinanceTransactionsPage(): ReactElement {
 	return (
 		<ToolPageShell
 			title="Finance Transactions"
-			description="Review BuchhaltungsButler postings for the finance ledger."
+			description="Review BuchhaltungsButler postings with their ledger accounts (Sachkonten) and cost centers (Kostenstellen)."
 		>
 			<div className="flex flex-col gap-5">
 				<FinanceSummarySection summary={summary} isLoading={isLoading} />

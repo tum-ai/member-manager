@@ -110,7 +110,7 @@ export function FinanceReconciliationPostingRow({
 						</h4>
 						{row.allocations.length === 0 ? (
 							<p className="mt-2 text-sm text-muted-foreground">
-								Automatic allocation from the cost location.
+								Automatic allocation from the cost center (Kostenstelle).
 							</p>
 						) : (
 							<ul className="mt-2 grid gap-1 text-sm">

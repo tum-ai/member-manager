@@ -53,7 +53,7 @@ export const Default: Story = {
 
 		await userEvent.click(
 			canvas.getByRole("combobox", {
-				name: "Department for cost location 161",
+				name: "Department for cost center (Kostenstelle) 161",
 			}),
 		);
 		await userEvent.click(
@@ -61,12 +61,12 @@ export const Default: Story = {
 		);
 		await userEvent.click(
 			canvas.getByRole("button", {
-				name: "Save mapping for cost location 161",
+				name: "Save mapping for cost center (Kostenstelle) 161",
 			}),
 		);
 		await expect(
 			canvas.getByRole("combobox", {
-				name: "Department for cost location 161",
+				name: "Department for cost center (Kostenstelle) 161",
 			}),
 		).toHaveTextContent("Makeathon");
 	},

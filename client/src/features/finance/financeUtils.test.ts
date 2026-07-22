@@ -135,8 +135,28 @@ describe("financeUtils", () => {
 		expect(rows[0]).toMatchObject({
 			"External ID": "BB-1",
 			"Posting Text": "Sponsoring JetBrains",
+			VAT: 0,
+			"Debit Account": "8450",
+			"Credit Account": "1200",
+			"Cost Location": "120",
+			"Cost Location 2": "0",
 			"Transaction Amount": 7500,
 		});
+		expect(Object.keys(rows[0] ?? {})).toEqual([
+			"External ID",
+			"Date",
+			"Posting Text",
+			"Amount",
+			"Currency",
+			"VAT",
+			"Credit Type",
+			"Debit Account",
+			"Credit Account",
+			"Cost Location",
+			"Cost Location 2",
+			"Transaction Amount",
+			"Transaction Purpose",
+		]);
 	});
 
 	it("builds typed Excel cells for finance export rows", () => {

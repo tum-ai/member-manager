@@ -63,6 +63,16 @@ describe("BuchhaltungsButlerTransactionsSection", () => {
 		expect(
 			screen.getByText("JetBrains partnership tranche 1"),
 		).toBeInTheDocument();
+		expect(
+			screen.getByRole("columnheader", {
+				name: "Debit / credit accounts (Sollkonto / Habenkonto)",
+			}),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("columnheader", {
+				name: "Cost centers (Kostenstellen)",
+			}),
+		).toBeInTheDocument();
 	});
 
 	it("forwards filter and action changes", async () => {

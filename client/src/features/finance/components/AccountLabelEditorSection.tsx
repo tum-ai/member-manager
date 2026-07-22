@@ -53,10 +53,13 @@ export function AccountLabelEditorSection({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Account → Label</CardTitle>
+				<CardTitle className="text-base">
+					Ledger account (Sachkonto) → Label
+				</CardTitle>
 				<CardDescription>
-					Give each SKR03 ledger account, such as 6810 expense or 8450 revenue,
-					a clear label. Unlabelled accounts still appear by account number.
+					Give each SKR03 ledger account (Sachkonto), such as 6810 expense or
+					8450 revenue, a clear label. Unlabelled accounts still appear by
+					account number.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
@@ -82,7 +85,9 @@ export function AccountLabelEditorSection({
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead className="w-28">Account</TableHead>
+									<TableHead className="w-28">
+										Ledger account (Sachkonto)
+									</TableHead>
 									<TableHead>Sample postings</TableHead>
 									<TableHead className="text-right">Postings</TableHead>
 									<TableHead className="text-right">Balance</TableHead>
@@ -183,7 +188,7 @@ function AccountRow({
 					onChange={(event) => setLabel(event.target.value)}
 					disabled={disabled}
 					placeholder="Enter label"
-					aria-label={`Label for account ${displayAccount}`}
+					aria-label={`Label for ledger account (Sachkonto) ${displayAccount}`}
 				/>
 			</TableCell>
 			<TableCell className="w-10 align-middle text-muted-foreground">
@@ -195,7 +200,7 @@ function AccountRow({
 						size="icon-sm"
 						onClick={persist}
 						disabled={disabled}
-						aria-label={`Save label for account ${displayAccount}`}
+						aria-label={`Save label for ledger account (Sachkonto) ${displayAccount}`}
 					>
 						<Save />
 					</Button>

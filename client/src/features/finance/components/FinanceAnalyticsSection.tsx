@@ -119,8 +119,8 @@ export function FinanceAnalyticsSection({
 					<AlertTriangle className="size-4" />
 					<AlertDescription>
 						{analytics.totals.unmapped_count} posting(s) use an unmapped cost
-						location and are assigned to "Unassigned". Configure them in the
-						"Mapping" tab.
+						center (Kostenstelle) and are assigned to "Unassigned". Configure
+						them in the "Mapping" tab.
 					</AlertDescription>
 				</Alert>
 			) : null}

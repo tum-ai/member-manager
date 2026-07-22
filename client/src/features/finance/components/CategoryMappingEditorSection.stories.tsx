@@ -44,11 +44,13 @@ export const Default: Story = {
 		const canvas = within(canvasElement);
 		await expect(canvas.getByText("Uncategorized")).toBeInTheDocument();
 
-		const input = canvas.getByLabelText("Category for cost location 2 1");
+		const input = canvas.getByLabelText(
+			"Category for cost center 2 (Kostenstelle 2) 1",
+		);
 		await userEvent.type(input, "Catering");
 		await userEvent.click(
 			canvas.getByRole("button", {
-				name: "Save category for cost location 2 1",
+				name: "Save category for cost center 2 (Kostenstelle 2) 1",
 			}),
 		);
 		await expect(args.onSave).toHaveBeenCalledWith({

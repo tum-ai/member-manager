@@ -26,7 +26,7 @@ const baseProps = {
 };
 
 describe("CategoryMappingEditorSection", () => {
-	it("marks unlabelled cost locations and counts them", () => {
+	it("marks unlabelled cost centers and counts them", () => {
 		renderWithClient(
 			<CategoryMappingEditorSection
 				{...baseProps}
@@ -40,7 +40,7 @@ describe("CategoryMappingEditorSection", () => {
 
 		expect(screen.getAllByText("Uncategorized").length).toBeGreaterThan(0);
 		expect(
-			screen.getByText(/1 of 2 cost locations do not have a category yet/),
+			screen.getByText(/1 of 2 cost centers do not have a category yet/),
 		).toBeInTheDocument();
 	});
 
@@ -55,12 +55,14 @@ describe("CategoryMappingEditorSection", () => {
 			/>,
 		);
 
-		const input = screen.getByLabelText("Category for cost location 2 1");
+		const input = screen.getByLabelText(
+			"Category for cost center 2 (Kostenstelle 2) 1",
+		);
 		await user.type(input, "Catering");
 		expect(onSave).not.toHaveBeenCalled();
 		await user.click(
 			screen.getByRole("button", {
-				name: "Save category for cost location 2 1",
+				name: "Save category for cost center 2 (Kostenstelle 2) 1",
 			}),
 		);
 
@@ -82,12 +84,14 @@ describe("CategoryMappingEditorSection", () => {
 			/>,
 		);
 
-		await user.click(screen.getByLabelText("Category for cost location 2 5"));
+		await user.click(
+			screen.getByLabelText("Category for cost center 2 (Kostenstelle 2) 5"),
+		);
 
 		expect(onSave).not.toHaveBeenCalled();
 		expect(
 			screen.queryByRole("button", {
-				name: "Save category for cost location 2 5",
+				name: "Save category for cost center 2 (Kostenstelle 2) 5",
 			}),
 		).not.toBeInTheDocument();
 	});

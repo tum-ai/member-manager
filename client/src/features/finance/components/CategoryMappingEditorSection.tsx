@@ -50,11 +50,13 @@ export function CategoryMappingEditorSection({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Cost location 2 → Category</CardTitle>
+				<CardTitle className="text-base">
+					Cost center 2 (Kostenstelle 2) → Category
+				</CardTitle>
 				<CardDescription>
 					Assign a clear category to each secondary BuchhaltungsButler cost
-					location, such as Catering, Travel, or Software. Unmapped postings
-					appear as "Uncategorized".
+					center (Kostenstelle 2), such as Catering, Travel, or Software.
+					Unmapped postings appear as "Uncategorized".
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
@@ -67,7 +69,7 @@ export function CategoryMappingEditorSection({
 				{!isLoading && unlabelledCount > 0 ? (
 					<Alert>
 						<AlertDescription>
-							{unlabelledCount} of {rows.length} cost locations do not have a
+							{unlabelledCount} of {rows.length} cost centers do not have a
 							category yet.
 						</AlertDescription>
 					</Alert>
@@ -80,7 +82,9 @@ export function CategoryMappingEditorSection({
 						<Table>
 							<TableHeader>
 								<TableRow>
-									<TableHead className="w-28">Cost location 2</TableHead>
+									<TableHead className="w-28">
+										Cost center 2 (Kostenstelle 2)
+									</TableHead>
 									<TableHead>Sample postings</TableHead>
 									<TableHead className="text-right">Postings</TableHead>
 									<TableHead className="text-right">Balance</TableHead>
@@ -97,7 +101,7 @@ export function CategoryMappingEditorSection({
 											colSpan={6}
 											className="text-center text-muted-foreground"
 										>
-											No cost locations found.
+											No cost centers found.
 										</TableCell>
 									</TableRow>
 								) : (
@@ -180,7 +184,7 @@ function CategoryRow({
 					onChange={(event) => setLabel(event.target.value)}
 					disabled={disabled}
 					placeholder="Enter category"
-					aria-label={`Category for cost location 2 ${row.cost_location_two}`}
+					aria-label={`Category for cost center 2 (Kostenstelle 2) ${row.cost_location_two}`}
 				/>
 			</TableCell>
 			<TableCell className="w-10 align-middle text-muted-foreground">
@@ -192,7 +196,7 @@ function CategoryRow({
 						size="icon-sm"
 						onClick={persist}
 						disabled={disabled}
-						aria-label={`Save category for cost location 2 ${row.cost_location_two}`}
+						aria-label={`Save category for cost center 2 (Kostenstelle 2) ${row.cost_location_two}`}
 					>
 						<Save />
 					</Button>

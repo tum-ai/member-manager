@@ -32,8 +32,10 @@ describe("FinanceVatSummarySection", () => {
 		);
 
 		expect(screen.getByText("Gross expenses")).toBeInTheDocument();
-		expect(screen.getByText("Included VAT")).toBeInTheDocument();
+		expect(screen.getByText("Included VAT (USt.)")).toBeInTheDocument();
 		expect(screen.getByText("Net expenses")).toBeInTheDocument();
+		expect(screen.getByText("VAT (Umsatzsteuer)")).toBeInTheDocument();
+		expect(screen.getByText("Tax rate (Steuersatz)")).toBeInTheDocument();
 		// Net = gross - VAT = 11900 - 1900 = 10000.
 		expect(screen.getAllByText(/10\.000,00/).length).toBeGreaterThan(0);
 		// Rate row renders the 19 % bucket.

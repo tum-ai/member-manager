@@ -44,17 +44,17 @@ export function FinanceVatSummarySection({
 
 	const metrics = [
 		{ label: "Gross expenses", value: grossExpenses },
-		{ label: "Included VAT", value: vat },
+		{ label: "Included VAT (USt.)", value: vat },
 		{ label: "Net expenses", value: netExpenses },
 	];
 
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">VAT</CardTitle>
+				<CardTitle className="text-base">VAT (Umsatzsteuer)</CardTitle>
 				<CardDescription>
-					VAT included in gross expenses and the resulting net amount, grouped
-					by tax rate.
+					VAT (Umsatzsteuer) included in gross expenses and the resulting net
+					amount, grouped by tax rate (Steuersatz).
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-5">
@@ -104,9 +104,9 @@ function VatRateTable({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead>Tax rate</TableHead>
+						<TableHead>Tax rate (Steuersatz)</TableHead>
 						<TableHead className="text-right">Gross</TableHead>
-						<TableHead className="text-right">VAT</TableHead>
+						<TableHead className="text-right">VAT (USt.)</TableHead>
 						<TableHead className="text-right">Net</TableHead>
 						<TableHead className="text-right">Postings</TableHead>
 					</TableRow>

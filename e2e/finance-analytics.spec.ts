@@ -17,24 +17,26 @@ test.describe("Finance Analytics tool", () => {
 		).toBeVisible();
 	});
 
-	test("shows the department overview and assigns an unmapped cost location", async ({
+	test("shows the department overview and assigns an unmapped cost center", async ({
 		page,
 	}) => {
 		// Overview renders the aggregated totals and the VAT summary.
 		await expect(page.getByText("Income").first()).toBeVisible();
 		await expect(page.getByText("Expenses").first()).toBeVisible();
-		await expect(page.getByText("VAT", { exact: true }).first()).toBeVisible();
+		await expect(
+			page.getByText("VAT (Umsatzsteuer)", { exact: true }).first(),
+		).toBeVisible();
 
 		// Switch to the mapping editor.
 		await page.getByRole("tab", { name: "Mapping" }).click();
 		await expect(
 			page.getByRole("columnheader", {
-				name: "Cost location",
+				name: "Cost center (Kostenstelle)",
 				exact: true,
 			}),
 		).toBeVisible();
 
-		// Pick the first still-unassigned cost location and assign a department.
+		// Pick the first still-unassigned cost center and assign a department.
 		// Loading the postings can take a moment against the live API.
 		const unassignedRow = page
 			.getByRole("row")
@@ -44,17 +46,21 @@ test.describe("Finance Analytics tool", () => {
 
 		// Department is picked from a dropdown, then saved explicitly.
 		await unassignedRow
-			.getByRole("combobox", { name: /Department for cost location/ })
+			.getByRole("combobox", {
+				name: /Department for cost center \(Kostenstelle\)/,
+			})
 			.click();
 		await page.getByRole("option", { name: "Makeathon", exact: true }).click();
 		await unassignedRow
-			.getByRole("button", { name: /Save mapping for cost location .*/ })
+			.getByRole("button", {
+				name: /Save mapping for cost center \(Kostenstelle\) .*/,
+			})
 			.click();
 
 		await expect(page.getByText("Mapping saved.")).toBeVisible();
 	});
 
-	test("shows the category breakdown and labels a second cost location", async ({
+	test("shows the category breakdown and labels a second cost center", async ({
 		page,
 	}) => {
 		// Category breakdown tab renders the by-category table.
@@ -64,18 +70,22 @@ test.describe("Finance Analytics tool", () => {
 		// The category editor lives under the mapping tab, below the department one.
 		await page.getByRole("tab", { name: "Mapping" }).click();
 		await expect(
-			page.getByRole("columnheader", { name: "Cost location 2" }),
+			page.getByRole("columnheader", {
+				name: "Cost center 2 (Kostenstelle 2)",
+			}),
 		).toBeVisible();
 
 		const unlabelledInput = page
-			.getByRole("textbox", { name: /Category for cost location 2/ })
+			.getByRole("textbox", {
+				name: /Category for cost center 2 \(Kostenstelle 2\)/,
+			})
 			.first();
 		await expect(unlabelledInput).toBeVisible({ timeout: 20000 });
 		await unlabelledInput.fill("Catering");
 		const categoryRow = unlabelledInput.locator("xpath=ancestor::tr");
 		await categoryRow
 			.getByRole("button", {
-				name: /Save category for cost location 2 .*/,
+				name: /Save category for cost center 2 \(Kostenstelle 2\) .*/,
 			})
 			.click();
 
@@ -85,27 +95,38 @@ test.describe("Finance Analytics tool", () => {
 	test("shows the account breakdown and labels a ledger account", async ({
 		page,
 	}) => {
-		// Accounts breakdown tab renders the by-account table.
-		await page.getByRole("tab", { name: "Accounts" }).click();
-		await expect(page.getByText("Expenses by account")).toBeVisible();
+		// Sachkonten breakdown tab renders the by-account table.
+		await page
+			.getByRole("tab", { name: "Ledger accounts (Sachkonten)" })
+			.click();
+		await expect(
+			page.getByText("Expenses by ledger account (Sachkonto)"),
+		).toBeVisible();
 
 		// The account editor lives under the mapping tab, below the others.
 		await page.getByRole("tab", { name: "Mapping" }).click();
 		await expect(
-			page.getByRole("columnheader", { name: "Account", exact: true }),
+			page.getByRole("columnheader", {
+				name: "Ledger account (Sachkonto)",
+				exact: true,
+			}),
 		).toBeVisible();
 
 		const unlabelledInput = page
-			.getByRole("textbox", { name: /Label for account/ })
+			.getByRole("textbox", {
+				name: /Label for ledger account \(Sachkonto\)/,
+			})
 			.first();
 		await expect(unlabelledInput).toBeVisible({ timeout: 20000 });
 		await unlabelledInput.fill("Software & Tools");
 		const accountRow = unlabelledInput.locator("xpath=ancestor::tr");
 		await accountRow
-			.getByRole("button", { name: /Save label for account .*/ })
+			.getByRole("button", {
+				name: /Save label for ledger account \(Sachkonto\) .*/,
+			})
 			.click();
 
-		await expect(page.getByText("Account label saved.")).toBeVisible();
+		await expect(page.getByText("Ledger account label saved.")).toBeVisible();
 	});
 
 	test("sets a department budget and shows budget vs. actual", async ({
@@ -208,9 +229,9 @@ test.describe("Finance Analytics tool", () => {
 		expect(postingIds.catering).toBeTruthy();
 		await page.evaluate(async () => {
 			const { apiClient } = await import("/src/lib/apiClient.ts");
-			// Assign the Makeathon cost location (161 — venue & catering) to the
+			// Assign the Makeathon cost center (161 — venue & catering) to the
 			// Makeathon department. There is no automatic department fallback, so a
-			// department member only sees postings mapped to them via the Zuordnung.
+			// department member only sees postings mapped to them through Mapping.
 			await apiClient("/api/finance/department-mappings/161", {
 				method: "PUT",
 				body: JSON.stringify({ department: "Makeathon", bereich: null }),

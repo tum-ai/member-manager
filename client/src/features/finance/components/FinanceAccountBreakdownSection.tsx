@@ -73,10 +73,12 @@ export function FinanceAccountBreakdownSection({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Expenses by account</CardTitle>
+				<CardTitle className="text-base">
+					Expenses by ledger account (Sachkonto)
+				</CardTitle>
 				<CardDescription>
-					Analysis by SKR03 ledger account. Manage account labels in the
-					"Mapping" tab.
+					Analysis by SKR03 ledger account (Sachkonto). Manage account labels in
+					the "Mapping" tab.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-5">
@@ -186,7 +188,7 @@ function AccountTable({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead>Account</TableHead>
+						<TableHead>Ledger account (Sachkonto)</TableHead>
 						<TableHead>Label</TableHead>
 						<TableHead className="text-right">Income</TableHead>
 						<TableHead className="text-right">Expenses</TableHead>

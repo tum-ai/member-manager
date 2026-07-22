@@ -90,7 +90,10 @@ describe("useFinanceAccountLabels", () => {
 		});
 
 		await waitFor(() =>
-			expect(showToast).toHaveBeenCalledWith("Account label saved.", "success"),
+			expect(showToast).toHaveBeenCalledWith(
+				"Ledger account label saved.",
+				"success",
+			),
 		);
 		expect(putAccount).toBe("6840");
 		expect(putBody).toMatchObject({

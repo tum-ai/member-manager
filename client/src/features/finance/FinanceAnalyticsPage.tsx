@@ -44,7 +44,9 @@ export default function FinanceAnalyticsPage(): ReactElement {
 					<TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
 					<TabsTrigger value="report">Reports</TabsTrigger>
 					<TabsTrigger value="categories">Categories</TabsTrigger>
-					<TabsTrigger value="accounts">Accounts</TabsTrigger>
+					<TabsTrigger value="accounts">
+						Ledger accounts (Sachkonten)
+					</TabsTrigger>
 					{canManage ? (
 						<TabsTrigger value="mapping">Mapping</TabsTrigger>
 					) : null}

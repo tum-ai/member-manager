@@ -141,7 +141,9 @@ export const Default: Story = {
 			canvas.getByText("Expenses by department"),
 		).toBeInTheDocument();
 		await expect(
-			canvas.getByText(/posting\(s\) use an unmapped cost location/),
+			canvas.getByText(
+				/posting\(s\) use an unmapped cost center \(Kostenstelle\)/,
+			),
 		).toBeInTheDocument();
 	},
 };
