@@ -129,6 +129,8 @@ export function MainLayout({
 	const { permissions } = useToolAccess();
 
 	const showFinanceReview = permissions.includes("finance.review");
+	const showFinanceAnalytics =
+		showFinanceReview || permissions.includes("finance.department");
 	const showTumaiDays = permissions.includes("tumai_days.manage");
 	const showPartnerManagement = permissions.includes("partners.manage");
 	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
@@ -218,7 +220,7 @@ export function MainLayout({
 							label: "Analytics",
 							to: "/tools/finance/analytics",
 							icon: ChartColumnBig,
-							visible: showFinanceReview,
+							visible: showFinanceAnalytics,
 						},
 					],
 				},

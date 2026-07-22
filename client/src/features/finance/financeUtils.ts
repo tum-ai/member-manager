@@ -4,13 +4,75 @@ import type {
 	FinanceBereich,
 	FinanceDirectionFilter,
 	FinanceFilters,
+	FinancePeriodType,
 	FinanceSummary,
 } from "./financeTypes";
+
+export interface FinancePeriod {
+	type: FinancePeriodType;
+	key: string;
+}
+
+// The current calendar year is the sensible default budget period.
+export function getDefaultFinancePeriod(reference = new Date()): FinancePeriod {
+	return { type: "year", key: String(reference.getFullYear()) };
+}
+
+// Enumerate selectable period keys for a type: the last few years, or the
+// WS/SS semesters across them, newest first.
+export function listFinancePeriodKeys(
+	type: FinancePeriodType,
+	reference = new Date(),
+): string[] {
+	const currentYear = reference.getFullYear();
+	const years = [
+		currentYear + 1,
+		currentYear,
+		currentYear - 1,
+		currentYear - 2,
+	];
+	if (type === "year") {
+		return years.map(String);
+	}
+	return years.flatMap((year) => {
+		const yy = String(year).slice(2);
+		return [`WS${yy}`, `SS${yy}`];
+	});
+}
+
+// Switching the period type needs a key valid for the new type; carry the year
+// across where possible, else fall back to the current year.
+export function switchFinancePeriodType(
+	type: FinancePeriodType,
+	previousKey: string,
+): FinancePeriod {
+	const isYearKey = /^\d{4}$/.test(previousKey);
+	if (type === "year") {
+		const year = isYearKey ? previousKey : `20${previousKey.slice(2)}`;
+		return {
+			type,
+			key: /^\d{4}$/.test(year) ? year : getDefaultFinancePeriod().key,
+		};
+	}
+	const yy = isYearKey
+		? previousKey.slice(2)
+		: previousKey.slice(2) || String(new Date().getFullYear()).slice(2);
+	return { type, key: `WS${yy}` };
+}
+
+export function formatFinancePeriodLabel(period: FinancePeriod): string {
+	if (period.type === "year") {
+		return period.key;
+	}
+	const season =
+		period.key.slice(0, 2) === "WS" ? "Wintersemester" : "Sommersemester";
+	return `${season} 20${period.key.slice(2)}`;
+}
 
 const BEREICH_LABELS: Record<FinanceBereich, string> = {
 	ideell: "Ideeller Bereich",
 	wirtschaftlich: "Wirtschaftlicher Geschäftsbetrieb",
-	zweckbetrieb: "Zweckbetrieb",
+	gemischt: "Gemischt (50)",
 };
 
 export function formatBereichLabel(bereich: FinanceBereich | null): string {
@@ -23,7 +85,7 @@ export const FINANCE_BEREICH_OPTIONS: ReadonlyArray<{
 }> = [
 	{ value: "ideell", label: BEREICH_LABELS.ideell },
 	{ value: "wirtschaftlich", label: BEREICH_LABELS.wirtschaftlich },
-	{ value: "zweckbetrieb", label: BEREICH_LABELS.zweckbetrieb },
+	{ value: "gemischt", label: BEREICH_LABELS.gemischt },
 ];
 
 // Compact month label ("Feb 2026") for chart axes from a "YYYY-MM" key.

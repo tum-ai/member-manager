@@ -28,6 +28,26 @@ function analyticsResponse() {
 				unmapped: false,
 			},
 		],
+		by_category: [
+			{
+				category: "Ohne Kategorie",
+				income: 0,
+				expenses: 8700,
+				net: -8700,
+				count: 2,
+				unmapped: true,
+			},
+		],
+		by_account: [
+			{
+				account: "6850",
+				label: null,
+				income: 0,
+				expenses: 8700,
+				net: -8700,
+				count: 2,
+			},
+		],
 		by_month: [{ month: "2026-02", income: 0, expenses: 8700, net: -8700 }],
 		by_bereich: [
 			{
@@ -38,11 +58,13 @@ function analyticsResponse() {
 				count: 2,
 			},
 		],
+		by_vat_rate: [],
 		totals: {
 			income: 0,
 			expenses: 8700,
 			net: -8700,
 			count: 2,
+			vat: 0,
 			unmapped_count: 0,
 		},
 		source: "mock",

@@ -21,7 +21,11 @@ function buildAnalyticsEndpoint(range: FinanceDateRange): string {
 	return `/api/finance/analytics${queryString ? `?${queryString}` : ""}`;
 }
 
-export function useFinanceAnalytics() {
+export function useFinanceAnalytics({
+	enabled = true,
+}: {
+	enabled?: boolean;
+} = {}) {
 	const defaultRange = useMemo(() => getDefaultFinanceDateRange(), []);
 	const [range, setRange] = useState<FinanceDateRange>(defaultRange);
 
@@ -29,6 +33,7 @@ export function useFinanceAnalytics() {
 		useQuery<FinanceAnalyticsResponse>({
 			queryKey: [FINANCE_ANALYTICS_QUERY_KEY, range.dateFrom, range.dateTo],
 			queryFn: async () => await apiClient(buildAnalyticsEndpoint(range)),
+			enabled,
 		});
 
 	function updateDateFrom(value: string) {

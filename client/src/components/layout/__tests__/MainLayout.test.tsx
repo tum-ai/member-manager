@@ -109,6 +109,25 @@ describe("MainLayout sidebar navigation", () => {
 		expect(
 			screen.getByRole("link", { name: /transactions/i }),
 		).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: /analytics/i }),
+		).toBeInTheDocument();
+		toolAccessState.permissions = [];
+	});
+
+	it("shows Analytics but not reviewer tools with finance.department", () => {
+		toolAccessState.permissions = ["finance.department"];
+		renderLayout({ isAdmin: false, route: "/tools/finance/analytics" });
+
+		expect(
+			screen.getByRole("link", { name: /analytics/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: /finance review/i }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: /transactions/i }),
+		).not.toBeInTheDocument();
 		toolAccessState.permissions = [];
 	});
 

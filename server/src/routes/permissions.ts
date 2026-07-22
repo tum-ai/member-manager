@@ -42,7 +42,12 @@ export async function permissionRoutes(server: FastifyInstance) {
 				const isBoardMember = await checkBoardRole(user.id);
 
 				if (await checkAdminRole(user.id)) {
-					return { permissions: [...PERMISSIONS], isBoardMember };
+					// Admins are superusers with no single department scope.
+					return {
+						permissions: [...PERMISSIONS],
+						isBoardMember,
+						department: null,
+					};
 				}
 
 				const { data, error } = await getSupabase()
@@ -62,11 +67,15 @@ export async function permissionRoutes(server: FastifyInstance) {
 				} | null;
 
 				if (!member || !isActiveMember(member) || !member.department) {
-					return { permissions: [] as Permission[], isBoardMember };
+					return {
+						permissions: [] as Permission[],
+						isBoardMember,
+						department: null,
+					};
 				}
 
 				const permissions = await fetchDepartmentPermissions(member.department);
-				return { permissions, isBoardMember };
+				return { permissions, isBoardMember, department: member.department };
 			} catch (error) {
 				request.log.error(
 					{ err: error, userId: user.id },

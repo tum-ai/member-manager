@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { apportionPostingAmount } from "../../src/lib/financeDepartments.js";
 
 export const MOCK_USER_ID = "user-123";
 export const MOCK_ADMIN_ID = "admin-456";
@@ -59,6 +61,19 @@ interface MockData {
 	tumai_days: Array<Record<string, unknown>>;
 	tumai_day_responses: Array<Record<string, unknown>>;
 	finance_department_mappings: Array<Record<string, unknown>>;
+	finance_category_mappings: Array<Record<string, unknown>>;
+	finance_account_labels: Array<Record<string, unknown>>;
+	finance_budgets: Array<Record<string, unknown>>;
+	finance_plan_items: Array<Record<string, unknown>>;
+	finance_projects: Array<Record<string, unknown>>;
+	finance_plan_templates: Array<Record<string, unknown>>;
+	finance_plan_template_items: Array<Record<string, unknown>>;
+	finance_project_template_assignments: Array<Record<string, unknown>>;
+	finance_posting_allocations: Array<Record<string, unknown>>;
+	finance_reallocation_requests: Array<Record<string, unknown>>;
+	finance_reallocation_request_items: Array<Record<string, unknown>>;
+	finance_plan_item_posting_matches: Array<Record<string, unknown>>;
+	finance_budget_transfer_requests: Array<Record<string, unknown>>;
 }
 
 // In-memory stand-in for Supabase Storage objects, keyed by `${bucket}/${path}`.
@@ -323,6 +338,19 @@ export const mockDatabase: MockData = {
 	tumai_days: [],
 	tumai_day_responses: [],
 	finance_department_mappings: [],
+	finance_category_mappings: [],
+	finance_account_labels: [],
+	finance_budgets: [],
+	finance_plan_items: [],
+	finance_projects: [],
+	finance_plan_templates: [],
+	finance_plan_template_items: [],
+	finance_project_template_assignments: [],
+	finance_posting_allocations: [],
+	finance_reallocation_requests: [],
+	finance_reallocation_request_items: [],
+	finance_plan_item_posting_matches: [],
+	finance_budget_transfer_requests: [],
 };
 
 type QueryResult = Promise<{
@@ -586,11 +614,21 @@ function createQueryBuilder(table: string): QueryBuilder {
 						table === "contract_partner_comments" ||
 						table === "contract_status_events" ||
 						table === "tumai_days" ||
-						table === "tumai_day_responses") &&
+						table === "tumai_day_responses" ||
+						table === "finance_projects" ||
+						table === "finance_plan_templates" ||
+						table === "finance_plan_template_items" ||
+						table === "finance_project_template_assignments" ||
+						table === "finance_posting_allocations" ||
+						table === "finance_reallocation_requests" ||
+						table === "finance_reallocation_request_items" ||
+						table === "finance_plan_item_posting_matches") &&
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {
-					rec.id = `mock-${Math.random().toString(36).slice(2, 10)}`;
+					rec.id = table.startsWith("finance_")
+						? randomUUID()
+						: `mock-${Math.random().toString(36).slice(2, 10)}`;
 				}
 				if (rec.created_at === undefined) {
 					rec.created_at = new Date().toISOString();
@@ -629,8 +667,12 @@ function createQueryBuilder(table: string): QueryBuilder {
 
 			for (const record of records) {
 				const conflictKey = options?.onConflict || "user_id";
-				const existingIndex = tableData.findIndex(
-					(row) => row[conflictKey] === record[conflictKey],
+				// Support composite conflict targets ("a,b,c"), matching every column.
+				const conflictColumns = conflictKey
+					.split(",")
+					.map((column) => column.trim());
+				const existingIndex = tableData.findIndex((row) =>
+					conflictColumns.every((column) => row[column] === record[column]),
 				);
 
 				if (existingIndex !== -1) {
@@ -976,6 +1018,611 @@ function mergeDuplicateMember(params: Record<string, unknown>) {
 	});
 }
 
+function canonicalizeMockFinanceAllocations(
+	postingAmount: number,
+	allocations: Array<Record<string, unknown>>,
+): Array<Record<string, unknown>> {
+	return apportionPostingAmount(
+		postingAmount,
+		allocations.map((allocation) => ({
+			...allocation,
+			department:
+				typeof allocation.department === "string"
+					? allocation.department
+					: null,
+			project_id:
+				typeof allocation.project_id === "string"
+					? allocation.project_id
+					: null,
+			tax_area:
+				typeof allocation.tax_area === "string" ? allocation.tax_area : null,
+			allocated_percentage: Number(allocation.allocated_percentage ?? 0),
+		})),
+	).map(({ allocation, amount }) => ({
+		...allocation,
+		allocated_amount: amount,
+	}));
+}
+
+function replaceMockFinancePostingAllocations(params: Record<string, unknown>) {
+	const postingExternalId = String(params.p_posting_external_id ?? "");
+	const actor = String(params.p_actor ?? "");
+	const postingAmount = Number(params.p_posting_amount ?? 0);
+	const submittedAllocations = Array.isArray(params.p_allocations)
+		? (params.p_allocations as Array<Record<string, unknown>>)
+		: [];
+	if (!Number.isFinite(postingAmount) || postingAmount === 0) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "Posting amount is required and cannot be zero" },
+		});
+	}
+	const allocations = canonicalizeMockFinanceAllocations(
+		postingAmount,
+		submittedAllocations,
+	);
+	const matchedByScope = new Map<string, number>();
+	for (const match of mockDatabase.finance_plan_item_posting_matches.filter(
+		(row) => row.posting_external_id === postingExternalId,
+	)) {
+		const planItem = mockDatabase.finance_plan_items.find(
+			(row) => row.id === match.plan_item_id,
+		);
+		if (!planItem) continue;
+		const scope = `${String(planItem.department)}:${String(planItem.project_id ?? "")}`;
+		matchedByScope.set(
+			scope,
+			(matchedByScope.get(scope) ?? 0) + Number(match.matched_amount ?? 0),
+		);
+	}
+	for (const [scope, matchedAmount] of matchedByScope) {
+		const [department, projectId] = scope.split(":");
+		const capacity = allocations
+			.filter(
+				(allocation) =>
+					String(allocation.department ?? "") === department &&
+					String(allocation.project_id ?? "") === projectId,
+			)
+			.reduce(
+				(sum, allocation) =>
+					sum + Math.abs(Number(allocation.allocated_amount ?? 0)),
+				0,
+			);
+		if (matchedAmount > capacity) {
+			return Promise.resolve({
+				data: null,
+				error: {
+					message:
+						"Posting allocations cannot invalidate existing plan item matches",
+				},
+			});
+		}
+	}
+
+	mockDatabase.finance_posting_allocations =
+		mockDatabase.finance_posting_allocations.filter(
+			(row) => row.posting_external_id !== postingExternalId,
+		);
+	const now = new Date().toISOString();
+	const inserted = allocations.map((allocation) => ({
+		id: randomUUID(),
+		posting_external_id: postingExternalId,
+		department: allocation.department ?? null,
+		project_id: allocation.project_id ?? null,
+		tax_area: allocation.tax_area ?? null,
+		allocated_amount: allocation.allocated_amount,
+		allocated_percentage: allocation.allocated_percentage,
+		note: allocation.note ?? null,
+		created_by: actor,
+		created_at: now,
+		updated_at: now,
+	}));
+	mockDatabase.finance_posting_allocations.push(...inserted);
+	return Promise.resolve({ data: inserted, error: null });
+}
+
+function createMockFinancePlanItemPostingMatch(
+	params: Record<string, unknown>,
+) {
+	const planItemId = String(params.p_plan_item_id ?? "");
+	const postingExternalId = String(params.p_posting_external_id ?? "");
+	const matchedAmount = Number(params.p_matched_amount ?? 0);
+	const postingAmount = Number(params.p_posting_amount ?? 0);
+	const postingDirection = String(params.p_posting_direction ?? "");
+	const planItem = mockDatabase.finance_plan_items.find(
+		(row) => row.id === planItemId,
+	);
+	if (!planItem) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "Finance plan item not found" },
+		});
+	}
+	const expectedPostingDirection = postingAmount < 0 ? "expense" : "income";
+	if (postingDirection !== expectedPostingDirection) {
+		return Promise.resolve({
+			data: null,
+			error: {
+				message: "Posting direction does not match the posting amount",
+			},
+		});
+	}
+	if (String(planItem.direction ?? "expense") !== postingDirection) {
+		return Promise.resolve({
+			data: null,
+			error: {
+				message: "Posting direction does not match the plan item direction",
+			},
+		});
+	}
+	const postingAllocations = mockDatabase.finance_posting_allocations.filter(
+		(row) => row.posting_external_id === postingExternalId,
+	);
+	const effectivePostingCapacity =
+		postingAllocations.length === 0
+			? Math.abs(postingAmount)
+			: apportionPostingAmount(
+					postingAmount,
+					postingAllocations.map((allocation) => ({
+						department:
+							typeof allocation.department === "string"
+								? allocation.department
+								: null,
+						project_id:
+							typeof allocation.project_id === "string"
+								? allocation.project_id
+								: null,
+						tax_area:
+							typeof allocation.tax_area === "string"
+								? allocation.tax_area
+								: null,
+						allocated_percentage: Number(allocation.allocated_percentage ?? 0),
+					})),
+				)
+					.filter(
+						({ allocation }) =>
+							allocation.department === planItem.department &&
+							allocation.project_id === (planItem.project_id ?? null),
+					)
+					.reduce((sum, { amount }) => sum + Math.abs(amount), 0);
+	const postingMatched = mockDatabase.finance_plan_item_posting_matches
+		.filter((row) => {
+			if (row.posting_external_id !== postingExternalId) return false;
+			const matchedPlanItem = mockDatabase.finance_plan_items.find(
+				(item) => item.id === row.plan_item_id,
+			);
+			return (
+				matchedPlanItem?.department === planItem.department &&
+				(matchedPlanItem?.project_id ?? null) === (planItem.project_id ?? null)
+			);
+		})
+		.reduce((sum, row) => sum + Number(row.matched_amount ?? 0), 0);
+	const itemMatched = mockDatabase.finance_plan_item_posting_matches
+		.filter((row) => row.plan_item_id === planItemId)
+		.reduce((sum, row) => sum + Number(row.matched_amount ?? 0), 0);
+
+	if (postingMatched + matchedAmount > effectivePostingCapacity) {
+		return Promise.resolve({
+			data: null,
+			error: {
+				message: "Matched amount exceeds the posting's available amount",
+			},
+		});
+	}
+	if (
+		itemMatched + matchedAmount >
+		Number(planItem.planned_amount ?? 0) + 0.01
+	) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "Matched amount exceeds plan item capacity" },
+		});
+	}
+
+	const match = {
+		id: String(params.p_id ?? randomUUID()),
+		plan_item_id: planItemId,
+		posting_external_id: postingExternalId,
+		matched_amount: matchedAmount,
+		match_type: params.p_match_type ?? "manual",
+		created_by: params.p_actor ?? null,
+		created_at: new Date().toISOString(),
+	};
+	mockDatabase.finance_plan_item_posting_matches.push(match);
+	return Promise.resolve({ data: match, error: null });
+}
+
+function getMockFinanceAllocationSnapshot(
+	postingExternalId: string,
+): Array<Record<string, unknown>> {
+	return mockDatabase.finance_posting_allocations
+		.filter((row) => row.posting_external_id === postingExternalId)
+		.map((row) => ({
+			department: row.department ?? null,
+			project_id: row.project_id ?? null,
+			tax_area: row.tax_area ?? null,
+			allocated_amount: row.allocated_amount,
+			allocated_percentage: row.allocated_percentage,
+			note: row.note ?? null,
+		}))
+		.sort((left, right) =>
+			`${String(left.department ?? "")}:${String(left.project_id ?? "")}:${String(left.tax_area ?? "")}`.localeCompare(
+				`${String(right.department ?? "")}:${String(right.project_id ?? "")}:${String(right.tax_area ?? "")}`,
+			),
+		);
+}
+
+function assignMockFinancePlanTemplate(params: Record<string, unknown>) {
+	const projectId = String(params.p_project_id ?? "");
+	const templateId = String(params.p_template_id ?? "");
+	const actor = String(params.p_actor ?? "");
+	const project = mockDatabase.finance_projects.find(
+		(row) => row.id === projectId,
+	);
+	const template = mockDatabase.finance_plan_templates.find(
+		(row) => row.id === templateId,
+	);
+	if (!project || !template) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "Finance project or plan template not found" },
+		});
+	}
+
+	if (
+		!mockDatabase.finance_project_template_assignments.some(
+			(row) => row.project_id === projectId && row.template_id === templateId,
+		)
+	) {
+		mockDatabase.finance_project_template_assignments.push({
+			id: randomUUID(),
+			project_id: projectId,
+			template_id: templateId,
+			assigned_by: actor,
+			assigned_at: new Date().toISOString(),
+		});
+	}
+
+	const createdPlanItems: Array<Record<string, unknown>> = [];
+	for (const templateItem of mockDatabase.finance_plan_template_items.filter(
+		(row) => row.template_id === templateId,
+	)) {
+		let planItem = mockDatabase.finance_plan_items.find(
+			(row) =>
+				row.project_id === projectId &&
+				row.template_item_id === templateItem.id,
+		);
+		if (!planItem) {
+			const now = new Date().toISOString();
+			planItem = {
+				id: randomUUID(),
+				department: project.department,
+				period_type: project.period_type,
+				period_key: project.period_key,
+				label: templateItem.label,
+				category: templateItem.category ?? null,
+				direction: templateItem.direction ?? "expense",
+				planned_amount: templateItem.planned_amount ?? 0,
+				expected_month: templateItem.expected_month ?? null,
+				status: "planned",
+				note: templateItem.note ?? null,
+				created_by: actor,
+				project_id: projectId,
+				template_item_id: templateItem.id,
+				created_at: now,
+				updated_at: now,
+			};
+			mockDatabase.finance_plan_items.push(planItem);
+		}
+		createdPlanItems.push({ ...planItem });
+	}
+
+	return Promise.resolve({
+		data: {
+			project_id: projectId,
+			template_id: templateId,
+			created_plan_items: createdPlanItems,
+		},
+		error: null,
+	});
+}
+
+function updateMockFinanceProject(params: Record<string, unknown>) {
+	const project = mockDatabase.finance_projects.find(
+		(row) => row.id === params.p_id,
+	);
+	if (!project) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "Finance project not found" },
+		});
+	}
+
+	const scopeChanged =
+		project.department !== params.p_department ||
+		project.period_type !== params.p_period_type ||
+		project.period_key !== params.p_period_key;
+	const projectId = project.id;
+	const hasDependencies =
+		mockDatabase.finance_projects.some(
+			(row) => row.parent_project_id === projectId,
+		) ||
+		mockDatabase.finance_plan_items.some(
+			(row) => row.project_id === projectId,
+		) ||
+		mockDatabase.finance_posting_allocations.some(
+			(row) => row.project_id === projectId,
+		) ||
+		mockDatabase.finance_reallocation_request_items.some(
+			(row) => row.project_id === projectId,
+		) ||
+		mockDatabase.finance_project_template_assignments.some(
+			(row) => row.project_id === projectId,
+		) ||
+		mockDatabase.reimbursements.some(
+			(row) => row.finance_project_id === projectId,
+		);
+
+	if (scopeChanged && hasDependencies) {
+		return Promise.resolve({
+			data: null,
+			error: {
+				message:
+					"Project department or period cannot change while dependent finance records exist",
+			},
+		});
+	}
+
+	Object.assign(project, {
+		parent_project_id: params.p_parent_project_id ?? null,
+		name: params.p_name,
+		department: params.p_department,
+		period_type: params.p_period_type,
+		period_key: params.p_period_key,
+		tax_area: params.p_tax_area ?? null,
+		target_amount: params.p_target_amount,
+		status: params.p_status,
+		description: params.p_description ?? null,
+		updated_at: new Date().toISOString(),
+	});
+	return Promise.resolve({ data: { ...project }, error: null });
+}
+
+function createMockFinanceReallocationRequest(params: Record<string, unknown>) {
+	const now = new Date().toISOString();
+	const postingExternalId = String(params.p_posting_external_id ?? "");
+	const postingAmount = Number(params.p_posting_amount ?? 0);
+	if (!Number.isFinite(postingAmount) || postingAmount === 0) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "Posting amount is required and cannot be zero" },
+		});
+	}
+	if (
+		mockDatabase.finance_reallocation_requests.some(
+			(row) =>
+				row.posting_external_id === postingExternalId &&
+				row.status === "pending",
+		)
+	) {
+		return Promise.resolve({
+			data: null,
+			error: {
+				message:
+					"A pending reallocation request already exists for this posting",
+			},
+		});
+	}
+	const request = {
+		id: randomUUID(),
+		posting_external_id: postingExternalId,
+		requesting_department: String(params.p_requesting_department ?? ""),
+		reason: String(params.p_reason ?? ""),
+		status: "pending",
+		allocation_snapshot: getMockFinanceAllocationSnapshot(postingExternalId),
+		requested_by: String(params.p_actor ?? ""),
+		reviewed_by: null,
+		review_note: null,
+		reviewed_at: null,
+		created_at: now,
+		updated_at: now,
+	};
+	mockDatabase.finance_reallocation_requests.push(request);
+	const submittedAllocations = Array.isArray(params.p_allocations)
+		? (params.p_allocations as Array<Record<string, unknown>>)
+		: [];
+	const allocations = canonicalizeMockFinanceAllocations(
+		postingAmount,
+		submittedAllocations,
+	);
+	const items = allocations.map((allocation) => ({
+		id: randomUUID(),
+		request_id: request.id,
+		posting_external_id: request.posting_external_id,
+		department: allocation.department ?? null,
+		project_id: allocation.project_id ?? null,
+		tax_area: allocation.tax_area ?? null,
+		allocated_amount: allocation.allocated_amount,
+		allocated_percentage: allocation.allocated_percentage,
+		note: allocation.note ?? null,
+		created_by: request.requested_by,
+		created_at: now,
+		updated_at: now,
+	}));
+	mockDatabase.finance_reallocation_request_items.push(...items);
+	return Promise.resolve({
+		data: { ...request, allocations: items },
+		error: null,
+	});
+}
+
+async function reviewMockFinanceReallocationRequest(
+	params: Record<string, unknown>,
+) {
+	const request = mockDatabase.finance_reallocation_requests.find(
+		(row) => row.id === params.p_request_id,
+	);
+	if (!request) {
+		return {
+			data: null,
+			error: { message: "Reallocation request not found" },
+		};
+	}
+	if (request.status !== "pending") {
+		return {
+			data: null,
+			error: { message: "Reallocation request has already been reviewed" },
+		};
+	}
+
+	const decision = String(params.p_decision ?? "");
+	const items = mockDatabase.finance_reallocation_request_items.filter(
+		(row) => row.request_id === request.id,
+	);
+	if (decision === "approved") {
+		if (
+			JSON.stringify(
+				getMockFinanceAllocationSnapshot(String(request.posting_external_id)),
+			) !== JSON.stringify(request.allocation_snapshot)
+		) {
+			return {
+				data: null,
+				error: {
+					message: "Reallocation request is stale because allocations changed",
+				},
+			};
+		}
+		const replacement = await replaceMockFinancePostingAllocations({
+			p_posting_external_id: request.posting_external_id,
+			p_allocations: items,
+			p_actor: params.p_reviewer,
+			p_posting_amount: params.p_posting_amount,
+		});
+		if (replacement.error) return replacement;
+	}
+	request.status = decision;
+	request.reviewed_by = params.p_reviewer;
+	request.review_note = params.p_review_note ?? null;
+	request.reviewed_at = new Date().toISOString();
+	request.updated_at = request.reviewed_at;
+	return { data: { ...request, allocations: items }, error: null };
+}
+
+function updateMockFinancePlanItem(params: Record<string, unknown>) {
+	const planItem = mockDatabase.finance_plan_items.find(
+		(row) => row.id === params.p_id,
+	);
+	if (!planItem) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "Finance plan item not found" },
+		});
+	}
+	const matchedAmount = mockDatabase.finance_plan_item_posting_matches
+		.filter((row) => row.plan_item_id === planItem.id)
+		.reduce((sum, row) => sum + Number(row.matched_amount ?? 0), 0);
+	const nextDirection = params.p_direction ?? planItem.direction ?? "expense";
+	if (matchedAmount > Number(params.p_planned_amount ?? 0) + 0.01) {
+		return Promise.resolve({
+			data: null,
+			error: {
+				message: "Plan item amount cannot be reduced below its matched total",
+			},
+		});
+	}
+	if (
+		matchedAmount > 0 &&
+		String(planItem.direction ?? "expense") !== String(nextDirection)
+	) {
+		return Promise.resolve({
+			data: null,
+			error: {
+				message: "Plan item direction cannot change while postings are matched",
+			},
+		});
+	}
+	Object.assign(planItem, {
+		label: params.p_label,
+		category: params.p_category ?? null,
+		direction: nextDirection,
+		planned_amount: params.p_planned_amount,
+		expected_month: params.p_expected_month ?? null,
+		status: params.p_status,
+		note: params.p_note ?? null,
+		updated_at: new Date().toISOString(),
+	});
+	return Promise.resolve({ data: { ...planItem }, error: null });
+}
+
+function reviewMockFinanceBudgetTransferRequest(
+	params: Record<string, unknown>,
+) {
+	const request = mockDatabase.finance_budget_transfer_requests.find(
+		(row) => row.id === params.p_request_id,
+	);
+	if (!request) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "Budget transfer request not found" },
+		});
+	}
+	if (request.status !== "pending") {
+		return Promise.resolve({
+			data: null,
+			error: { message: "Budget transfer request has already been reviewed" },
+		});
+	}
+
+	const decision = String(params.p_decision ?? "");
+	if (decision === "approved") {
+		const source = mockDatabase.finance_budgets.find(
+			(row) =>
+				row.department === request.source_department &&
+				row.period_type === request.period_type &&
+				row.period_key === request.period_key,
+		);
+		if (
+			!source ||
+			Number(source.amount_planned ?? 0) < Number(request.amount)
+		) {
+			return Promise.resolve({
+				data: null,
+				error: { message: "Budget transfer exceeds the source budget" },
+			});
+		}
+		source.amount_planned =
+			Number(source.amount_planned) - Number(request.amount);
+		const target = mockDatabase.finance_budgets.find(
+			(row) =>
+				row.department === request.target_department &&
+				row.period_type === request.period_type &&
+				row.period_key === request.period_key,
+		);
+		if (target) {
+			target.amount_planned =
+				Number(target.amount_planned ?? 0) + Number(request.amount);
+		} else {
+			mockDatabase.finance_budgets.push({
+				id: randomUUID(),
+				department: request.target_department,
+				period_type: request.period_type,
+				period_key: request.period_key,
+				amount_planned: request.amount,
+				currency: source.currency ?? "EUR",
+				note: null,
+			});
+		}
+	}
+
+	const now = new Date().toISOString();
+	request.status = decision;
+	request.reviewed_by = params.p_reviewer;
+	request.review_note = params.p_review_note ?? null;
+	request.reviewed_at = now;
+	request.updated_at = now;
+	return Promise.resolve({ data: request, error: null });
+}
+
 export function createMockSupabaseClient(): SupabaseClient {
 	return {
 		auth: {
@@ -1033,6 +1680,30 @@ export function createMockSupabaseClient(): SupabaseClient {
 				if (fnName === "merge_duplicate_member") {
 					return mergeDuplicateMember(params);
 				}
+				if (fnName === "assign_finance_plan_template") {
+					return assignMockFinancePlanTemplate(params);
+				}
+				if (fnName === "update_finance_project") {
+					return updateMockFinanceProject(params);
+				}
+				if (fnName === "replace_finance_posting_allocations") {
+					return replaceMockFinancePostingAllocations(params);
+				}
+				if (fnName === "create_finance_plan_item_posting_match") {
+					return createMockFinancePlanItemPostingMatch(params);
+				}
+				if (fnName === "create_finance_reallocation_request") {
+					return createMockFinanceReallocationRequest(params);
+				}
+				if (fnName === "review_finance_reallocation_request") {
+					return reviewMockFinanceReallocationRequest(params);
+				}
+				if (fnName === "update_finance_plan_item") {
+					return updateMockFinancePlanItem(params);
+				}
+				if (fnName === "review_finance_budget_transfer_request") {
+					return reviewMockFinanceBudgetTransferRequest(params);
+				}
 				if (fnName !== "insert_member_cv_version") {
 					return Promise.resolve({
 						data: null,
@@ -1070,8 +1741,18 @@ export function createMockSupabaseClient(): SupabaseClient {
 				rows.push(inserted);
 				return Promise.resolve({ data: inserted, error: null });
 			};
-			// The lib only consumes `.rpc(...).single()`.
-			return { single: () => run() };
+			return {
+				single: () => run(),
+				// biome-ignore lint/suspicious/noThenProperty: Supabase query builders are awaitable.
+				then: <TResult1 = unknown, TResult2 = never>(
+					onfulfilled?:
+						| ((value: unknown) => TResult1 | PromiseLike<TResult1>)
+						| null,
+					onrejected?:
+						| ((reason: unknown) => TResult2 | PromiseLike<TResult2>)
+						| null,
+				) => run().then(onfulfilled, onrejected),
+			};
 		},
 		storage: {
 			from: (bucket: string) => ({
@@ -1397,4 +2078,17 @@ export function resetMockDatabase(): void {
 	mockDatabase.tumai_days = [];
 	mockDatabase.tumai_day_responses = [];
 	mockDatabase.finance_department_mappings = [];
+	mockDatabase.finance_category_mappings = [];
+	mockDatabase.finance_account_labels = [];
+	mockDatabase.finance_budgets = [];
+	mockDatabase.finance_plan_items = [];
+	mockDatabase.finance_projects = [];
+	mockDatabase.finance_plan_templates = [];
+	mockDatabase.finance_plan_template_items = [];
+	mockDatabase.finance_project_template_assignments = [];
+	mockDatabase.finance_posting_allocations = [];
+	mockDatabase.finance_reallocation_requests = [];
+	mockDatabase.finance_reallocation_request_items = [];
+	mockDatabase.finance_plan_item_posting_matches = [];
+	mockDatabase.finance_budget_transfer_requests = [];
 }
