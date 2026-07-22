@@ -159,10 +159,7 @@ export async function updateFinanceProject(
 	});
 
 	if (error) {
-		const message =
-			typeof error === "object" && error && "message" in error
-				? String(error.message)
-				: "";
+		const message = error.message;
 		if (message.includes("Parent finance project not found")) {
 			throw new NotFoundError("Parent finance project not found");
 		}

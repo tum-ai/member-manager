@@ -116,10 +116,7 @@ export async function updatePlanItem(
 	});
 
 	if (error) {
-		const message =
-			typeof error === "object" && error && "message" in error
-				? String(error.message)
-				: "";
+		const message = error.message;
 		if (message.includes("not found")) {
 			throw new NotFoundError("Finance plan item not found");
 		}

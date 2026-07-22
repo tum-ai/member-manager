@@ -101,10 +101,7 @@ export async function reviewFinanceBudgetTransferRequest(input: {
 	);
 
 	if (error) {
-		const message =
-			typeof error === "object" && error && "message" in error
-				? String(error.message)
-				: "";
+		const message = error.message;
 		if (message.includes("not found")) {
 			throw new NotFoundError("Budget transfer request not found");
 		}

@@ -310,10 +310,7 @@ export async function replacePostingAllocations(
 	);
 
 	if (error) {
-		const message =
-			typeof error === "object" && error && "message" in error
-				? String(error.message)
-				: "";
+		const message = error.message;
 		if (message.includes("invalidate existing plan item matches")) {
 			throw new ConflictError(
 				"Posting allocations cannot invalidate existing plan item matches",
@@ -345,10 +342,7 @@ export async function createFinanceReallocationRequest(input: {
 	);
 
 	if (error) {
-		const message =
-			typeof error === "object" && error && "message" in error
-				? String(error.message)
-				: "";
+		const message = error.message;
 		if (message.includes("pending reallocation request")) {
 			throw new ConflictError(
 				"A pending reallocation request already exists for this posting",
@@ -444,10 +438,7 @@ export async function reviewFinanceReallocationRequest(input: {
 	);
 
 	if (error) {
-		const message =
-			typeof error === "object" && error && "message" in error
-				? String(error.message)
-				: "";
+		const message = error.message;
 		if (message.includes("not found")) {
 			throw new NotFoundError("Reallocation request not found");
 		}
@@ -523,10 +514,7 @@ export async function createPlanItemPostingMatch(
 	);
 
 	if (error) {
-		const message =
-			typeof error === "object" && error && "message" in error
-				? String(error.message)
-				: "";
+		const message = error.message;
 		if (message.includes("posting's available amount")) {
 			throw new ConflictError(
 				"Matched amount exceeds the posting's available amount",
