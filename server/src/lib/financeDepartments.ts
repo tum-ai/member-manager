@@ -10,7 +10,21 @@ import { embeddedVat } from "./financeVat.js";
 import { getSupabase } from "./supabase.js";
 
 const MAPPINGS_TABLE = "finance_department_mappings";
+const ALLOCATIONS_TABLE = "finance_posting_allocations";
+const ALLOCATION_QUERY_BATCH_SIZE = 500;
 const MAX_SAMPLE_TEXTS = 3;
+
+export const FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT = {
+	"1": "Community",
+	"2": "Partners & Sponsors",
+	"3": "Software Development",
+	"4": "Marketing",
+	"5": "Venture",
+	"6": "Makeathon",
+	"7": "Innovation Department",
+	"8": "Legal & Finance",
+	"9": "Research",
+} as const;
 
 // Cost locations arrive zero-padded but inconsistently ("82" vs "082"), so we
 // key everything on a normalized form: leading zeros stripped, empty -> "0".
@@ -19,7 +33,7 @@ export function normalizeCostLocation(value: string): string {
 	return trimmed === "" ? "0" : trimmed;
 }
 
-interface ResolvedMapping {
+export interface ResolvedDepartmentMapping {
 	department: string | null;
 	bereich: FinanceBereich | null;
 	note: string | null;
@@ -27,8 +41,8 @@ interface ResolvedMapping {
 
 export function buildMappingLookup(
 	mappings: FinanceDepartmentMapping[],
-): Map<string, ResolvedMapping> {
-	const lookup = new Map<string, ResolvedMapping>();
+): Map<string, ResolvedDepartmentMapping> {
+	const lookup = new Map<string, ResolvedDepartmentMapping>();
 	for (const mapping of mappings) {
 		lookup.set(normalizeCostLocation(mapping.cost_location), {
 			department: mapping.department,
@@ -37,6 +51,373 @@ export function buildMappingLookup(
 		});
 	}
 	return lookup;
+}
+
+interface EffectiveDepartmentMetadata {
+	department: string | null;
+	bereich: FinanceBereich | null;
+}
+
+const EFFECTIVE_DEPARTMENT = Symbol("effectiveFinanceDepartment");
+
+type EffectiveDepartmentTransaction = BuchhaltungsButlerTransaction & {
+	[EFFECTIVE_DEPARTMENT]?: EffectiveDepartmentMetadata;
+};
+
+export interface SavedPostingAllocation {
+	posting_external_id: string;
+	department: string | null;
+	project_id?: string | null;
+	tax_area: FinanceBereich | null;
+	allocated_amount: number;
+	allocated_percentage?: number;
+}
+
+export interface EffectivePostingSplit {
+	posting: BuchhaltungsButlerTransaction;
+	department: string | null;
+	projectId: string | null;
+	taxArea: FinanceBereich | null;
+	amount: number;
+}
+
+function firstDigit(value: string | undefined): string | null {
+	return value?.match(/\d/)?.[0] ?? null;
+}
+
+export function deriveAutomaticDepartment(
+	transaction: BuchhaltungsButlerTransaction,
+): string | null {
+	const bookingDigit = firstDigit(transaction.booking_number);
+	if (bookingDigit !== null) {
+		return (
+			FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT[
+				bookingDigit as keyof typeof FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT
+			] ?? null
+		);
+	}
+
+	const invoiceDigit = firstDigit(
+		transaction.receipts_assigned_invoice_numbers,
+	);
+	return invoiceDigit === null
+		? null
+		: (FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT[
+				invoiceDigit as keyof typeof FINANCE_DEPARTMENT_BY_DOCUMENT_DIGIT
+			] ?? null);
+}
+
+export function resolveTransactionDepartment(
+	transaction: BuchhaltungsButlerTransaction,
+	lookup: Map<string, ResolvedDepartmentMapping>,
+): EffectiveDepartmentMetadata {
+	const effective = (transaction as EffectiveDepartmentTransaction)[
+		EFFECTIVE_DEPARTMENT
+	];
+	if (effective) {
+		return effective;
+	}
+
+	const costLocation = normalizeCostLocation(transaction.cost_location);
+	if (lookup.has(costLocation)) {
+		const stored = lookup.get(costLocation);
+		return {
+			department: stored?.department ?? null,
+			bereich: stored?.department ? (stored.bereich ?? null) : null,
+		};
+	}
+
+	return {
+		department: deriveAutomaticDepartment(transaction),
+		bereich: null,
+	};
+}
+
+export function inferAccountTaxArea(account: string): FinanceBereich | null {
+	const suffix = account.trim().slice(-2);
+	if (suffix === "10") return "ideell";
+	if (suffix === "40") return "wirtschaftlich";
+	if (suffix === "50") return "gemischt";
+	return null;
+}
+
+export function resolveTransactionTaxArea(
+	transaction: BuchhaltungsButlerTransaction,
+	lookup: Map<string, ResolvedDepartmentMapping>,
+): FinanceBereich | null {
+	const effective = (transaction as EffectiveDepartmentTransaction)[
+		EFFECTIVE_DEPARTMENT
+	];
+	if (effective?.bereich) {
+		return effective.bereich;
+	}
+	return (
+		inferAccountTaxArea(transaction.debit_postingaccount_number) ??
+		lookup.get(normalizeCostLocation(transaction.cost_location))?.bereich ??
+		null
+	);
+}
+
+function attachEffectiveDepartment(
+	transaction: BuchhaltungsButlerTransaction,
+	metadata: EffectiveDepartmentMetadata,
+): BuchhaltungsButlerTransaction {
+	Object.defineProperty(transaction, EFFECTIVE_DEPARTMENT, {
+		value: metadata,
+		enumerable: false,
+	});
+	return transaction;
+}
+
+export function applySavedPostingAllocations(
+	transactions: BuchhaltungsButlerTransaction[],
+	mappings: FinanceDepartmentMapping[],
+	allocations: SavedPostingAllocation[],
+): BuchhaltungsButlerTransaction[] {
+	return buildEffectivePostingCandidates(
+		transactions,
+		mappings,
+		allocations,
+	).map(effectiveSplitToTransaction);
+}
+
+function buildEffectivePostingCandidates(
+	transactions: BuchhaltungsButlerTransaction[],
+	mappings: FinanceDepartmentMapping[],
+	allocations: SavedPostingAllocation[],
+): EffectivePostingSplit[] {
+	const lookup = buildMappingLookup(mappings);
+	const allocationsByPosting = new Map<string, SavedPostingAllocation[]>();
+
+	for (const allocation of allocations) {
+		const rows = allocationsByPosting.get(allocation.posting_external_id) ?? [];
+		rows.push(allocation);
+		allocationsByPosting.set(allocation.posting_external_id, rows);
+	}
+
+	return transactions.flatMap((transaction) => {
+		const saved = allocationsByPosting.get(transaction.external_id);
+		if (!saved || saved.length === 0) {
+			return [
+				{
+					posting: transaction,
+					department: resolveTransactionDepartment(transaction, lookup)
+						.department,
+					projectId: null,
+					taxArea: resolveTransactionTaxArea(transaction, lookup),
+					amount: transaction.transaction_amount,
+				},
+			];
+		}
+
+		const defaultDepartment = resolveTransactionDepartment(
+			transaction,
+			lookup,
+		).department;
+		const defaultTaxArea = resolveTransactionTaxArea(transaction, lookup);
+		return apportionPostingAmount(transaction.transaction_amount, saved).map(
+			({ allocation, amount }) => ({
+				posting: transaction,
+				department: allocation.department ?? defaultDepartment,
+				projectId: allocation.project_id ?? null,
+				taxArea: allocation.tax_area ?? defaultTaxArea,
+				amount,
+			}),
+		);
+	});
+}
+
+interface PostingAllocationApportionmentInput {
+	department: string | null;
+	project_id?: string | null;
+	tax_area?: string | null;
+	allocated_percentage?: number;
+}
+
+function compareCodePointOrder(left: string, right: string): number {
+	const leftCodePoints = Array.from(left, (value) => value.codePointAt(0) ?? 0);
+	const rightCodePoints = Array.from(
+		right,
+		(value) => value.codePointAt(0) ?? 0,
+	);
+	const length = Math.min(leftCodePoints.length, rightCodePoints.length);
+
+	for (let index = 0; index < length; index += 1) {
+		const difference = leftCodePoints[index] - rightCodePoints[index];
+		if (difference !== 0) return difference;
+	}
+	return leftCodePoints.length - rightCodePoints.length;
+}
+
+function compareAllocationOrder(
+	left: PostingAllocationApportionmentInput,
+	right: PostingAllocationApportionmentInput,
+): number {
+	for (const [leftValue, rightValue] of [
+		[left.department, right.department],
+		[left.project_id, right.project_id],
+		[left.tax_area, right.tax_area],
+	] as const) {
+		const comparison = compareCodePointOrder(leftValue ?? "", rightValue ?? "");
+		if (comparison !== 0) return comparison;
+	}
+	return 0;
+}
+
+export function apportionPostingAmount<
+	TAllocation extends PostingAllocationApportionmentInput,
+>(
+	transactionAmount: number,
+	allocations: TAllocation[],
+): Array<{ allocation: TAllocation; amount: number }> {
+	const ordered = [...allocations].sort(compareAllocationOrder);
+	const postingCents = Math.round(transactionAmount * 100);
+	let allocatedCents = 0;
+
+	return ordered.map((allocation, index) => {
+		const isLast = index === ordered.length - 1;
+		const percentage =
+			allocation.allocated_percentage ?? (ordered.length === 1 ? 100 : null);
+		if (
+			percentage === null ||
+			!Number.isFinite(percentage) ||
+			percentage <= 0
+		) {
+			throw new Error(
+				"Persisted split allocations require a positive allocated percentage",
+			);
+		}
+		const amountCents = isLast
+			? postingCents - allocatedCents
+			: Math.round((postingCents * percentage) / 100);
+		allocatedCents += amountCents;
+		return { allocation, amount: amountCents / 100 };
+	});
+}
+
+function mixedWirtschaftlichRatio(splits: EffectivePostingSplit[]): number {
+	let ideellExpenses = 0;
+	let wirtschaftlichExpenses = 0;
+	for (const split of splits) {
+		if (split.amount >= 0) continue;
+		const expense = Math.abs(split.amount);
+		if (split.taxArea === "ideell") ideellExpenses += expense;
+		if (split.taxArea === "wirtschaftlich") wirtschaftlichExpenses += expense;
+	}
+	const total = ideellExpenses + wirtschaftlichExpenses;
+	return total === 0 ? 0.5 : wirtschaftlichExpenses / total;
+}
+
+export function buildEffectivePostingSplits(
+	transactions: BuchhaltungsButlerTransaction[],
+	mappings: FinanceDepartmentMapping[],
+	allocations: SavedPostingAllocation[],
+): EffectivePostingSplit[] {
+	const candidates = buildEffectivePostingCandidates(
+		transactions,
+		mappings,
+		allocations,
+	);
+	const ratio = mixedWirtschaftlichRatio(candidates);
+	return candidates.flatMap((candidate) => {
+		if (candidate.taxArea !== "gemischt") {
+			return [candidate];
+		}
+		const wirtschaftlichAmount = round(candidate.amount * ratio);
+		return [
+			{
+				...candidate,
+				taxArea: "ideell" as const,
+				amount: round(candidate.amount - wirtschaftlichAmount),
+			},
+			{
+				...candidate,
+				taxArea: "wirtschaftlich" as const,
+				amount: wirtschaftlichAmount,
+			},
+		];
+	});
+}
+
+function effectiveSplitToTransaction(
+	split: EffectivePostingSplit,
+): BuchhaltungsButlerTransaction {
+	return attachEffectiveDepartment(
+		{
+			...split.posting,
+			amount: split.amount,
+			transaction_amount: split.amount,
+		},
+		{
+			department: split.department,
+			bereich: split.taxArea,
+		},
+	);
+}
+
+export function buildEffectiveDepartmentTransactions(
+	transactions: BuchhaltungsButlerTransaction[],
+	mappings: FinanceDepartmentMapping[],
+	allocations: SavedPostingAllocation[],
+): BuchhaltungsButlerTransaction[] {
+	return buildEffectivePostingSplits(transactions, mappings, allocations).map(
+		effectiveSplitToTransaction,
+	);
+}
+
+export function splitMixedTaxAreaTransactions(
+	transactions: BuchhaltungsButlerTransaction[],
+	mappings: FinanceDepartmentMapping[],
+): BuchhaltungsButlerTransaction[] {
+	return buildEffectiveDepartmentTransactions(transactions, mappings, []);
+}
+
+export async function loadEffectiveDepartmentTransactions(
+	transactions: BuchhaltungsButlerTransaction[],
+	mappings: FinanceDepartmentMapping[],
+): Promise<BuchhaltungsButlerTransaction[]> {
+	const postingExternalIds = [
+		...new Set(transactions.map((transaction) => transaction.external_id)),
+	];
+	if (postingExternalIds.length === 0) {
+		return [];
+	}
+
+	const rows: Array<Record<string, unknown>> = [];
+	for (
+		let index = 0;
+		index < postingExternalIds.length;
+		index += ALLOCATION_QUERY_BATCH_SIZE
+	) {
+		const batch = postingExternalIds.slice(
+			index,
+			index + ALLOCATION_QUERY_BATCH_SIZE,
+		);
+		const { data, error } = await getSupabase()
+			.from(ALLOCATIONS_TABLE)
+			.select(
+				"posting_external_id, department, tax_area, allocated_amount, allocated_percentage",
+			)
+			.in("posting_external_id", batch);
+
+		if (error) {
+			throw error;
+		}
+		rows.push(...(data ?? []));
+	}
+
+	const allocations = rows.map((row) => ({
+		posting_external_id: String(row.posting_external_id),
+		department: row.department ? String(row.department) : null,
+		tax_area: (row.tax_area ?? null) as FinanceBereich | null,
+		allocated_amount: Number(row.allocated_amount),
+		allocated_percentage: Number(row.allocated_percentage),
+	}));
+	return buildEffectiveDepartmentTransactions(
+		transactions,
+		mappings,
+		allocations,
+	);
 }
 
 export async function loadDepartmentMappings(): Promise<
@@ -148,16 +529,19 @@ export function aggregateByDepartment(
 	let unmappedCount = 0;
 	let expenseVat = 0;
 
-	for (const transaction of transactions) {
+	for (const transaction of splitMixedTaxAreaTransactions(
+		transactions,
+		mappings,
+	)) {
 		const amount = transaction.transaction_amount;
 		if (amount < 0) {
 			expenseVat += embeddedVat(amount, transaction.vat);
 		}
-		const resolved = lookup.get(
-			normalizeCostLocation(transaction.cost_location),
-		);
+		const resolved = resolveTransactionDepartment(transaction, lookup);
 		const department = resolved?.department ?? FINANCE_UNMAPPED_DEPARTMENT;
-		const bereich = resolved?.department ? (resolved.bereich ?? null) : null;
+		const bereich = resolved?.department
+			? resolveTransactionTaxArea(transaction, lookup)
+			: null;
 		const isUnmapped = !resolved?.department;
 
 		let deptBucket = byDepartment.get(department);

@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import type {
 	FinancePeriodType,
+	FinancePlanDirection,
 	FinancePlanItem,
 	FinancePlanItemsResponse,
 	FinancePlanStatus,
@@ -20,6 +21,7 @@ export interface PlanItemCreateInput {
 	department: string;
 	label: string;
 	category: string | null;
+	direction?: FinancePlanDirection;
 	plannedAmount: number;
 	expectedMonth: string | null;
 	status: FinancePlanStatus;
@@ -30,6 +32,7 @@ export interface PlanItemUpdateInput {
 	id: string;
 	label: string;
 	category: string | null;
+	direction?: FinancePlanDirection;
 	plannedAmount: number;
 	expectedMonth: string | null;
 	status: FinancePlanStatus;
@@ -44,7 +47,11 @@ function buildPlanItemsEndpoint(period: FinancePeriod): string {
 	return `/api/finance/plan-items?${params.toString()}`;
 }
 
-export function useFinancePlanItems() {
+export function useFinancePlanItems({
+	enabled = true,
+}: {
+	enabled?: boolean;
+} = {}) {
 	const { showToast } = useToast();
 	const queryClient = useQueryClient();
 	const defaultPeriod = useMemo(() => getDefaultFinancePeriod(), []);
@@ -54,6 +61,7 @@ export function useFinancePlanItems() {
 		useQuery<FinancePlanItemsResponse>({
 			queryKey: [FINANCE_PLAN_ITEMS_QUERY_KEY, period.type, period.key],
 			queryFn: async () => await apiClient(buildPlanItemsEndpoint(period)),
+			enabled,
 		});
 
 	function invalidate(): void {
@@ -76,6 +84,7 @@ export function useFinancePlanItems() {
 					period_key: period.key,
 					label: input.label,
 					category: input.category,
+					direction: input.direction ?? "expense",
 					planned_amount: input.plannedAmount,
 					expected_month: input.expectedMonth,
 					status: input.status,
@@ -99,6 +108,7 @@ export function useFinancePlanItems() {
 					body: JSON.stringify({
 						label: input.label,
 						category: input.category,
+						direction: input.direction ?? "expense",
 						planned_amount: input.plannedAmount,
 						expected_month: input.expectedMonth,
 						status: input.status,

@@ -5,7 +5,13 @@ import {
 	isValidFinancePeriodKey,
 	resolveFinancePeriodRange,
 } from "@member-manager/shared";
-import { computeBudgetVsActual } from "../../src/lib/financeBudgets.js";
+
+process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+
+const { computeBudgetVsActual } = await import(
+	"../../src/lib/financeBudgets.js"
+);
 
 function summary(
 	department: string,
@@ -112,5 +118,31 @@ describe("computeBudgetVsActual", () => {
 		assert.strictEqual(totals.amount_planned, 14000);
 		assert.strictEqual(totals.actual_expenses, 12500);
 		assert.strictEqual(totals.remaining, 1500);
+	});
+
+	test("includes visible departments before they have budgets or actuals", () => {
+		const { rows, totals } = computeBudgetVsActual(
+			[],
+			[],
+			["Makeathon", "Research"],
+		);
+
+		assert.deepStrictEqual(
+			rows.map((row) => row.department),
+			["Makeathon", "Research"],
+		);
+		assert.ok(
+			rows.every(
+				(row) =>
+					row.amount_planned === null &&
+					row.actual_expenses === 0 &&
+					row.remaining === null,
+			),
+		);
+		assert.deepStrictEqual(totals, {
+			amount_planned: 0,
+			actual_expenses: 0,
+			remaining: 0,
+		});
 	});
 });

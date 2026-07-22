@@ -28,7 +28,11 @@ function buildBudgetsEndpoint(period: FinancePeriod): string {
 	return `/api/finance/budgets?${params.toString()}`;
 }
 
-export function useFinanceBudgets() {
+export function useFinanceBudgets({
+	enabled = true,
+}: {
+	enabled?: boolean;
+} = {}) {
 	const { showToast } = useToast();
 	const queryClient = useQueryClient();
 	const defaultPeriod = useMemo(() => getDefaultFinancePeriod(), []);
@@ -38,6 +42,7 @@ export function useFinanceBudgets() {
 		useQuery<FinanceBudgetVsActualResponse>({
 			queryKey: [FINANCE_BUDGETS_QUERY_KEY, period.type, period.key],
 			queryFn: async () => await apiClient(buildBudgetsEndpoint(period)),
+			enabled,
 		});
 
 	const mutation = useMutation({

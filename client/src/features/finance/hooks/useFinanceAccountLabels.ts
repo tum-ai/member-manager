@@ -1,11 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import type {
 	FinanceAccountLabelsResponse,
 	FinanceDateRange,
 } from "@/features/finance/financeTypes";
-import { getDefaultFinanceDateRange } from "@/features/finance/financeUtils";
 import { FINANCE_ANALYTICS_QUERY_KEY } from "@/features/finance/hooks/useFinanceAnalytics";
 import { apiClient } from "@/lib/apiClient";
 
@@ -14,7 +12,7 @@ export const FINANCE_ACCOUNT_LABELS_QUERY_KEY = "finance-account-labels";
 interface AccountLabelUpsertInput {
 	account: string;
 	label: string | null;
-	note?: string | null;
+	note: string | null;
 }
 
 function buildAccountLabelsEndpoint(range: FinanceDateRange): string {
@@ -29,15 +27,12 @@ function buildAccountLabelsEndpoint(range: FinanceDateRange): string {
 	return `/api/finance/account-labels${queryString ? `?${queryString}` : ""}`;
 }
 
-export function useFinanceAccountLabels({
-	enabled = true,
-}: {
-	enabled?: boolean;
-} = {}) {
+export function useFinanceAccountLabels(
+	range: FinanceDateRange,
+	{ enabled = true }: { enabled?: boolean } = {},
+) {
 	const { showToast } = useToast();
 	const queryClient = useQueryClient();
-	const defaultRange = useMemo(() => getDefaultFinanceDateRange(), []);
-	const [range] = useState<FinanceDateRange>(defaultRange);
 
 	const { data, isLoading, isFetching, error } =
 		useQuery<FinanceAccountLabelsResponse>({
@@ -58,10 +53,11 @@ export function useFinanceAccountLabels({
 					method: "PUT",
 					body: JSON.stringify({
 						label: input.label,
-						note: input.note ?? null,
+						note: input.note,
 					}),
 				},
 			),
+		scope: { id: "finance-account-labels" },
 		onSuccess: () => {
 			showToast("Konto gespeichert.", "success");
 			void queryClient.invalidateQueries({
@@ -86,7 +82,7 @@ export function useFinanceAccountLabels({
 		isLoading,
 		isFetching,
 		error: error as Error | null,
-		saveAccount: mutation.mutate,
+		saveAccount: mutation.mutateAsync,
 		isSaving: mutation.isPending,
 		savingAccount: mutation.isPending
 			? (mutation.variables?.account ?? null)

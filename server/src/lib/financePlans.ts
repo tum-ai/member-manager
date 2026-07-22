@@ -9,11 +9,12 @@ import type {
 	FinancePlanStatus,
 } from "@member-manager/shared";
 import { FINANCE_UNMAPPED_DEPARTMENT } from "@member-manager/shared";
+import { ConflictError, DatabaseError, NotFoundError } from "./errors.js";
 import { getSupabase } from "./supabase.js";
 
 const PLAN_ITEMS_TABLE = "finance_plan_items";
 const PLAN_COLUMNS =
-	"id, department, period_type, period_key, label, category, planned_amount, expected_month, status, note";
+	"id, department, period_type, period_key, label, category, direction, planned_amount, expected_month, status, note, project_id, template_item_id";
 
 function mapRow(row: Record<string, unknown>): FinancePlanItem {
 	return {
@@ -23,10 +24,13 @@ function mapRow(row: Record<string, unknown>): FinancePlanItem {
 		period_key: String(row.period_key),
 		label: String(row.label),
 		category: (row.category ?? null) as string | null,
+		direction: row.direction === "income" ? "income" : "expense",
 		planned_amount: Number(row.planned_amount ?? 0),
 		expected_month: (row.expected_month ?? null) as string | null,
 		status: (row.status ?? "planned") as FinancePlanStatus,
 		note: (row.note ?? null) as string | null,
+		project_id: (row.project_id ?? null) as string | null,
+		template_item_id: (row.template_item_id ?? null) as string | null,
 	};
 }
 
@@ -79,6 +83,7 @@ export async function createPlanItem(
 			period_key: input.period_key,
 			label: input.label,
 			category: input.category ?? null,
+			direction: input.direction ?? "expense",
 			planned_amount: input.planned_amount,
 			expected_month: input.expected_month ?? null,
 			status: input.status ?? "planned",
@@ -99,23 +104,32 @@ export async function updatePlanItem(
 	id: string,
 	input: FinancePlanItemUpdate,
 ): Promise<FinancePlanItem> {
-	const { data, error } = await getSupabase()
-		.from(PLAN_ITEMS_TABLE)
-		.update({
-			label: input.label,
-			category: input.category ?? null,
-			planned_amount: input.planned_amount,
-			expected_month: input.expected_month ?? null,
-			status: input.status,
-			note: input.note ?? null,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("id", id)
-		.select(PLAN_COLUMNS)
-		.single();
+	const { data, error } = await getSupabase().rpc("update_finance_plan_item", {
+		p_id: id,
+		p_label: input.label,
+		p_category: input.category ?? null,
+		p_direction: input.direction ?? null,
+		p_planned_amount: input.planned_amount,
+		p_expected_month: input.expected_month ?? null,
+		p_status: input.status,
+		p_note: input.note ?? null,
+	});
 
 	if (error) {
-		throw error;
+		const message =
+			typeof error === "object" && error && "message" in error
+				? String(error.message)
+				: "";
+		if (message.includes("not found")) {
+			throw new NotFoundError("Finance plan item not found");
+		}
+		if (
+			message.includes("below its matched total") ||
+			message.includes("direction cannot change")
+		) {
+			throw new ConflictError(message);
+		}
+		throw new DatabaseError("Failed to update finance plan item");
 	}
 	return mapRow(data);
 }
@@ -141,8 +155,20 @@ export function computePlanTotals(
 	items: FinancePlanItem[],
 	budgets: FinanceBudget[],
 	departmentSummaries: FinanceDepartmentSummary[],
-): { planned: number; budget: number; actual: number } {
-	const planned = items.reduce((sum, item) => sum + item.planned_amount, 0);
+): {
+	planned: number;
+	planned_expenses: number;
+	planned_income: number;
+	planned_net: number;
+	budget: number;
+	actual: number;
+} {
+	const plannedExpenses = items
+		.filter((item) => (item.direction ?? "expense") === "expense")
+		.reduce((sum, item) => sum + item.planned_amount, 0);
+	const plannedIncome = items
+		.filter((item) => item.direction === "income")
+		.reduce((sum, item) => sum + item.planned_amount, 0);
 	const budget = budgets.reduce((sum, entry) => sum + entry.amount_planned, 0);
 	const actual = departmentSummaries.reduce(
 		(sum, summary) =>
@@ -152,7 +178,10 @@ export function computePlanTotals(
 		0,
 	);
 	return {
-		planned: round(planned),
+		planned: round(plannedExpenses),
+		planned_expenses: round(plannedExpenses),
+		planned_income: round(plannedIncome),
+		planned_net: round(plannedIncome - plannedExpenses),
 		budget: round(budget),
 		actual: round(actual),
 	};

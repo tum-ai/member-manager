@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type { FinanceAccountLabelRow } from "@/features/finance/financeTypes";
 import { AccountLabelEditorSection } from "./AccountLabelEditorSection";
 
@@ -38,7 +38,7 @@ export const Default: Story = {
 		isLoading: false,
 		error: null,
 		savingAccount: null,
-		onSave: () => undefined,
+		onSave: fn(),
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -46,10 +46,15 @@ export const Default: Story = {
 
 		const input = canvas.getByLabelText("Bezeichnung für Konto 6840");
 		await userEvent.type(input, "Software & Tools");
-		await userEvent.tab();
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Bezeichnung für Konto 6840 speichern",
+			}),
+		);
 		await expect(args.onSave).toHaveBeenCalledWith({
 			account: "6840",
 			label: "Software & Tools",
+			note: null,
 		});
 	},
 };

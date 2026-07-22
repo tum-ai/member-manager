@@ -14,15 +14,15 @@ import { MOCK_OTHER_USER_ID, mockDatabase } from "../mocks/supabase.js";
 
 // Register the "other" test user as a department-scoped finance viewer: an
 // active member of Makeathon, whose department grants only `finance.department`.
-function seedDepartmentFinanceMember(): void {
+function seedDepartmentFinanceMember(department = "Makeathon"): void {
 	mockDatabase.members.push({
 		user_id: MOCK_OTHER_USER_ID,
-		department: "Makeathon",
+		department,
 		member_status: "active",
 		active: true,
 	});
 	mockDatabase.department_permissions.push({
-		department: "Makeathon",
+		department,
 		permissions: ["finance.department"],
 	});
 }
@@ -130,6 +130,16 @@ describe("Finance Routes", async () => {
 					row.postingtext === "Sponsoring JetBrains",
 			),
 		);
+		assert.ok(
+			payload.transactions.every(
+				(row: {
+					booking_number?: string;
+					receipts_assigned_invoice_numbers?: string;
+				}) =>
+					Boolean(row.booking_number) &&
+					Boolean(row.receipts_assigned_invoice_numbers),
+			),
+		);
 	});
 
 	test("rejects an invalid date range", async () => {
@@ -193,10 +203,12 @@ describe("Finance Routes", async () => {
 							credit_type: "credit",
 							debit_postingaccount_number: 8450,
 							credit_postingaccount_number: 1200,
+							booking_number: "2123",
 							cost_location: 120,
 							cost_location_two: 0,
 							transaction_amount: "7500.00",
 							transaction_purpose: "JetBrains partnership tranche 1",
+							receipts_assigned_invoice_numbers: "INV-2123",
 						},
 					],
 				}),
@@ -237,10 +249,12 @@ describe("Finance Routes", async () => {
 			credit_type: "credit",
 			debit_postingaccount_number: "8450",
 			credit_postingaccount_number: "1200",
+			booking_number: "2123",
 			cost_location: "120",
 			cost_location_two: "0",
 			transaction_amount: 7500,
 			transaction_purpose: "JetBrains partnership tranche 1",
+			receipts_assigned_invoice_numbers: "INV-2123",
 		});
 	});
 
@@ -255,7 +269,7 @@ describe("Finance Routes", async () => {
 			assert.strictEqual(response.statusCode, 403);
 		});
 
-		test("buckets unmapped postings and reports totals", async () => {
+		test("uses automatic department fallback and reports unmapped postings", async () => {
 			const response = await app.inject({
 				method: "GET",
 				url: "/api/finance/analytics?date_from=2026-02-01&date_to=2026-02-28",
@@ -265,9 +279,20 @@ describe("Finance Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			const payload = JSON.parse(response.payload);
 			assert.strictEqual(payload.source, "mock");
-			// No mappings seeded in the mock DB → every posting is unmapped.
 			assert.ok(payload.totals.count > 0);
-			assert.strictEqual(payload.totals.unmapped_count, payload.totals.count);
+			assert.ok(payload.totals.unmapped_count > 0);
+			assert.ok(payload.totals.unmapped_count < payload.totals.count);
+			assert.ok(
+				payload.by_department.some(
+					(d: { department: string }) => d.department === "Partners & Sponsors",
+				),
+			);
+			assert.ok(
+				payload.by_department.some(
+					(d: { department: string }) =>
+						d.department === "Software Development",
+				),
+			);
 			assert.ok(
 				payload.by_department.some(
 					(d: { unmapped: boolean }) => d.unmapped === true,
@@ -306,7 +331,112 @@ describe("Finance Routes", async () => {
 			);
 			assert.ok(partnerships);
 			assert.strictEqual(partnerships.unmapped, false);
-			assert.strictEqual(partnerships.bereich, "ideell");
+			assert.strictEqual(partnerships.bereich, null);
+		});
+
+		test("applies saved allocations across analytics, budgets, plans, and scope", async () => {
+			await app.inject({
+				method: "PUT",
+				url: "/api/finance/department-mappings/161",
+				headers: authHeaders(testTokens.admin),
+				payload: { department: "Marketing", bereich: "wirtschaftlich" },
+			});
+
+			const postingsResponse = await app.inject({
+				method: "GET",
+				url: "/api/finance/buchhaltungsbutler/transactions?date_from=2026-05-04&date_to=2026-05-04",
+				headers: authHeaders(testTokens.admin),
+			});
+			const postings = JSON.parse(postingsResponse.payload).transactions;
+			const venue = postings.find(
+				(posting: { postingtext: string }) =>
+					posting.postingtext === "Makeathon venue",
+			);
+			assert.ok(venue);
+			mockDatabase.finance_posting_allocations.push({
+				id: "10000000-0000-4000-8000-000000000099",
+				posting_external_id: venue.external_id,
+				department: "Research",
+				project_id: null,
+				tax_area: "ideell",
+				allocated_amount: -4800,
+				allocated_percentage: 100,
+				note: null,
+				created_by: MOCK_OTHER_USER_ID,
+				created_at: "2026-07-21T12:00:00.000Z",
+				updated_at: "2026-07-21T12:00:00.000Z",
+			});
+
+			const analyticsResponse = await app.inject({
+				method: "GET",
+				url: "/api/finance/analytics?date_from=2026-05-04&date_to=2026-05-04",
+				headers: authHeaders(testTokens.admin),
+			});
+			assert.strictEqual(analyticsResponse.statusCode, 200);
+			const analytics = JSON.parse(analyticsResponse.payload);
+			assert.strictEqual(
+				analytics.by_department.find(
+					(row: { department: string }) => row.department === "Research",
+				)?.expenses,
+				4800,
+			);
+			assert.strictEqual(
+				analytics.by_department.find(
+					(row: { department: string }) => row.department === "Marketing",
+				)?.expenses,
+				3900,
+			);
+			assert.strictEqual(
+				analytics.by_account.find(
+					(row: { account: string }) => row.account === "6850",
+				)?.expenses,
+				8700,
+			);
+			assert.strictEqual(
+				analytics.by_category.reduce(
+					(sum: number, row: { expenses: number }) => sum + row.expenses,
+					0,
+				),
+				8700,
+			);
+			assert.strictEqual(
+				analytics.by_vat_rate.find((row: { rate: number }) => row.rate === 0)
+					?.expenses,
+				8700,
+			);
+
+			const budgetsResponse = await app.inject({
+				method: "GET",
+				url: "/api/finance/budgets?period_type=year&period_key=2026&department=Research",
+				headers: authHeaders(testTokens.admin),
+			});
+			assert.strictEqual(budgetsResponse.statusCode, 200);
+			const budgets = JSON.parse(budgetsResponse.payload);
+			assert.strictEqual(budgets.rows[0].department, "Research");
+			assert.strictEqual(budgets.rows[0].actual_expenses, 4800);
+
+			const plansResponse = await app.inject({
+				method: "GET",
+				url: "/api/finance/plan-items?period_type=year&period_key=2026&department=Research",
+				headers: authHeaders(testTokens.admin),
+			});
+			assert.strictEqual(plansResponse.statusCode, 200);
+			assert.strictEqual(JSON.parse(plansResponse.payload).totals.actual, 4800);
+
+			seedDepartmentFinanceMember("Research");
+			const scopedResponse = await app.inject({
+				method: "GET",
+				url: "/api/finance/analytics?date_from=2026-05-04&date_to=2026-05-04",
+				headers: authHeaders(testTokens.otherUser),
+			});
+			assert.strictEqual(scopedResponse.statusCode, 200);
+			const scoped = JSON.parse(scopedResponse.payload);
+			assert.strictEqual(scoped.totals.expenses, 4800);
+			assert.ok(
+				scoped.by_department.every(
+					(row: { department: string }) => row.department === "Research",
+				),
+			);
 		});
 
 		test("reflects a stored category label in the by_category rollup", async () => {
@@ -719,6 +849,29 @@ describe("Finance Routes", async () => {
 				headers: authHeaders(testTokens.admin),
 			});
 			assert.strictEqual(removed.statusCode, 204);
+		});
+
+		test("an update without direction preserves an income plan item", async () => {
+			const created = await createItem(testTokens.admin, {
+				direction: "income",
+			});
+			assert.strictEqual(created.statusCode, 201);
+			const item = JSON.parse(created.payload);
+			assert.strictEqual(item.direction, "income");
+
+			const updated = await app.inject({
+				method: "PUT",
+				url: `/api/finance/plan-items/${item.id}`,
+				headers: authHeaders(testTokens.admin),
+				payload: {
+					label: "Sponsoring income",
+					planned_amount: 4200,
+					status: "committed",
+				},
+			});
+
+			assert.strictEqual(updated.statusCode, 200);
+			assert.strictEqual(JSON.parse(updated.payload).direction, "income");
 		});
 
 		test("a department member manages only their own department's items", async () => {

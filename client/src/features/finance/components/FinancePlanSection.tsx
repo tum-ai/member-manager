@@ -1,9 +1,18 @@
-import { TUMAI_DEPARTMENTS } from "@member-manager/shared";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+	type FinancePlanItemCreate,
+	FinancePlanItemCreateSchema,
+	type FinancePlanItemUpdate,
+	FinancePlanItemUpdateSchema,
+	TUMAI_DEPARTMENTS,
+} from "@member-manager/shared";
 import { AlertTriangle, Plus, Trash2 } from "lucide-react";
-import { type ReactElement, useState } from "react";
+import { type ReactElement, useEffect } from "react";
+import { Controller, useForm } from "react-hook-form";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -24,6 +33,7 @@ import {
 } from "@/components/ui/table";
 import type {
 	FinancePeriodType,
+	FinancePlanDirection,
 	FinancePlanItem,
 	FinancePlanItemsResponse,
 	FinancePlanStatus,
@@ -45,6 +55,10 @@ const STATUS_LABELS: Record<FinancePlanStatus, string> = {
 	spent: "Ausgegeben",
 };
 const STATUS_ORDER: FinancePlanStatus[] = ["planned", "committed", "spent"];
+const DIRECTION_LABELS: Record<FinancePlanDirection, string> = {
+	expense: "Ausgabe",
+	income: "Einnahme",
+};
 const OTHER_DEPARTMENT = "Other";
 const DEPARTMENT_OPTIONS = [...TUMAI_DEPARTMENTS, OTHER_DEPARTMENT] as const;
 
@@ -107,6 +121,7 @@ export function FinancePlanSection({
 			<TotalsRow totals={totals} isLoading={isLoading} />
 
 			<AddPlanItemForm
+				period={period}
 				canChooseDepartment={canChooseDepartment}
 				department={department}
 				onCreate={onCreate}
@@ -134,7 +149,9 @@ export function FinancePlanSection({
 										<TableHead className="text-right">Betrag</TableHead>
 										<TableHead>Monat</TableHead>
 										<TableHead className="w-40">Status</TableHead>
-										<TableHead className="w-10" />
+										<TableHead className="w-10">
+											<span className="sr-only">Aktionen</span>
+										</TableHead>
 									</TableRow>
 								</TableHeader>
 								<TableBody>
@@ -223,7 +240,9 @@ function TotalsRow({
 	isLoading: boolean;
 }): ReactElement {
 	const metrics = [
-		{ label: "Geplant", value: totals?.planned ?? 0 },
+		{ label: "Geplante Ausgaben", value: totals?.planned_expenses ?? 0 },
+		{ label: "Geplante Einnahmen", value: totals?.planned_income ?? 0 },
+		{ label: "Geplantes Netto", value: totals?.planned_net ?? 0 },
 		{ label: "Budget", value: totals?.budget ?? 0 },
 		{ label: "Ist", value: totals?.actual ?? 0 },
 	];
@@ -231,7 +250,7 @@ function TotalsRow({
 	return (
 		<section
 			aria-label="Plankennzahlen"
-			className="grid grid-cols-1 gap-4 sm:grid-cols-3"
+			className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5"
 		>
 			{metrics.map((metric) => (
 				<Card key={metric.label}>
@@ -256,51 +275,75 @@ function TotalsRow({
 }
 
 function AddPlanItemForm({
+	period,
 	canChooseDepartment,
 	department,
 	onCreate,
 }: {
+	period: FinancePeriod;
 	canChooseDepartment: boolean;
 	department: string | null;
 	onCreate: (input: PlanItemCreateInput) => void;
 }): ReactElement {
-	const [label, setLabel] = useState("");
-	const [category, setCategory] = useState("");
-	const [amount, setAmount] = useState("");
-	const [month, setMonth] = useState("");
-	const [status, setStatus] = useState<FinancePlanStatus>("planned");
-	const [dept, setDept] = useState<string>(
-		canChooseDepartment ? "" : (department ?? ""),
-	);
+	const form = useForm<FinancePlanItemCreate>({
+		resolver: zodResolver(FinancePlanItemCreateSchema),
+		mode: "onChange",
+		defaultValues: {
+			department: canChooseDepartment ? "" : (department ?? ""),
+			period_type: period.type,
+			period_key: period.key,
+			label: "",
+			category: null,
+			direction: "expense",
+			expected_month: null,
+			status: "planned",
+			note: null,
+		},
+	});
 
-	const targetDepartment = canChooseDepartment ? dept : (department ?? "");
-	const parsedAmount = amount.trim() === "" ? Number.NaN : Number(amount);
-	const canSubmit =
-		label.trim() !== "" &&
-		Number.isFinite(parsedAmount) &&
-		parsedAmount >= 0 &&
-		targetDepartment !== "";
-
-	function submit(): void {
-		if (!canSubmit) {
-			return;
+	useEffect(() => {
+		if (form.getValues("period_type") !== period.type) {
+			form.setValue("period_type", period.type, { shouldValidate: true });
 		}
+		if (form.getValues("period_key") !== period.key) {
+			form.setValue("period_key", period.key, { shouldValidate: true });
+		}
+	}, [form, period.key, period.type]);
+
+	useEffect(() => {
+		if (
+			!canChooseDepartment &&
+			form.getValues("department") !== (department ?? "")
+		) {
+			form.setValue("department", department ?? "", {
+				shouldValidate: true,
+			});
+		}
+	}, [canChooseDepartment, department, form]);
+
+	function submit(values: FinancePlanItemCreate): void {
 		onCreate({
-			department: targetDepartment,
-			label: label.trim(),
-			category: category.trim() === "" ? null : category.trim(),
-			plannedAmount: parsedAmount,
-			expectedMonth: month === "" ? null : month,
-			status,
+			department: values.department,
+			label: values.label,
+			category: values.category ?? null,
+			direction: values.direction ?? "expense",
+			plannedAmount: values.planned_amount,
+			expectedMonth: values.expected_month ?? null,
+			status: values.status ?? "planned",
+			note: values.note ?? null,
 		});
-		setLabel("");
-		setCategory("");
-		setAmount("");
-		setMonth("");
-		setStatus("planned");
-		if (canChooseDepartment) {
-			setDept("");
-		}
+		form.reset({
+			department: canChooseDepartment ? "" : (department ?? ""),
+			period_type: period.type,
+			period_key: period.key,
+			label: "",
+			category: null,
+			direction: "expense",
+			expected_month: null,
+			status: "planned",
+			note: null,
+		});
+		form.setValue("planned_amount", Number.NaN);
 	}
 
 	return (
@@ -309,89 +352,191 @@ function AddPlanItemForm({
 				<CardTitle className="text-base">Planposten hinzufügen</CardTitle>
 			</CardHeader>
 			<CardContent>
-				<div className="flex flex-wrap items-end gap-3">
+				<form
+					className="flex flex-wrap items-end gap-3"
+					onSubmit={form.handleSubmit(submit)}
+				>
 					{canChooseDepartment ? (
-						<div className="flex flex-col gap-1">
-							<Label htmlFor="plan-dept">Department</Label>
-							<Select value={dept} onValueChange={setDept}>
-								<SelectTrigger id="plan-dept" className="w-44">
-									<SelectValue placeholder="Wählen" />
-								</SelectTrigger>
-								<SelectContent>
-									{DEPARTMENT_OPTIONS.map((option) => (
-										<SelectItem key={option} value={option}>
-											{option}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
+						<Field
+							label="Department"
+							htmlFor="plan-dept"
+							error={form.formState.errors.department?.message}
+						>
+							<Controller
+								control={form.control}
+								name="department"
+								render={({ field }) => (
+									<Select value={field.value} onValueChange={field.onChange}>
+										<SelectTrigger
+											id="plan-dept"
+											className="w-44"
+											aria-invalid={
+												form.formState.errors.department ? "true" : undefined
+											}
+											aria-describedby={
+												form.formState.errors.department
+													? "plan-dept-error"
+													: undefined
+											}
+										>
+											<SelectValue placeholder="Wählen" />
+										</SelectTrigger>
+										<SelectContent>
+											{DEPARTMENT_OPTIONS.map((option) => (
+												<SelectItem key={option} value={option}>
+													{option}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								)}
+							/>
+						</Field>
 					) : null}
-					<div className="flex flex-col gap-1">
-						<Label htmlFor="plan-label">Bezeichnung</Label>
+					<Field
+						label="Bezeichnung"
+						htmlFor="plan-label"
+						error={form.formState.errors.label?.message}
+					>
 						<Input
 							id="plan-label"
-							value={label}
-							onChange={(event) => setLabel(event.target.value)}
 							placeholder="z. B. Venue"
 							className="w-44"
+							aria-invalid={form.formState.errors.label ? "true" : undefined}
+							aria-describedby={
+								form.formState.errors.label ? "plan-label-error" : undefined
+							}
+							{...form.register("label")}
 						/>
-					</div>
-					<div className="flex flex-col gap-1">
-						<Label htmlFor="plan-category">Kategorie</Label>
-						<Input
-							id="plan-category"
-							value={category}
-							onChange={(event) => setCategory(event.target.value)}
-							placeholder="optional"
-							className="w-36"
+					</Field>
+					<Field
+						label="Kategorie"
+						htmlFor="plan-category"
+						error={form.formState.errors.category?.message}
+					>
+						<Controller
+							control={form.control}
+							name="category"
+							render={({ field }) => (
+								<Input
+									id="plan-category"
+									value={field.value ?? ""}
+									onChange={(event) =>
+										field.onChange(event.target.value || null)
+									}
+									placeholder="optional"
+									className="w-36"
+									aria-invalid={
+										form.formState.errors.category ? "true" : undefined
+									}
+									aria-describedby={
+										form.formState.errors.category
+											? "plan-category-error"
+											: undefined
+									}
+								/>
+							)}
 						/>
-					</div>
-					<div className="flex flex-col gap-1">
-						<Label htmlFor="plan-amount">Betrag (€)</Label>
+					</Field>
+					<Field label="Richtung" htmlFor="plan-direction">
+						<Controller
+							control={form.control}
+							name="direction"
+							render={({ field }) => (
+								<Select
+									value={field.value ?? "expense"}
+									onValueChange={field.onChange}
+								>
+									<SelectTrigger id="plan-direction" className="w-32">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										<SelectItem value="expense">Ausgabe</SelectItem>
+										<SelectItem value="income">Einnahme</SelectItem>
+									</SelectContent>
+								</Select>
+							)}
+						/>
+					</Field>
+					<Field
+						label="Betrag (€)"
+						htmlFor="plan-amount"
+						error={form.formState.errors.planned_amount?.message}
+					>
 						<Input
 							id="plan-amount"
 							type="number"
 							min={0}
 							inputMode="decimal"
-							value={amount}
-							onChange={(event) => setAmount(event.target.value)}
 							className="w-32 text-right tabular-nums"
+							aria-invalid={
+								form.formState.errors.planned_amount ? "true" : undefined
+							}
+							aria-describedby={
+								form.formState.errors.planned_amount
+									? "plan-amount-error"
+									: undefined
+							}
+							{...form.register("planned_amount", { valueAsNumber: true })}
 						/>
-					</div>
-					<div className="flex flex-col gap-1">
-						<Label htmlFor="plan-month">Monat</Label>
-						<Input
-							id="plan-month"
-							type="month"
-							value={month}
-							onChange={(event) => setMonth(event.target.value)}
-							className="w-40"
+					</Field>
+					<Field
+						label="Monat"
+						htmlFor="plan-month"
+						error={form.formState.errors.expected_month?.message}
+					>
+						<Controller
+							control={form.control}
+							name="expected_month"
+							render={({ field }) => (
+								<Input
+									id="plan-month"
+									type="month"
+									value={field.value ?? ""}
+									onChange={(event) =>
+										field.onChange(event.target.value || null)
+									}
+									className="w-40"
+									aria-invalid={
+										form.formState.errors.expected_month ? "true" : undefined
+									}
+									aria-describedby={
+										form.formState.errors.expected_month
+											? "plan-month-error"
+											: undefined
+									}
+								/>
+							)}
 						/>
-					</div>
-					<div className="flex flex-col gap-1">
-						<Label htmlFor="plan-status">Status</Label>
-						<Select
-							value={status}
-							onValueChange={(value) => setStatus(value as FinancePlanStatus)}
-						>
-							<SelectTrigger id="plan-status" className="w-36">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{STATUS_ORDER.map((value) => (
-									<SelectItem key={value} value={value}>
-										{STATUS_LABELS[value]}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-					<Button type="button" onClick={submit} disabled={!canSubmit}>
+					</Field>
+					<Field label="Status" htmlFor="plan-status">
+						<Controller
+							control={form.control}
+							name="status"
+							render={({ field }) => (
+								<Select
+									value={field.value ?? "planned"}
+									onValueChange={field.onChange}
+								>
+									<SelectTrigger id="plan-status" className="w-36">
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent>
+										{STATUS_ORDER.map((value) => (
+											<SelectItem key={value} value={value}>
+												{STATUS_LABELS[value]}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							)}
+						/>
+					</Field>
+					<Button type="submit" disabled={!form.formState.isValid}>
 						<Plus className="size-4" />
 						Hinzufügen
 					</Button>
-				</div>
+				</form>
 			</CardContent>
 		</Card>
 	);
@@ -408,16 +553,59 @@ function PlanItemRow({
 	onUpdate: (input: PlanItemUpdateInput) => void;
 	onDelete: (id: string) => void;
 }): ReactElement {
-	function changeStatus(status: FinancePlanStatus): void {
-		onUpdate({
-			id: item.id,
+	const form = useForm<FinancePlanItemUpdate>({
+		resolver: zodResolver(FinancePlanItemUpdateSchema),
+		defaultValues: {
 			label: item.label,
 			category: item.category,
-			plannedAmount: item.planned_amount,
-			expectedMonth: item.expected_month,
-			status,
+			direction: item.direction ?? "expense",
+			planned_amount: item.planned_amount,
+			expected_month: item.expected_month,
+			status: item.status,
 			note: item.note,
+		},
+	});
+
+	useEffect(() => {
+		const values: FinancePlanItemUpdate = {
+			label: item.label,
+			category: item.category,
+			direction: item.direction ?? "expense",
+			planned_amount: item.planned_amount,
+			expected_month: item.expected_month,
+			status: item.status,
+			note: item.note,
+		};
+		const current = form.getValues();
+		if (
+			current.label !== values.label ||
+			current.category !== values.category ||
+			current.direction !== values.direction ||
+			current.planned_amount !== values.planned_amount ||
+			current.expected_month !== values.expected_month ||
+			current.status !== values.status ||
+			current.note !== values.note
+		) {
+			form.reset(values);
+		}
+	}, [form, item]);
+
+	function submit(values: FinancePlanItemUpdate): void {
+		onUpdate({
+			id: item.id,
+			label: values.label,
+			category: values.category ?? null,
+			direction: values.direction ?? "expense",
+			plannedAmount: values.planned_amount,
+			expectedMonth: values.expected_month ?? null,
+			status: values.status,
+			note: values.note ?? null,
 		});
+	}
+
+	function changeStatus(status: FinancePlanStatus): void {
+		form.setValue("status", status, { shouldValidate: true });
+		void form.handleSubmit(submit)();
 	}
 
 	return (
@@ -425,7 +613,7 @@ function PlanItemRow({
 			<TableCell className="font-medium">{item.label}</TableCell>
 			{showDepartment ? <TableCell>{item.department}</TableCell> : null}
 			<TableCell className="text-muted-foreground">
-				{item.category ?? "—"}
+				{item.category ?? "—"} · {DIRECTION_LABELS[item.direction ?? "expense"]}
 			</TableCell>
 			<TableCell className="text-right tabular-nums">
 				{formatFinanceAmount(item.planned_amount)}
@@ -434,11 +622,11 @@ function PlanItemRow({
 				{item.expected_month ?? "—"}
 			</TableCell>
 			<TableCell>
-				<Select
-					value={item.status}
-					onValueChange={(value) => changeStatus(value as FinancePlanStatus)}
-				>
-					<SelectTrigger aria-label={`Status für ${item.label}`}>
+				<Select value={form.watch("status")} onValueChange={changeStatus}>
+					<SelectTrigger
+						aria-label={`Status für ${item.label}`}
+						aria-invalid={form.formState.errors.status ? "true" : undefined}
+					>
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>

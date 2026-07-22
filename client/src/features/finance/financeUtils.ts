@@ -72,7 +72,7 @@ export function formatFinancePeriodLabel(period: FinancePeriod): string {
 const BEREICH_LABELS: Record<FinanceBereich, string> = {
 	ideell: "Ideeller Bereich",
 	wirtschaftlich: "Wirtschaftlicher Geschäftsbetrieb",
-	zweckbetrieb: "Zweckbetrieb",
+	gemischt: "Gemischt (50)",
 };
 
 export function formatBereichLabel(bereich: FinanceBereich | null): string {
@@ -85,7 +85,7 @@ export const FINANCE_BEREICH_OPTIONS: ReadonlyArray<{
 }> = [
 	{ value: "ideell", label: BEREICH_LABELS.ideell },
 	{ value: "wirtschaftlich", label: BEREICH_LABELS.wirtschaftlich },
-	{ value: "zweckbetrieb", label: BEREICH_LABELS.zweckbetrieb },
+	{ value: "gemischt", label: BEREICH_LABELS.gemischt },
 ];
 
 // Compact month label ("Feb 2026") for chart axes from a "YYYY-MM" key.

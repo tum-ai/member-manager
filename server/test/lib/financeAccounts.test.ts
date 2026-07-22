@@ -4,10 +4,13 @@ import type {
 	BuchhaltungsButlerTransaction,
 	FinanceAccountLabel,
 } from "@member-manager/shared";
-import {
-	aggregateByAccount,
-	buildAccountLabelRows,
-} from "../../src/lib/financeAccounts.js";
+
+process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+
+const { aggregateByAccount, buildAccountLabelRows } = await import(
+	"../../src/lib/financeAccounts.js"
+);
 
 function tx(
 	overrides: Partial<BuchhaltungsButlerTransaction> &

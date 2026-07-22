@@ -5,10 +5,13 @@ import type {
 	FinanceCategoryMapping,
 } from "@member-manager/shared";
 import { FINANCE_UNMAPPED_CATEGORY } from "@member-manager/shared";
-import {
-	aggregateByCategory,
-	buildCategoryMappingRows,
-} from "../../src/lib/financeCategories.js";
+
+process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+
+const { aggregateByCategory, buildCategoryMappingRows } = await import(
+	"../../src/lib/financeCategories.js"
+);
 
 function tx(
 	overrides: Partial<BuchhaltungsButlerTransaction> &

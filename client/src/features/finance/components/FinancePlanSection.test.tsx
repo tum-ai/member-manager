@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { FinancePlanItem } from "@/features/finance/financeTypes";
@@ -65,17 +65,86 @@ describe("FinancePlanSection", () => {
 		);
 
 		await user.type(screen.getByLabelText("Bezeichnung"), "Catering");
+		await user.click(screen.getByLabelText("Richtung"));
+		await user.click(await screen.findByRole("option", { name: "Einnahme" }));
 		await user.type(screen.getByLabelText("Betrag (€)"), "900");
 		await user.click(screen.getByRole("button", { name: /Hinzufügen/ }));
 
-		expect(onCreate).toHaveBeenCalledWith(
-			expect.objectContaining({
-				department: "Makeathon",
-				label: "Catering",
-				plannedAmount: 900,
-				status: "planned",
-			}),
+		await waitFor(() => {
+			expect(onCreate).toHaveBeenCalledWith(
+				expect.objectContaining({
+					department: "Makeathon",
+					label: "Catering",
+					direction: "income",
+					plannedAmount: 900,
+					status: "planned",
+				}),
+			);
+		});
+		await waitFor(() => {
+			expect(screen.getByLabelText("Bezeichnung")).toHaveValue("");
+			expect(screen.getByLabelText("Betrag (€)")).toHaveValue(null);
+		});
+	});
+
+	it("uses the shared schema to reject a negative planned amount", async () => {
+		const user = userEvent.setup();
+		const onCreate = vi.fn();
+		renderWithClient(
+			<FinancePlanSection
+				{...baseProps}
+				items={[]}
+				totals={{ planned: 0, budget: 10000, actual: 0 }}
+				canChooseDepartment={false}
+				department="Makeathon"
+				onCreate={onCreate}
+			/>,
 		);
+
+		await user.type(screen.getByLabelText("Bezeichnung"), "Invalid item");
+		await user.type(screen.getByLabelText("Betrag (€)"), "-1");
+
+		expect(
+			await screen.findByText(/expected number to be >=0/),
+		).toBeInTheDocument();
+		expect(screen.getByLabelText("Betrag (€)")).toHaveAttribute(
+			"aria-invalid",
+			"true",
+		);
+		expect(screen.getByRole("button", { name: /Hinzufügen/ })).toBeDisabled();
+		expect(onCreate).not.toHaveBeenCalled();
+	});
+
+	it("validates and submits status edits with the shared update schema", async () => {
+		const user = userEvent.setup();
+		const onUpdate = vi.fn();
+		renderWithClient(
+			<FinancePlanSection
+				{...baseProps}
+				items={[item()]}
+				totals={{ planned: 3000, budget: 10000, actual: 0 }}
+				canChooseDepartment={false}
+				department="Makeathon"
+				onCreate={vi.fn()}
+				onUpdate={onUpdate}
+			/>,
+		);
+
+		await user.click(screen.getByLabelText("Status für Venue"));
+		await user.click(await screen.findByRole("option", { name: "Zugesagt" }));
+
+		await waitFor(() => {
+			expect(onUpdate).toHaveBeenCalledWith({
+				id: "plan-1",
+				label: "Venue",
+				category: "Location",
+				direction: "expense",
+				plannedAmount: 3000,
+				expectedMonth: "2026-05",
+				status: "committed",
+				note: null,
+			});
+		});
 	});
 
 	it("deletes a plan item", async () => {

@@ -4,7 +4,16 @@ import type {
 	BuchhaltungsButlerTransaction,
 	FinanceDepartmentMapping,
 } from "@member-manager/shared";
-import { filterTransactionsByScope } from "../../src/lib/financeScope.js";
+
+process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+
+const { applySavedPostingAllocations } = await import(
+	"../../src/lib/financeDepartments.js"
+);
+const { filterTransactionsByScope } = await import(
+	"../../src/lib/financeScope.js"
+);
 
 function tx(
 	costLocation: string,
@@ -61,5 +70,61 @@ describe("filterTransactionsByScope", () => {
 			department: "Makeathon",
 		});
 		assert.strictEqual(result.length, 0);
+	});
+
+	test("uses the automatic document fallback unless a stored mapping overrides it", () => {
+		const transaction = {
+			...tx("999", -50),
+			booking_number: "62026",
+		};
+		assert.strictEqual(
+			filterTransactionsByScope([transaction], [], {
+				department: "Makeathon",
+			}).length,
+			1,
+		);
+		assert.strictEqual(
+			filterTransactionsByScope(
+				[transaction],
+				[
+					{
+						cost_location: "999",
+						department: "Research",
+						bereich: null,
+						note: null,
+					},
+				],
+				{ department: "Makeathon" },
+			).length,
+			0,
+		);
+	});
+
+	test("uses saved allocation departments for scoped visibility", () => {
+		const effective = applySavedPostingAllocations(
+			[{ ...tx("161", -100), external_id: "BB-allocated" }],
+			mappings,
+			[
+				{
+					posting_external_id: "BB-allocated",
+					department: "Research",
+					tax_area: null,
+					allocated_amount: -100,
+				},
+			],
+		);
+
+		assert.strictEqual(
+			filterTransactionsByScope(effective, mappings, {
+				department: "Makeathon",
+			}).length,
+			0,
+		);
+		assert.strictEqual(
+			filterTransactionsByScope(effective, mappings, {
+				department: "Research",
+			}).length,
+			1,
+		);
 	});
 });

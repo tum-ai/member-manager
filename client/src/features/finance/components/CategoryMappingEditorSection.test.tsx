@@ -44,24 +44,30 @@ describe("CategoryMappingEditorSection", () => {
 		).toBeInTheDocument();
 	});
 
-	it("saves a new label on blur", async () => {
+	it("saves a new label explicitly and preserves its note", async () => {
 		const user = userEvent.setup();
 		const onSave = vi.fn();
 		renderWithClient(
 			<CategoryMappingEditorSection
 				{...baseProps}
-				rows={[row({ cost_location_two: "1" })]}
+				rows={[row({ cost_location_two: "1", note: "Food costs" })]}
 				onSave={onSave}
 			/>,
 		);
 
 		const input = screen.getByLabelText("Kategorie für Kostenstelle 2 1");
 		await user.type(input, "Catering");
-		await user.tab();
+		expect(onSave).not.toHaveBeenCalled();
+		await user.click(
+			screen.getByRole("button", {
+				name: "Kategorie für Kostenstelle 2 1 speichern",
+			}),
+		);
 
 		expect(onSave).toHaveBeenCalledWith({
 			costLocationTwo: "1",
 			label: "Catering",
+			note: "Food costs",
 		});
 	});
 
@@ -76,10 +82,13 @@ describe("CategoryMappingEditorSection", () => {
 			/>,
 		);
 
-		// Focus and blur without editing.
 		await user.click(screen.getByLabelText("Kategorie für Kostenstelle 2 5"));
-		await user.tab();
 
 		expect(onSave).not.toHaveBeenCalled();
+		expect(
+			screen.queryByRole("button", {
+				name: "Kategorie für Kostenstelle 2 5 speichern",
+			}),
+		).not.toBeInTheDocument();
 	});
 });

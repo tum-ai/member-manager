@@ -192,6 +192,18 @@ describe("useReimbursementReview", () => {
 		URL.revokeObjectURL =
 			revokeObjectURL as unknown as typeof URL.revokeObjectURL;
 		window.open = windowOpen as unknown as typeof window.open;
+		server.use(
+			http.get("/api/finance/projects", () =>
+				HttpResponse.json({ projects: [] }),
+			),
+			http.get("/api/finance/buchhaltungsbutler/transactions", () =>
+				HttpResponse.json({
+					transactions: [],
+					source: "mock",
+					generated_at: "2026-01-01T00:00:00.000Z",
+				}),
+			),
+		);
 	});
 
 	afterEach(() => {
@@ -262,7 +274,125 @@ describe("useReimbursementReview", () => {
 		expect(result.current.isLoadingBuchhaltungsButlerSyncStatus).toBe(false);
 	});
 
-	it("PATCHes a review decision and a department update", async () => {
+	it("loads BB postings for validated reimbursement linkage", async () => {
+		server.use(
+			http.get("/api/reimbursements/review", () => HttpResponse.json([])),
+			http.get("/api/reimbursements/review/integrations", () =>
+				HttpResponse.json({}),
+			),
+			http.get("/api/finance/buchhaltungsbutler/transactions", () =>
+				HttpResponse.json({
+					transactions: [
+						{
+							external_id: "BB-1001",
+							date: "2026-04-12",
+							postingtext: "Workshop supplies",
+							amount: -42.5,
+							currency: "EUR",
+							vat: 19,
+							credit_type: "debit",
+							debit_postingaccount_number: "6840",
+							credit_postingaccount_number: "1200",
+							cost_location: "110",
+							cost_location_two: "4",
+							transaction_amount: -42.5,
+							transaction_purpose: "Onboarding workshop",
+						},
+					],
+					source: "mock",
+					generated_at: "2026-01-01T00:00:00.000Z",
+				}),
+			),
+		);
+
+		const { result } = renderHookWithClient(() => useReimbursementReview());
+
+		await waitFor(() => expect(result.current.financePostings).toHaveLength(1));
+		expect(result.current.financePostings[0]?.external_id).toBe("BB-1001");
+	});
+
+	it("loads plan items only for project periods in request departments", async () => {
+		const planItemRequests: string[] = [];
+		server.use(
+			http.get("/api/reimbursements/review", () =>
+				HttpResponse.json([{ ...reviewRequest, department: "Community" }]),
+			),
+			http.get("/api/reimbursements/review/integrations", () =>
+				HttpResponse.json({}),
+			),
+			http.get("/api/finance/projects", () =>
+				HttpResponse.json({
+					projects: [
+						{
+							id: "10000000-0000-4000-8000-000000000001",
+							parent_project_id: null,
+							name: "Community 2026",
+							department: "Community",
+							period_type: "year",
+							period_key: "2026",
+							tax_area: null,
+							target_amount: 1000,
+							status: "active",
+							description: null,
+							created_at: "2026-01-01T00:00:00.000Z",
+							updated_at: "2026-01-01T00:00:00.000Z",
+						},
+						{
+							id: "20000000-0000-4000-8000-000000000002",
+							parent_project_id: null,
+							name: "Software 2026",
+							department: "Software Development",
+							period_type: "year",
+							period_key: "2026",
+							tax_area: null,
+							target_amount: 1000,
+							status: "active",
+							description: null,
+							created_at: "2026-01-01T00:00:00.000Z",
+							updated_at: "2026-01-01T00:00:00.000Z",
+						},
+					],
+				}),
+			),
+			http.get("/api/finance/plan-items", ({ request }) => {
+				planItemRequests.push(request.url);
+				return HttpResponse.json({
+					period_type: "year",
+					period_key: "2026",
+					items: [
+						{
+							id: "30000000-0000-4000-8000-000000000001",
+							department: "Community",
+							period_type: "year",
+							period_key: "2026",
+							label: "Workshop catering",
+							category: null,
+							planned_amount: 250,
+							expected_month: null,
+							status: "planned",
+							note: null,
+						},
+					],
+					totals: { planned: 250, budget: 1000, actual: 0 },
+					source: "mock",
+					generated_at: "2026-01-01T00:00:00.000Z",
+				});
+			}),
+		);
+
+		const { result } = renderHookWithClient(() => useReimbursementReview());
+
+		await waitFor(() =>
+			expect(result.current.financePlanItems).toHaveLength(1),
+		);
+		expect(planItemRequests).toHaveLength(1);
+		expect(planItemRequests[0]).toContain("department=Community");
+		expect(planItemRequests[0]).toContain("period_type=year");
+		expect(planItemRequests[0]).toContain("period_key=2026");
+		expect(planItemRequests[0]).not.toContain("Software");
+	});
+
+	it("PATCHes review decisions, departments, and explicit finance links", async () => {
 		const bodies: unknown[] = [];
 		server.use(
 			http.get("/api/reimbursements/review", () => HttpResponse.json([])),
@@ -286,9 +416,31 @@ describe("useReimbursementReview", () => {
 			requestId: "rev-1",
 			department: "ops",
 		});
+		await result.current.updateFinanceLinksAsync({
+			requestId: "rev-1",
+			finance_project_id: "10000000-0000-4000-8000-000000000001",
+			finance_plan_item_id: null,
+			bb_posting_external_id: "BB-1001",
+		});
+		await result.current.updateFinanceLinksAsync({
+			requestId: "rev-1",
+			finance_project_id: null,
+			finance_plan_item_id: null,
+			bb_posting_external_id: null,
+		});
 
-		await waitFor(() => expect(bodies).toHaveLength(2));
+		await waitFor(() => expect(bodies).toHaveLength(4));
 		expect(bodies[1]).toEqual({ department: "ops" });
+		expect(bodies[2]).toEqual({
+			finance_project_id: "10000000-0000-4000-8000-000000000001",
+			finance_plan_item_id: null,
+			bb_posting_external_id: "BB-1001",
+		});
+		expect(bodies[3]).toEqual({
+			finance_project_id: null,
+			finance_plan_item_id: null,
+			bb_posting_external_id: null,
+		});
 	});
 
 	it("POSTs a BuchhaltungsButler sync with a coerced force flag", async () => {

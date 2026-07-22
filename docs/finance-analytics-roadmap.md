@@ -1,16 +1,44 @@
 # Finance Analytics — Functional Requirements & Implementation Plan
 
-Roadmap for evolving `/tools/finance/analytics` from an LnF-only expense overview into a
-full budgeting, planning and analysis tool that maxes out the BuchhaltungsButler (BB) data,
-gives **every department** control of its own budget, and gives **Legal & Finance (LnF)**
-full control over all budgets and expenses.
+Design history for evolving `/tools/finance/analytics` from an LnF-only expense overview into a
+full budgeting, planning and analysis tool backed by BuchhaltungsButler (BB), with department
+self-service and a global Legal & Finance (LnF) view.
 
-Status of the codebase this builds on: branch `feat/finance-lnf-analytics` →
-`feat/finance-buchhaltungsbutler`.
+The original phased plan is retained below. The implementation status is authoritative as of the
+`feat/finance-management-platform` branch, stacked on `feat/finance-lnf-analytics`.
+
+## Current implementation status
+
+- **BB is the source of truth for actuals.** Postings are loaded through the server-side BB client,
+  exposed through authenticated Fastify routes, and shown newest first.
+- **Department assignment is automatic.** The first digit of the BB booking/receipt number maps to
+  the canonical department. LnF-managed cost-location mappings remain available as explicit
+  overrides, and individual allocations can split or remap a posting.
+- **Tax-area assignment follows BB account flags.** Account suffixes `10`, `40`, and `50` map to
+  `ideell`, `wirtschaftlich`, and `gemischt`. Mixed postings are split into their effective tax
+  areas before analytics and reporting.
+- **Budgets and planning are implemented.** The tool supports fiscal periods, department budgets,
+  income and expense plan items, projects/sub-projects, reusable templates, and plan-to-posting
+  matching.
+- **Department workflows are implemented.** Department members receive scoped views and can submit
+  reallocation requests. LnF can review those requests and transfer budget atomically between
+  departments.
+- **Reimbursements are integrated.** Finance review can link an approved reimbursement to a
+  department project, plan item, and BB posting. The existing reimbursement flow uploads its
+  document to BB before finance review.
+- **Reporting is implemented.** Scoped live reports include planned income/expense, actuals,
+  remaining budget, and tax-area totals, with XLSX export and print output.
+- **Security is server-enforced.** Finance mutations use authenticated Fastify routes and
+  service-role database access; authenticated database access is read-only and department-scoped.
+  Allocation and matching writes are concurrency-safe database operations.
+
+The remaining BB-specific enhancement is direct receipt/document retrieval from a posting for
+in-app drill-down. Upload ingestion already exists in the reimbursement workflow, but a stable BB
+receipt-read endpoint or document URL must be confirmed before adding the reverse lookup.
 
 ---
 
-## 1. Baseline (already shipped)
+## 1. Original baseline
 
 - **Route:** `/tools/finance/analytics`, gated by `finance.review` (LnF + admins only).
 - **Pipeline:** BB `/postings/get` → `getBuchhaltungsButlerTransactions` →

@@ -6,6 +6,7 @@ export const SEED_ADMIN_EMAIL = "admin@example.com";
 export const SEED_REGULAR_MEMBER_EMAIL = "regular-member@example.com";
 export const SEED_LEGAL_FINANCE_MEMBER_EMAIL =
 	"legal-finance-member@example.com";
+export const SEED_MAKEATHON_LEAD_EMAIL = "makeathon-lead@example.com";
 
 // A seeded contract submission in `sent_to_partner` state exposes this signing
 // token with a far-future expiry and no `signed_at`, so the public signing page

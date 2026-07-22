@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type { FinanceCategoryMappingRow } from "@/features/finance/financeTypes";
 import { CategoryMappingEditorSection } from "./CategoryMappingEditorSection";
 
@@ -38,7 +38,7 @@ export const Default: Story = {
 		isLoading: false,
 		error: null,
 		savingCostLocationTwo: null,
-		onSave: () => undefined,
+		onSave: fn(),
 	},
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
@@ -46,11 +46,15 @@ export const Default: Story = {
 
 		const input = canvas.getByLabelText("Kategorie für Kostenstelle 2 1");
 		await userEvent.type(input, "Catering");
-		// Blur persists the new label.
-		await userEvent.tab();
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "Kategorie für Kostenstelle 2 1 speichern",
+			}),
+		);
 		await expect(args.onSave).toHaveBeenCalledWith({
 			costLocationTwo: "1",
 			label: "Catering",
+			note: null,
 		});
 	},
 };

@@ -6,6 +6,8 @@ import type {
 	FinanceDepartmentMappingsResponse,
 } from "@/features/finance/financeTypes";
 import { FINANCE_ANALYTICS_QUERY_KEY } from "@/features/finance/hooks/useFinanceAnalytics";
+import { FINANCE_BUDGETS_QUERY_KEY } from "@/features/finance/hooks/useFinanceBudgets";
+import { FINANCE_PLAN_ITEMS_QUERY_KEY } from "@/features/finance/hooks/useFinancePlanItems";
 import { apiClient } from "@/lib/apiClient";
 
 export const FINANCE_MAPPINGS_QUERY_KEY = "finance-department-mappings";
@@ -68,6 +70,12 @@ export function useFinanceDepartmentMappings(
 			});
 			void queryClient.invalidateQueries({
 				queryKey: [FINANCE_ANALYTICS_QUERY_KEY],
+			});
+			void queryClient.invalidateQueries({
+				queryKey: [FINANCE_BUDGETS_QUERY_KEY],
+			});
+			void queryClient.invalidateQueries({
+				queryKey: [FINANCE_PLAN_ITEMS_QUERY_KEY],
 			});
 		},
 		onError: (mutationError: unknown) => {

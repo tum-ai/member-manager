@@ -1,11 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import type {
 	FinanceCategoryMappingsResponse,
 	FinanceDateRange,
 } from "@/features/finance/financeTypes";
-import { getDefaultFinanceDateRange } from "@/features/finance/financeUtils";
 import { FINANCE_ANALYTICS_QUERY_KEY } from "@/features/finance/hooks/useFinanceAnalytics";
 import { apiClient } from "@/lib/apiClient";
 
@@ -14,7 +12,7 @@ export const FINANCE_CATEGORY_MAPPINGS_QUERY_KEY = "finance-category-mappings";
 interface CategoryUpsertInput {
 	costLocationTwo: string;
 	label: string | null;
-	note?: string | null;
+	note: string | null;
 }
 
 function buildCategoryMappingsEndpoint(range: FinanceDateRange): string {
@@ -31,15 +29,12 @@ function buildCategoryMappingsEndpoint(range: FinanceDateRange): string {
 	}`;
 }
 
-export function useFinanceCategoryMappings({
-	enabled = true,
-}: {
-	enabled?: boolean;
-} = {}) {
+export function useFinanceCategoryMappings(
+	range: FinanceDateRange,
+	{ enabled = true }: { enabled?: boolean } = {},
+) {
 	const { showToast } = useToast();
 	const queryClient = useQueryClient();
-	const defaultRange = useMemo(() => getDefaultFinanceDateRange(), []);
-	const [range] = useState<FinanceDateRange>(defaultRange);
 
 	const { data, isLoading, isFetching, error } =
 		useQuery<FinanceCategoryMappingsResponse>({
@@ -63,10 +58,11 @@ export function useFinanceCategoryMappings({
 					method: "PUT",
 					body: JSON.stringify({
 						label: input.label,
-						note: input.note ?? null,
+						note: input.note,
 					}),
 				},
 			),
+		scope: { id: "finance-category-mappings" },
 		onSuccess: () => {
 			showToast("Kategorie gespeichert.", "success");
 			void queryClient.invalidateQueries({
@@ -91,7 +87,7 @@ export function useFinanceCategoryMappings({
 		isLoading,
 		isFetching,
 		error: error as Error | null,
-		saveCategory: mutation.mutate,
+		saveCategory: mutation.mutateAsync,
 		isSaving: mutation.isPending,
 		savingCostLocationTwo: mutation.isPending
 			? (mutation.variables?.costLocationTwo ?? null)

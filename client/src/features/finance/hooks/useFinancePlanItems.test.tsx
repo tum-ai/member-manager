@@ -80,6 +80,7 @@ describe("useFinancePlanItems", () => {
 				department: "Makeathon",
 				label: "Catering",
 				category: "Food",
+				direction: "income",
 				plannedAmount: 900,
 				expectedMonth: "2026-05",
 				status: "planned",
@@ -95,6 +96,7 @@ describe("useFinancePlanItems", () => {
 		expect(postBody).toMatchObject({
 			department: "Makeathon",
 			label: "Catering",
+			direction: "income",
 			planned_amount: 900,
 			expected_month: "2026-05",
 		});

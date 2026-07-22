@@ -17,6 +17,7 @@ import {
 	FinancePlanItemUpdateSchema,
 	FinancePlanQuerySchema,
 	resolveFinancePeriodRange,
+	TUMAI_DEPARTMENTS,
 } from "@member-manager/shared";
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import {
@@ -24,7 +25,7 @@ import {
 	BuchhaltungsButlerConfigError,
 } from "../lib/buchhaltungsbutler.js";
 import { getBuchhaltungsButlerTransactions } from "../lib/buchhaltungsbutlerPostings.js";
-import { DatabaseError } from "../lib/errors.js";
+import { AppError, DatabaseError } from "../lib/errors.js";
 import {
 	aggregateByAccount,
 	buildAccountLabelRows,
@@ -46,6 +47,7 @@ import {
 	aggregateByDepartment,
 	buildMappingRows,
 	loadDepartmentMappings,
+	loadEffectiveDepartmentTransactions,
 	upsertDepartmentMapping,
 } from "../lib/financeDepartments.js";
 import {
@@ -132,7 +134,15 @@ export async function financeRoutes(server: FastifyInstance) {
 					loadCategoryMappings(),
 					loadAccountLabels(),
 				]);
-				const scoped = filterTransactionsByScope(transactions, mappings, scope);
+				const effectiveTransactions = await loadEffectiveDepartmentTransactions(
+					transactions,
+					mappings,
+				);
+				const scoped = filterTransactionsByScope(
+					effectiveTransactions,
+					mappings,
+					scope,
+				);
 				return FinanceAnalyticsResponseSchema.parse({
 					...aggregateByDepartment(scoped, mappings),
 					by_category: aggregateByCategory(scoped, categoryMappings),
@@ -382,7 +392,15 @@ export async function financeRoutes(server: FastifyInstance) {
 						loadBudgets(period_type, period_key),
 					],
 				);
-				const scoped = filterTransactionsByScope(transactions, mappings, scope);
+				const effectiveTransactions = await loadEffectiveDepartmentTransactions(
+					transactions,
+					mappings,
+				);
+				const scoped = filterTransactionsByScope(
+					effectiveTransactions,
+					mappings,
+					scope,
+				);
 				const { by_department } = aggregateByDepartment(scoped, mappings);
 				const scopedBudgets =
 					scope.department === null
@@ -393,6 +411,7 @@ export async function financeRoutes(server: FastifyInstance) {
 				const { rows, totals } = computeBudgetVsActual(
 					by_department,
 					scopedBudgets,
+					scope.department === null ? TUMAI_DEPARTMENTS : [scope.department],
 				);
 				return FinanceBudgetVsActualResponseSchema.parse({
 					period_type,
@@ -476,7 +495,15 @@ export async function financeRoutes(server: FastifyInstance) {
 						loadBudgets(period_type, period_key),
 						loadPlanItems(period_type, period_key, scope.department),
 					]);
-				const scoped = filterTransactionsByScope(transactions, mappings, scope);
+				const effectiveTransactions = await loadEffectiveDepartmentTransactions(
+					transactions,
+					mappings,
+				);
+				const scoped = filterTransactionsByScope(
+					effectiveTransactions,
+					mappings,
+					scope,
+				);
 				const { by_department } = aggregateByDepartment(scoped, mappings);
 				const scopedBudgets =
 					scope.department === null
@@ -553,6 +580,9 @@ export async function financeRoutes(server: FastifyInstance) {
 			try {
 				return await updatePlanItem(id, parsed.data);
 			} catch (error) {
+				if (error instanceof AppError) {
+					throw error;
+				}
 				request.log.error(
 					{ err: error, id },
 					"Failed to update finance plan item",

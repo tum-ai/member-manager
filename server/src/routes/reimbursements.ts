@@ -1,4 +1,8 @@
-import { isValidIban, normalizeIban } from "@member-manager/shared";
+import {
+	FinanceReimbursementLinkSchema,
+	isValidIban,
+	normalizeIban,
+} from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import JSZip from "jszip";
 import { z } from "zod";
@@ -16,6 +20,7 @@ import {
 	processReceiptFile,
 	sanitizeReceiptFilename,
 } from "../lib/receiptProcessing.js";
+import { resolveReimbursementFinanceLinks } from "../lib/reimbursementFinanceLinks.js";
 import {
 	ALLOWED_REIMBURSEMENT_RECEIPT_MIME_TYPES,
 	createReceiptSignedUrl,
@@ -338,12 +343,21 @@ const ReviewReimbursementSchema = z
 		action: z.enum(["approve", "reject", "mark_paid"]).optional(),
 		rejection_reason: z.string().trim().max(500).optional(),
 		department: z.string().trim().min(1).max(120).optional(),
+		...FinanceReimbursementLinkSchema.shape,
 	})
 	.superRefine((body, context) => {
-		if (!body.action && body.department === undefined) {
+		const hasFinanceLinkUpdate =
+			body.finance_project_id !== undefined ||
+			body.finance_plan_item_id !== undefined ||
+			body.bb_posting_external_id !== undefined;
+		if (
+			!body.action &&
+			body.department === undefined &&
+			!hasFinanceLinkUpdate
+		) {
 			context.addIssue({
 				code: z.ZodIssueCode.custom,
-				message: "Action or department is required",
+				message: "Action, department, or finance linkage is required",
 				path: ["action"],
 			});
 		}
@@ -1441,6 +1455,36 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			if (body.department !== undefined) {
 				update.department = body.department.trim();
 			}
+			const nextDepartment = String(
+				update.department ?? existingRequest.department ?? "",
+			);
+			const shouldValidateFinanceLinks =
+				body.department !== undefined ||
+				body.finance_project_id !== undefined ||
+				body.finance_plan_item_id !== undefined ||
+				body.bb_posting_external_id !== undefined;
+			if (shouldValidateFinanceLinks) {
+				Object.assign(
+					update,
+					await resolveReimbursementFinanceLinks(
+						{
+							finance_project_id:
+								body.finance_project_id === undefined
+									? normalizeMaybeString(existingRequest.finance_project_id)
+									: body.finance_project_id,
+							finance_plan_item_id:
+								body.finance_plan_item_id === undefined
+									? normalizeMaybeString(existingRequest.finance_plan_item_id)
+									: body.finance_plan_item_id,
+							bb_posting_external_id:
+								body.bb_posting_external_id === undefined
+									? normalizeMaybeString(existingRequest.bb_posting_external_id)
+									: body.bb_posting_external_id,
+						},
+						nextDepartment,
+					),
+				);
+			}
 
 			if (body.action === "approve") {
 				update.approval_status = "approved";
@@ -1508,6 +1552,11 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			const user = (request as AuthenticatedRequest).user;
 			const body = CreateReimbursementSchema.parse(request.body);
 			const paymentIban = validateOptionalIban(body.payment_iban);
+			const financeLinks = {
+				finance_project_id: null,
+				finance_plan_item_id: null,
+				bb_posting_external_id: null,
+			};
 			const receiptStoragePath = normalizeMaybeString(
 				body.receipt_storage_path,
 			);
@@ -1558,6 +1607,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					receipt_storage_bucket: receiptStorageBucket,
 					receipt_storage_path: receiptStoragePath,
 					receipt_size_bytes: body.receipt_size_bytes ?? null,
+					...financeLinks,
 					status: "requested",
 					approval_status: "pending",
 					payment_status: "to_be_paid",

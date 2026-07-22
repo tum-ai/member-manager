@@ -55,8 +55,14 @@ export const Default: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Catering")).toBeInTheDocument();
-		await expect(canvas.getByText("Ohne Kategorie")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("Catering", { selector: '[data-slot="table-cell"]' }),
+		).toBeInTheDocument();
+		await expect(
+			canvas.getByText("Ohne Kategorie", {
+				selector: '[data-slot="table-cell"]',
+			}),
+		).toBeInTheDocument();
 	},
 };
 

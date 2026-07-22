@@ -44,24 +44,30 @@ describe("AccountLabelEditorSection", () => {
 		).toBeInTheDocument();
 	});
 
-	it("saves a new label on blur", async () => {
+	it("saves a new label explicitly and preserves its note", async () => {
 		const user = userEvent.setup();
 		const onSave = vi.fn();
 		renderWithClient(
 			<AccountLabelEditorSection
 				{...baseProps}
-				rows={[row({ account: "6840" })]}
+				rows={[row({ account: "6840", note: "Software expenses" })]}
 				onSave={onSave}
 			/>,
 		);
 
 		const input = screen.getByLabelText("Bezeichnung für Konto 6840");
 		await user.type(input, "Software & Tools");
-		await user.tab();
+		expect(onSave).not.toHaveBeenCalled();
+		await user.click(
+			screen.getByRole("button", {
+				name: "Bezeichnung für Konto 6840 speichern",
+			}),
+		);
 
 		expect(onSave).toHaveBeenCalledWith({
 			account: "6840",
 			label: "Software & Tools",
+			note: "Software expenses",
 		});
 	});
 
@@ -77,8 +83,12 @@ describe("AccountLabelEditorSection", () => {
 		);
 
 		await user.click(screen.getByLabelText("Bezeichnung für Konto 8450"));
-		await user.tab();
 
 		expect(onSave).not.toHaveBeenCalled();
+		expect(
+			screen.queryByRole("button", {
+				name: "Bezeichnung für Konto 8450 speichern",
+			}),
+		).not.toBeInTheDocument();
 	});
 });

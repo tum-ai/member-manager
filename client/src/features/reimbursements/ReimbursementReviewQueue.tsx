@@ -1,3 +1,8 @@
+import type {
+	BuchhaltungsButlerTransaction,
+	FinancePlanItem,
+	FinanceProject,
+} from "@member-manager/shared";
 import { ExternalLink, FileText, RefreshCw } from "lucide-react";
 import type React from "react";
 import { useId } from "react";
@@ -24,6 +29,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { DEPARTMENTS } from "@/lib/constants";
 import { cn } from "@/lib/utils";
+import { ReimbursementFinanceLinkEditor } from "./components/ReimbursementFinanceLinkEditor";
 import { ReimbursementReviewActions } from "./ReimbursementReviewActions";
 import {
 	formatReviewAmount,
@@ -57,6 +63,16 @@ interface ReimbursementReviewQueueProps {
 	onDepartmentChange: (requestId: string, department: string) => Promise<void>;
 	hasBulkDownload: boolean;
 	isUpdatingDepartment: boolean;
+	financeProjects: FinanceProject[];
+	financePlanItems: FinancePlanItem[];
+	financePostings: BuchhaltungsButlerTransaction[];
+	onFinanceLinksChange: (
+		requestId: string,
+		financeProjectId: string | null,
+		financePlanItemId: string | null,
+		bbPostingExternalId: string | null,
+	) => Promise<void>;
+	isUpdatingFinanceLinks: boolean;
 	onReceiptOpen: (
 		request: ReimbursementRequest,
 		mode: "view" | "download",
@@ -79,6 +95,11 @@ export function ReimbursementReviewQueue({
 	onDepartmentChange,
 	hasBulkDownload,
 	isUpdatingDepartment,
+	financeProjects,
+	financePlanItems,
+	financePostings,
+	onFinanceLinksChange,
+	isUpdatingFinanceLinks,
 	onReceiptOpen,
 	buchhaltungsButlerSyncStatus,
 	isLoadingBuchhaltungsButlerSyncStatus,
@@ -114,6 +135,22 @@ export function ReimbursementReviewQueue({
 					}
 					onReceiptOpen={(mode) => onReceiptOpen(request, mode)}
 					isUpdatingDepartment={isUpdatingDepartment}
+					financeProjects={financeProjects}
+					financePlanItems={financePlanItems}
+					financePostings={financePostings}
+					onFinanceLinksChange={(
+						financeProjectId,
+						financePlanItemId,
+						bbPostingExternalId,
+					) =>
+						onFinanceLinksChange(
+							request.id,
+							financeProjectId,
+							financePlanItemId,
+							bbPostingExternalId,
+						)
+					}
+					isUpdatingFinanceLinks={isUpdatingFinanceLinks}
 					buchhaltungsButlerSyncStatus={buchhaltungsButlerSyncStatus}
 					isLoadingBuchhaltungsButlerSyncStatus={
 						isLoadingBuchhaltungsButlerSyncStatus
@@ -141,6 +178,15 @@ interface ReviewItemProps {
 	onDepartmentChange: (department: string) => Promise<void>;
 	onReceiptOpen: (mode: "view" | "download") => Promise<void>;
 	isUpdatingDepartment: boolean;
+	financeProjects: FinanceProject[];
+	financePlanItems: FinancePlanItem[];
+	financePostings: BuchhaltungsButlerTransaction[];
+	onFinanceLinksChange: (
+		financeProjectId: string | null,
+		financePlanItemId: string | null,
+		bbPostingExternalId: string | null,
+	) => Promise<void>;
+	isUpdatingFinanceLinks: boolean;
 	buchhaltungsButlerSyncStatus: BuchhaltungsButlerSyncStatus | null;
 	isLoadingBuchhaltungsButlerSyncStatus: boolean;
 	hasBuchhaltungsButlerSyncStatusError: boolean;
@@ -160,6 +206,11 @@ function ReviewItem({
 	onDepartmentChange,
 	onReceiptOpen,
 	isUpdatingDepartment,
+	financeProjects,
+	financePlanItems,
+	financePostings,
+	onFinanceLinksChange,
+	isUpdatingFinanceLinks,
 	buchhaltungsButlerSyncStatus,
 	isLoadingBuchhaltungsButlerSyncStatus,
 	hasBuchhaltungsButlerSyncStatusError,
@@ -271,6 +322,19 @@ function ReviewItem({
 									/>
 								</DetailGroup>
 							</div>
+
+							<Separator />
+
+							<DetailGroup title="Finance allocation">
+								<ReimbursementFinanceLinkEditor
+									request={request}
+									projects={financeProjects}
+									planItems={financePlanItems}
+									postings={financePostings}
+									disabled={isUpdatingFinanceLinks}
+									onSave={onFinanceLinksChange}
+								/>
+							</DetailGroup>
 
 							<Separator />
 

@@ -1,7 +1,8 @@
-import { Check, Loader2 } from "lucide-react";
+import { Check, Loader2, Save } from "lucide-react";
 import { type ReactElement, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Card,
 	CardContent,
@@ -25,6 +26,7 @@ import { formatFinanceAmount } from "@/features/finance/financeUtils";
 interface SaveInput {
 	account: string;
 	label: string | null;
+	note: string | null;
 }
 
 interface AccountLabelEditorSectionProps {
@@ -32,7 +34,7 @@ interface AccountLabelEditorSectionProps {
 	isLoading: boolean;
 	error: Error | null;
 	savingAccount: string | null;
-	onSave: (input: SaveInput) => void;
+	onSave: (input: SaveInput) => unknown;
 }
 
 export function AccountLabelEditorSection({
@@ -43,6 +45,7 @@ export function AccountLabelEditorSection({
 	onSave,
 }: AccountLabelEditorSectionProps): ReactElement {
 	const unlabelledCount = rows.filter((row) => !row.label).length;
+	const isSaving = savingAccount !== null;
 
 	return (
 		<Card>
@@ -82,7 +85,9 @@ export function AccountLabelEditorSection({
 									<TableHead className="text-right">Buchungen</TableHead>
 									<TableHead className="text-right">Saldo</TableHead>
 									<TableHead className="w-56">Bezeichnung</TableHead>
-									<TableHead className="w-10" />
+									<TableHead className="w-10">
+										<span className="sr-only">Status</span>
+									</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -101,6 +106,7 @@ export function AccountLabelEditorSection({
 											key={row.account}
 											row={row}
 											saving={savingAccount === row.account}
+											disabled={isSaving}
 											onSave={onSave}
 										/>
 									))
@@ -117,25 +123,29 @@ export function AccountLabelEditorSection({
 function AccountRow({
 	row,
 	saving,
+	disabled,
 	onSave,
 }: {
 	row: FinanceAccountLabelRow;
 	saving: boolean;
-	onSave: (input: SaveInput) => void;
+	disabled: boolean;
+	onSave: (input: SaveInput) => unknown;
 }): ReactElement {
 	const [label, setLabel] = useState<string>(row.label ?? "");
+	const trimmed = label.trim();
+	const isDirty = trimmed !== (row.label ?? "");
 
-	// Persist on blur / Enter, but only when the trimmed label actually changed
-	// so tabbing through the table doesn't fire redundant saves.
 	function persist(): void {
-		const trimmed = label.trim();
-		if (trimmed === (row.label ?? "")) {
+		if (!isDirty) {
 			return;
 		}
-		onSave({
-			account: row.account,
-			label: trimmed === "" ? null : trimmed,
-		});
+		void Promise.resolve(
+			onSave({
+				account: row.account,
+				label: trimmed === "" ? null : trimmed,
+				note: row.note,
+			}),
+		).catch(() => undefined);
 	}
 
 	return (
@@ -168,12 +178,7 @@ function AccountRow({
 				<Input
 					value={label}
 					onChange={(event) => setLabel(event.target.value)}
-					onBlur={persist}
-					onKeyDown={(event) => {
-						if (event.key === "Enter") {
-							event.currentTarget.blur();
-						}
-					}}
+					disabled={disabled}
 					placeholder="Bezeichnung eingeben"
 					aria-label={`Bezeichnung für Konto ${row.account}`}
 				/>
@@ -181,6 +186,16 @@ function AccountRow({
 			<TableCell className="w-10 align-middle text-muted-foreground">
 				{saving ? (
 					<Loader2 aria-label="Speichern" className="size-4 animate-spin" />
+				) : isDirty ? (
+					<Button
+						variant="ghost"
+						size="icon-sm"
+						onClick={persist}
+						disabled={disabled}
+						aria-label={`Bezeichnung für Konto ${row.account} speichern`}
+					>
+						<Save />
+					</Button>
 				) : row.label ? (
 					<Check aria-label="Gespeichert" className="size-4 text-emerald-600" />
 				) : null}

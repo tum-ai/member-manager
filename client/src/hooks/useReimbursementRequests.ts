@@ -1,4 +1,14 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type {
+	BuchhaltungsButlerTransactionsResponse,
+	FinancePlanItemsResponse,
+	FinanceProjectsResponse,
+} from "@member-manager/shared";
+import {
+	useMutation,
+	useQueries,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import type {
 	BuchhaltungsButlerSyncStatus,
 	CreateReceiptUploadUrlPayload,
@@ -12,6 +22,7 @@ import type {
 	ReviewReimbursementRequestPayload,
 	SyncBuchhaltungsButlerPayload,
 	UpdateReimbursementDepartmentPayload,
+	UpdateReimbursementFinanceLinksPayload,
 } from "@/features/reimbursements/reimbursementTypes";
 import { apiClient } from "@/lib/apiClient";
 import { readJsonErrorMessage } from "@/lib/httpErrors";
@@ -19,6 +30,7 @@ import { supabase } from "@/lib/supabaseClient";
 
 const REVIEW_RECEIPT_BULK_DOWNLOAD_URL =
 	"/api/reimbursements/review/receipts/bulk-download";
+const FINANCE_PLAN_ITEMS_QUERY_KEY = "finance-plan-items";
 
 export interface UploadReceiptFileInput {
 	file: File;
@@ -211,6 +223,74 @@ export function useReimbursementReview() {
 	});
 	const { requests, bulkDownloadUrl, buchhaltungsButlerSyncStatus } =
 		normalizeReviewResponse(reviewResponse);
+	const { data: financeProjectsResponse } = useQuery<FinanceProjectsResponse>({
+		queryKey: ["finance-projects", "reimbursement-review"],
+		queryFn: async () =>
+			await apiClient<FinanceProjectsResponse>("/api/finance/projects"),
+	});
+	const financeProjects = financeProjectsResponse?.projects ?? [];
+	const {
+		data: financePostingsResponse,
+		isLoading: isLoadingFinancePostings,
+		error: financePostingsError,
+	} = useQuery<BuchhaltungsButlerTransactionsResponse>({
+		queryKey: [
+			"finance-buchhaltungsbutler-transactions",
+			"reimbursement-review",
+		],
+		queryFn: async () =>
+			await apiClient<BuchhaltungsButlerTransactionsResponse>(
+				"/api/finance/buchhaltungsbutler/transactions",
+			),
+	});
+	const reviewDepartments = new Set(
+		requests.map((request) => request.department).filter(Boolean),
+	);
+	const planItemScopes = Array.from(
+		new Map(
+			financeProjects
+				.filter((project) => reviewDepartments.has(project.department))
+				.map((project) => {
+					const scope = {
+						department: project.department,
+						periodType: project.period_type,
+						periodKey: project.period_key,
+					};
+					return [
+						`${scope.department}:${scope.periodType}:${scope.periodKey}`,
+						scope,
+					] as const;
+				}),
+		).values(),
+	);
+	const financePlanItemQueries = useQueries({
+		queries: planItemScopes.map((scope) => ({
+			queryKey: [
+				FINANCE_PLAN_ITEMS_QUERY_KEY,
+				"reimbursement-review",
+				scope.department,
+				scope.periodType,
+				scope.periodKey,
+			],
+			queryFn: async () => {
+				const params = new URLSearchParams({
+					department: scope.department,
+					period_type: scope.periodType,
+					period_key: scope.periodKey,
+				});
+				return await apiClient<FinancePlanItemsResponse>(
+					`/api/finance/plan-items?${params.toString()}`,
+				);
+			},
+		})),
+	});
+	const financePlanItems = Array.from(
+		new Map(
+			financePlanItemQueries
+				.flatMap((query) => query.data?.items ?? [])
+				.map((item) => [item.id, item] as const),
+		).values(),
+	);
 
 	const {
 		data: integrationsResponse,
@@ -249,6 +329,22 @@ export function useReimbursementReview() {
 				{
 					method: "PATCH",
 					body: JSON.stringify({ department }),
+				},
+			);
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["reimbursement-review"] });
+		},
+	});
+
+	const financeLinksMutation = useMutation({
+		mutationFn: async (payload: UpdateReimbursementFinanceLinksPayload) => {
+			const { requestId, ...body } = payload;
+			return await apiClient<ReimbursementRequest>(
+				`/api/reimbursements/review/${requestId}`,
+				{
+					method: "PATCH",
+					body: JSON.stringify(body),
 				},
 			);
 		},
@@ -331,5 +427,12 @@ export function useReimbursementReview() {
 		isSyncingBuchhaltungsButler: buchhaltungsButlerSyncMutation.isPending,
 		updateDepartmentAsync: departmentMutation.mutateAsync,
 		isUpdatingDepartment: departmentMutation.isPending,
+		financeProjects,
+		financePlanItems,
+		financePostings: financePostingsResponse?.transactions ?? [],
+		isLoadingFinancePostings,
+		financePostingsError,
+		updateFinanceLinksAsync: financeLinksMutation.mutateAsync,
+		isUpdatingFinanceLinks: financeLinksMutation.isPending,
 	};
 }

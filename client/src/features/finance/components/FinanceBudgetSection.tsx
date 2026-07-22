@@ -112,7 +112,9 @@ export function FinanceBudgetSection({
 										<TableHead className="text-right">Ist</TableHead>
 										<TableHead className="text-right">Rest</TableHead>
 										<TableHead className="w-56">Auslastung</TableHead>
-										<TableHead className="w-10" />
+										<TableHead className="w-10">
+											<span className="sr-only">Status</span>
+										</TableHead>
 									</TableRow>
 								</TableHeader>
 								<TableBody>
@@ -128,7 +130,7 @@ export function FinanceBudgetSection({
 									) : (
 										rows.map((row) => (
 											<BudgetRow
-												key={row.department}
+												key={`${period.type}:${period.key}:${row.department}`}
 												row={row}
 												saving={savingDepartment === row.department}
 												canEdit={canEdit}
@@ -315,6 +317,7 @@ function BudgetRow({
 					<div className="flex items-center gap-2">
 						<Progress
 							value={Math.min(pct, 100)}
+							aria-label={`Budgetauslastung ${row.department}`}
 							className={row.over_budget ? "[&>div]:bg-destructive" : ""}
 						/>
 						<span className="w-12 shrink-0 text-right text-sm tabular-nums">

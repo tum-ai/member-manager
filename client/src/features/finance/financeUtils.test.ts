@@ -160,6 +160,7 @@ describe("financeUtils", () => {
 		expect(formatBereichLabel("wirtschaftlich")).toBe(
 			"Wirtschaftlicher Geschäftsbetrieb",
 		);
+		expect(formatBereichLabel("gemischt")).toBe("Gemischt (50)");
 		expect(formatBereichLabel(null)).toBe("Ohne Bereich");
 	});
 

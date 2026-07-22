@@ -5,6 +5,7 @@ import { renderHookWithClient } from "@/test/renderWithClient";
 import { useFinanceCategoryMappings } from "./useFinanceCategoryMappings";
 
 const showToast = vi.fn();
+const range = { dateFrom: "2025-01-01", dateTo: "2025-12-31" };
 
 vi.mock("../../../contexts/ToastContext", () => ({
 	useToast: () => ({ showToast }),
@@ -45,7 +46,9 @@ describe("useFinanceCategoryMappings", () => {
 			),
 		);
 
-		const { result } = renderHookWithClient(() => useFinanceCategoryMappings());
+		const { result } = renderHookWithClient(() =>
+			useFinanceCategoryMappings(range),
+		);
 
 		await waitFor(() => expect(result.current.rows.length).toBe(1));
 		expect(result.current.rows[0].label).toBeNull();
@@ -73,15 +76,18 @@ describe("useFinanceCategoryMappings", () => {
 			),
 		);
 
-		const { result } = renderHookWithClient(() => useFinanceCategoryMappings());
+		const { result } = renderHookWithClient(() =>
+			useFinanceCategoryMappings(range),
+		);
 		await waitFor(() => expect(result.current.rows.length).toBe(1));
 
-		act(() =>
-			result.current.saveCategory({
+		await act(async () => {
+			await result.current.saveCategory({
 				costLocationTwo: "1",
 				label: "Catering",
-			}),
-		);
+				note: "Food costs",
+			});
+		});
 
 		await waitFor(() =>
 			expect(showToast).toHaveBeenCalledWith(
@@ -90,6 +96,9 @@ describe("useFinanceCategoryMappings", () => {
 			),
 		);
 		expect(putCostLocationTwo).toBe("1");
-		expect(putBody).toMatchObject({ label: "Catering" });
+		expect(putBody).toMatchObject({
+			label: "Catering",
+			note: "Food costs",
+		});
 	});
 });

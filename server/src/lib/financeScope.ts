@@ -10,7 +10,7 @@ import {
 import { ForbiddenError } from "./errors.js";
 import {
 	buildMappingLookup,
-	normalizeCostLocation,
+	resolveTransactionDepartment,
 } from "./financeDepartments.js";
 
 export interface FinanceScope {
@@ -66,8 +66,8 @@ export async function assertCanWriteDepartment(
 	}
 }
 
-// Restrict postings to those whose cost location maps to the scope department.
-// An unrestricted scope (department null) passes everything through.
+// Restrict postings to their effective department. Saved allocation splits
+// override stored cost-location mappings, which override the BB number fallback.
 export function filterTransactionsByScope(
 	transactions: BuchhaltungsButlerTransaction[],
 	mappings: FinanceDepartmentMapping[],
@@ -79,7 +79,7 @@ export function filterTransactionsByScope(
 	const lookup = buildMappingLookup(mappings);
 	return transactions.filter(
 		(transaction) =>
-			lookup.get(normalizeCostLocation(transaction.cost_location))
-				?.department === scope.department,
+			resolveTransactionDepartment(transaction, lookup).department ===
+			scope.department,
 	);
 }

@@ -48,6 +48,9 @@ export interface ReimbursementRequest {
 	bb_sync_attempts?: number | null;
 	bb_last_sync_attempt_at?: string | null;
 	bb_synced_by?: string | null;
+	finance_project_id?: string | null;
+	finance_plan_item_id?: string | null;
+	bb_posting_external_id?: string | null;
 	created_at?: string;
 	updated_at?: string;
 }
@@ -129,6 +132,13 @@ export interface ReviewReimbursementRequestPayload {
 export interface UpdateReimbursementDepartmentPayload {
 	requestId: string;
 	department: string;
+}
+
+export interface UpdateReimbursementFinanceLinksPayload {
+	requestId: string;
+	finance_project_id: string | null;
+	finance_plan_item_id: string | null;
+	bb_posting_external_id: string | null;
 }
 
 export interface SyncBuchhaltungsButlerPayload {

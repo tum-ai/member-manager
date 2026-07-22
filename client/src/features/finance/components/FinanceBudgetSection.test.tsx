@@ -114,4 +114,27 @@ describe("FinanceBudgetSection", () => {
 
 		expect(onSave).not.toHaveBeenCalled();
 	});
+
+	it("refreshes the editable amount when the selected period changes", () => {
+		const { rerender } = renderWithClient(
+			<FinanceBudgetSection
+				{...baseProps}
+				rows={[row({ department: "Makeathon", amount_planned: 5000 })]}
+				onSave={vi.fn()}
+			/>,
+		);
+
+		expect(screen.getByLabelText("Budget für Makeathon")).toHaveValue(5000);
+
+		rerender(
+			<FinanceBudgetSection
+				{...baseProps}
+				period={{ type: "year", key: "2027" }}
+				rows={[row({ department: "Makeathon", amount_planned: 9000 })]}
+				onSave={vi.fn()}
+			/>,
+		);
+
+		expect(screen.getByLabelText("Budget für Makeathon")).toHaveValue(9000);
+	});
 });

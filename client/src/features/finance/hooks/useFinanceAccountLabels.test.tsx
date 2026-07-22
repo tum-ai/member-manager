@@ -5,6 +5,7 @@ import { renderHookWithClient } from "@/test/renderWithClient";
 import { useFinanceAccountLabels } from "./useFinanceAccountLabels";
 
 const showToast = vi.fn();
+const range = { dateFrom: "2025-01-01", dateTo: "2025-12-31" };
 
 vi.mock("../../../contexts/ToastContext", () => ({
 	useToast: () => ({ showToast }),
@@ -45,7 +46,9 @@ describe("useFinanceAccountLabels", () => {
 			),
 		);
 
-		const { result } = renderHookWithClient(() => useFinanceAccountLabels());
+		const { result } = renderHookWithClient(() =>
+			useFinanceAccountLabels(range),
+		);
 
 		await waitFor(() => expect(result.current.rows.length).toBe(1));
 		expect(result.current.rows[0].label).toBeNull();
@@ -73,20 +76,26 @@ describe("useFinanceAccountLabels", () => {
 			),
 		);
 
-		const { result } = renderHookWithClient(() => useFinanceAccountLabels());
+		const { result } = renderHookWithClient(() =>
+			useFinanceAccountLabels(range),
+		);
 		await waitFor(() => expect(result.current.rows.length).toBe(1));
 
-		act(() =>
-			result.current.saveAccount({
+		await act(async () => {
+			await result.current.saveAccount({
 				account: "6840",
 				label: "Software & Tools",
-			}),
-		);
+				note: "Software expenses",
+			});
+		});
 
 		await waitFor(() =>
 			expect(showToast).toHaveBeenCalledWith("Konto gespeichert.", "success"),
 		);
 		expect(putAccount).toBe("6840");
-		expect(putBody).toMatchObject({ label: "Software & Tools" });
+		expect(putBody).toMatchObject({
+			label: "Software & Tools",
+			note: "Software expenses",
+		});
 	});
 });

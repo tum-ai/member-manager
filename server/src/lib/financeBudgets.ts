@@ -91,6 +91,7 @@ function round(value: number): number {
 export function computeBudgetVsActual(
 	departmentSummaries: FinanceDepartmentSummary[],
 	budgets: FinanceBudget[],
+	visibleDepartments: readonly string[] = [],
 ): {
 	rows: FinanceBudgetVsActualRow[];
 	totals: {
@@ -116,6 +117,7 @@ export function computeBudgetVsActual(
 	}
 
 	const departments = new Set<string>([
+		...visibleDepartments,
 		...budgetByDepartment.keys(),
 		...actualByDepartment.keys(),
 	]);

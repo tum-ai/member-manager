@@ -5,7 +5,15 @@ import type {
 	FinanceDepartmentSummary,
 	FinancePlanItem,
 } from "@member-manager/shared";
-import { computePlanTotals } from "../../src/lib/financePlans.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+
+const { computePlanTotals, updatePlanItem } = await import(
+	"../../src/lib/financePlans.js"
+);
+const { setSupabaseClient } = await import("../../src/lib/supabase.js");
 
 function planItem(amount: number): FinancePlanItem {
 	return {
@@ -63,6 +71,54 @@ describe("computePlanTotals", () => {
 
 	test("handles an empty plan", () => {
 		const totals = computePlanTotals([], [], []);
-		assert.deepStrictEqual(totals, { planned: 0, budget: 0, actual: 0 });
+		assert.deepStrictEqual(totals, {
+			planned: 0,
+			planned_expenses: 0,
+			planned_income: 0,
+			planned_net: 0,
+			budget: 0,
+			actual: 0,
+		});
+	});
+});
+
+describe("updatePlanItem", () => {
+	test("preserves an income direction when the update omits direction", async () => {
+		let rpcParams: Record<string, unknown> = {};
+		setSupabaseClient({
+			rpc: async (_name: string, params: Record<string, unknown>) => {
+				rpcParams = params;
+				return {
+					data: {
+						id: "20000000-0000-4000-8000-000000000001",
+						department: "Makeathon",
+						period_type: "year",
+						period_key: "2026",
+						label: "Sponsoring income",
+						category: null,
+						direction: "income",
+						planned_amount: 15_000,
+						expected_month: null,
+						status: "committed",
+						note: null,
+						project_id: null,
+						template_item_id: null,
+					},
+					error: null,
+				};
+			},
+		} as unknown as SupabaseClient);
+
+		const updated = await updatePlanItem(
+			"20000000-0000-4000-8000-000000000001",
+			{
+				label: "Sponsoring income",
+				planned_amount: 15_000,
+				status: "committed",
+			},
+		);
+
+		assert.strictEqual(rpcParams.p_direction, null);
+		assert.strictEqual(updated.direction, "income");
 	});
 });
