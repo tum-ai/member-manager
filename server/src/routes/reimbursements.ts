@@ -1552,11 +1552,6 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			const user = (request as AuthenticatedRequest).user;
 			const body = CreateReimbursementSchema.parse(request.body);
 			const paymentIban = validateOptionalIban(body.payment_iban);
-			const financeLinks = {
-				finance_project_id: null,
-				finance_plan_item_id: null,
-				bb_posting_external_id: null,
-			};
 			const receiptStoragePath = normalizeMaybeString(
 				body.receipt_storage_path,
 			);
@@ -1607,7 +1602,6 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					receipt_storage_bucket: receiptStorageBucket,
 					receipt_storage_path: receiptStoragePath,
 					receipt_size_bytes: body.receipt_size_bytes ?? null,
-					...financeLinks,
 					status: "requested",
 					approval_status: "pending",
 					payment_status: "to_be_paid",

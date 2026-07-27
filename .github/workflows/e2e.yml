@@ -38,7 +38,8 @@ jobs:
         if: steps.filter.outputs.code == 'true'
         uses: supabase/setup-cli@v2
         with:
-          version: latest
+          version: 2.109.1
+          github-token: ${{ github.token }}
 
       - name: Start local Supabase stack
         if: steps.filter.outputs.code == 'true'

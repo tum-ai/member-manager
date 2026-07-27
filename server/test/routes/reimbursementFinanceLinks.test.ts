@@ -92,16 +92,17 @@ describe("Reimbursement finance links", async () => {
 
 		assert.strictEqual(response.statusCode, 201);
 		const body = JSON.parse(response.payload);
-		assert.strictEqual(body.finance_project_id, null);
-		assert.strictEqual(body.finance_plan_item_id, null);
-		assert.strictEqual(body.bb_posting_external_id, null);
+		assert.strictEqual(body.finance_project_id ?? null, null);
+		assert.strictEqual(body.finance_plan_item_id ?? null, null);
+		assert.strictEqual(body.bb_posting_external_id ?? null, null);
 
 		const stored = mockDatabase.reimbursements.find(
 			(row) => row.id === body.id,
 		);
-		assert.strictEqual(stored?.finance_project_id, null);
-		assert.strictEqual(stored?.finance_plan_item_id, null);
-		assert.strictEqual(stored?.bb_posting_external_id, null);
+		assert.ok(stored);
+		assert.strictEqual(Object.hasOwn(stored, "finance_project_id"), false);
+		assert.strictEqual(Object.hasOwn(stored, "finance_plan_item_id"), false);
+		assert.strictEqual(Object.hasOwn(stored, "bb_posting_external_id"), false);
 	});
 
 	test("rejects cross-department finance links during finance review", async () => {
