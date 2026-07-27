@@ -189,7 +189,7 @@ jobs:
         if: needs.changes.outputs.supabase == 'true'
         uses: supabase/setup-cli@v2
         with:
-          version: 2.109.1
+          version: latest
           github-token: ${{ github.token }}
 
       - name: Start local Supabase stack
@@ -217,7 +217,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v2
         with:
-          version: 2.109.1
+          version: latest
           github-token: ${{ github.token }}
 
       - name: Link production Supabase project
@@ -254,7 +254,7 @@ jobs:
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v2
         with:
-          version: 2.109.1
+          version: latest
           github-token: ${{ github.token }}
 
       - name: Link production Supabase project

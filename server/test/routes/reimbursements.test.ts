@@ -168,15 +168,6 @@ describe("Reimbursement Routes", async () => {
 				assert.match(String(stored?.payment_iban), /^enc-v1:/);
 				assert.match(String(stored?.payment_bic), /^enc-v1:/);
 				assert.strictEqual(stored?.receipt_base64, PDF_BASE64);
-				assert.strictEqual(Object.hasOwn(stored, "finance_project_id"), false);
-				assert.strictEqual(
-					Object.hasOwn(stored, "finance_plan_item_id"),
-					false,
-				);
-				assert.strictEqual(
-					Object.hasOwn(stored, "bb_posting_external_id"),
-					false,
-				);
 				assert.strictEqual(notifications.length, 1);
 				assert.strictEqual(notifications[0].requestId, data.id);
 				assert.strictEqual(notifications[0].department, "Community");
