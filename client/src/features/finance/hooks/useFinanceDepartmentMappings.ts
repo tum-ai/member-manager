@@ -64,7 +64,7 @@ export function useFinanceDepartmentMappings(
 			),
 		scope: { id: "finance-department-mappings" },
 		onSuccess: () => {
-			showToast("Zuordnung gespeichert.", "success");
+			showToast("Mapping saved.", "success");
 			void queryClient.invalidateQueries({
 				queryKey: [FINANCE_MAPPINGS_QUERY_KEY],
 			});
@@ -82,7 +82,7 @@ export function useFinanceDepartmentMappings(
 			showToast(
 				mutationError instanceof Error
 					? mutationError.message
-					: "Zuordnung konnte nicht gespeichert werden.",
+					: "Could not save the mapping.",
 				"error",
 			);
 		},

@@ -50,14 +50,14 @@ import type {
 } from "@/features/finance/hooks/useFinancePlanItems";
 
 const STATUS_LABELS: Record<FinancePlanStatus, string> = {
-	planned: "Geplant",
-	committed: "Zugesagt",
-	spent: "Ausgegeben",
+	planned: "Planned",
+	committed: "Committed",
+	spent: "Spent",
 };
 const STATUS_ORDER: FinancePlanStatus[] = ["planned", "committed", "spent"];
 const DIRECTION_LABELS: Record<FinancePlanDirection, string> = {
-	expense: "Ausgabe",
-	income: "Einnahme",
+	expense: "Expense",
+	income: "Income",
 };
 const OTHER_DEPARTMENT = "Other";
 const DEPARTMENT_OPTIONS = [...TUMAI_DEPARTMENTS, OTHER_DEPARTMENT] as const;
@@ -112,8 +112,8 @@ export function FinancePlanSection({
 				<Alert variant="destructive">
 					<AlertTriangle className="size-4" />
 					<AlertDescription>
-						Die Planung ({formatFinanceAmount(totals?.planned ?? 0)}) übersteigt
-						das Budget ({formatFinanceAmount(totals?.budget ?? 0)}).
+						The plan ({formatFinanceAmount(totals?.planned ?? 0)}) exceeds the
+						budget ({formatFinanceAmount(totals?.budget ?? 0)}).
 					</AlertDescription>
 				</Alert>
 			) : null}
@@ -130,7 +130,7 @@ export function FinancePlanSection({
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-base">
-						Planposten — {formatFinancePeriodLabel(period)}
+						Plan items — {formatFinancePeriodLabel(period)}
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
@@ -141,16 +141,16 @@ export function FinancePlanSection({
 							<Table>
 								<TableHeader>
 									<TableRow>
-										<TableHead>Bezeichnung</TableHead>
+										<TableHead>Label</TableHead>
 										{canChooseDepartment ? (
 											<TableHead>Department</TableHead>
 										) : null}
-										<TableHead>Kategorie</TableHead>
-										<TableHead className="text-right">Betrag</TableHead>
-										<TableHead>Monat</TableHead>
+										<TableHead>Category</TableHead>
+										<TableHead className="text-right">Amount</TableHead>
+										<TableHead>Month</TableHead>
 										<TableHead className="w-40">Status</TableHead>
 										<TableHead className="w-10">
-											<span className="sr-only">Aktionen</span>
+											<span className="sr-only">Actions</span>
 										</TableHead>
 									</TableRow>
 								</TableHeader>
@@ -161,7 +161,7 @@ export function FinancePlanSection({
 												colSpan={canChooseDepartment ? 7 : 6}
 												className="text-center text-muted-foreground"
 											>
-												Noch keine Planposten im Zeitraum.
+												No plan items for this period.
 											</TableCell>
 										</TableRow>
 									) : (
@@ -197,7 +197,7 @@ function PeriodControls({
 	return (
 		<div className="flex flex-wrap items-end gap-3">
 			<div className="flex flex-col gap-1">
-				<Label htmlFor="finance-plan-type">Zeitraumtyp</Label>
+				<Label htmlFor="finance-plan-type">Period type</Label>
 				<Select
 					value={period.type}
 					onValueChange={(value) =>
@@ -208,13 +208,13 @@ function PeriodControls({
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="year">Jahr</SelectItem>
+						<SelectItem value="year">Year</SelectItem>
 						<SelectItem value="semester">Semester</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
 			<div className="flex flex-col gap-1">
-				<Label htmlFor="finance-plan-period">Zeitraum</Label>
+				<Label htmlFor="finance-plan-period">Period</Label>
 				<Select value={period.key} onValueChange={onPeriodKeyChange}>
 					<SelectTrigger id="finance-plan-period" className="w-48">
 						<SelectValue />
@@ -240,16 +240,16 @@ function TotalsRow({
 	isLoading: boolean;
 }): ReactElement {
 	const metrics = [
-		{ label: "Geplante Ausgaben", value: totals?.planned_expenses ?? 0 },
-		{ label: "Geplante Einnahmen", value: totals?.planned_income ?? 0 },
-		{ label: "Geplantes Netto", value: totals?.planned_net ?? 0 },
+		{ label: "Planned expenses", value: totals?.planned_expenses ?? 0 },
+		{ label: "Planned income", value: totals?.planned_income ?? 0 },
+		{ label: "Planned net", value: totals?.planned_net ?? 0 },
 		{ label: "Budget", value: totals?.budget ?? 0 },
-		{ label: "Ist", value: totals?.actual ?? 0 },
+		{ label: "Actual", value: totals?.actual ?? 0 },
 	];
 
 	return (
 		<section
-			aria-label="Plankennzahlen"
+			aria-label="Plan metrics"
 			className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5"
 		>
 			{metrics.map((metric) => (
@@ -349,7 +349,7 @@ function AddPlanItemForm({
 	return (
 		<Card>
 			<CardHeader className="pb-3">
-				<CardTitle className="text-base">Planposten hinzufügen</CardTitle>
+				<CardTitle className="text-base">Add plan item</CardTitle>
 			</CardHeader>
 			<CardContent>
 				<form
@@ -379,7 +379,7 @@ function AddPlanItemForm({
 													: undefined
 											}
 										>
-											<SelectValue placeholder="Wählen" />
+											<SelectValue placeholder="Select" />
 										</SelectTrigger>
 										<SelectContent>
 											{DEPARTMENT_OPTIONS.map((option) => (
@@ -394,13 +394,13 @@ function AddPlanItemForm({
 						</Field>
 					) : null}
 					<Field
-						label="Bezeichnung"
+						label="Label"
 						htmlFor="plan-label"
 						error={form.formState.errors.label?.message}
 					>
 						<Input
 							id="plan-label"
-							placeholder="z. B. Venue"
+							placeholder="e.g. Venue"
 							className="w-44"
 							aria-invalid={form.formState.errors.label ? "true" : undefined}
 							aria-describedby={
@@ -410,7 +410,7 @@ function AddPlanItemForm({
 						/>
 					</Field>
 					<Field
-						label="Kategorie"
+						label="Category"
 						htmlFor="plan-category"
 						error={form.formState.errors.category?.message}
 					>
@@ -438,7 +438,7 @@ function AddPlanItemForm({
 							)}
 						/>
 					</Field>
-					<Field label="Richtung" htmlFor="plan-direction">
+					<Field label="Direction" htmlFor="plan-direction">
 						<Controller
 							control={form.control}
 							name="direction"
@@ -451,15 +451,15 @@ function AddPlanItemForm({
 										<SelectValue />
 									</SelectTrigger>
 									<SelectContent>
-										<SelectItem value="expense">Ausgabe</SelectItem>
-										<SelectItem value="income">Einnahme</SelectItem>
+										<SelectItem value="expense">Expense</SelectItem>
+										<SelectItem value="income">Income</SelectItem>
 									</SelectContent>
 								</Select>
 							)}
 						/>
 					</Field>
 					<Field
-						label="Betrag (€)"
+						label="Amount (€)"
 						htmlFor="plan-amount"
 						error={form.formState.errors.planned_amount?.message}
 					>
@@ -481,7 +481,7 @@ function AddPlanItemForm({
 						/>
 					</Field>
 					<Field
-						label="Monat"
+						label="Month"
 						htmlFor="plan-month"
 						error={form.formState.errors.expected_month?.message}
 					>
@@ -534,7 +534,7 @@ function AddPlanItemForm({
 					</Field>
 					<Button type="submit" disabled={!form.formState.isValid}>
 						<Plus className="size-4" />
-						Hinzufügen
+						Add
 					</Button>
 				</form>
 			</CardContent>
@@ -624,7 +624,7 @@ function PlanItemRow({
 			<TableCell>
 				<Select value={form.watch("status")} onValueChange={changeStatus}>
 					<SelectTrigger
-						aria-label={`Status für ${item.label}`}
+						aria-label={`Status for ${item.label}`}
 						aria-invalid={form.formState.errors.status ? "true" : undefined}
 					>
 						<SelectValue />
@@ -643,7 +643,7 @@ function PlanItemRow({
 					type="button"
 					variant="ghost"
 					size="icon"
-					aria-label={`Planposten ${item.label} löschen`}
+					aria-label={`Delete plan item ${item.label}`}
 					onClick={() => onDelete(item.id)}
 				>
 					<Trash2 className="size-4 text-destructive" />

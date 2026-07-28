@@ -30,10 +30,10 @@ const STATUS_OPTIONS: ReadonlyArray<{
 	value: FinanceProjectStatus;
 	label: string;
 }> = [
-	{ value: "draft", label: "Entwurf" },
-	{ value: "active", label: "Aktiv" },
-	{ value: "completed", label: "Abgeschlossen" },
-	{ value: "cancelled", label: "Storniert" },
+	{ value: "draft", label: "Draft" },
+	{ value: "active", label: "Active" },
+	{ value: "completed", label: "Completed" },
+	{ value: "cancelled", label: "Cancelled" },
 ];
 
 interface FinanceProjectCreateFormProps {
@@ -116,9 +116,10 @@ export function FinanceProjectCreateForm({
 			onSubmit={form.handleSubmit(submit)}
 		>
 			<div className="mb-4">
-				<h3 className="text-sm font-semibold">Projekt anlegen</h3>
+				<h3 className="text-sm font-semibold">Create project</h3>
 				<p className="text-xs text-muted-foreground">
-					Positive Ziele stehen für Einnahmen, negative für Ausgaben.
+					Positive targets represent income; negative targets represent
+					expenses.
 				</p>
 			</div>
 			<div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
@@ -132,7 +133,7 @@ export function FinanceProjectCreateForm({
 					<Input
 						id="finance-project-name"
 						{...form.register("name")}
-						placeholder="z. B. Makeathon 2026"
+						placeholder="e.g. Makeathon 2026"
 					/>
 				</Field>
 
@@ -151,9 +152,9 @@ export function FinanceProjectCreateForm({
 								<Select value={field.value} onValueChange={field.onChange}>
 									<SelectTrigger
 										id="finance-project-department"
-										aria-label="Projekt-Department"
+										aria-label="Project department"
 									>
-										<SelectValue placeholder="Wählen" />
+										<SelectValue placeholder="Select" />
 									</SelectTrigger>
 									<SelectContent>
 										{departmentOptions.map((option) => (
@@ -171,7 +172,7 @@ export function FinanceProjectCreateForm({
 						label="Department"
 						htmlFor="finance-project-scoped-department"
 						className="xl:col-span-2"
-						description="Durch deinen Zugriff festgelegt."
+						description="Determined by your access scope."
 					>
 						<Input
 							id="finance-project-scoped-department"
@@ -182,7 +183,7 @@ export function FinanceProjectCreateForm({
 				)}
 
 				<Field
-					label="Übergeordnetes Projekt"
+					label="Parent project"
 					htmlFor="finance-project-parent"
 					error={form.formState.errors.parent_project_id?.message}
 					className="xl:col-span-2"
@@ -207,12 +208,12 @@ export function FinanceProjectCreateForm({
 							>
 								<SelectTrigger
 									id="finance-project-parent"
-									aria-label="Übergeordnetes Projekt"
+									aria-label="Parent project"
 								>
-									<SelectValue placeholder="Keines" />
+									<SelectValue placeholder="None" />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value={NO_VALUE}>Keines</SelectItem>
+									<SelectItem value={NO_VALUE}>None</SelectItem>
 									{projects.map((project) => (
 										<SelectItem key={project.id} value={project.id}>
 											{project.name}
@@ -225,7 +226,7 @@ export function FinanceProjectCreateForm({
 				</Field>
 
 				<Field
-					label="Steuerbereich"
+					label="Tax realm"
 					htmlFor="finance-project-tax-area"
 					className="xl:col-span-2"
 				>
@@ -243,12 +244,12 @@ export function FinanceProjectCreateForm({
 							>
 								<SelectTrigger
 									id="finance-project-tax-area"
-									aria-label="Projekt-Steuerbereich"
+									aria-label="Project tax realm"
 								>
 									<SelectValue />
 								</SelectTrigger>
 								<SelectContent>
-									<SelectItem value={NO_VALUE}>Ohne Bereich</SelectItem>
+									<SelectItem value={NO_VALUE}>No tax realm</SelectItem>
 									{FINANCE_BEREICH_OPTIONS.map((option) => (
 										<SelectItem key={option.value} value={option.value}>
 											{option.label}
@@ -261,7 +262,7 @@ export function FinanceProjectCreateForm({
 				</Field>
 
 				<Field
-					label="Zielbetrag (€)"
+					label="Target amount (€)"
 					htmlFor="finance-project-target"
 					required
 					error={form.formState.errors.target_amount?.message}
@@ -294,7 +295,7 @@ export function FinanceProjectCreateForm({
 							>
 								<SelectTrigger
 									id="finance-project-status"
-									aria-label="Projektstatus"
+									aria-label="Project status"
 								>
 									<SelectValue />
 								</SelectTrigger>
@@ -311,7 +312,7 @@ export function FinanceProjectCreateForm({
 				</Field>
 
 				<Field
-					label="Beschreibung"
+					label="Description"
 					htmlFor="finance-project-description"
 					error={form.formState.errors.description?.message}
 					className="md:col-span-2 xl:col-span-10"
@@ -319,7 +320,7 @@ export function FinanceProjectCreateForm({
 					<Textarea
 						id="finance-project-description"
 						rows={2}
-						placeholder="Optionaler interner Kontext"
+						placeholder="Optional internal context"
 						{...form.register("description")}
 					/>
 				</Field>
@@ -334,7 +335,7 @@ export function FinanceProjectCreateForm({
 						) : (
 							<Plus className="size-4" />
 						)}
-						Projekt anlegen
+						Create project
 					</Button>
 				</div>
 			</div>

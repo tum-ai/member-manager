@@ -58,7 +58,7 @@ export function useFinanceBudgets({
 				}),
 			}),
 		onSuccess: () => {
-			showToast("Budget gespeichert.", "success");
+			showToast("Budget saved.", "success");
 			void queryClient.invalidateQueries({
 				queryKey: [FINANCE_BUDGETS_QUERY_KEY],
 			});
@@ -67,7 +67,7 @@ export function useFinanceBudgets({
 			showToast(
 				mutationError instanceof Error
 					? mutationError.message
-					: "Budget konnte nicht gespeichert werden.",
+					: "Could not save the budget.",
 				"error",
 			);
 		},

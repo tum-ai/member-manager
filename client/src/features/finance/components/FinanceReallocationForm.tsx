@@ -81,7 +81,7 @@ export function FinanceReallocationForm({
 		);
 		if (Math.abs(total - 100) > 0.01) {
 			form.setError("root", {
-				message: "Die prozentuale Aufteilung muss genau 100 % ergeben.",
+				message: "The percentage allocation must total exactly 100%.",
 			});
 			return;
 		}
@@ -105,13 +105,13 @@ export function FinanceReallocationForm({
 			onSubmit={form.handleSubmit(submit)}
 		>
 			<div>
-				<h4 className="text-sm font-semibold">Umverteilung beantragen</h4>
+				<h4 className="text-sm font-semibold">Request reallocation</h4>
 				<p className="text-xs text-muted-foreground">
-					Finance prüft und übernimmt die vorgeschlagene Zuordnung.
+					Finance reviews and applies the proposed allocation.
 				</p>
 			</div>
 			<Field
-				label="Begründung"
+				label="Reason"
 				htmlFor={`reallocation-reason-${postingExternalId}`}
 				required
 				error={form.formState.errors.reason?.message}
@@ -119,7 +119,7 @@ export function FinanceReallocationForm({
 				<Textarea
 					id={`reallocation-reason-${postingExternalId}`}
 					rows={2}
-					placeholder="Warum soll die Buchung anders zugeordnet werden?"
+					placeholder="Why should this posting be allocated differently?"
 					{...form.register("reason")}
 				/>
 			</Field>
@@ -150,7 +150,7 @@ export function FinanceReallocationForm({
 				className="w-fit bg-[#9A64D9] text-white hover:bg-[#523573]"
 			>
 				{isPending ? <Loader2 className="animate-spin" /> : <Send />}
-				Anfrage senden
+				Submit request
 			</Button>
 		</form>
 	);

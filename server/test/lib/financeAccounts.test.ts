@@ -8,7 +8,7 @@ import type {
 process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
 
-const { aggregateByAccount, buildAccountLabelRows } = await import(
+const { accountKey, aggregateByAccount, buildAccountLabelRows } = await import(
 	"../../src/lib/financeAccounts.js"
 );
 
@@ -42,6 +42,15 @@ const label = (account: string, value: string | null): FinanceAccountLabel => ({
 });
 
 describe("aggregateByAccount", () => {
+	test("keeps the persisted missing-account key stable", () => {
+		assert.strictEqual(
+			accountKey(
+				tx({ debit_postingaccount_number: "", transaction_amount: -20 }),
+			),
+			"Ohne Konto",
+		);
+	});
+
 	test("groups postings by their debit (P&L) account and attaches labels", () => {
 		const transactions = [
 			tx({ debit_postingaccount_number: "6850", transaction_amount: -4800 }),

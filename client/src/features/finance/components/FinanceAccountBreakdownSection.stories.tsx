@@ -6,7 +6,7 @@ import { FinanceAccountBreakdownSection } from "./FinanceAccountBreakdownSection
 const accounts: FinanceAccountSummary[] = [
 	{
 		account: "6850",
-		label: "Veranstaltungen",
+		label: "Events",
 		income: 0,
 		expenses: 10200,
 		net: -10200,
@@ -22,7 +22,7 @@ const accounts: FinanceAccountSummary[] = [
 	},
 	{
 		account: "8450",
-		label: "Erlöse Sponsoring",
+		label: "Sponsorship revenue",
 		income: 30000,
 		expenses: 0,
 		net: 30000,
@@ -47,8 +47,8 @@ export const Default: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText("Veranstaltungen")).toBeInTheDocument();
-		await expect(canvas.getByText("Erlöse Sponsoring")).toBeInTheDocument();
+		await expect(canvas.getByText("Events")).toBeInTheDocument();
+		await expect(canvas.getByText("Sponsorship revenue")).toBeInTheDocument();
 	},
 };
 

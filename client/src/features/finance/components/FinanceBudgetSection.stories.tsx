@@ -63,8 +63,8 @@ export const Default: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/über Budget/)).toBeInTheDocument();
-		await expect(canvas.getByLabelText("Budget für Marketing")).toBeVisible();
+		await expect(canvas.getByText(/over budget/)).toBeInTheDocument();
+		await expect(canvas.getByLabelText("Budget for Marketing")).toBeVisible();
 	},
 };
 
@@ -99,7 +99,7 @@ export const ReadOnly: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.queryByLabelText("Budget für Marketing"),
+			canvas.queryByLabelText("Budget for Marketing"),
 		).not.toBeInTheDocument();
 	},
 };

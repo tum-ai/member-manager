@@ -61,8 +61,8 @@ export const DepartmentView: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(canvas.getByText(/übersteigt das Budget/)).toBeInTheDocument();
-		await expect(canvas.getByLabelText("Bezeichnung")).toBeVisible();
+		await expect(canvas.getByText(/exceeds the budget/)).toBeInTheDocument();
+		await expect(canvas.getByLabelText("Label")).toBeVisible();
 	},
 };
 

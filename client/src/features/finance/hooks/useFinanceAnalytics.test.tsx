@@ -30,7 +30,7 @@ function analyticsResponse() {
 		],
 		by_category: [
 			{
-				category: "Ohne Kategorie",
+				category: "Uncategorized",
 				income: 0,
 				expenses: 8700,
 				net: -8700,

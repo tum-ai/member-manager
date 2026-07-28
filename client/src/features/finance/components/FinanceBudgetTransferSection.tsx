@@ -28,9 +28,9 @@ import {
 import type { BudgetTransferReviewInput } from "@/features/finance/hooks/useFinanceManagement";
 
 const STATUS_LABELS = {
-	pending: "Offen",
-	approved: "Genehmigt",
-	rejected: "Abgelehnt",
+	pending: "Pending",
+	approved: "Approved",
+	rejected: "Rejected",
 } as const;
 
 const STATUS_VARIANTS: Record<keyof typeof STATUS_LABELS, BadgeVariant> = {
@@ -67,11 +67,10 @@ export function FinanceBudgetTransferSection({
 		>
 			<div className="border-b px-4 py-3">
 				<h3 id="budget-transfer-heading" className="text-sm font-semibold">
-					Budgetübertragungen
+					Budget transfers
 				</h3>
 				<p className="text-xs text-muted-foreground">
-					Budget zwischen Departments verschieben; Finance genehmigt die
-					Änderung.
+					Move budget between departments; Finance approves each change.
 				</p>
 			</div>
 			<BudgetTransferForm
@@ -84,7 +83,7 @@ export function FinanceBudgetTransferSection({
 			<div className="divide-y border-t">
 				{requests.length === 0 ? (
 					<p className="p-4 text-sm text-muted-foreground">
-						Keine Budgetübertragungen vorhanden.
+						No budget transfers available.
 					</p>
 				) : (
 					requests.map((request) => (
@@ -173,7 +172,7 @@ function BudgetTransferForm({
 			onSubmit={form.handleSubmit(submit)}
 		>
 			<Field
-				label="Von Department"
+				label="From department"
 				htmlFor="budget-transfer-source"
 				error={form.formState.errors.source_department?.message}
 			>
@@ -185,7 +184,7 @@ function BudgetTransferForm({
 							<Select value={field.value ?? ""} onValueChange={field.onChange}>
 								<SelectTrigger
 									id="budget-transfer-source"
-									aria-label="Budgetquelle"
+									aria-label="Budget source"
 									aria-invalid={
 										form.formState.errors.source_department ? "true" : undefined
 									}
@@ -195,7 +194,7 @@ function BudgetTransferForm({
 											: undefined
 									}
 								>
-									<SelectValue placeholder="Wählen" />
+									<SelectValue placeholder="Select" />
 								</SelectTrigger>
 								<SelectContent>
 									{TUMAI_DEPARTMENTS.map((option) => (
@@ -216,7 +215,7 @@ function BudgetTransferForm({
 				)}
 			</Field>
 			<Field
-				label="Zu Department"
+				label="To department"
 				htmlFor="budget-transfer-target"
 				error={form.formState.errors.target_department?.message}
 			>
@@ -227,7 +226,7 @@ function BudgetTransferForm({
 						<Select value={field.value} onValueChange={field.onChange}>
 							<SelectTrigger
 								id="budget-transfer-target"
-								aria-label="Budgetziel"
+								aria-label="Budget destination"
 								aria-invalid={
 									form.formState.errors.target_department ? "true" : undefined
 								}
@@ -237,7 +236,7 @@ function BudgetTransferForm({
 										: undefined
 								}
 							>
-								<SelectValue placeholder="Wählen" />
+								<SelectValue placeholder="Select" />
 							</SelectTrigger>
 							<SelectContent>
 								{TUMAI_DEPARTMENTS.filter(
@@ -253,7 +252,7 @@ function BudgetTransferForm({
 				/>
 			</Field>
 			<Field
-				label="Betrag (€)"
+				label="Amount (€)"
 				htmlFor="budget-transfer-amount"
 				error={form.formState.errors.amount?.message}
 			>
@@ -272,7 +271,7 @@ function BudgetTransferForm({
 				/>
 			</Field>
 			<Field
-				label="Begründung"
+				label="Reason"
 				htmlFor="budget-transfer-reason"
 				error={form.formState.errors.reason?.message}
 			>
@@ -294,7 +293,7 @@ function BudgetTransferForm({
 				disabled={isSubmitting || !form.formState.isValid}
 			>
 				{isSubmitting ? <Loader2 className="animate-spin" /> : <Send />}
-				Anfragen
+				Request
 			</Button>
 		</form>
 	);
@@ -347,8 +346,8 @@ function BudgetTransferRow({
 					<Input
 						value={reviewNote}
 						onChange={(event) => setReviewNote(event.target.value)}
-						placeholder="Review-Notiz (optional)"
-						aria-label={`Review-Notiz für Budgettransfer ${request.source_department}`}
+						placeholder="Review note (optional)"
+						aria-label={`Review note for budget transfer from ${request.source_department}`}
 					/>
 					<div className="flex gap-2">
 						<Button
@@ -358,7 +357,7 @@ function BudgetTransferRow({
 							onClick={() => review("approved")}
 						>
 							{isReviewing ? <Loader2 className="animate-spin" /> : <Check />}
-							Genehmigen
+							Approve
 						</Button>
 						<Button
 							type="button"
@@ -368,7 +367,7 @@ function BudgetTransferRow({
 							onClick={() => review("rejected")}
 						>
 							<X />
-							Ablehnen
+							Reject
 						</Button>
 					</div>
 				</div>

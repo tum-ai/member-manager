@@ -87,7 +87,7 @@ function round(value: number): number {
 // Join per-department actual (gross) expenses to the stored budgets. Rows are
 // the union of budgeted departments and departments that actually spent, so a
 // budget with no spend and spend with no budget are both visible. The
-// "Nicht zugeordnet" bucket is excluded — it isn't a real department.
+// The "Unassigned" bucket is excluded because it is not a real department.
 export function computeBudgetVsActual(
 	departmentSummaries: FinanceDepartmentSummary[],
 	budgets: FinanceBudget[],

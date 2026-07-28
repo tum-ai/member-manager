@@ -10,7 +10,7 @@ import { getSupabase } from "./supabase.js";
 const ACCOUNT_LABELS_TABLE = "finance_account_labels";
 const MAX_SAMPLE_TEXTS = 3;
 
-// The classifying ledger account (SKR03 P&L account: 6xxx Aufwand / 8xxx Erlös)
+// The classifying ledger account (SKR03 P&L account: 6xxx expense / 8xxx revenue)
 // sits on the debit side of every BB posting we see; the credit side is the
 // bank clearing account (1200). Aggregating on the debit account is therefore
 // what reveals the accounting nature of a posting.

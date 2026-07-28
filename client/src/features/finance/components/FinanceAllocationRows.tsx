@@ -81,12 +81,12 @@ export function FinanceAllocationRows({
 						>
 							<SelectTrigger
 								id={`allocation-department-${index}`}
-								aria-label={`Department für Aufteilung ${index + 1}`}
+								aria-label={`Department for allocation ${index + 1}`}
 							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value={NO_VALUE}>Automatisch</SelectItem>
+								<SelectItem value={NO_VALUE}>Automatic</SelectItem>
 								{departmentOptions.map((option) => (
 									<SelectItem key={option} value={option}>
 										{option}
@@ -96,7 +96,7 @@ export function FinanceAllocationRows({
 						</Select>
 					</Field>
 
-					<Field label="Projekt" htmlFor={`allocation-project-${index}`}>
+					<Field label="Project" htmlFor={`allocation-project-${index}`}>
 						<Select
 							value={allocation.project_id ?? NO_VALUE}
 							onValueChange={(value) => {
@@ -114,12 +114,12 @@ export function FinanceAllocationRows({
 						>
 							<SelectTrigger
 								id={`allocation-project-${index}`}
-								aria-label={`Projekt für Aufteilung ${index + 1}`}
+								aria-label={`Project for allocation ${index + 1}`}
 							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value={NO_VALUE}>Kein Projekt</SelectItem>
+								<SelectItem value={NO_VALUE}>No project</SelectItem>
 								{projects
 									.filter((project) => project.status !== "cancelled")
 									.map((project) => (
@@ -131,7 +131,7 @@ export function FinanceAllocationRows({
 						</Select>
 					</Field>
 
-					<Field label="Steuerbereich" htmlFor={`allocation-tax-area-${index}`}>
+					<Field label="Tax realm" htmlFor={`allocation-tax-area-${index}`}>
 						<Select
 							value={allocation.tax_area ?? NO_VALUE}
 							onValueChange={(value) =>
@@ -143,12 +143,12 @@ export function FinanceAllocationRows({
 						>
 							<SelectTrigger
 								id={`allocation-tax-area-${index}`}
-								aria-label={`Steuerbereich für Aufteilung ${index + 1}`}
+								aria-label={`Tax realm for allocation ${index + 1}`}
 							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value={NO_VALUE}>Automatisch</SelectItem>
+								<SelectItem value={NO_VALUE}>Automatic</SelectItem>
 								{FINANCE_BEREICH_OPTIONS.map((option) => (
 									<SelectItem key={option.value} value={option.value}>
 										{option.label}
@@ -159,7 +159,7 @@ export function FinanceAllocationRows({
 					</Field>
 
 					<Field
-						label="Anteil (%)"
+						label="Share (%)"
 						htmlFor={`allocation-percentage-${index}`}
 						error={getError?.(index, "percentage")}
 					>
@@ -189,7 +189,7 @@ export function FinanceAllocationRows({
 						variant="ghost"
 						size="icon-sm"
 						disabled={allocations.length === 1}
-						aria-label={`Aufteilung ${index + 1} entfernen`}
+						aria-label={`Remove allocation ${index + 1}`}
 						onClick={() => onRemove(index)}
 					>
 						<Trash2 />
@@ -204,7 +204,7 @@ export function FinanceAllocationRows({
 				onClick={onAdd}
 			>
 				<Plus />
-				Aufteilung hinzufügen
+				Add allocation
 			</Button>
 		</div>
 	);

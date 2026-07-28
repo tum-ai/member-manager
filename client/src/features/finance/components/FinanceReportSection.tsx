@@ -65,7 +65,7 @@ export function FinanceReportSection({
 						onClick={onPrint}
 					>
 						<Printer />
-						Drucken
+						Print
 					</Button>
 					<Button
 						type="button"
@@ -76,14 +76,14 @@ export function FinanceReportSection({
 						}}
 					>
 						{isExporting ? <Loader2 className="animate-spin" /> : <Download />}
-						XLSX exportieren
+						Export XLSX
 					</Button>
 				</div>
 			</div>
 
 			<div className="hidden print:block">
 				<h2 className="text-xl font-semibold">
-					Finanzbericht {formatFinancePeriodLabel(period)}
+					Finance report {formatFinancePeriodLabel(period)}
 				</h2>
 			</div>
 
@@ -101,13 +101,13 @@ export function FinanceReportSection({
 					<DepartmentTable report={report} />
 					<TaxAreaTable report={report} />
 					<p className="text-right text-xs text-muted-foreground">
-						{report.source === "real" ? "Live-Daten" : "Mock-Daten"} · Stand{" "}
+						{report.source === "real" ? "Live data" : "Mock data"} · Generated{" "}
 						{formatGeneratedAt(report.generated_at)}
 					</p>
 				</>
 			) : (
 				<p className="rounded-md border bg-card p-8 text-center text-sm text-muted-foreground">
-					Keine Berichtsdaten für den gewählten Zeitraum.
+					No report data for the selected period.
 				</p>
 			)}
 		</div>
@@ -121,17 +121,17 @@ function ReportMetrics({
 }): ReactElement {
 	const metrics = [
 		{ label: "Budget", value: totals.budget },
-		{ label: "Plan Ausgaben", value: totals.plan },
-		{ label: "Plan Einnahmen", value: totals.planned_income ?? 0 },
-		{ label: "Plan Netto", value: totals.planned_net ?? -totals.plan },
-		{ label: "Ist", value: totals.actual },
-		{ label: "Verbleibend", value: totals.remaining },
+		{ label: "Planned expenses", value: totals.plan },
+		{ label: "Planned income", value: totals.planned_income ?? 0 },
+		{ label: "Planned net", value: totals.planned_net ?? -totals.plan },
+		{ label: "Actual", value: totals.actual },
+		{ label: "Remaining", value: totals.remaining },
 		{ label: "Forecast", value: totals.forecast },
 	];
 
 	return (
 		<section
-			aria-label="Berichtskennzahlen"
+			aria-label="Report metrics"
 			className="grid grid-cols-2 gap-2 md:grid-cols-4 xl:grid-cols-7"
 		>
 			{metrics.map((metric) => (
@@ -142,7 +142,7 @@ function ReportMetrics({
 					<p className="text-xs text-muted-foreground">{metric.label}</p>
 					<p
 						className={`mt-1 text-lg font-semibold tabular-nums ${
-							metric.label === "Verbleibend" && metric.value < 0
+							metric.label === "Remaining" && metric.value < 0
 								? "text-destructive"
 								: ""
 						}`}
@@ -173,10 +173,10 @@ function DepartmentTable({
 							<TableHead>Department</TableHead>
 							<TableHead className="text-right">Budget</TableHead>
 							<TableHead className="text-right">Plan</TableHead>
-							<TableHead className="text-right">Plan Einnahmen</TableHead>
-							<TableHead className="text-right">Plan Netto</TableHead>
-							<TableHead className="text-right">Ist</TableHead>
-							<TableHead className="text-right">Verbleibend</TableHead>
+							<TableHead className="text-right">Planned income</TableHead>
+							<TableHead className="text-right">Planned net</TableHead>
+							<TableHead className="text-right">Actual</TableHead>
+							<TableHead className="text-right">Remaining</TableHead>
 							<TableHead className="text-right">Forecast</TableHead>
 						</TableRow>
 					</TableHeader>
@@ -226,22 +226,22 @@ function TaxAreaTable({
 	return (
 		<section className="overflow-hidden rounded-md border bg-card shadow-sm print:border-0 print:shadow-none">
 			<div className="flex items-center justify-between border-b px-4 py-3 print:px-0">
-				<h3 className="text-sm font-semibold">Steuerbereiche</h3>
+				<h3 className="text-sm font-semibold">Tax realms</h3>
 				<Badge variant="neutral">{report.tax_area_totals.length}</Badge>
 			</div>
 			<div className="scrollbar-thin overflow-x-auto">
 				<Table className="min-w-[920px]">
 					<TableHeader>
 						<TableRow>
-							<TableHead>Bereich</TableHead>
-							<TableHead className="text-right">Ziel</TableHead>
+							<TableHead>Tax realm</TableHead>
+							<TableHead className="text-right">Target</TableHead>
 							<TableHead className="text-right">Plan</TableHead>
-							<TableHead className="text-right">Plan Einnahmen</TableHead>
-							<TableHead className="text-right">Plan Netto</TableHead>
-							<TableHead className="text-right">Einnahmen</TableHead>
-							<TableHead className="text-right">Ausgaben</TableHead>
-							<TableHead className="text-right">Netto</TableHead>
-							<TableHead className="text-right">Forecast Ausgaben</TableHead>
+							<TableHead className="text-right">Planned income</TableHead>
+							<TableHead className="text-right">Planned net</TableHead>
+							<TableHead className="text-right">Income</TableHead>
+							<TableHead className="text-right">Expenses</TableHead>
+							<TableHead className="text-right">Net</TableHead>
+							<TableHead className="text-right">Forecast expenses</TableHead>
 						</TableRow>
 					</TableHeader>
 					<TableBody>
@@ -288,7 +288,7 @@ function formatGeneratedAt(value: string): string {
 	if (Number.isNaN(date.getTime())) {
 		return value;
 	}
-	return new Intl.DateTimeFormat("de-DE", {
+	return new Intl.DateTimeFormat("en-GB", {
 		dateStyle: "medium",
 		timeStyle: "short",
 	}).format(date);

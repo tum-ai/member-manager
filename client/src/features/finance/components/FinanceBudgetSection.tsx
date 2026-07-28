@@ -85,7 +85,7 @@ export function FinanceBudgetSection({
 				<Alert variant="destructive">
 					<AlertTriangle className="size-4" />
 					<AlertDescription>
-						{overBudgetCount} Department(s) über Budget im Zeitraum{" "}
+						{overBudgetCount} department(s) are over budget for{" "}
 						{formatFinancePeriodLabel(period)}.
 					</AlertDescription>
 				</Alert>
@@ -96,7 +96,7 @@ export function FinanceBudgetSection({
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-base">
-						Budget vs. Ist — {formatFinancePeriodLabel(period)}
+						Budget vs. actual — {formatFinancePeriodLabel(period)}
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
@@ -109,9 +109,9 @@ export function FinanceBudgetSection({
 									<TableRow>
 										<TableHead className="w-48">Department</TableHead>
 										<TableHead className="w-40 text-right">Budget</TableHead>
-										<TableHead className="text-right">Ist</TableHead>
-										<TableHead className="text-right">Rest</TableHead>
-										<TableHead className="w-56">Auslastung</TableHead>
+										<TableHead className="text-right">Actual</TableHead>
+										<TableHead className="text-right">Remaining</TableHead>
+										<TableHead className="w-56">Utilization</TableHead>
 										<TableHead className="w-10">
 											<span className="sr-only">Status</span>
 										</TableHead>
@@ -124,7 +124,7 @@ export function FinanceBudgetSection({
 												colSpan={6}
 												className="text-center text-muted-foreground"
 											>
-												Keine Budgets oder Ausgaben im Zeitraum.
+												No budgets or expenses for this period.
 											</TableCell>
 										</TableRow>
 									) : (
@@ -162,7 +162,7 @@ function PeriodControls({
 	return (
 		<div className="flex flex-wrap items-end gap-3">
 			<div className="flex flex-col gap-1">
-				<Label htmlFor="finance-budget-type">Zeitraumtyp</Label>
+				<Label htmlFor="finance-budget-type">Period type</Label>
 				<Select
 					value={period.type}
 					onValueChange={(value) =>
@@ -173,13 +173,13 @@ function PeriodControls({
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="year">Jahr</SelectItem>
+						<SelectItem value="year">Year</SelectItem>
 						<SelectItem value="semester">Semester</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
 			<div className="flex flex-col gap-1">
-				<Label htmlFor="finance-budget-period">Zeitraum</Label>
+				<Label htmlFor="finance-budget-period">Period</Label>
 				<Select value={period.key} onValueChange={onPeriodKeyChange}>
 					<SelectTrigger id="finance-budget-period" className="w-48">
 						<SelectValue />
@@ -205,14 +205,14 @@ function TotalsRow({
 	isLoading: boolean;
 }): ReactElement {
 	const metrics = [
-		{ label: "Budget gesamt", value: totals?.amount_planned ?? 0 },
-		{ label: "Ist gesamt", value: totals?.actual_expenses ?? 0 },
-		{ label: "Rest gesamt", value: totals?.remaining ?? 0 },
+		{ label: "Total budget", value: totals?.amount_planned ?? 0 },
+		{ label: "Total actual", value: totals?.actual_expenses ?? 0 },
+		{ label: "Total remaining", value: totals?.remaining ?? 0 },
 	];
 
 	return (
 		<section
-			aria-label="Budgetkennzahlen"
+			aria-label="Budget metrics"
 			className="grid grid-cols-1 gap-4 sm:grid-cols-3"
 		>
 			{metrics.map((metric) => (
@@ -228,7 +228,7 @@ function TotalsRow({
 						) : (
 							<p
 								className={`text-2xl font-semibold tabular-nums ${
-									metric.label === "Rest gesamt" && metric.value < 0
+									metric.label === "Total remaining" && metric.value < 0
 										? "text-destructive"
 										: "text-foreground"
 								}`}
@@ -292,7 +292,7 @@ function BudgetRow({
 						}}
 						placeholder="—"
 						className="w-32 text-right tabular-nums"
-						aria-label={`Budget für ${row.department}`}
+						aria-label={`Budget for ${row.department}`}
 					/>
 				) : row.amount_planned === null ? (
 					"—"
@@ -312,12 +312,12 @@ function BudgetRow({
 			</TableCell>
 			<TableCell>
 				{row.pct_used === null ? (
-					<span className="text-sm text-muted-foreground">Kein Budget</span>
+					<span className="text-sm text-muted-foreground">No budget</span>
 				) : (
 					<div className="flex items-center gap-2">
 						<Progress
 							value={Math.min(pct, 100)}
-							aria-label={`Budgetauslastung ${row.department}`}
+							aria-label={`Budget utilization for ${row.department}`}
 							className={row.over_budget ? "[&>div]:bg-destructive" : ""}
 						/>
 						<span className="w-12 shrink-0 text-right text-sm tabular-nums">
@@ -325,7 +325,7 @@ function BudgetRow({
 						</span>
 						{row.over_budget ? (
 							<Badge variant="destructive" className="shrink-0">
-								Über
+								Over
 							</Badge>
 						) : null}
 					</div>
@@ -333,7 +333,7 @@ function BudgetRow({
 			</TableCell>
 			<TableCell className="w-10 text-muted-foreground">
 				{saving ? (
-					<Loader2 aria-label="Speichern" className="size-4 animate-spin" />
+					<Loader2 aria-label="Save" className="size-4 animate-spin" />
 				) : null}
 			</TableCell>
 		</TableRow>

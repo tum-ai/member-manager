@@ -42,10 +42,10 @@ import { FinanceProjectCreateForm } from "./FinanceProjectCreateForm";
 import { FinanceTemplateManager } from "./FinanceTemplateManager";
 
 const STATUS_LABELS: Record<FinanceProjectStatus, string> = {
-	draft: "Entwurf",
-	active: "Aktiv",
-	completed: "Abgeschlossen",
-	cancelled: "Storniert",
+	draft: "Draft",
+	active: "Active",
+	completed: "Completed",
+	cancelled: "Cancelled",
 };
 
 const STATUS_VARIANTS: Record<FinanceProjectStatus, BadgeVariant> = {
@@ -137,10 +137,10 @@ export function FinanceProjectsSection({
 							id="finance-project-list-heading"
 							className="text-sm font-semibold"
 						>
-							Projekte
+							Projects
 						</h3>
 						<p className="text-xs text-muted-foreground">
-							{formatFinancePeriodLabel(period)} · {projects.length} Einträge
+							{formatFinancePeriodLabel(period)} · {projects.length} entries
 						</p>
 					</div>
 					<FolderTree className="size-4 text-brand" aria-hidden="true" />
@@ -154,13 +154,13 @@ export function FinanceProjectsSection({
 						<Table className="min-w-[980px]">
 							<TableHeader>
 								<TableRow>
-									<TableHead>Projekt</TableHead>
+									<TableHead>Project</TableHead>
 									<TableHead>Department</TableHead>
 									<TableHead>Parent</TableHead>
-									<TableHead>Steuerbereich</TableHead>
+									<TableHead>Tax realm</TableHead>
 									<TableHead>Status</TableHead>
-									<TableHead className="text-right">Ziel</TableHead>
-									<TableHead className="w-72">Vorlage anwenden</TableHead>
+									<TableHead className="text-right">Target</TableHead>
+									<TableHead className="w-72">Apply template</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
@@ -170,7 +170,7 @@ export function FinanceProjectsSection({
 											colSpan={7}
 											className="h-24 text-center text-muted-foreground"
 										>
-											Keine Projekte in diesem Zeitraum.
+											No projects for this period.
 										</TableCell>
 									</TableRow>
 								) : (
@@ -271,9 +271,9 @@ function ProjectRow({
 					<Select value={templateId} onValueChange={setTemplateId}>
 						<SelectTrigger
 							className="min-w-0 flex-1"
-							aria-label={`Vorlage für ${project.name}`}
+							aria-label={`Template for ${project.name}`}
 						>
-							<SelectValue placeholder="Vorlage wählen" />
+							<SelectValue placeholder="Select template" />
 						</SelectTrigger>
 						<SelectContent>
 							{activeTemplates.map((template) => (
@@ -288,7 +288,7 @@ function ProjectRow({
 						size="icon-sm"
 						variant="outline"
 						disabled={!templateId || isPending}
-						aria-label={`Vorlage auf ${project.name} anwenden`}
+						aria-label={`Apply template to ${project.name}`}
 						onClick={() => {
 							void assign();
 						}}

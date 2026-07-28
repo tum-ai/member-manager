@@ -1,3 +1,4 @@
+import { FINANCE_UNMAPPED_ACCOUNT } from "@member-manager/shared";
 import type { SheetData } from "write-excel-file/browser";
 import type {
 	BuchhaltungsButlerTransaction,
@@ -65,7 +66,7 @@ export function formatFinancePeriodLabel(period: FinancePeriod): string {
 		return period.key;
 	}
 	const season =
-		period.key.slice(0, 2) === "WS" ? "Wintersemester" : "Sommersemester";
+		period.key.slice(0, 2) === "WS" ? "Winter semester" : "Summer semester";
 	return `${season} 20${period.key.slice(2)}`;
 }
 
@@ -76,7 +77,11 @@ const BEREICH_LABELS: Record<FinanceBereich, string> = {
 };
 
 export function formatBereichLabel(bereich: FinanceBereich | null): string {
-	return bereich ? BEREICH_LABELS[bereich] : "Ohne Bereich";
+	return bereich ? BEREICH_LABELS[bereich] : "No tax realm";
+}
+
+export function formatFinanceAccount(account: string): string {
+	return account === FINANCE_UNMAPPED_ACCOUNT ? "No account" : account;
 }
 
 export const FINANCE_BEREICH_OPTIONS: ReadonlyArray<{
@@ -144,7 +149,7 @@ export function formatFinanceAmount(value: number, currency = "EUR"): string {
 }
 
 // Magnitude-adaptive short amount for chart axes/labels: 940 → "940 €",
-// 35 500 → "36k €", 1 240 000 → "1,2 Mio €". Keeps ticks readable and lets them
+// 35 500 → "36k €", 1 240 000 → "1,2 M €". Keeps ticks readable and lets them
 // scale automatically with the data range.
 export function formatFinanceAmountCompact(value: number): string {
 	const abs = Math.abs(value);
@@ -152,7 +157,7 @@ export function formatFinanceAmountCompact(value: number): string {
 		const millions = value / 1_000_000;
 		return `${millions.toLocaleString("de-DE", {
 			maximumFractionDigits: 1,
-		})} Mio €`;
+		})} M €`;
 	}
 	if (abs >= 1_000) {
 		return `${Math.round(value / 1_000).toLocaleString("de-DE")}k €`;

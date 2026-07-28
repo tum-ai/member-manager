@@ -33,20 +33,22 @@ export default function FinanceAnalyticsPage(): ReactElement {
 	return (
 		<ToolPageShell
 			title="Finance Analytics"
-			description="Ausgabenüberblick pro Department für das LnF-Team, gestützt auf BuchhaltungsButler."
+			description="Department-level expense overview for the Legal & Finance team, powered by BuchhaltungsButler."
 		>
 			<Tabs value={activeTab} onValueChange={setActiveTab}>
 				<TabsList className="w-full justify-start overflow-x-auto">
-					<TabsTrigger value="overview">Übersicht</TabsTrigger>
+					<TabsTrigger value="overview">Overview</TabsTrigger>
 					<TabsTrigger value="budget">Budget</TabsTrigger>
-					<TabsTrigger value="planning">Planung</TabsTrigger>
-					<TabsTrigger value="projects">Projekte</TabsTrigger>
-					<TabsTrigger value="reconciliation">Abgleich</TabsTrigger>
-					<TabsTrigger value="report">Berichte</TabsTrigger>
-					<TabsTrigger value="categories">Kategorien</TabsTrigger>
-					<TabsTrigger value="accounts">Konten</TabsTrigger>
+					<TabsTrigger value="planning">Planning</TabsTrigger>
+					<TabsTrigger value="projects">Projects</TabsTrigger>
+					<TabsTrigger value="reconciliation">Reconciliation</TabsTrigger>
+					<TabsTrigger value="report">Reports</TabsTrigger>
+					<TabsTrigger value="categories">Categories</TabsTrigger>
+					<TabsTrigger value="accounts">
+						Ledger accounts (Sachkonten)
+					</TabsTrigger>
 					{canManage ? (
-						<TabsTrigger value="mapping">Zuordnung</TabsTrigger>
+						<TabsTrigger value="mapping">Mapping</TabsTrigger>
 					) : null}
 				</TabsList>
 				<TabsContent value="overview" className="mt-5 flex flex-col gap-5">

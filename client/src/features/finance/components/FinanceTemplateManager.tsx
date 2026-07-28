@@ -68,7 +68,7 @@ export function FinanceTemplateManager({
 			<div className="flex flex-wrap items-start justify-between gap-3">
 				<div>
 					<h3 id="finance-template-heading" className="text-sm font-semibold">
-						Planvorlagen
+						Plan templates
 					</h3>
 				</div>
 				{canManage ? (
@@ -81,7 +81,7 @@ export function FinanceTemplateManager({
 
 			{templates.length === 0 ? (
 				<p className="mt-4 rounded-md bg-muted/50 p-4 text-sm text-muted-foreground">
-					Noch keine Planvorlagen vorhanden.
+					No plan templates available.
 				</p>
 			) : (
 				<Accordion type="multiple" className="mt-3">
@@ -91,11 +91,11 @@ export function FinanceTemplateManager({
 								<span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
 									<span className="truncate">{template.name}</span>
 									<Badge variant={template.is_active ? "success" : "neutral"}>
-										{template.is_active ? "Aktiv" : "Inaktiv"}
+										{template.is_active ? "Active" : "Inactive"}
 									</Badge>
 									<span className="text-xs font-normal text-muted-foreground">
 										{formatBereichLabel(template.tax_area)} ·{" "}
-										{template.items.length} Position(en)
+										{template.items.length} item(s)
 									</span>
 								</span>
 							</AccordionTrigger>
@@ -109,16 +109,16 @@ export function FinanceTemplateManager({
 									<table className="w-full min-w-[620px] text-sm">
 										<thead>
 											<tr className="border-b text-left text-xs text-muted-foreground">
-												<th className="px-2 py-2 font-medium">Position</th>
-												<th className="px-2 py-2 font-medium">Kategorie</th>
-												<th className="px-2 py-2 font-medium">Richtung</th>
-												<th className="px-2 py-2 font-medium">Monat</th>
+												<th className="px-2 py-2 font-medium">Item</th>
+												<th className="px-2 py-2 font-medium">Category</th>
+												<th className="px-2 py-2 font-medium">Direction</th>
+												<th className="px-2 py-2 font-medium">Month</th>
 												<th className="px-2 py-2 text-right font-medium">
-													Betrag
+													Amount
 												</th>
 												{canManage ? (
 													<th className="w-10 px-2 py-2">
-														<span className="sr-only">Aktionen</span>
+														<span className="sr-only">Actions</span>
 													</th>
 												) : null}
 											</tr>
@@ -131,9 +131,7 @@ export function FinanceTemplateManager({
 													</td>
 													<td className="px-2 py-2">{item.category ?? "—"}</td>
 													<td className="px-2 py-2">
-														{item.direction === "income"
-															? "Einnahme"
-															: "Ausgabe"}
+														{item.direction === "income" ? "Income" : "Expense"}
 													</td>
 													<td className="px-2 py-2">
 														{item.expected_month ?? "—"}
@@ -148,7 +146,7 @@ export function FinanceTemplateManager({
 																variant="ghost"
 																size="icon-xs"
 																disabled={deletingTemplateItemId === item.id}
-																aria-label={`Vorlagenposition ${item.label} löschen`}
+																aria-label={`Delete template item ${item.label}`}
 																onClick={() => {
 																	void onDeleteTemplateItem({
 																		templateId: template.id,
@@ -226,7 +224,7 @@ function TemplateCreateForm({
 			onSubmit={form.handleSubmit(submit)}
 		>
 			<Field
-				label="Neue Vorlage"
+				label="New template"
 				htmlFor="finance-template-name"
 				error={form.formState.errors.name?.message}
 			>
@@ -236,7 +234,7 @@ function TemplateCreateForm({
 					{...form.register("name")}
 				/>
 			</Field>
-			<Field label="Steuerbereich" htmlFor="finance-template-tax-area">
+			<Field label="Tax realm" htmlFor="finance-template-tax-area">
 				<Controller
 					control={form.control}
 					name="tax_area"
@@ -251,12 +249,12 @@ function TemplateCreateForm({
 						>
 							<SelectTrigger
 								id="finance-template-tax-area"
-								aria-label="Vorlagen-Steuerbereich"
+								aria-label="Template tax realm"
 							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value={NO_TAX_AREA}>Ohne Bereich</SelectItem>
+								<SelectItem value={NO_TAX_AREA}>No tax realm</SelectItem>
 								{FINANCE_BEREICH_OPTIONS.map((option) => (
 									<SelectItem key={option.value} value={option.value}>
 										{option.label}
@@ -275,7 +273,7 @@ function TemplateCreateForm({
 					className="w-full bg-[#9A64D9] text-white hover:bg-[#523573]"
 				>
 					{isPending ? <Loader2 className="animate-spin" /> : <Plus />}
-					Anlegen
+					Create
 				</Button>
 			</div>
 		</form>
@@ -335,7 +333,7 @@ function TemplateItemCreateForm({
 			onSubmit={form.handleSubmit(submit)}
 		>
 			<Field
-				label="Position"
+				label="Item"
 				htmlFor={`template-item-label-${templateId}`}
 				error={form.formState.errors.label?.message}
 			>
@@ -345,7 +343,10 @@ function TemplateItemCreateForm({
 					{...form.register("label")}
 				/>
 			</Field>
-			<Field label="Richtung" htmlFor={`template-item-direction-${templateId}`}>
+			<Field
+				label="Direction"
+				htmlFor={`template-item-direction-${templateId}`}
+			>
 				<Controller
 					control={form.control}
 					name="direction"
@@ -355,15 +356,15 @@ function TemplateItemCreateForm({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="expense">Ausgabe</SelectItem>
-								<SelectItem value="income">Einnahme</SelectItem>
+								<SelectItem value="expense">Expense</SelectItem>
+								<SelectItem value="income">Income</SelectItem>
 							</SelectContent>
 						</Select>
 					)}
 				/>
 			</Field>
 			<Field
-				label="Kategorie"
+				label="Category"
 				htmlFor={`template-item-category-${templateId}`}
 				error={form.formState.errors.category?.message}
 			>
@@ -381,7 +382,7 @@ function TemplateItemCreateForm({
 				/>
 			</Field>
 			<Field
-				label="Betrag (€)"
+				label="Amount (€)"
 				htmlFor={`template-item-amount-${templateId}`}
 				error={form.formState.errors.planned_amount?.message}
 			>
@@ -396,7 +397,7 @@ function TemplateItemCreateForm({
 				/>
 			</Field>
 			<Field
-				label="Monat"
+				label="Month"
 				htmlFor={`template-item-month-${templateId}`}
 				error={form.formState.errors.expected_month?.message}
 			>
@@ -416,7 +417,7 @@ function TemplateItemCreateForm({
 			<div className="flex items-end">
 				<Button type="submit" size="sm" disabled={isPending} className="w-full">
 					{isPending ? <Loader2 className="animate-spin" /> : <Plus />}
-					Position
+					Add item
 				</Button>
 			</div>
 		</form>

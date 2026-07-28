@@ -38,9 +38,9 @@ describe("AccountLabelEditorSection", () => {
 			/>,
 		);
 
-		expect(screen.getAllByText("Ohne Bezeichnung").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("No label").length).toBeGreaterThan(0);
 		expect(
-			screen.getByText(/1 von 2 Konten haben noch keine Bezeichnung/),
+			screen.getByText(/1 of 2 accounts do not have a label yet/),
 		).toBeInTheDocument();
 	});
 
@@ -55,12 +55,14 @@ describe("AccountLabelEditorSection", () => {
 			/>,
 		);
 
-		const input = screen.getByLabelText("Bezeichnung für Konto 6840");
+		const input = screen.getByLabelText(
+			"Label for ledger account (Sachkonto) 6840",
+		);
 		await user.type(input, "Software & Tools");
 		expect(onSave).not.toHaveBeenCalled();
 		await user.click(
 			screen.getByRole("button", {
-				name: "Bezeichnung für Konto 6840 speichern",
+				name: "Save label for ledger account (Sachkonto) 6840",
 			}),
 		);
 
@@ -82,13 +84,44 @@ describe("AccountLabelEditorSection", () => {
 			/>,
 		);
 
-		await user.click(screen.getByLabelText("Bezeichnung für Konto 8450"));
+		await user.click(
+			screen.getByLabelText("Label for ledger account (Sachkonto) 8450"),
+		);
 
 		expect(onSave).not.toHaveBeenCalled();
 		expect(
 			screen.queryByRole("button", {
-				name: "Bezeichnung für Konto 8450 speichern",
+				name: "Save label for ledger account (Sachkonto) 8450",
 			}),
 		).not.toBeInTheDocument();
+	});
+
+	it("shows the missing-account sentinel in English but saves its stable key", async () => {
+		const user = userEvent.setup();
+		const onSave = vi.fn();
+		renderWithClient(
+			<AccountLabelEditorSection
+				{...baseProps}
+				rows={[row({ account: "Ohne Konto" })]}
+				onSave={onSave}
+			/>,
+		);
+
+		expect(screen.getByText("No account")).toBeInTheDocument();
+		await user.type(
+			screen.getByLabelText("Label for ledger account (Sachkonto) No account"),
+			"Other",
+		);
+		await user.click(
+			screen.getByRole("button", {
+				name: "Save label for ledger account (Sachkonto) No account",
+			}),
+		);
+
+		expect(onSave).toHaveBeenCalledWith({
+			account: "Ohne Konto",
+			label: "Other",
+			note: null,
+		});
 	});
 });

@@ -88,10 +88,7 @@ describe("useFinancePlanItems", () => {
 		);
 
 		await waitFor(() =>
-			expect(showToast).toHaveBeenCalledWith(
-				"Planposten hinzugefügt.",
-				"success",
-			),
+			expect(showToast).toHaveBeenCalledWith("Plan item added.", "success"),
 		);
 		expect(postBody).toMatchObject({
 			department: "Makeathon",
@@ -121,7 +118,7 @@ describe("useFinancePlanItems", () => {
 		act(() => result.current.deleteItem("plan-1"));
 
 		await waitFor(() =>
-			expect(showToast).toHaveBeenCalledWith("Planposten gelöscht.", "success"),
+			expect(showToast).toHaveBeenCalledWith("Plan item deleted.", "success"),
 		);
 		expect(deletedId).toBe("plan-1");
 	});

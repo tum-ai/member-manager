@@ -65,10 +65,10 @@ export function FinanceCategoryBreakdownSection({
 	return (
 		<Card>
 			<CardHeader>
-				<CardTitle className="text-base">Ausgaben pro Kategorie</CardTitle>
+				<CardTitle className="text-base">Expenses by category</CardTitle>
 				<CardDescription>
-					Auswertung nach zweiter Kostenstelle (Kostenstelle 2). Pflege die
-					Kategorien im Tab „Zuordnung".
+					Analysis by secondary cost center (Kostenstelle 2). Manage category
+					labels in the "Mapping" tab.
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-5">
@@ -98,7 +98,7 @@ function CategoryBars({
 	if (data.length === 0) {
 		return (
 			<div className="flex h-[280px] items-center justify-center text-sm text-muted-foreground">
-				Keine Ausgaben im gewählten Zeitraum.
+				No expenses for the selected period.
 			</div>
 		);
 	}
@@ -137,7 +137,7 @@ function CategoryBars({
 					cursor={{ fill: "var(--muted)", opacity: 0.4 }}
 					formatter={(value) => [
 						formatFinanceAmount(Number(value)),
-						"Ausgaben",
+						"Expenses",
 					]}
 					contentStyle={TOOLTIP_STYLE}
 				/>
@@ -175,11 +175,11 @@ function CategoryTable({
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead>Kategorie</TableHead>
-						<TableHead className="text-right">Einnahmen</TableHead>
-						<TableHead className="text-right">Ausgaben</TableHead>
-						<TableHead className="text-right">Netto</TableHead>
-						<TableHead className="text-right">Buchungen</TableHead>
+						<TableHead>Category</TableHead>
+						<TableHead className="text-right">Income</TableHead>
+						<TableHead className="text-right">Expenses</TableHead>
+						<TableHead className="text-right">Net</TableHead>
+						<TableHead className="text-right">Postings</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>

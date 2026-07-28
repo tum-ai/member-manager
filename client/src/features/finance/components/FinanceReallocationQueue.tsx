@@ -14,9 +14,9 @@ import {
 import type { ReallocationReviewInput } from "@/features/finance/hooks/useFinanceManagement";
 
 const STATUS_LABELS: Record<FinanceReallocationStatus, string> = {
-	pending: "Offen",
-	approved: "Genehmigt",
-	rejected: "Abgelehnt",
+	pending: "Pending",
+	approved: "Approved",
+	rejected: "Rejected",
 };
 
 const STATUS_VARIANTS: Record<FinanceReallocationStatus, BadgeVariant> = {
@@ -45,16 +45,16 @@ export function FinanceReallocationQueue({
 		>
 			<div className="border-b px-4 py-3">
 				<h3 id="reallocation-queue-heading" className="text-sm font-semibold">
-					Umverteilungsanfragen
+					Reallocation requests
 				</h3>
 				<p className="text-xs text-muted-foreground">
 					{requests.filter((request) => request.status === "pending").length}{" "}
-					offen · {requests.length} gesamt
+					pending · {requests.length} total
 				</p>
 			</div>
 			{requests.length === 0 ? (
 				<p className="p-4 text-sm text-muted-foreground">
-					Keine Umverteilungsanfragen vorhanden.
+					No reallocation requests available.
 				</p>
 			) : (
 				<div className="divide-y">
@@ -116,7 +116,7 @@ function ReallocationRow({
 				</div>
 				<p className="mt-1 text-sm">{request.reason}</p>
 				<p className="mt-1 truncate text-xs text-muted-foreground">
-					Buchung {request.posting_external_id}
+					Posting {request.posting_external_id}
 				</p>
 				<ul className="mt-2 grid gap-1 text-xs text-muted-foreground">
 					{request.allocations.map((allocation) => (
@@ -124,7 +124,7 @@ function ReallocationRow({
 							key={allocation.id}
 							className="flex flex-wrap justify-between gap-2"
 						>
-							<span>{allocation.department ?? "Ohne Department"}</span>
+							<span>{allocation.department ?? "No department"}</span>
 							<span className="tabular-nums">
 								{allocation.allocated_percentage.toLocaleString("de-DE")} % ·{" "}
 								{formatFinanceAmount(allocation.allocated_amount)}
@@ -144,8 +144,8 @@ function ReallocationRow({
 					<Input
 						value={reviewNote}
 						onChange={(event) => setReviewNote(event.target.value)}
-						placeholder="Review-Notiz (optional)"
-						aria-label={`Review-Notiz für ${request.requesting_department}`}
+						placeholder="Review note (optional)"
+						aria-label={`Review note for ${request.requesting_department}`}
 					/>
 					<div className="flex flex-wrap gap-2">
 						<Button
@@ -158,7 +158,7 @@ function ReallocationRow({
 							}}
 						>
 							{isReviewing ? <Loader2 className="animate-spin" /> : <Check />}
-							Genehmigen
+							Approve
 						</Button>
 						<Button
 							type="button"
@@ -170,7 +170,7 @@ function ReallocationRow({
 							}}
 						>
 							<X />
-							Ablehnen
+							Reject
 						</Button>
 					</div>
 				</div>
