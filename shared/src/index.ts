@@ -2,6 +2,7 @@ export * from "./contractRenderer.js";
 export * from "./contractSchemas.js";
 export * from "./contracts.js";
 export * from "./cv.js";
+export * from "./educationCourses.js";
 export * from "./finance.js";
 export * from "./iban.js";
 export * from "./jobs.js";

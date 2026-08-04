@@ -7,6 +7,7 @@ import { ToastProvider } from "@/contexts/ToastContext";
 
 const toolAccessState = vi.hoisted(() => ({
 	permissions: [] as string[],
+	educationalCourseRole: null as "participant" | "administrator" | null,
 	isLoading: false,
 }));
 
@@ -83,6 +84,31 @@ describe("MainLayout sidebar navigation", () => {
 		renderLayout({ isAdmin: false });
 
 		expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+	});
+
+	it("shows educational courses under Community for participants", () => {
+		toolAccessState.educationalCourseRole = "participant";
+		renderLayout({ isAdmin: false, route: "/education/courses" });
+
+		expect(
+			screen.getByRole("link", { name: /educational courses/i }),
+		).toBeInTheDocument();
+		expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+		toolAccessState.educationalCourseRole = null;
+	});
+
+	it("gives an independent educational administrator a focused Administration section", () => {
+		toolAccessState.educationalCourseRole = "administrator";
+		renderLayout({ isAdmin: false, route: "/education/courses" });
+
+		expect(screen.getByText("Administration")).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: /educational courses/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: /^members$/i }),
+		).not.toBeInTheDocument();
+		toolAccessState.educationalCourseRole = null;
 	});
 
 	it("shows the Legal department only when the user has contracts access", () => {

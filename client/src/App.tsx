@@ -25,6 +25,7 @@ import ContractSignPage from "./features/contracts/ContractSignPage";
 import ContractSubmissionDetailPage from "./features/contracts/ContractSubmissionDetailPage";
 import ContractSubmissionsPage from "./features/contracts/ContractSubmissionsPage";
 import ContractTemplatesPage from "./features/contracts/ContractTemplatesPage";
+import EducationalCoursesPage from "./features/educationalCourses/EducationalCoursesPage";
 import FinanceAnalyticsPage from "./features/finance/FinanceAnalyticsPage";
 import FinanceTransactionsPage from "./features/finance/FinanceTransactionsPage";
 import JobPostingsPage from "./features/jobs/JobPostingsPage";
@@ -253,6 +254,14 @@ export function AuthenticatedApp({
 				/>
 				<Route path="/tools/jobs" element={<JobPostingsPage />} />
 				<Route
+					path="/education/courses"
+					element={
+						<RequireEducationalCourseAccess>
+							<EducationalCoursesPage />
+						</RequireEducationalCourseAccess>
+					}
+				/>
+				<Route
 					path="/tools/partners"
 					element={
 						<RequirePermission permission="partners.manage">
@@ -369,6 +378,24 @@ function RequirePermission({
 	}
 
 	if (!permissions.includes(permission)) {
+		return <Navigate to="/" replace />;
+	}
+
+	return children;
+}
+
+function RequireEducationalCourseAccess({
+	children,
+}: {
+	children: ReactElement;
+}): ReactElement {
+	const { educationalCourseRole, isLoading } = useToolAccess();
+
+	if (isLoading) {
+		return <RouteAccessLoading />;
+	}
+
+	if (!educationalCourseRole) {
 		return <Navigate to="/" replace />;
 	}
 

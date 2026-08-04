@@ -222,6 +222,24 @@ export function useAdminData() {
 		},
 	});
 
+	const setEducationalCourseAdministratorMutation = useMutation({
+		mutationFn: async ({
+			userId,
+			enabled,
+		}: {
+			userId: string;
+			enabled: boolean;
+		}) => {
+			await apiClient(`/api/admin/education/administrators/${userId}`, {
+				method: enabled ? "PUT" : "DELETE",
+			});
+		},
+		onSuccess: () => {
+			invalidateMemberViews();
+			queryClient.invalidateQueries({ queryKey: ["tool-access"] });
+		},
+	});
+
 	const mergeMembersMutation = useMutation({
 		mutationFn: async (request: MemberMergeRequest) => {
 			return await apiClient<MemberMergeResponse>("/api/admin/members/merge", {
@@ -394,6 +412,8 @@ export function useAdminData() {
 		updateStatusAsync: updateStatusMutation.mutateAsync,
 		updateAccessRoleAsync: updateAccessRoleMutation.mutateAsync,
 		updateMemberAsync: updateMemberMutation.mutateAsync,
+		setEducationalCourseAdministratorAsync:
+			setEducationalCourseAdministratorMutation.mutateAsync,
 		mergeMembersAsync: mergeMembersMutation.mutateAsync,
 		reviewChangeRequestAsync: reviewChangeRequestMutation.mutateAsync,
 		reviewCertificateRequestAsync: reviewCertificateRequestMutation.mutateAsync,
@@ -407,6 +427,8 @@ export function useAdminData() {
 			updateStatusMutation.isPending ||
 			updateAccessRoleMutation.isPending ||
 			updateMemberMutation.isPending,
+		isUpdatingEducationalCourseAdministrator:
+			setEducationalCourseAdministratorMutation.isPending,
 		isMergingMembers: mergeMembersMutation.isPending,
 		isReviewingChangeRequest: reviewChangeRequestMutation.isPending,
 		isReviewingCertificateRequest: reviewCertificateRequestMutation.isPending,

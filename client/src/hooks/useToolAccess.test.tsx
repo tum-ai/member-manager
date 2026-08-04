@@ -12,6 +12,7 @@ describe("useToolAccess", () => {
 					permissions: ["contracts.admin"],
 					isBoardMember: true,
 					department: "Legal & Finance",
+					educationalCourseRole: "administrator",
 				}),
 			),
 		);
@@ -22,6 +23,7 @@ describe("useToolAccess", () => {
 		expect(result.current.permissions).toEqual(["contracts.admin"]);
 		expect(result.current.isBoardMember).toBe(true);
 		expect(result.current.department).toBe("Legal & Finance");
+		expect(result.current.educationalCourseRole).toBe("administrator");
 	});
 
 	it("defaults isBoardMember to false when the field is missing", async () => {
@@ -35,5 +37,6 @@ describe("useToolAccess", () => {
 
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 		expect(result.current.isBoardMember).toBe(false);
+		expect(result.current.educationalCourseRole).toBeNull();
 	});
 });

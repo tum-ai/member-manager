@@ -67,6 +67,11 @@ describe("Admin Routes", async () => {
 	describe("GET /api/admin/members", () => {
 		test("admin can list all members", async () => {
 			resetDatabase();
+			const educationAdministrator = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.ok(educationAdministrator);
+			educationAdministrator.educational_course_role = "administrator";
 			const response = await app.inject({
 				method: "GET",
 				url: "/api/admin/members",
@@ -81,6 +86,12 @@ describe("Admin Routes", async () => {
 			assert.ok(payload.total);
 			assert.strictEqual(payload.page, 1);
 			assert.strictEqual(payload.limit, 10);
+			assert.strictEqual(
+				payload.data.find(
+					(member: { user_id: string }) => member.user_id === testUserIds.user,
+				)?.educational_course_role,
+				"administrator",
+			);
 		});
 
 		test("regular user denied access", async () => {
@@ -554,6 +565,57 @@ describe("Admin Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 409);
 			assert.match(response.payload, /TUM.ai Day response conflicts/i);
+			assert.ok(
+				mockDatabase.members.some(
+					(member) => member.user_id === MERGE_SOURCE_ID,
+				),
+			);
+			assert.strictEqual(mockDatabase.member_merge_audit.length, 0);
+		});
+
+		test("maps educational course application merge conflicts to 409", async () => {
+			resetDatabase();
+			mockDatabase.members.push(
+				makeMergeMember(MERGE_TARGET_ID, { given_name: "Target" }),
+				makeMergeMember(MERGE_SOURCE_ID, { given_name: "Source" }),
+			);
+			mockDatabase.user_roles.push(
+				{ user_id: MERGE_TARGET_ID, role: "user" },
+				{ user_id: MERGE_SOURCE_ID, role: "user" },
+			);
+			mockDatabase.educational_course_applications.push(
+				{
+					id: "40000000-0000-4000-8000-000000000001",
+					period_id: "50000000-0000-4000-8000-000000000001",
+					applicant_user_id: MERGE_TARGET_ID,
+					status: "pending",
+				},
+				{
+					id: "40000000-0000-4000-8000-000000000002",
+					period_id: "50000000-0000-4000-8000-000000000001",
+					applicant_user_id: MERGE_SOURCE_ID,
+					status: "pending",
+				},
+			);
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/admin/members/merge",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					source_user_id: MERGE_SOURCE_ID,
+					target_user_id: MERGE_TARGET_ID,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 409);
+			assert.match(
+				response.payload,
+				/Educational course application conflicts/i,
+			);
 			assert.ok(
 				mockDatabase.members.some(
 					(member) => member.user_id === MERGE_SOURCE_ID,

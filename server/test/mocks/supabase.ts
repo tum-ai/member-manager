@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { getEducationalCourseDateOnly } from "@member-manager/shared";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { apportionPostingAmount } from "../../src/lib/financeDepartments.js";
 
@@ -60,6 +61,8 @@ interface MockData {
 	contract_status_events: Array<Record<string, unknown>>;
 	tumai_days: Array<Record<string, unknown>>;
 	tumai_day_responses: Array<Record<string, unknown>>;
+	educational_course_periods: Array<Record<string, unknown>>;
+	educational_course_applications: Array<Record<string, unknown>>;
 	finance_department_mappings: Array<Record<string, unknown>>;
 	finance_category_mappings: Array<Record<string, unknown>>;
 	finance_account_labels: Array<Record<string, unknown>>;
@@ -111,6 +114,7 @@ export const mockDatabase: MockData = {
 			school: "TUM",
 			linkedin_profile_url: null,
 			public_location: null,
+			educational_course_role: null,
 		},
 		{
 			user_id: MOCK_ADMIN_ID,
@@ -137,6 +141,7 @@ export const mockDatabase: MockData = {
 			school: "TUM",
 			linkedin_profile_url: null,
 			public_location: null,
+			educational_course_role: null,
 		},
 	],
 	sepa: [
@@ -337,6 +342,8 @@ export const mockDatabase: MockData = {
 	],
 	tumai_days: [],
 	tumai_day_responses: [],
+	educational_course_periods: [],
+	educational_course_applications: [],
 	finance_department_mappings: [],
 	finance_category_mappings: [],
 	finance_account_labels: [],
@@ -509,13 +516,18 @@ function createQueryBuilder(table: string): QueryBuilder {
 		if (state.pendingDelete && !state.insertedData) {
 			const realTable = mockDatabase[table as keyof MockData];
 			const keep: Array<Record<string, unknown>> = [];
+			const deleted: Array<Record<string, unknown>> = [];
 			for (const row of realTable) {
 				const matches = state.filters.every((f) => row[f.column] === f.value);
-				if (!matches) keep.push(row);
+				if (matches) {
+					deleted.push({ ...row });
+				} else {
+					keep.push(row);
+				}
 			}
 			realTable.length = 0;
 			realTable.push(...keep);
-			tableData = [];
+			tableData = deleted;
 		}
 
 		// Handle joins for admin members query
@@ -615,6 +627,8 @@ function createQueryBuilder(table: string): QueryBuilder {
 						table === "contract_status_events" ||
 						table === "tumai_days" ||
 						table === "tumai_day_responses" ||
+						table === "educational_course_periods" ||
+						table === "educational_course_applications" ||
 						table === "finance_projects" ||
 						table === "finance_plan_templates" ||
 						table === "finance_plan_template_items" ||
@@ -626,12 +640,27 @@ function createQueryBuilder(table: string): QueryBuilder {
 					rec.id === undefined &&
 					rec.id_uuid === undefined
 				) {
-					rec.id = table.startsWith("finance_")
-						? randomUUID()
-						: `mock-${Math.random().toString(36).slice(2, 10)}`;
+					rec.id =
+						table.startsWith("finance_") ||
+						table.startsWith("educational_course_")
+							? randomUUID()
+							: `mock-${Math.random().toString(36).slice(2, 10)}`;
 				}
 				if (rec.created_at === undefined) {
 					rec.created_at = new Date().toISOString();
+				}
+				if (
+					(table === "educational_course_periods" ||
+						table === "educational_course_applications") &&
+					rec.updated_at === undefined
+				) {
+					rec.updated_at = rec.created_at;
+				}
+				if (
+					table === "educational_course_applications" &&
+					rec.reviewed_at === undefined
+				) {
+					rec.reviewed_at = null;
 				}
 				return rec;
 			});
@@ -835,6 +864,28 @@ function mergeDuplicateMember(params: Record<string, unknown>) {
 			},
 		});
 	}
+	const hasEducationalCourseApplicationConflict =
+		mockDatabase.educational_course_applications
+			.filter(
+				(sourceApplication) => sourceApplication.applicant_user_id === sourceId,
+			)
+			.some((sourceApplication) =>
+				mockDatabase.educational_course_applications.some(
+					(targetApplication) =>
+						targetApplication.applicant_user_id === targetId &&
+						targetApplication.period_id === sourceApplication.period_id,
+				),
+			);
+	if (hasEducationalCourseApplicationConflict) {
+		return Promise.resolve({
+			data: null,
+			error: {
+				code: "23505",
+				message:
+					"Educational course application conflicts must be resolved before merging",
+			},
+		});
+	}
 
 	const counts: Record<string, number> = {};
 	const auditId = "33333333-3333-4333-8333-333333333333";
@@ -940,6 +991,14 @@ function mergeDuplicateMember(params: Record<string, unknown>) {
 		sourceId,
 		targetId,
 	);
+	counts.educational_course_application_conflicts = 0;
+	counts.educational_course_applications = 0;
+	for (const application of mockDatabase.educational_course_applications) {
+		if (application.applicant_user_id === sourceId) {
+			application.applicant_user_id = targetId;
+			counts.educational_course_applications++;
+		}
+	}
 
 	for (const row of mockDatabase.contract_submissions) {
 		if (row.submitter_user_id === sourceId) {
@@ -958,6 +1017,20 @@ function mergeDuplicateMember(params: Record<string, unknown>) {
 				row.is_current = false;
 			}
 		}
+	}
+
+	const sourceEducationRole = sourceMember.educational_course_role;
+	const targetEducationRole = targetMember.educational_course_role;
+	if (
+		sourceEducationRole === "administrator" ||
+		targetEducationRole === "administrator"
+	) {
+		targetMember.educational_course_role = "administrator";
+	} else if (
+		sourceEducationRole === "participant" ||
+		targetEducationRole === "participant"
+	) {
+		targetMember.educational_course_role = "participant";
 	}
 	const targetMaxVersion = mockDatabase.member_cvs
 		.filter((row) => row.user_id === targetId)
@@ -1623,6 +1696,132 @@ function reviewMockFinanceBudgetTransferRequest(
 	return Promise.resolve({ data: request, error: null });
 }
 
+function reviewMockEducationalCourseApplication(
+	params: Record<string, unknown>,
+) {
+	const application = mockDatabase.educational_course_applications.find(
+		(row) => row.id === params.p_application_id,
+	);
+	if (!application) {
+		return Promise.resolve({
+			data: null,
+			error: { code: "P0002", message: "Application not found" },
+		});
+	}
+
+	const reviewer = mockDatabase.members.find(
+		(row) => row.user_id === params.p_reviewer_user_id,
+	);
+	const reviewerStatus =
+		reviewer?.member_status ?? (reviewer?.active ? "active" : "inactive");
+	if (
+		!reviewer ||
+		reviewerStatus !== "active" ||
+		reviewer.educational_course_role !== "administrator"
+	) {
+		return Promise.resolve({
+			data: null,
+			error: { code: "42501", message: "Administrator access required" },
+		});
+	}
+
+	const status = String(params.p_status ?? "");
+	if (status !== "approved" && status !== "rejected") {
+		return Promise.resolve({
+			data: null,
+			error: { code: "22023", message: "Invalid decision" },
+		});
+	}
+
+	if (status === "approved") {
+		const period = mockDatabase.educational_course_periods.find(
+			(row) => row.id === application.period_id,
+		);
+		const approvedCount = mockDatabase.educational_course_applications.filter(
+			(row) =>
+				row.period_id === application.period_id &&
+				row.id !== application.id &&
+				row.status === "approved",
+		).length;
+		if (!period || approvedCount >= Number(period.capacity)) {
+			return Promise.resolve({
+				data: null,
+				error: { code: "23514", message: "Period capacity reached" },
+			});
+		}
+	}
+
+	const now = new Date().toISOString();
+	application.status = status;
+	application.reviewed_by = params.p_reviewer_user_id;
+	application.reviewed_at = now;
+	application.updated_at = now;
+	return Promise.resolve({ data: { ...application }, error: null });
+}
+
+function applyMockEducationalCoursePeriod(params: Record<string, unknown>) {
+	const applicant = mockDatabase.members.find(
+		(row) => row.user_id === params.p_applicant_user_id,
+	);
+	const applicantStatus =
+		applicant?.member_status ?? (applicant?.active ? "active" : "inactive");
+	if (
+		!applicant ||
+		applicantStatus !== "active" ||
+		applicant.educational_course_role !== "participant"
+	) {
+		return Promise.resolve({
+			data: null,
+			error: { code: "42501", message: "Participant access required" },
+		});
+	}
+
+	const period = mockDatabase.educational_course_periods.find(
+		(row) => row.id === params.p_period_id,
+	);
+	if (!period) {
+		return Promise.resolve({
+			data: null,
+			error: { code: "P0002", message: "Period not found" },
+		});
+	}
+	if (
+		!period.applications_open ||
+		String(period.starts_on) <= getEducationalCourseDateOnly()
+	) {
+		return Promise.resolve({
+			data: null,
+			error: { code: "55000", message: "Applications closed" },
+		});
+	}
+
+	const duplicate = mockDatabase.educational_course_applications.some(
+		(row) =>
+			row.period_id === params.p_period_id &&
+			row.applicant_user_id === params.p_applicant_user_id,
+	);
+	if (duplicate) {
+		return Promise.resolve({
+			data: null,
+			error: { code: "23505", message: "Application already exists" },
+		});
+	}
+
+	const now = new Date().toISOString();
+	const application: Record<string, unknown> = {
+		id: randomUUID(),
+		period_id: params.p_period_id,
+		applicant_user_id: params.p_applicant_user_id,
+		status: "pending",
+		reviewed_by: null,
+		reviewed_at: null,
+		created_at: now,
+		updated_at: now,
+	};
+	mockDatabase.educational_course_applications.push(application);
+	return Promise.resolve({ data: { ...application }, error: null });
+}
+
 export function createMockSupabaseClient(): SupabaseClient {
 	return {
 		auth: {
@@ -1703,6 +1902,12 @@ export function createMockSupabaseClient(): SupabaseClient {
 				}
 				if (fnName === "review_finance_budget_transfer_request") {
 					return reviewMockFinanceBudgetTransferRequest(params);
+				}
+				if (fnName === "review_educational_course_application") {
+					return reviewMockEducationalCourseApplication(params);
+				}
+				if (fnName === "apply_educational_course_period") {
+					return applyMockEducationalCoursePeriod(params);
 				}
 				if (fnName !== "insert_member_cv_version") {
 					return Promise.resolve({
@@ -1846,6 +2051,7 @@ export function resetMockDatabase(): void {
 			school: "TUM",
 			linkedin_profile_url: null,
 			public_location: null,
+			educational_course_role: null,
 		},
 		{
 			user_id: MOCK_ADMIN_ID,
@@ -1872,6 +2078,7 @@ export function resetMockDatabase(): void {
 			school: "TUM",
 			linkedin_profile_url: null,
 			public_location: null,
+			educational_course_role: null,
 		},
 	];
 
@@ -2077,6 +2284,8 @@ export function resetMockDatabase(): void {
 	];
 	mockDatabase.tumai_days = [];
 	mockDatabase.tumai_day_responses = [];
+	mockDatabase.educational_course_periods = [];
+	mockDatabase.educational_course_applications = [];
 	mockDatabase.finance_department_mappings = [];
 	mockDatabase.finance_category_mappings = [];
 	mockDatabase.finance_account_labels = [];

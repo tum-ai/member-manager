@@ -1,4 +1,4 @@
-import type { Permission } from "@member-manager/shared";
+import type { EducationalCourseRole, Permission } from "@member-manager/shared";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
 
@@ -10,6 +10,7 @@ export function useToolAccess(): {
 	permissions: Permission[];
 	isBoardMember: boolean;
 	department: string | null;
+	educationalCourseRole: EducationalCourseRole | null;
 	isLoading: boolean;
 } {
 	const { data, isLoading } = useQuery({
@@ -19,6 +20,7 @@ export function useToolAccess(): {
 				permissions: Permission[];
 				isBoardMember: boolean;
 				department: string | null;
+				educationalCourseRole: EducationalCourseRole | null;
 			}>("/api/me/tool-access"),
 	});
 
@@ -26,6 +28,7 @@ export function useToolAccess(): {
 		permissions: data?.permissions ?? [],
 		isBoardMember: data?.isBoardMember ?? false,
 		department: data?.department ?? null,
+		educationalCourseRole: data?.educationalCourseRole ?? null,
 		isLoading,
 	};
 }

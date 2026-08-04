@@ -12,6 +12,7 @@ const adminState = vi.hoisted(() => ({
 
 const toolAccessState = vi.hoisted(() => ({
 	permissions: [] as string[],
+	educationalCourseRole: null as "participant" | "administrator" | null,
 	isLoading: false,
 }));
 
@@ -37,6 +38,10 @@ vi.mock("./features/members/MemberList", () => ({
 
 vi.mock("./features/jobs/JobPostingsPage", () => ({
 	default: () => <div>Jobs route</div>,
+}));
+
+vi.mock("./features/educationalCourses/EducationalCoursesPage", () => ({
+	default: () => <div>Educational courses route</div>,
 }));
 
 vi.mock("./features/partnerManagement/PartnerManagementPage", () => ({
@@ -118,6 +123,7 @@ describe("AuthenticatedApp permission-gated routes", () => {
 		adminState.isAdmin = false;
 		adminState.isLoading = false;
 		toolAccessState.permissions = [];
+		toolAccessState.educationalCourseRole = null;
 		toolAccessState.isLoading = false;
 	});
 
@@ -190,5 +196,25 @@ describe("AuthenticatedApp permission-gated routes", () => {
 		toolAccessState.permissions = ["partners.manage"];
 		renderAuthenticatedApp("/tools/partners");
 		expect(screen.getByText("Partner management route")).toBeInTheDocument();
+	});
+
+	it("redirects educational courses when no educational role is assigned", () => {
+		renderAuthenticatedApp("/education/courses");
+
+		expect(screen.getByText("Profile route")).toBeInTheDocument();
+		expect(
+			screen.queryByText("Educational courses route"),
+		).not.toBeInTheDocument();
+	});
+
+	it("allows participants and independent educational administrators", () => {
+		toolAccessState.educationalCourseRole = "participant";
+		const participantView = renderAuthenticatedApp("/education/courses");
+		expect(screen.getByText("Educational courses route")).toBeInTheDocument();
+		participantView.unmount();
+
+		toolAccessState.educationalCourseRole = "administrator";
+		renderAuthenticatedApp("/education/courses");
+		expect(screen.getByText("Educational courses route")).toBeInTheDocument();
 	});
 });
