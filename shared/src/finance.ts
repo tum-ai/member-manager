@@ -72,6 +72,9 @@ export const FinanceDepartmentMappingSchema = z.object({
 	department: z.string().min(1).nullable(),
 	bereich: FinanceBereichSchema.nullable(),
 	note: z.string().nullable(),
+	// The sub-team the cost location's 2nd digit stands for (e.g. "Big
+	// Makeathon"). Optional/legacy-nullable so older mappings still parse.
+	sub_team: z.string().nullable().optional(),
 });
 export type FinanceDepartmentMapping = z.infer<
 	typeof FinanceDepartmentMappingSchema
@@ -83,6 +86,7 @@ export const FinanceDepartmentMappingUpsertSchema = z.object({
 	department: z.string().trim().min(1).nullable(),
 	bereich: FinanceBereichSchema.nullable(),
 	note: z.string().trim().max(500).nullable().optional(),
+	sub_team: z.string().trim().max(120).nullable().optional(),
 });
 export type FinanceDepartmentMappingUpsert = z.infer<
 	typeof FinanceDepartmentMappingUpsertSchema
@@ -96,6 +100,7 @@ export const FinanceDepartmentMappingRowSchema = z.object({
 	department: z.string().min(1).nullable(),
 	bereich: FinanceBereichSchema.nullable(),
 	note: z.string().nullable(),
+	sub_team: z.string().nullable().optional(),
 	posting_count: z.number().int().nonnegative(),
 	net: z.number(),
 	sample_texts: z.array(z.string()),
@@ -1122,4 +1127,76 @@ export const FinanceReimbursementLinkSchema = z.object({
 });
 export type FinanceReimbursementLink = z.infer<
 	typeof FinanceReimbursementLinkSchema
+>;
+
+// --- T-account (T-Konto) per department -------------------------------------
+
+// A single-department "T-account" view: expenses on the left, income on the
+// right, actual (booked BB postings) and planned (plan items) side by side,
+// grouped by project so a Makeathon/Hackathon shows as one expandable folder
+// with its own net profit. Query reuses the plan query (period + department);
+// the department is required server-side (the view is always for one department).
+export const FinanceTAccountQuerySchema = FinancePlanQuerySchema;
+export type FinanceTAccountQuery = z.infer<typeof FinanceTAccountQuerySchema>;
+
+// One row in a T-account column. `amount` is a positive magnitude — the column
+// (expense/income) carries the sign meaning. `vat_amount` is the VAT embedded in
+// that gross amount (income or expense), null when the rate is unknown/zero.
+export const FinanceTAccountLineSchema = z.object({
+	kind: z.enum(["actual", "plan"]),
+	direction: FinancePlanDirectionSchema,
+	label: z.string().min(1),
+	category: z.string().nullable(),
+	project_id: UUID_SCHEMA.nullable(),
+	amount: z.number().nonnegative(),
+	vat_amount: z.number().nonnegative().nullable(),
+	// Plan lines carry their status (planned/committed/spent); actual lines null.
+	status: FinancePlanStatusSchema.nullable(),
+	posting_external_id: z.string().nullable(),
+	plan_item_id: z.string().nullable(),
+});
+export type FinanceTAccountLine = z.infer<typeof FinanceTAccountLineSchema>;
+
+// Income − expenses for one scope. `saldo` is the profit (positive) or deficit.
+export const FinanceTAccountSaldoSchema = z.object({
+	income: z.number(),
+	expenses: z.number(),
+	saldo: z.number(),
+});
+export type FinanceTAccountSaldo = z.infer<typeof FinanceTAccountSaldoSchema>;
+
+// A group of lines: either the ungrouped department bucket (`project_id` null)
+// or one project. `actual` is booked-only; `plan` is actual + planned combined.
+export const FinanceTAccountGroupSchema = z.object({
+	project_id: UUID_SCHEMA.nullable(),
+	project_name: z.string().nullable(),
+	parent_project_id: UUID_SCHEMA.nullable(),
+	// The project's target balance (Zielsaldo), null for the ungrouped bucket and
+	// for projects without a target. Drives the deviation-vs-target readout.
+	target_amount: z.number().nullable(),
+	expense_lines: z.array(FinanceTAccountLineSchema),
+	income_lines: z.array(FinanceTAccountLineSchema),
+	actual: FinanceTAccountSaldoSchema,
+	plan: FinanceTAccountSaldoSchema,
+});
+export type FinanceTAccountGroup = z.infer<typeof FinanceTAccountGroupSchema>;
+
+export const FinanceTAccountResponseSchema = z.object({
+	period_type: FinancePeriodTypeSchema,
+	period_key: z.string().min(1),
+	department: z.string().min(1),
+	// Ungrouped bucket first (project_id null), then one group per project.
+	groups: z.array(FinanceTAccountGroupSchema),
+	totals: z.object({
+		actual: FinanceTAccountSaldoSchema,
+		plan: FinanceTAccountSaldoSchema,
+		// VAT embedded in the gross income / expense magnitudes (always >= 0).
+		vat_income: z.number().nonnegative(),
+		vat_expenses: z.number().nonnegative(),
+	}),
+	source: z.enum(["mock", "real"]),
+	generated_at: DATE_TIME_SCHEMA,
+});
+export type FinanceTAccountResponse = z.infer<
+	typeof FinanceTAccountResponseSchema
 >;

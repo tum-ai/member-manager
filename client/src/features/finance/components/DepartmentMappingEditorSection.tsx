@@ -11,6 +11,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
 	Select,
 	SelectContent,
@@ -47,6 +48,7 @@ interface SaveInput {
 	department: string | null;
 	bereich: FinanceBereich | null;
 	note: string | null;
+	subTeam: string | null;
 }
 
 interface DepartmentMappingEditorSectionProps {
@@ -73,8 +75,10 @@ export function DepartmentMappingEditorSection({
 				<CardTitle className="text-base">Kostenstellen → Department</CardTitle>
 				<CardDescription>
 					Ordne jede BuchhaltungsButler-Kostenstelle einem Department und
-					Bereich zu. Nicht zugeordnete Kostenstellen sind markiert. In der
-					Auswertung lautet das Department „Nicht zugeordnet".
+					Bereich zu. Die zweite Kostenstellen-Ziffer steht für ein Sub-Team (z.
+					B. Big/Small Makeathon) — vergib hier einen Namen, dann gruppiert das
+					T-Konto die Ausgaben je Sub-Team. Nicht zugeordnete Kostenstellen sind
+					markiert. In der Auswertung lautet das Department „Nicht zugeordnet".
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
@@ -105,6 +109,7 @@ export function DepartmentMappingEditorSection({
 									<TableHead className="text-right">Buchungen</TableHead>
 									<TableHead className="text-right">Saldo</TableHead>
 									<TableHead className="w-48">Department</TableHead>
+									<TableHead className="w-44">Sub-Team</TableHead>
 									<TableHead className="w-56">Bereich</TableHead>
 									<TableHead className="w-10">
 										<span className="sr-only">Status</span>
@@ -115,7 +120,7 @@ export function DepartmentMappingEditorSection({
 								{rows.length === 0 ? (
 									<TableRow>
 										<TableCell
-											colSpan={7}
+											colSpan={8}
 											className="text-center text-muted-foreground"
 										>
 											Keine Kostenstellen gefunden.
@@ -158,13 +163,18 @@ function MappingRow({
 	const [bereich, setBereich] = useState<string>(
 		row.bereich ?? NO_BEREICH_VALUE,
 	);
+	const [subTeam, setSubTeam] = useState<string>(row.sub_team ?? "");
 
 	const persistedDepartment = row.department ?? NO_DEPARTMENT_VALUE;
 	const persistedBereich = row.bereich ?? NO_BEREICH_VALUE;
+	const persistedSubTeam = row.sub_team ?? "";
 	const isDirty =
-		department !== persistedDepartment || bereich !== persistedBereich;
+		department !== persistedDepartment ||
+		bereich !== persistedBereich ||
+		subTeam.trim() !== persistedSubTeam;
 
 	function persist(): void {
+		const trimmedSubTeam = subTeam.trim();
 		void Promise.resolve(
 			onSave({
 				costLocation: row.cost_location,
@@ -172,6 +182,7 @@ function MappingRow({
 				bereich:
 					bereich === NO_BEREICH_VALUE ? null : (bereich as FinanceBereich),
 				note: row.note,
+				subTeam: trimmedSubTeam === "" ? null : trimmedSubTeam,
 			}),
 		).catch(() => undefined);
 	}
@@ -232,6 +243,15 @@ function MappingRow({
 						))}
 					</SelectContent>
 				</Select>
+			</TableCell>
+			<TableCell className="align-top">
+				<Input
+					value={subTeam}
+					onChange={(event) => setSubTeam(event.target.value)}
+					disabled={disabled}
+					placeholder="z. B. Big Makeathon"
+					aria-label={`Sub-Team für Kostenstelle ${row.cost_location}`}
+				/>
 			</TableCell>
 			<TableCell className="align-top">
 				<Select

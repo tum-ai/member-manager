@@ -215,6 +215,7 @@ export async function financeRoutes(server: FastifyInstance) {
 					department: parsed.data.department,
 					bereich: parsed.data.bereich,
 					note: parsed.data.note ?? null,
+					subTeam: parsed.data.sub_team?.trim() ? parsed.data.sub_team : null,
 				});
 				return mapping;
 			} catch (error) {

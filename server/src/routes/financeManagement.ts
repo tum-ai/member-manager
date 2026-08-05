@@ -24,6 +24,7 @@ import {
 	FinanceReallocationRequestsResponseSchema,
 	FinanceReallocationReviewSchema,
 	FinanceReconciliationQuerySchema,
+	FinanceTAccountQuerySchema,
 	isValidFinancePeriodKey,
 	resolveFinancePeriodRange,
 } from "@member-manager/shared";
@@ -90,6 +91,7 @@ import {
 	assertCanWriteDepartment,
 	resolveFinanceViewerScope,
 } from "../lib/financeScope.js";
+import { buildFinanceTAccount } from "../lib/financeTAccount.js";
 import {
 	authenticate,
 	requireFinanceViewer,
@@ -931,6 +933,65 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 				projects,
 				department: scope.department,
 				source,
+			});
+		},
+	);
+
+	server.get(
+		"/finance/t-account",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request) => {
+			const query = parseInput(
+				FinanceTAccountQuerySchema,
+				request.query,
+				"Invalid finance T-account query",
+			);
+			const scope = await resolveFinanceViewerScope(
+				userId(request as AuthenticatedRequest),
+				query.department,
+			);
+			// The T-account is always for exactly one department. A reviewer who
+			// omits the department has no single scope to render.
+			const department = scope.department;
+			if (department === null) {
+				throw new ValidationError(
+					"A department is required for the T-account view",
+				);
+			}
+			const range = resolveFinancePeriodRange(
+				query.period_type,
+				query.period_key,
+			);
+			const [{ transactions, source }, mappings, planItems, projects] =
+				await Promise.all([
+					loadTransactions({
+						date_from: range.dateFrom,
+						date_to: range.dateTo,
+					}),
+					loadDepartmentMappings(),
+					loadManagedPlanItems(query.period_type, query.period_key, department),
+					listFinanceProjects(
+						{
+							period_type: query.period_type,
+							period_key: query.period_key,
+						},
+						department,
+					),
+				]);
+			const allocations = await loadPostingAllocations(
+				transactions.map((transaction) => transaction.external_id),
+			);
+			return buildFinanceTAccount({
+				periodType: query.period_type,
+				periodKey: query.period_key,
+				department,
+				transactions,
+				mappings,
+				allocations,
+				planItems,
+				projects,
+				source,
+				generatedAt: new Date().toISOString(),
 			});
 		},
 	);

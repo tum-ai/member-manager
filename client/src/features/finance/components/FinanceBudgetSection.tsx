@@ -1,7 +1,8 @@
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowUpRight, Loader2 } from "lucide-react";
 import { type ReactElement, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -48,6 +49,9 @@ interface FinanceBudgetSectionProps {
 	savingDepartment: string | null;
 	// Reviewers edit budgets inline; department viewers see them read-only.
 	canEdit?: boolean;
+	// When provided, each row can drill down into that department's T-account
+	// ("rauf/runterstufen" from the overview into one department — FR-H2).
+	onOpenDepartment?: (department: string) => void;
 	onPeriodTypeChange: (type: FinancePeriodType) => void;
 	onPeriodKeyChange: (key: string) => void;
 	onSave: (input: SaveInput) => void;
@@ -61,11 +65,13 @@ export function FinanceBudgetSection({
 	error,
 	savingDepartment,
 	canEdit = true,
+	onOpenDepartment,
 	onPeriodTypeChange,
 	onPeriodKeyChange,
 	onSave,
 }: FinanceBudgetSectionProps): ReactElement {
 	const overBudgetCount = rows.filter((row) => row.over_budget).length;
+	const showActions = Boolean(onOpenDepartment);
 
 	return (
 		<div className="flex flex-col gap-5">
@@ -115,13 +121,18 @@ export function FinanceBudgetSection({
 										<TableHead className="w-10">
 											<span className="sr-only">Status</span>
 										</TableHead>
+										{showActions ? (
+											<TableHead className="w-28 text-right">
+												<span className="sr-only">Aktionen</span>
+											</TableHead>
+										) : null}
 									</TableRow>
 								</TableHeader>
 								<TableBody>
 									{rows.length === 0 ? (
 										<TableRow>
 											<TableCell
-												colSpan={6}
+												colSpan={showActions ? 7 : 6}
 												className="text-center text-muted-foreground"
 											>
 												Keine Budgets oder Ausgaben im Zeitraum.
@@ -135,6 +146,7 @@ export function FinanceBudgetSection({
 												saving={savingDepartment === row.department}
 												canEdit={canEdit}
 												onSave={onSave}
+												onOpenDepartment={onOpenDepartment}
 											/>
 										))
 									)}
@@ -248,11 +260,13 @@ function BudgetRow({
 	saving,
 	canEdit,
 	onSave,
+	onOpenDepartment,
 }: {
 	row: FinanceBudgetVsActualRow;
 	saving: boolean;
 	canEdit: boolean;
 	onSave: (input: SaveInput) => void;
+	onOpenDepartment?: (department: string) => void;
 }): ReactElement {
 	const [amount, setAmount] = useState<string>(
 		row.amount_planned === null ? "" : String(row.amount_planned),
@@ -336,6 +350,20 @@ function BudgetRow({
 					<Loader2 aria-label="Speichern" className="size-4 animate-spin" />
 				) : null}
 			</TableCell>
+			{onOpenDepartment ? (
+				<TableCell className="w-28 text-right">
+					<Button
+						type="button"
+						variant="ghost"
+						size="sm"
+						onClick={() => onOpenDepartment(row.department)}
+						aria-label={`T-Konto für ${row.department} öffnen`}
+					>
+						T-Konto
+						<ArrowUpRight className="size-4" />
+					</Button>
+				</TableCell>
+			) : null}
 		</TableRow>
 	);
 }

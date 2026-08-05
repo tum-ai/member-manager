@@ -1311,3 +1311,40 @@ begin
           and s2.active_document_version_id is null;
     end loop;
 end $seed_contract_render$;
+
+-- Finance: BuchhaltungsButler Kostenstelle → department + sub-team mappings.
+-- Decoded from the LnF cost-center scheme (docs/finance-cost-location-mapping.md):
+-- cost_location = [City][Main-department][Sub-Team]; München drops the leading 0,
+-- so the 2nd digit is the sub-team (61 = Big / 62 = Small Makeathon, …).
+-- `bereich` stays null on purpose — the tax realm comes from the ledger account
+-- suffix, not the cost location. Idempotent so re-seeding on any laptop is safe.
+insert into public.finance_department_mappings
+    (cost_location, department, bereich, sub_team)
+values
+    ('0',  'Other',               null, null),
+    ('11', 'Community',           null, 'Onboarding'),
+    ('12', 'Community',           null, 'Events'),
+    ('13', 'Community',           null, 'Impact Projects'),
+    ('20', 'Partners & Sponsors', null, null),
+    ('30', 'Software Development', null, null),
+    ('40', 'Marketing',           null, null),
+    ('50', 'Venture',             null, null),
+    ('51', 'Venture',             null, 'Med.ai'),
+    ('52', 'Venture',             null, 'ACC'),
+    ('61', 'Makeathon',           null, 'Big Makeathon'),
+    ('62', 'Makeathon',           null, 'Small Makeathon'),
+    ('71', 'Other',               null, null),
+    ('75', 'Other',               null, null),
+    ('76', 'Other',               null, null),
+    ('80', 'Legal & Finance',     null, null),
+    ('81', 'Legal & Finance',     null, 'Legal Counseling'),
+    ('82', 'Legal & Finance',     null, 'Memberfees'),
+    ('83', 'Legal & Finance',     null, 'Tax'),
+    ('84', 'Legal & Finance',     null, 'Insurance'),
+    ('85', 'Legal & Finance',     null, 'Banking Fees'),
+    ('86', 'Legal & Finance',     null, 'Fines')
+on conflict (cost_location) do update set
+    department = excluded.department,
+    bereich = excluded.bereich,
+    sub_team = excluded.sub_team,
+    updated_at = now();
