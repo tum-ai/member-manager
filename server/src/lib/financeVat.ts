@@ -29,6 +29,21 @@ export function expenseVatTotal(
 	return round(total);
 }
 
+// Total VAT contained in the income postings (amount > 0). Mirrors
+// `expenseVatTotal` for the income side so the T-account can explain how much of
+// a gross income figure is Umsatzsteuer (FR-J).
+export function incomeVatTotal(
+	transactions: BuchhaltungsButlerTransaction[],
+): number {
+	let total = 0;
+	for (const transaction of transactions) {
+		if (transaction.transaction_amount > 0) {
+			total += embeddedVat(transaction.transaction_amount, transaction.vat);
+		}
+	}
+	return round(total);
+}
+
 interface VatBucket {
 	expenses: number;
 	vat: number;

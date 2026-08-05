@@ -125,6 +125,45 @@ test.describe("Finance Analytics tool", () => {
 		await expect(page.getByText("Budget gespeichert.")).toBeVisible();
 	});
 
+	test("shows a department T-account with Ist- and Plan-Saldo", async ({
+		page,
+	}) => {
+		await page.getByRole("tab", { name: "T-Konto" }).click();
+
+		// Reviewers first see a prompt to pick a department.
+		await expect(page.getByText(/Bitte ein Department wählen/)).toBeVisible();
+
+		await page.getByLabel("Department").click();
+		await page.getByRole("option", { name: "Makeathon", exact: true }).click();
+
+		// The T-account renders both salden and the Ausgaben/Einnahmen columns.
+		await expect(page.getByText("Ist-Saldo").first()).toBeVisible({
+			timeout: 20000,
+		});
+		await expect(page.getByText("Plan-Saldo").first()).toBeVisible();
+		await expect(page.getByText("Ausgaben").first()).toBeVisible();
+		await expect(page.getByText("Einnahmen").first()).toBeVisible();
+	});
+
+	test("drills from the budget overview into a department T-account", async ({
+		page,
+	}) => {
+		await page.getByRole("tab", { name: "Budget" }).click();
+		await expect(page.getByText("Budget gesamt")).toBeVisible();
+
+		const drilldown = page
+			.getByRole("button", { name: /T-Konto für .* öffnen/ })
+			.first();
+		await expect(drilldown).toBeVisible({ timeout: 20000 });
+		await drilldown.click();
+
+		// The T-Konto tab is now active with a department preselected, so the
+		// "pick a department" prompt is gone and the salden are shown.
+		await expect(page.getByText("Ist-Saldo").first()).toBeVisible({
+			timeout: 20000,
+		});
+	});
+
 	test("adds a plan line item", async ({ page }) => {
 		await page.getByRole("tab", { name: "Planung" }).click();
 		await expect(page.getByText("Planposten hinzufügen")).toBeVisible();

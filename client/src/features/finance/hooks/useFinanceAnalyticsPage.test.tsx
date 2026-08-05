@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
 	accounts: vi.fn(),
 	budgets: vi.fn(),
 	plans: vi.fn(),
+	tAccount: vi.fn(),
+	setDepartment: vi.fn(),
 	management: vi.fn(),
 }));
 
@@ -35,6 +37,9 @@ vi.mock("./useFinanceBudgets", () => ({
 vi.mock("./useFinancePlanItems", () => ({
 	useFinancePlanItems: mocks.plans,
 }));
+vi.mock("./useFinanceTAccount", () => ({
+	useFinanceTAccount: mocks.tAccount,
+}));
 vi.mock("./useFinanceManagement", () => ({
 	useFinanceManagement: mocks.management,
 }));
@@ -53,6 +58,8 @@ describe("useFinanceAnalyticsPage", () => {
 		mocks.accounts.mockReturnValue({});
 		mocks.budgets.mockReturnValue({});
 		mocks.plans.mockReturnValue({});
+		mocks.setDepartment.mockClear();
+		mocks.tAccount.mockReturnValue({ setDepartment: mocks.setDepartment });
 		mocks.management.mockReturnValue({});
 	});
 
@@ -70,6 +77,13 @@ describe("useFinanceAnalyticsPage", () => {
 
 		act(() => result.current.setActiveTab("planning"));
 		expect(mocks.plans).toHaveBeenLastCalledWith({ enabled: true });
+
+		act(() => result.current.setActiveTab("t-account"));
+		expect(mocks.tAccount).toHaveBeenLastCalledWith({
+			enabled: true,
+			canManage: true,
+			department: "Legal & Finance",
+		});
 
 		act(() => result.current.setActiveTab("projects"));
 		expect(mocks.management).toHaveBeenLastCalledWith({
@@ -108,5 +122,14 @@ describe("useFinanceAnalyticsPage", () => {
 			canManage: false,
 			department: "Makeathon",
 		});
+	});
+
+	it("drills from the budget overview into a department's T-account", () => {
+		const { result } = renderHookWithClient(() => useFinanceAnalyticsPage());
+
+		act(() => result.current.openDepartmentTAccount("Makeathon"));
+
+		expect(mocks.setDepartment).toHaveBeenCalledWith("Makeathon");
+		expect(result.current.activeTab).toBe("t-account");
 	});
 });

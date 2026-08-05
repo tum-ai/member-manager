@@ -76,6 +76,7 @@ describe("DepartmentMappingEditorSection", () => {
 			department: "Makeathon",
 			bereich: null,
 			note: "Event cost center",
+			subTeam: null,
 		});
 	});
 
@@ -107,6 +108,39 @@ describe("DepartmentMappingEditorSection", () => {
 			department: "Venture",
 			bereich: null,
 			note: null,
+			subTeam: null,
+		});
+	});
+
+	it("assigns a sub-team to a cost location and saves it", async () => {
+		const user = userEvent.setup();
+		const onSave = vi.fn();
+		renderWithClient(
+			<DepartmentMappingEditorSection
+				{...baseProps}
+				rows={[row({ cost_location: "62", department: "Makeathon" })]}
+				onSave={onSave}
+			/>,
+		);
+
+		await user.type(
+			screen.getByRole("textbox", {
+				name: "Sub-Team für Kostenstelle 62",
+			}),
+			"Small Makeathon",
+		);
+		await user.click(
+			screen.getByRole("button", {
+				name: "Zuordnung für Kostenstelle 62 speichern",
+			}),
+		);
+
+		expect(onSave).toHaveBeenCalledWith({
+			costLocation: "62",
+			department: "Makeathon",
+			bereich: null,
+			note: null,
+			subTeam: "Small Makeathon",
 		});
 	});
 
