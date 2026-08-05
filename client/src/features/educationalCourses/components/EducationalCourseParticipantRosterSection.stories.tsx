@@ -31,6 +31,7 @@ const meta = {
 		eligibleMembers: [candidate],
 		search: "Taylor",
 		isLoading: false,
+		isSearching: false,
 		isUpdating: false,
 		onSearchChange: fn(),
 		onSetParticipant: fn(),

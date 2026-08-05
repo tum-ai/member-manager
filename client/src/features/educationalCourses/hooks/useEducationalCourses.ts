@@ -3,6 +3,7 @@ import {
 	type EducationalCourseApplication,
 	type EducationalCourseParticipant,
 	type EducationalCourseParticipantCandidate,
+	type EducationalCourseParticipantCandidateList,
 	type EducationalCourseParticipantList,
 	type EducationalCoursePeriod,
 	type EducationalCoursePeriodDetail,
@@ -19,6 +20,7 @@ import { apiClient } from "@/lib/apiClient";
 
 const PERIODS_QUERY_KEY = ["educational-course-periods"] as const;
 const PARTICIPANTS_QUERY_KEY = ["educational-course-participants"] as const;
+const PARTICIPANT_SEARCH_DELAY_MS = 250;
 
 export function useEducationalCourses() {
 	const queryClient = useQueryClient();
@@ -29,6 +31,22 @@ export function useEducationalCourses() {
 	const isParticipant = educationalCourseRole === "participant";
 	const [selectedPeriodId, setSelectedPeriodId] = useState<string | null>(null);
 	const [participantSearch, setParticipantSearch] = useState("");
+	const [debouncedParticipantSearch, setDebouncedParticipantSearch] =
+		useState("");
+
+	useEffect(() => {
+		const normalized = participantSearch.trim();
+		if (normalized.length < 2) {
+			setDebouncedParticipantSearch("");
+			return;
+		}
+
+		const timeoutId = window.setTimeout(
+			() => setDebouncedParticipantSearch(normalized),
+			PARTICIPANT_SEARCH_DELAY_MS,
+		);
+		return () => window.clearTimeout(timeoutId);
+	}, [participantSearch]);
 
 	const periodsQuery = useQuery<EducationalCoursePeriodList>({
 		queryKey: PERIODS_QUERY_KEY,
@@ -62,6 +80,18 @@ export function useEducationalCourses() {
 		queryFn: async () => await apiClient("/api/education/participants"),
 		enabled: isAdministrator,
 	});
+	const participantCandidatesQuery =
+		useQuery<EducationalCourseParticipantCandidateList>({
+			queryKey: [
+				"educational-course-participant-candidates",
+				debouncedParticipantSearch,
+			],
+			queryFn: async () =>
+				await apiClient(
+					`/api/education/participant-candidates?search=${encodeURIComponent(debouncedParticipantSearch)}`,
+				),
+			enabled: isAdministrator && debouncedParticipantSearch.length >= 2,
+		});
 
 	function invalidatePeriods(periodId?: string) {
 		queryClient.invalidateQueries({ queryKey: PERIODS_QUERY_KEY });
@@ -230,7 +260,7 @@ export function useEducationalCourses() {
 	}
 
 	const participants = participantsQuery.data?.participants ?? [];
-	const candidates = participantsQuery.data?.candidates ?? [];
+	const candidates = participantCandidatesQuery.data?.candidates ?? [];
 	const participantIds = useMemo(
 		() => new Set(participants.map((participant) => participant.userId)),
 		[participants],
@@ -238,18 +268,10 @@ export function useEducationalCourses() {
 	const eligibleMembers = useMemo<
 		EducationalCourseParticipantCandidate[]
 	>(() => {
-		const normalized = participantSearch.trim().toLowerCase();
-		if (!normalized) return [];
 		return candidates
-			.filter(
-				(member) =>
-					!participantIds.has(member.userId) &&
-					`${member.givenName} ${member.surname} ${member.email}`
-						.toLowerCase()
-						.includes(normalized),
-			)
+			.filter((member) => !participantIds.has(member.userId))
 			.slice(0, 12);
-	}, [candidates, participantIds, participantSearch]);
+	}, [candidates, participantIds]);
 
 	return {
 		role: educationalCourseRole,
@@ -279,6 +301,10 @@ export function useEducationalCourses() {
 		isReviewingApplication: reviewMutation.isPending,
 		participants,
 		isLoadingParticipants: participantsQuery.isLoading,
+		isSearchingParticipants:
+			participantSearch.trim().length >= 2 &&
+			(debouncedParticipantSearch !== participantSearch.trim() ||
+				participantCandidatesQuery.isFetching),
 		participantSearch,
 		setParticipantSearch,
 		eligibleMembers,

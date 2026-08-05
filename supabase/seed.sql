@@ -1317,7 +1317,7 @@ end $seed_contract_render$;
 -- portal administrator, which keeps the two authorization roles independent.
 update "public"."members"
 set "educational_course_role" = 'administrator'
-where "user_id" = '00000000-0000-0000-0000-000000000005';
+where "user_id" = '00000000-0000-0000-0000-000000000007';
 
 update "public"."members"
 set "educational_course_role" = 'participant'
@@ -1340,7 +1340,7 @@ values
         '2030-09-22',
         2,
         true,
-        '00000000-0000-0000-0000-000000000005',
+        '00000000-0000-0000-0000-000000000007',
         '2026-07-15 09:00:00+00',
         '2026-07-15 09:00:00+00'
     ),
@@ -1350,7 +1350,7 @@ values
         '2031-02-23',
         3,
         false,
-        '00000000-0000-0000-0000-000000000005',
+        '00000000-0000-0000-0000-000000000007',
         '2026-07-15 09:05:00+00',
         '2026-07-15 09:05:00+00'
     )

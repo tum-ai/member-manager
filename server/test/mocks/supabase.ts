@@ -378,6 +378,7 @@ interface QueryBuilder {
 	eq: (column: string, value: unknown) => QueryBuilder;
 	neq: (column: string, value: unknown) => QueryBuilder;
 	lte: (column: string, value: unknown) => QueryBuilder;
+	ilike: (column: string, pattern: string) => QueryBuilder;
 	is: (column: string, value: unknown) => QueryBuilder;
 	in: (column: string, values: unknown[]) => QueryBuilder;
 	or: (query: string) => QueryBuilder;
@@ -395,6 +396,7 @@ function createQueryBuilder(table: string): QueryBuilder {
 		filters: [] as Array<{ column: string; value: unknown }>,
 		neqFilters: [] as Array<{ column: string; value: unknown }>,
 		lteFilters: [] as Array<{ column: string; value: unknown }>,
+		ilikeFilters: [] as Array<{ column: string; pattern: string }>,
 		isFilters: [] as Array<{ column: string; value: unknown }>,
 		inFilters: [] as Array<{ column: string; values: unknown[] }>,
 		limitCount: undefined as number | undefined,
@@ -472,6 +474,18 @@ function createQueryBuilder(table: string): QueryBuilder {
 				}
 				return String(val) <= String(filter.value);
 			});
+		}
+
+		for (const filter of state.ilikeFilters) {
+			const searchTerm = filter.pattern
+				.replace(/^%|%$/g, "")
+				.replace(/\\([\\%_])/g, "$1")
+				.toLowerCase();
+			tableData = tableData.filter((row) =>
+				String(row[filter.column] ?? "")
+					.toLowerCase()
+					.includes(searchTerm),
+			);
 		}
 
 		for (const filter of state.inFilters) {
@@ -735,6 +749,11 @@ function createQueryBuilder(table: string): QueryBuilder {
 
 		lte: (column: string, value: unknown) => {
 			state.lteFilters.push({ column, value });
+			return proxyBuilder;
+		},
+
+		ilike: (column: string, pattern: string) => {
+			state.ilikeFilters.push({ column, pattern });
 			return proxyBuilder;
 		},
 

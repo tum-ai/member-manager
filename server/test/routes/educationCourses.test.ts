@@ -218,17 +218,25 @@ describe("Educational course routes", async () => {
 		addMember(OTHER_USER_ID, "Inactive", "Candidate");
 		getMember(OTHER_USER_ID).member_status = "inactive";
 		getMember(OTHER_USER_ID).active = false;
+		addMember("10000000-0000-4000-8000-000000000003", "Grace", "Hopper");
 
 		const denied = await app.inject({
 			method: "GET",
-			url: "/api/education/participants",
+			url: "/api/education/participant-candidates?search=Ada",
 			headers: authHeaders(testTokens.user),
 		});
 		assert.strictEqual(denied.statusCode, 403);
 
+		const invalid = await app.inject({
+			method: "GET",
+			url: "/api/education/participant-candidates?search=A",
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(invalid.statusCode, 400);
+
 		const response = await app.inject({
 			method: "GET",
-			url: "/api/education/participants",
+			url: "/api/education/participant-candidates?search=Ada",
 			headers: authHeaders(testTokens.admin),
 		});
 		assert.strictEqual(response.statusCode, 200);
@@ -248,6 +256,29 @@ describe("Educational course routes", async () => {
 					!("educational_course_role" in candidate),
 			),
 		);
+
+		const roster = await app.inject({
+			method: "GET",
+			url: "/api/education/participants",
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(roster.statusCode, 200);
+		assert.strictEqual("candidates" in JSON.parse(roster.payload), false);
+
+		for (let index = 0; index < 14; index += 1) {
+			addMember(
+				`40000000-0000-4000-8000-${String(index).padStart(12, "0")}`,
+				`Search${index}`,
+				"Candidate",
+			);
+		}
+		const capped = await app.inject({
+			method: "GET",
+			url: "/api/education/participant-candidates?search=Search",
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(capped.statusCode, 200);
+		assert.strictEqual(JSON.parse(capped.payload).candidates.length, 12);
 	});
 
 	test("creates periods with camelCase JSON and only patches applicationsOpen", async () => {

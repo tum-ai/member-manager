@@ -9,7 +9,7 @@ import {
 	resetDatabase,
 	testTokens,
 } from "../helpers.js";
-import { mockDatabase } from "../mocks/supabase.js";
+import { mockDatabase, mockSupabaseErrors } from "../mocks/supabase.js";
 
 describe("Permission Routes", async () => {
 	let app: FastifyInstance;
@@ -45,6 +45,32 @@ describe("Permission Routes", async () => {
 				"tumai_days.manage",
 			]);
 			assert.strictEqual(data.department, null);
+		});
+
+		test("keeps admin permissions when optional member metadata fails", async () => {
+			mockSupabaseErrors.tables.members = {
+				message: "members table unavailable",
+			};
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/me/tool-access",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.deepStrictEqual([...data.permissions].sort(), [
+				"contracts.admin",
+				"contracts.create",
+				"finance.department",
+				"finance.review",
+				"partners.manage",
+				"tumai_days.manage",
+			]);
+			assert.strictEqual(data.isBoardMember, true);
+			assert.strictEqual(data.department, null);
+			assert.strictEqual(data.educationalCourseRole, null);
 		});
 
 		test("returns empty for a member whose department has no permissions", async () => {

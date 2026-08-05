@@ -50,6 +50,18 @@ export async function permissionRoutes(server: FastifyInstance) {
 					.maybeSingle();
 
 				if (error) {
+					if (isAdmin) {
+						request.log.warn(
+							{ err: error, userId: user.id },
+							"Failed to load optional member metadata for admin tool access",
+						);
+						return {
+							permissions: [...PERMISSIONS],
+							isBoardMember,
+							department: null,
+							educationalCourseRole: null,
+						};
+					}
 					throw error;
 				}
 

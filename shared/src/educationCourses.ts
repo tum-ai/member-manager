@@ -86,6 +86,15 @@ export type EducationalCourseParticipantCandidate = z.infer<
 	typeof educationalCourseParticipantCandidateSchema
 >;
 
+export const searchEducationalCourseParticipantCandidatesSchema = z
+	.object({
+		search: z.string().trim().min(2).max(100),
+	})
+	.strict();
+export type SearchEducationalCourseParticipantCandidatesInput = z.infer<
+	typeof searchEducationalCourseParticipantCandidatesSchema
+>;
+
 export const approvedEducationalCourseParticipantSchema = z.object({
 	userId: z.string().guid(),
 	displayName: z.string(),
@@ -148,8 +157,14 @@ export type EducationalCoursePeriodList = z.infer<
 
 export const educationalCourseParticipantListSchema = z.object({
 	participants: z.array(educationalCourseParticipantSchema),
-	candidates: z.array(educationalCourseParticipantCandidateSchema),
 });
 export type EducationalCourseParticipantList = z.infer<
 	typeof educationalCourseParticipantListSchema
+>;
+
+export const educationalCourseParticipantCandidateListSchema = z.object({
+	candidates: z.array(educationalCourseParticipantCandidateSchema),
+});
+export type EducationalCourseParticipantCandidateList = z.infer<
+	typeof educationalCourseParticipantCandidateListSchema
 >;

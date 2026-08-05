@@ -119,7 +119,7 @@ describe("useEducationalCourses", () => {
 				HttpResponse.json({ periods: [] }),
 			),
 			http.get("/api/education/participants", () =>
-				HttpResponse.json({ participants: [], candidates: [] }),
+				HttpResponse.json({ participants: [] }),
 			),
 			http.get("/api/education/periods/:periodId", () =>
 				HttpResponse.json({ period: created, applications: [] }),
@@ -152,13 +152,17 @@ describe("useEducationalCourses", () => {
 
 	it("searches only the scoped participant candidates", async () => {
 		accessState.educationalCourseRole = "administrator";
+		let requestedSearch = "";
 		server.use(
 			http.get("/api/education/periods", () =>
 				HttpResponse.json({ periods: [] }),
 			),
 			http.get("/api/education/participants", () =>
-				HttpResponse.json({
-					participants: [],
+				HttpResponse.json({ participants: [] }),
+			),
+			http.get("/api/education/participant-candidates", ({ request }) => {
+				requestedSearch = new URL(request.url).searchParams.get("search") ?? "";
+				return HttpResponse.json({
 					candidates: [
 						{
 							userId: "30000000-0000-4000-8000-000000000002",
@@ -167,8 +171,8 @@ describe("useEducationalCourses", () => {
 							email: "taylor@example.com",
 						},
 					],
-				}),
-			),
+				});
+			}),
 		);
 
 		const { result } = renderHookWithClient(() => useEducationalCourses());
@@ -176,16 +180,47 @@ describe("useEducationalCourses", () => {
 			expect(result.current.isLoadingParticipants).toBe(false),
 		);
 
-		act(() => result.current.setParticipantSearch("taylor@example.com"));
+		act(() => result.current.setParticipantSearch("Taylor"));
 
-		expect(result.current.eligibleMembers).toEqual([
-			{
-				userId: "30000000-0000-4000-8000-000000000002",
-				givenName: "Taylor",
-				surname: "Member",
-				email: "taylor@example.com",
-			},
-		]);
+		await waitFor(() =>
+			expect(result.current.eligibleMembers).toEqual([
+				{
+					userId: "30000000-0000-4000-8000-000000000002",
+					givenName: "Taylor",
+					surname: "Member",
+					email: "taylor@example.com",
+				},
+			]),
+		);
+		expect(requestedSearch).toBe("Taylor");
+	});
+
+	it("does not search participant candidates for a one-character query", async () => {
+		accessState.educationalCourseRole = "administrator";
+		let candidateRequests = 0;
+		server.use(
+			http.get("/api/education/periods", () =>
+				HttpResponse.json({ periods: [] }),
+			),
+			http.get("/api/education/participants", () =>
+				HttpResponse.json({ participants: [] }),
+			),
+			http.get("/api/education/participant-candidates", () => {
+				candidateRequests += 1;
+				return HttpResponse.json({ candidates: [] });
+			}),
+		);
+
+		const { result } = renderHookWithClient(() => useEducationalCourses());
+		await waitFor(() =>
+			expect(result.current.isLoadingParticipants).toBe(false),
+		);
+
+		act(() => result.current.setParticipantSearch("T"));
+		await new Promise((resolve) => window.setTimeout(resolve, 300));
+
+		expect(candidateRequests).toBe(0);
+		expect(result.current.eligibleMembers).toEqual([]);
 	});
 
 	it("sends administrator review decisions", async () => {
@@ -198,7 +233,7 @@ describe("useEducationalCourses", () => {
 				HttpResponse.json({ periods: [period] }),
 			),
 			http.get("/api/education/participants", () =>
-				HttpResponse.json({ participants: [], candidates: [] }),
+				HttpResponse.json({ participants: [] }),
 			),
 			http.get("/api/education/periods/:periodId", () =>
 				HttpResponse.json({ period, applications: [application] }),

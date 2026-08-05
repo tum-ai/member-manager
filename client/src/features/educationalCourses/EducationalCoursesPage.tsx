@@ -60,6 +60,7 @@ export default function EducationalCoursesPage(): ReactElement {
 								eligibleMembers={courses.eligibleMembers}
 								search={courses.participantSearch}
 								isLoading={courses.isLoadingParticipants}
+								isSearching={courses.isSearchingParticipants}
 								isUpdating={courses.isUpdatingParticipant}
 								onSearchChange={courses.setParticipantSearch}
 								onSetParticipant={courses.setParticipant}

@@ -9,6 +9,7 @@ import {
 	getEducationalCourseDateOnly,
 	isActiveMember,
 	reviewEducationalCourseApplicationSchema,
+	searchEducationalCourseParticipantCandidatesSchema,
 	updateEducationalCoursePeriodSchema,
 } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
@@ -42,6 +43,8 @@ const emptyBodySchema = z.union([
 	z.null(),
 	z.object({}).strict(),
 ]);
+const PARTICIPANT_CANDIDATE_LIMIT = 12;
+const PARTICIPANT_CANDIDATE_SCAN_LIMIT = PARTICIPANT_CANDIDATE_LIMIT * 2;
 
 interface MemberRow {
 	user_id: string;
@@ -117,6 +120,10 @@ function displayName(row: MemberRow | undefined): string {
 	return [row.given_name?.trim(), row.surname?.trim()]
 		.filter((part): part is string => Boolean(part))
 		.join(" ");
+}
+
+function escapeLikePattern(value: string): string {
+	return value.replace(/[\\%_]/g, "\\$&");
 }
 
 function applicationFromRow(
@@ -247,6 +254,43 @@ async function loadApplications(
 	return (data ?? []) as ApplicationRow[];
 }
 
+async function searchParticipantCandidates(
+	search: string,
+): Promise<EducationalCourseParticipantCandidate[]> {
+	const pattern = `%${escapeLikePattern(search)}%`;
+	const candidateColumns = ["given_name", "surname"] as const;
+	const results = await Promise.all(
+		candidateColumns.map(async (column) => {
+			const { data, error } = await getSupabase()
+				.from("members")
+				.select("user_id, given_name, surname, member_status, active")
+				.is("educational_course_role", null)
+				.ilike(column, pattern)
+				.order("surname", { ascending: true })
+				.limit(PARTICIPANT_CANDIDATE_SCAN_LIMIT);
+			if (error) {
+				throw new DatabaseError("Failed to search participant candidates");
+			}
+			return (data ?? []) as MemberRow[];
+		}),
+	);
+
+	const candidateRows = [
+		...new Map(
+			results
+				.flat()
+				.filter(isActiveMember)
+				.map((member) => [member.user_id, member]),
+		).values(),
+	].slice(0, PARTICIPANT_CANDIDATE_LIMIT);
+	const profiles = await getAuthProfiles(
+		candidateRows.map((member) => member.user_id),
+	);
+	return candidateRows.map((member) =>
+		candidateFromMember(member, profiles.get(member.user_id)),
+	);
+}
+
 async function loadPeriodData(periodRows: PeriodRow[]): Promise<{
 	applications: ApplicationRow[];
 	membersById: Map<string, MemberRow>;
@@ -363,24 +407,20 @@ export async function educationalCourseRoutes(server: FastifyInstance) {
 				participantFromMember,
 			);
 
-			const { data: candidateData, error: candidateError } = await getSupabase()
-				.from("members")
-				.select("user_id, given_name, surname, member_status, active")
-				.is("educational_course_role", null)
-				.order("surname", { ascending: true });
-			if (candidateError) {
-				throw new DatabaseError("Failed to load participant candidates");
-			}
-			const candidateRows = ((candidateData ?? []) as MemberRow[]).filter(
-				isActiveMember,
+			return { participants };
+		},
+	);
+
+	server.get(
+		"/education/participant-candidates",
+		{ preHandler: [authenticate, requireEducationalCourseAdministrator] },
+		async (request) => {
+			const input = parseInput(
+				searchEducationalCourseParticipantCandidatesSchema,
+				request.query,
+				"Invalid participant candidate search",
 			);
-			const profiles = await getAuthProfiles(
-				candidateRows.map((member) => member.user_id),
-			);
-			const candidates = candidateRows.map((member) =>
-				candidateFromMember(member, profiles.get(member.user_id)),
-			);
-			return { participants, candidates };
+			return { candidates: await searchParticipantCandidates(input.search) };
 		},
 	);
 

@@ -36,16 +36,19 @@ test("an independent education administrator reviews an application that the par
 		);
 		await withdrawButton.click();
 		expect((await withdrawResponse).status()).toBe(204);
+	}
+	const applyButton = applicantPage.getByRole("button", { name: "Apply" });
+	if (await applyButton.isVisible()) {
 		const applyResponse = applicantPage.waitForResponse(
 			(response) =>
 				response.url().includes("/api/education/periods/") &&
 				response.url().endsWith("/applications") &&
 				response.request().method() === "POST",
 		);
-		await applicantPage.getByRole("button", { name: "Apply" }).click();
+		await applyButton.click();
 		expect((await applyResponse).status()).toBe(201);
-		await expect(applicantPage.getByText("Pending review")).toBeVisible();
 	}
+	await expect(applicantPage.getByText("Pending review")).toBeVisible();
 	await applicantContext.close();
 
 	const administratorContext = await browser.newContext();

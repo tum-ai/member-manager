@@ -13,6 +13,7 @@ interface EducationalCourseParticipantRosterSectionProps {
 	eligibleMembers: EducationalCourseParticipantCandidate[];
 	search: string;
 	isLoading: boolean;
+	isSearching: boolean;
 	isUpdating: boolean;
 	onSearchChange: (value: string) => void;
 	onSetParticipant: (userId: string, enabled: boolean) => void;
@@ -27,6 +28,7 @@ export function EducationalCourseParticipantRosterSection({
 	eligibleMembers,
 	search,
 	isLoading,
+	isSearching,
 	isUpdating,
 	onSearchChange,
 	onSetParticipant,
@@ -62,7 +64,15 @@ export function EducationalCourseParticipantRosterSection({
 
 				{search.trim() && (
 					<div className="max-h-52 overflow-y-auto rounded-lg border bg-card p-1">
-						{eligibleMembers.length === 0 ? (
+						{search.trim().length < 2 ? (
+							<p className="px-3 py-4 text-center text-sm text-muted-foreground">
+								Enter at least two characters.
+							</p>
+						) : isSearching ? (
+							<p className="px-3 py-4 text-center text-sm text-muted-foreground">
+								Searching members...
+							</p>
+						) : eligibleMembers.length === 0 ? (
 							<p className="px-3 py-4 text-center text-sm text-muted-foreground">
 								No eligible members found.
 							</p>

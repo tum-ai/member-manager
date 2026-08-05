@@ -30,7 +30,9 @@ test.describe("admin member directory", () => {
 			page.getByRole("heading", { name: "Admin Workspace" }),
 		).toBeVisible();
 		await expect(page.getByText("Total members")).toBeVisible();
-		await expect(page.getByText("Active members")).toBeVisible();
+		await expect(
+			page.getByText("Active members", { exact: true }),
+		).toBeVisible();
 		await expect(page.getByText("SEPA accepted")).toBeVisible();
 		await expect(page.getByText("Privacy accepted")).toBeVisible();
 
