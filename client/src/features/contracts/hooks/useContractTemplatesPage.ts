@@ -26,6 +26,7 @@ function draftFromDetail(
 		name: detail.template.name,
 		description: detail.template.description ?? "",
 		contract_text: detail.template.contract_text,
+		contract_text_en: detail.template.contract_text_en ?? "",
 		is_active: detail.template.is_active,
 	};
 }
@@ -39,6 +40,7 @@ function draftDiffersFromDetail(
 		detail.template.name !== draft.name ||
 		(detail.template.description ?? "") !== draft.description ||
 		detail.template.contract_text !== draft.contract_text ||
+		(detail.template.contract_text_en ?? "") !== draft.contract_text_en ||
 		detail.template.is_active !== draft.is_active
 	);
 }
@@ -112,6 +114,7 @@ export function useContractTemplatesPage(): ContractTemplatesPageViewModel {
 					name: draft.name,
 					description: draft.description || null,
 					contract_text: draft.contract_text,
+					contract_text_en: draft.contract_text_en || null,
 					is_active: draft.is_active,
 				});
 			},

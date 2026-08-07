@@ -78,7 +78,7 @@ export function TemplateEditor({
 						label="Contract text"
 						htmlFor="template-contract-text"
 						description={
-							'Use {{variable}} to insert values and [IF {{var}} = "x" THEN {...} ELSE {...}] for conditional text. Reserved signature tokens are listed below.'
+							'Formatting: "# Titel" centers a contract title, "## § 1 ..." makes a bold heading, "**fett**" bolds inline, "- " starts a bullet, "links | rechts" places cells side by side and "---" starts a new page. Lines like "(a) ..." get a hanging indent, and everything else is body text. Use {{variable}} to insert values and [IF {{var}} = "x" THEN {...} ELSE {...}] for conditional text. Reserved signature tokens are listed below.'
 						}
 					>
 						<Textarea
@@ -89,6 +89,24 @@ export function TemplateEditor({
 								model.setDraft({
 									...draft,
 									contract_text: event.target.value,
+								})
+							}
+							rows={8}
+						/>
+					</Field>
+					<Field
+						label="Contract text (English)"
+						htmlFor="template-contract-text-en"
+						description="English version of the contract text. While it is empty, contracts are created in German. Use the same variables and conditions as the German text."
+					>
+						<Textarea
+							id="template-contract-text-en"
+							className="max-h-[480px] min-h-48 font-mono"
+							value={draft.contract_text_en}
+							onChange={(event) =>
+								model.setDraft({
+									...draft,
+									contract_text_en: event.target.value,
 								})
 							}
 							rows={8}

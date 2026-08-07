@@ -1,76 +1,145 @@
-import assert from "node:assert";
+import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { deflateSync, inflateSync } from "node:zlib";
-import { imageDataForPdf } from "../../src/lib/pdfImage.js";
+import { deflateSync } from "node:zlib";
+import { buildContractDocDefinition } from "../../src/lib/contracts/contractPdfDocument.js";
 import { createTextPdf } from "../../src/lib/simplePdf.js";
 
-// Build a minimal 1x1 RGB PNG. The decoder skips CRCs, so dummy CRC bytes are
-// fine; only the chunk structure and IDAT deflate stream must be valid.
-function tinyPng(colorType = 2, pixel = [10, 20, 30]): Buffer {
+// Build a minimal 1x1 RGB PNG. Only the chunk structure and the IDAT deflate
+// stream have to be valid for pdfmake to embed it.
+function tinyPng(): Buffer {
+	const table = new Uint32Array(256);
+	for (let index = 0; index < 256; index += 1) {
+		let value = index;
+		for (let bit = 0; bit < 8; bit += 1) {
+			value = value & 1 ? 0xedb88320 ^ (value >>> 1) : value >>> 1;
+		}
+		table[index] = value >>> 0;
+	}
+	const crc = (buffer: Buffer): number => {
+		let value = 0xffffffff;
+		for (const byte of buffer)
+			value = table[(value ^ byte) & 0xff] ^ (value >>> 8);
+		return (value ^ 0xffffffff) >>> 0;
+	};
 	const chunk = (type: string, data: Buffer): Buffer => {
 		const length = Buffer.alloc(4);
 		length.writeUInt32BE(data.length, 0);
-		return Buffer.concat([
-			length,
-			Buffer.from(type, "ascii"),
-			data,
-			Buffer.alloc(4),
-		]);
+		const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+		const checksum = Buffer.alloc(4);
+		checksum.writeUInt32BE(crc(body), 0);
+		return Buffer.concat([length, body, checksum]);
 	};
-	const signature = Buffer.from("89504e470d0a1a0a", "hex");
 	const ihdr = Buffer.alloc(13);
-	ihdr.writeUInt32BE(1, 0); // width
-	ihdr.writeUInt32BE(1, 4); // height
-	ihdr[8] = 8; // bit depth
-	ihdr[9] = colorType;
-	// scanline: filter byte 0 + one pixel.
-	const idat = deflateSync(Buffer.from([0, ...pixel]));
+	ihdr.writeUInt32BE(1, 0);
+	ihdr.writeUInt32BE(1, 4);
+	ihdr[8] = 8;
+	ihdr[9] = 2;
 	return Buffer.concat([
-		signature,
+		Buffer.from("89504e470d0a1a0a", "hex"),
 		chunk("IHDR", ihdr),
-		chunk("IDAT", idat),
+		chunk("IDAT", deflateSync(Buffer.from([0, 10, 20, 30]))),
 		chunk("IEND", Buffer.alloc(0)),
 	]);
 }
 
-describe("simplePdf", () => {
-	test("uses the contract template page metrics", () => {
-		const pdf = createTextPdf(
-			"SPONSORINGVERTRAG\n\n§ 1 Vertragsgegenstand\n\nHello Partner with enough words to justify the first line across the contract page width.\n\n- First item\n- Second item",
+// biome-ignore lint/suspicious/noExplicitAny: the doc definition is deliberately untyped structure.
+type Block = any;
+
+/** pdfmake keeps inline runs as an array; flatten it back to plain text. */
+function textOf(value: unknown): string {
+	if (typeof value === "string") return value;
+	if (Array.isArray(value)) return value.map(textOf).join("");
+	if (value && typeof value === "object" && "text" in value) {
+		return textOf((value as { text: unknown }).text);
+	}
+	return "";
+}
+
+function blocksOf(
+	text: string,
+	signatures: Parameters<typeof createTextPdf>[1] = [],
+) {
+	return buildContractDocDefinition(text, signatures).content as Block[];
+}
+
+describe("contract pdf document", () => {
+	test("uses the contract template page setup", () => {
+		const definition = buildContractDocDefinition("Body");
+
+		assert.equal(definition.pageSize, "A4");
+		assert.deepEqual(definition.pageMargins, [71, 71, 71, 57]);
+		assert.equal(definition.defaultStyle.fontSize, 11);
+		assert.equal(definition.defaultStyle.lineHeight, 1.5);
+		assert.equal(definition.defaultStyle.alignment, "justify");
+		assert.equal(definition.defaultStyle.font, "Helvetica");
+	});
+
+	test("prints the TUM.ai logo and a page footer", () => {
+		const definition = buildContractDocDefinition("Body");
+
+		const header = definition.header as Block;
+		assert.match(String(header.image), /^data:image\/png;base64,/);
+		assert.equal(header.alignment, "right");
+		assert.equal((definition.footer(2, 7) as Block).text, "2 | 7");
+	});
+
+	test("centers the contract title in bold", () => {
+		const [title] = blocksOf("# SPONSORINGVERTRAG\n\nBody text");
+
+		assert.equal(textOf(title.text), "SPONSORINGVERTRAG");
+		assert.equal(title.bold, true);
+		assert.equal(title.alignment, "center");
+	});
+
+	test("sets § headings in bold, flush left", () => {
+		const blocks = blocksOf("## § 1 Vertragsgegenstand\n\nDer Vertrag gilt.");
+
+		assert.equal(textOf(blocks[0].text), "§ 1 Vertragsgegenstand");
+		assert.equal(blocks[0].bold, true);
+		assert.equal(blocks[0].alignment, "left");
+		assert.equal(textOf(blocks[1].text), "Der Vertrag gilt.");
+	});
+
+	test("hangs outline items beside their label", () => {
+		const [item] = blocksOf(
+			"(a) Das Partnerunternehmen zahlt einen Betrag, der über mehrere Zeilen läuft.",
 		);
-		const raw = pdf.toString("utf8");
 
-		assert.match(raw, /^%PDF-1\.4/);
-		assert.match(raw, /\/BaseFont \/Helvetica-Bold/);
-		assert.match(raw, /\/F2 20 Tf/);
-		assert.match(raw, /\/F1 11 Tf/);
-		assert.match(raw, /1 0 0 1 209\.10 771\.00 Tm/);
-		assert.match(raw, /1 0 0 1 71\.00 729\.00 Tm/);
-		assert.match(raw, /Tw/);
-		assert.match(raw, /\(- First item\) Tj/);
+		assert.equal(item.columns[0].text, "(a)");
+		assert.equal(
+			textOf(item.columns[1].text),
+			"Das Partnerunternehmen zahlt einen Betrag, der über mehrere Zeilen läuft.",
+		);
 	});
 
-	test("embeds signature images as XObjects on an appended page", () => {
-		const pdf = createTextPdf("Contract body text.", [
-			{ label: "Partner: Jane Doe", sublabel: "2026-07-01", png: tinyPng() },
+	test("renders dash lists as bullet lists", () => {
+		const [list] = blocksOf("- Erste Leistung\n- Zweite Leistung");
+
+		assert.deepEqual(list.ul.map(textOf), [
+			"Erste Leistung",
+			"Zweite Leistung",
 		]);
-		const raw = pdf.toString("latin1");
-
-		assert.match(raw, /\/Subtype \/Image/);
-		assert.match(raw, /\/Im0 Do/);
-		assert.match(raw, /\(Signaturen\) Tj/);
-		assert.match(raw, /\(Partner: Jane Doe\) Tj/);
 	});
 
-	test("embeds transparent signature PNGs without dropping alpha to black", () => {
-		const image = imageDataForPdf(tinyPng(6, [0, 0, 0, 0]), "image/png");
+	// One template line is one Word paragraph, so an address block prints as
+	// three tight paragraphs rather than one stretched, justified block.
+	test("keeps address lines tight, with space only after the last one", () => {
+		const blocks = blocksOf(
+			"TUM.ai e.V.,\nArcisstraße 21\n80333 München\n\nund",
+		);
 
-		assert.deepStrictEqual([...inflateSync(image.data)], [255, 255, 255]);
+		assert.deepEqual(
+			blocks.slice(0, 3).map((block: Block) => textOf(block.text)),
+			["TUM.ai e.V.,", "Arcisstraße 21", "80333 München"],
+		);
+		assert.deepEqual(
+			blocks.slice(0, 3).map((block: Block) => block.margin[3]),
+			[0, 0, 8],
+		);
 	});
 
-	// Inline signature tokens in the document body.
-	test("draws a signature inline at its {{partner_signature}} token", () => {
-		const pdf = createTextPdf("Contract body text.\n\n{{partner_signature}}", [
+	test("draws a signature inline at its token, with the text around it", () => {
+		const blocks = blocksOf("Unterschrift Partner: {{partner_signature}} Ort", [
 			{
 				role: "partner",
 				label: "Partner: Jane Doe",
@@ -78,72 +147,102 @@ describe("simplePdf", () => {
 				png: tinyPng(),
 			},
 		]);
-		const raw = pdf.toString("latin1");
 
-		assert.match(raw, /\/Subtype \/Image/);
-		assert.match(raw, /\/Im0 Do/);
-		assert.match(raw, /\(Partner: Jane Doe\) Tj/);
-		// Consumed inline — no trailing signature page.
-		assert.doesNotMatch(raw, /\(Signaturen\) Tj/);
-		// The raw token never renders as text.
-		assert.doesNotMatch(raw, /partner_signature/);
+		assert.equal(textOf(blocks[0].text), "Unterschrift Partner:");
+		assert.match(String(blocks[1].stack[0].image), /^data:image\/png;base64,/);
+		assert.equal(blocks[1].stack[1].text, "Partner: Jane Doe · 2026-07-01");
+		assert.equal(textOf(blocks[2].text), "Ort");
+		// The raw token never reaches the page.
+		assert.doesNotMatch(JSON.stringify(blocks), /partner_signature/);
 	});
 
-	test("keeps text before and after an inline signature token", () => {
-		const pdf = createTextPdf(
-			"Unterschrift Partner: {{partner_signature}} Ort, Datum",
-			[{ role: "partner", label: "Partner: Jane Doe", png: tinyPng() }],
-		);
-		const raw = pdf.toString("latin1");
+	test("leaves a blank rule for an unsigned token", () => {
+		const blocks = blocksOf("Unterschrift: {{board_signature}}");
 
-		assert.match(raw, /\(Unterschrift Partner:\) Tj/);
-		assert.match(raw, /\(Ort, Datum\) Tj/);
-		assert.match(raw, /\/Im0 Do/);
-		assert.doesNotMatch(raw, /partner_signature/);
+		assert.match(blocks[1].text, /^_+$/);
+		assert.doesNotMatch(JSON.stringify(blocks), /board_signature/);
 	});
 
-	test("renders a placeholder line for an unsigned inline token", () => {
-		const pdf = createTextPdf("Contract body text.\n\n{{board_signature}}");
-		const raw = pdf.toString("latin1");
-
-		assert.match(raw, /\(_+\) Tj/);
-		assert.doesNotMatch(raw, /\/Subtype \/Image/);
-		assert.doesNotMatch(raw, /board_signature/);
-	});
-
-	test("keeps unreferenced signatures on the trailing page", () => {
-		const pdf = createTextPdf("Contract body text.\n\n{{partner_signature}}", [
+	test("keeps signatures without a token on a trailing page", () => {
+		const blocks = blocksOf("Vertragstext ohne Tokens.", [
 			{ role: "partner", label: "Partner: Jane Doe", png: tinyPng() },
 			{ role: "board", label: "TUM.ai / Board: Max", png: tinyPng() },
 		]);
-		const raw = pdf.toString("latin1");
 
-		// Partner inline on a body page, board on the trailing signature page.
-		assert.match(raw, /\(Signaturen\) Tj/);
-		assert.match(raw, /\(TUM\.ai \/ Board: Max\) Tj/);
-		assert.match(raw, /\(Partner: Jane Doe\) Tj/);
+		const heading = blocks.find((block: Block) => block.text === "Signaturen");
+		assert.ok(heading);
+		assert.equal(heading.pageBreak, "before");
+		assert.equal(
+			blocks.filter((block: Block) => block.stack?.[0]?.image).length,
+			2,
+		);
 	});
 
-	test("keeps the trailing page for signatures without inline tokens", () => {
-		const pdf = createTextPdf("Contract body text without tokens.", [
+	test("only trails the signatures that had no token", () => {
+		const blocks = blocksOf("Vertragstext.\n\n{{partner_signature}}", [
+			{ role: "partner", label: "Partner: Jane Doe", png: tinyPng() },
+			{ role: "board", label: "TUM.ai / Board: Max", png: tinyPng() },
+		]);
+
+		const heading = blocks.filter(
+			(block: Block) => block.text === "Signaturen",
+		);
+		assert.equal(heading.length, 1);
+		assert.equal(
+			blocks.filter((block: Block) => block.stack?.[0]?.image).length,
+			2,
+		);
+	});
+});
+
+/** How many images the PDF embeds; the header logo always accounts for one. */
+function imageCount(pdf: Buffer): number {
+	return (pdf.toString("latin1").match(/\/Subtype \/Image/g) ?? []).length;
+}
+
+describe("createTextPdf", () => {
+	test("uses the oblique face for italic spans", async () => {
+		const pdf = await createTextPdf("*im Folgenden Veranstalter genannt*");
+
+		assert.match(pdf.toString("latin1"), /\/BaseFont \/Helvetica-Oblique/);
+	});
+
+	test("matches the Word page geometry", () => {
+		const definition = buildContractDocDefinition("Body");
+
+		// Word: 2.5 cm side/top margins, 2 cm bottom, header 1.25 cm from the edge.
+		assert.deepEqual(definition.pageMargins, [71, 71, 71, 57]);
+		const header = definition.header as Block;
+		assert.equal(header.width, 89);
+		assert.equal(header.margin[1], 35);
+	});
+
+	test("renders a PDF with the standard fonts and no font assets", async () => {
+		const pdf = await createTextPdf(
+			"# SPONSORINGVERTRAG\n\n## § 1 Vertragsgegenstand\n\nDer Vertrag gilt für ein Jahr.",
+		);
+		const raw = pdf.toString("latin1");
+
+		assert.match(raw, /^%PDF-1\./);
+		assert.match(raw, /\/BaseFont \/Helvetica\b/);
+		assert.match(raw, /\/BaseFont \/Helvetica-Bold/);
+	});
+
+	test("embeds signature images", async () => {
+		const pdf = await createTextPdf("Vertragstext.\n\n{{partner_signature}}", [
 			{ role: "partner", label: "Partner: Jane Doe", png: tinyPng() },
 		]);
-		const raw = pdf.toString("latin1");
 
-		assert.match(raw, /\(Signaturen\) Tj/);
-		assert.match(raw, /\(Partner: Jane Doe\) Tj/);
+		// The header logo plus the signature.
+		assert.equal(imageCount(pdf), 2);
 	});
 
-	test("skips invalid signature images instead of throwing", () => {
-		assert.doesNotThrow(() =>
-			createTextPdf("Contract body text.", [
-				{ label: "Partner: Broken", png: Buffer.from("not a png") },
-			]),
-		);
-		const pdf = createTextPdf("Body", [
-			{ label: "Partner: Broken", png: Buffer.from("not a png") },
+	test("skips an unreadable signature instead of failing the contract", async () => {
+		const pdf = await createTextPdf("Vertragstext.\n\n{{partner_signature}}", [
+			{ role: "partner", label: "Partner: Broken", png: Buffer.from("nope") },
 		]);
-		// No image XObject is emitted for an undecodable signature.
-		assert.doesNotMatch(pdf.toString("latin1"), /\/Subtype \/Image/);
+		assert.match(pdf.toString("latin1"), /^%PDF-1\./);
+		// Only the header logo: the blank rule stands in for the broken signature.
+		assert.equal(imageCount(pdf), 1);
 	});
 });

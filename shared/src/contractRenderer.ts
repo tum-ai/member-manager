@@ -1,5 +1,18 @@
 import type { ContractRenderableBlock } from "./contracts.js";
 
+export const CONTRACT_LANGUAGES = ["de", "en"] as const;
+
+export type ContractLanguage = (typeof CONTRACT_LANGUAGES)[number];
+
+export const DEFAULT_CONTRACT_LANGUAGE: ContractLanguage = "de";
+
+/**
+ * Reserved form-data key holding the language a contract is generated in. It is
+ * not a template variable: the form writes it, and the renderer uses it to pick
+ * between the German and English body text of the same template.
+ */
+export const CONTRACT_LANGUAGE_FIELD = "contract_language";
+
 const VARIABLE_REGEX = /\{\{([a-zA-Z0-9_]+)\}\}/g;
 const CONDITIONAL_REGEX =
 	/\[(?:WENN|IF)\s+\{\{([a-zA-Z0-9_]+)\}\}\s*(=|!=|enthält|contains)\s*"([^"]*)"\s+(?:DANN|THEN)\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\}(?:\s+(?:SONST|ELSE)\s+\{((?:[^{}]|\{\{[^}]*\}\})*)\})?\]/gi;
@@ -114,6 +127,31 @@ export function contractBlockMatches(
 		default:
 			return false;
 	}
+}
+
+/** The language the form asked for; German unless the form says otherwise. */
+export function contractLanguageOf(
+	formData: Record<string, unknown>,
+): ContractLanguage {
+	return formData[CONTRACT_LANGUAGE_FIELD] === "en"
+		? "en"
+		: DEFAULT_CONTRACT_LANGUAGE;
+}
+
+/**
+ * Pick the template body for the language stored in the form data. Falls back
+ * to the German text whenever the English translation is still missing, so a
+ * template without a translation can never render as an empty contract.
+ */
+export function selectContractText(
+	template: { contract_text: string; contract_text_en?: string | null },
+	formData: Record<string, unknown>,
+): string {
+	if (contractLanguageOf(formData) === "en") {
+		const english = template.contract_text_en;
+		if (typeof english === "string" && english.trim()) return english;
+	}
+	return template.contract_text;
 }
 
 export function renderContractText(

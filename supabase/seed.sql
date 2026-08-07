@@ -968,6 +968,7 @@ insert into public.contract_submissions (
             'partner_description', 'Industrial automation company.',
             'sponsoring_package', 'long_term_gold',
             'payment_due_date', '2026-08-01',
+            'payment_interval', 'jährlich jeweils',
             'start_date', '2026-07-01',
             'end_date', '2027-06-30',
             'tumai_contact_name', 'Paula Partners',
@@ -993,6 +994,7 @@ insert into public.contract_submissions (
             'event_end_date', '2026-09-14',
             'event_location', 'Munich',
             'sponsoring_package', 'ehl_silver',
+            'payment_account', 'TUM.ai e.V., Vereinskonto (Kontodaten werden mit der Rechnung mitgeteilt)',
             'tumai_signer_name', 'Ada President',
             'partner_contact_email', 'peter@initech.example'
         ),
@@ -1012,6 +1014,7 @@ insert into public.contract_submissions (
             'partner_description', 'Biotech research firm.',
             'sponsoring_package', 'long_term_silver',
             'payment_due_date', '2026-07-15',
+            'payment_interval', 'jährlich jeweils',
             'start_date', '2026-07-01',
             'end_date', '2027-06-30',
             'tumai_contact_name', 'Paula Partners',
@@ -1036,6 +1039,7 @@ insert into public.contract_submissions (
             'partner_description', 'Food technology company.',
             'sponsoring_package', 'long_term_bronze',
             'payment_due_date', '2026-09-01',
+            'payment_interval', 'jährlich jeweils',
             'start_date', '2026-08-01',
             'end_date', '2027-07-31',
             'tumai_contact_name', 'Paula Partners',
@@ -1064,6 +1068,8 @@ insert into public.contract_submissions (
             'event_end_date', '2026-06-02',
             'event_location', 'Munich',
             'sponsoring_package', 'e_lab_final',
+            'payment_account', 'TUM.ai e.V., Vereinskonto (Kontodaten werden mit der Rechnung mitgeteilt)',
+            'contract_end_description', 'einem Jahr',
             'tumai_signer_name', 'Ada President',
             'partner_contact_email', 'gavin@hooli.example'
         ),
@@ -1087,6 +1093,7 @@ insert into public.contract_submissions (
             'event_end_date', '2026-09-14',
             'event_location', 'Munich',
             'sponsoring_package', 'ehl_bronze',
+            'payment_account', 'TUM.ai e.V., Vereinskonto (Kontodaten werden mit der Rechnung mitgeteilt)',
             'tumai_signer_name', 'Ada President',
             'partner_contact_email', 'art@vandelay.example'
         ),
@@ -1260,12 +1267,26 @@ begin
             );
         end if;
 
-        rendered := sub.contract_text;
+        -- Inline conditionals, like the shared renderer: seeded submissions are
+        -- all German partners, so the reverse-charge branch resolves to ELSE.
+        rendered := regexp_replace(
+            sub.contract_text,
+            '\[IF \{\{[a-zA-Z0-9_]+\}\} = "[^"]*" THEN \{([^{}]*)\} ELSE \{([^{}]*)\}\]',
+            '\2',
+            'g'
+        );
         for entry in select key, value from jsonb_each_text(enriched) loop
             rendered := replace(rendered, '{{' || entry.key || '}}', coalesce(entry.value, ''));
         end loop;
         -- Unresolved tokens render as empty strings, like the server renderer.
-        rendered := regexp_replace(rendered, '\{\{[a-zA-Z0-9_]+\}\}', '', 'g');
+        -- The reserved signature tokens survive: the PDF renderer draws the
+        -- signature (or a blank rule) exactly where they sit.
+        rendered := regexp_replace(
+            rendered,
+            '\{\{(?!partner_signature\}\}|board_signature\}\})[a-zA-Z0-9_]+\}\}',
+            '',
+            'g'
+        );
 
         update public.contract_submissions
         set generated_contract_text = rendered,

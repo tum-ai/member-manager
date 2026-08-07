@@ -11,6 +11,7 @@ import {
 	evaluateContractCondition,
 	SubmissionBodySchema,
 	SubmissionPatchSchema,
+	selectContractText,
 	stringifyContractVariable,
 	TextPreviewBodySchema,
 } from "@member-manager/shared";
@@ -268,7 +269,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			const signatures = buildSignatureImages(data as Record<string, unknown>);
 			return sendPdf(
 				reply,
-				createTextPdf(text, signatures),
+				await createTextPdf(text, signatures),
 				`contract-${request.params.id}.pdf`,
 				"attachment",
 			);
@@ -343,7 +344,13 @@ export async function contractRoutes(server: FastifyInstance) {
 					});
 				}
 				rendered = renderContractDocument(
-					(template as { contract_text: string }).contract_text,
+					selectContractText(
+						template as {
+							contract_text: string;
+							contract_text_en: string | null;
+						},
+						formData,
+					),
 					formData,
 					blocks,
 				);
@@ -458,7 +465,13 @@ export async function contractRoutes(server: FastifyInstance) {
 					});
 				}
 				rendered = renderContractDocument(
-					(template as { contract_text: string }).contract_text,
+					selectContractText(
+						template as {
+							contract_text: string;
+							contract_text_en: string | null;
+						},
+						formData,
+					),
 					formData,
 					blocks,
 				);
@@ -829,7 +842,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				try {
 					const openSignDocument = await sendOpenSignDocument({
 						name: `TUM.ai Contract - ${partnerCompany}`,
-						pdf: createTextPdf(documentText),
+						pdf: await createTextPdf(documentText),
 						signer: {
 							name: partnerCompany,
 							email: recipient,

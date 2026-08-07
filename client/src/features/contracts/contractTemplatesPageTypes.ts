@@ -9,6 +9,8 @@ export interface ContractTemplateDraft {
 	name: string;
 	description: string;
 	contract_text: string;
+	/** Empty means the contract is created in German. */
+	contract_text_en: string;
 	is_active: boolean;
 }
 

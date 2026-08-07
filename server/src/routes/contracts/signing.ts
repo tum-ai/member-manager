@@ -627,7 +627,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 				typeof finalVersion?.rendered_text === "string"
 					? finalVersion.rendered_text
 					: buildFinalPdfText(data);
-			const pdf = createTextPdf(
+			const pdf = await createTextPdf(
 				finalText,
 				buildSignatureImages(data as Record<string, unknown>),
 			);

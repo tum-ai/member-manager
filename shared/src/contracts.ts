@@ -59,6 +59,8 @@ export interface ContractTemplate {
 	name: string;
 	description: string | null;
 	contract_text: string;
+	/** English body text; null until Legal has provided the translation. */
+	contract_text_en: string | null;
 	is_active: boolean;
 	created_at: string;
 	updated_at: string;

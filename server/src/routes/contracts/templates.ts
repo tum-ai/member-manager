@@ -2,6 +2,7 @@ import {
 	ConditionalBlockBodySchema,
 	enrichContractFormData,
 	PreviewBodySchema,
+	selectContractText,
 	TemplateBodySchema,
 	VariableBodySchema,
 } from "@member-manager/shared";
@@ -74,7 +75,13 @@ export async function contractTemplateRoutes(server: FastifyInstance) {
 					return reply.status(404).send({ error: "Template not found" });
 				}
 				return renderContractDocument(
-					(template as { contract_text: string }).contract_text,
+					selectContractText(
+						template as {
+							contract_text: string;
+							contract_text_en: string | null;
+						},
+						formData,
+					),
 					formData,
 					blocks,
 				);

@@ -85,6 +85,34 @@ const PAGE_STYLE_CSS = `
 	padding-left: 0.15cm;
 	text-align: justify;
 }
+[data-contract-page] .outline {
+	display: flex;
+	gap: 0.1cm;
+	line-height: ${PAGE_LINE_HEIGHT}px;
+	margin: 0 0 0 0.55cm;
+}
+[data-contract-page] .outline-label {
+	flex: 0 0 0.75cm;
+}
+[data-contract-page] .outline-text {
+	flex: 1 1 auto;
+	text-align: justify;
+}
+[data-contract-page] .columns {
+	display: flex;
+	gap: 0.6cm;
+	line-height: ${PAGE_LINE_HEIGHT}px;
+}
+[data-contract-page] .columns .column {
+	flex: 1 1 0;
+	min-width: 0;
+}
+[data-contract-page] .signature-line {
+	border-bottom: 1px solid #111;
+	height: ${PAGE_LINE_HEIGHT}px;
+	margin: 0 0 0.1cm 0;
+	width: 6cm;
+}
 [data-contract-page] .blank-line {
 	height: ${PAGE_LINE_HEIGHT}px;
 	line-height: ${PAGE_LINE_HEIGHT}px;

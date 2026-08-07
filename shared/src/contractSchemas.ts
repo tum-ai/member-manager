@@ -10,6 +10,7 @@ export const TemplateBodySchema = z.object({
 	name: z.string().trim().min(1).max(200),
 	description: z.string().trim().max(2000).nullable().optional(),
 	contract_text: z.string().max(200_000).default(""),
+	contract_text_en: z.string().max(200_000).nullable().optional(),
 	is_active: z.boolean().optional().default(true),
 });
 

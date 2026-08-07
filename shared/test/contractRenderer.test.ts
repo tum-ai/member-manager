@@ -2,8 +2,10 @@ import assert from "node:assert/strict";
 import { describe, test } from "node:test";
 import {
 	contractBlockMatches,
+	contractLanguageOf,
 	evaluateContractCondition,
 	renderContractText,
+	selectContractText,
 	stringifyContractVariable,
 } from "../src/contractRenderer.ts";
 import type { ContractRenderableBlock } from "../src/contracts.ts";
@@ -127,5 +129,82 @@ describe("contract renderer", () => {
 
 	test("keeps unsupported inline operators unmatched", () => {
 		assert.equal(evaluateContractCondition("a", ">", "b"), false);
+	});
+
+	// The reverse-charge toggle is a plain BOOLEAN variable plus this inline
+	// conditional in every template, so partners outside Germany get the payment
+	// clause without the 19 % VAT sentence.
+	describe("reverse charge", () => {
+		const vatClause =
+			" zuzüglich gesetzlich darauf anfallender Umsatzsteuer in Höhe von 19 %";
+		const template = `Zahlung von {{amount}} EUR[IF {{reverse_charge}} = "Yes" THEN {} ELSE {${vatClause}}].`;
+
+		test("drops the VAT sentence when reverse charge is ticked", () => {
+			assert.equal(
+				renderContractText(
+					template,
+					{ amount: "1.000", reverse_charge: true },
+					[],
+				),
+				"Zahlung von 1.000 EUR.",
+			);
+		});
+
+		test("keeps the VAT sentence when reverse charge is unticked", () => {
+			assert.equal(
+				renderContractText(
+					template,
+					{ amount: "1.000", reverse_charge: false },
+					[],
+				),
+				`Zahlung von 1.000 EUR${vatClause}.`,
+			);
+		});
+
+		test("keeps the VAT sentence when the toggle was never touched", () => {
+			assert.equal(
+				renderContractText(template, { amount: "1.000" }, []),
+				`Zahlung von 1.000 EUR${vatClause}.`,
+			);
+		});
+	});
+
+	describe("language selection", () => {
+		const template = {
+			contract_text: "Deutscher Vertrag",
+			contract_text_en: "English contract",
+		};
+
+		test("defaults to German", () => {
+			assert.equal(contractLanguageOf({}), "de");
+			assert.equal(selectContractText(template, {}), "Deutscher Vertrag");
+		});
+
+		test("returns the English body when the form asks for it", () => {
+			assert.equal(contractLanguageOf({ contract_language: "en" }), "en");
+			assert.equal(
+				selectContractText(template, { contract_language: "en" }),
+				"English contract",
+			);
+		});
+
+		test("falls back to German when the translation is missing or blank", () => {
+			const formData = { contract_language: "en" };
+
+			assert.equal(
+				selectContractText(
+					{ contract_text: "Deutscher Vertrag", contract_text_en: null },
+					formData,
+				),
+				"Deutscher Vertrag",
+			);
+			assert.equal(
+				selectContractText(
+					{ contract_text: "Deutscher Vertrag", contract_text_en: "   " },
+					formData,
+				),
+				"Deutscher Vertrag",
+			);
+		});
 	});
 });

@@ -17,7 +17,17 @@ Partner signing and final PDF links remain token-based public routes.
 
 ## Templates
 
-Template source DOCX files are kept locally in `data/contracts/` and are intentionally ignored because `data/` can contain private or operational data. The seeded production templates live in Supabase migrations:
+Template source DOCX files are kept locally in `data/contracts/` and are intentionally ignored because `data/` can contain private or operational data. Convert one into template text with:
+
+```bash
+node scripts/contracts/docx-to-template.mjs "data/contracts/<file>.docx"
+```
+
+The converter restores the `§ 1` / `(a)` / `(i)` outline numbering Word stores in
+`numbering.xml`, flattens tables to `Label: value` lines (the PDF renderer has no
+table support) and ASCII-folds the Word typography. Word placeholders such as
+`[Sponsor]` are left in place and mapped onto `{{variables}}` by hand in the
+migration. The seeded production templates live in Supabase migrations:
 
 - `Long-Term Partnership`
 - `EHL Hackathon Pass`
@@ -29,6 +39,30 @@ Template variables support the data types `TEXT`, `TEXTAREA`, `NUMBER`, `DATE`,
 `BOOLEAN`, `SELECT`, `FILE`, and `EMAIL`. `EMAIL` behaves like `TEXT` but is
 format-validated in the form and again on the server before a submission is
 persisted.
+
+### Formatting markers
+
+Templates declare their own formatting; the renderer never guesses:
+
+| Marker | Result |
+| --- | --- |
+| `# SPONSORINGVERTRAG` | centered contract title |
+| `## § 1 Gegenstand` | bold heading |
+| `**fett**` | bold inside a line |
+| `- Leistung` | bullet list |
+| `(a) Text …`, `1. Text …`, `(i) Text …` | outline item with a hanging indent (recognised without a marker) |
+| `{{partner_signature}}` | signature line |
+| `links \| rechts` | side-by-side columns, as in the two-column signature block |
+| `---` | page break |
+
+A blank line is the paragraph spacing Word puts between paragraphs; consecutive
+lines stay tight. Further blank lines keep their vertical space, which is how
+the gap above the signature block is expressed.
+
+Everything else is body text. Both the preview and the PDF are built from the
+same parsed blocks (`server/src/lib/contracts/contractLayout.ts`), so the page
+Legal reviews is the page the partner receives. Legal can change any of this in
+the template editor without a code change.
 
 Besides `{{variable}}` placeholders, the reserved tokens `{{partner_signature}}`
 and `{{board_signature}}` can be placed anywhere in the contract text. They are
@@ -43,6 +77,32 @@ The same shared catalog now owns the selectable a-la-carte add-ons. Templates
 use the `selected_addons` multi-select field; rendering expands it into
 `addon_terms`, fixed add-on totals, and an overall `total_amount_label`.
 
+### Reverse charge
+
+Every template carries a `reverse_charge` BOOLEAN variable labelled "Subject to
+reverse charge Verfahren?". Partners seated outside Germany must not receive the
+VAT sentence, so the payment clause wraps it in the renderer's inline
+conditional:
+
+```text
+... (in Worten: {{package_amount_words}} Euro)[IF {{reverse_charge}} = "Yes" THEN {} ELSE { zuzüglich gesetzlich darauf anfallender Umsatzsteuer in Höhe von 19 %}].
+```
+
+The empty `THEN` branch is deliberate: an unset toggle falls into `ELSE`, so the
+German VAT wording stays the default. English translations must carry the same
+construct.
+
+### Contract language
+
+`contract_templates` holds both a German `contract_text` and an optional
+`contract_text_en`. The create form writes the reserved form-data key
+`contract_language` (`de` | `en`) — it is not a template variable — and
+`selectContractText()` in `shared/src/contractRenderer.ts` picks the body for
+preview and server rendering alike. A missing or blank `contract_text_en` always
+falls back to German, and the language toggle disables "English" for templates
+that have no translation yet. Variables, conditional blocks and the package
+catalog are shared between both languages.
+
 The current seeded template wording is converted from the real DOCX sources:
 
 - `Sponsoringvertrag - TUM.ai e.V - Template - FF Entwurf (09. Februar 2026).docx`
@@ -50,6 +110,28 @@ The current seeded template wording is converted from the real DOCX sources:
 - `AI E-Lab_Sponsoringvorlage.docx`
 - `Einzelevents_Sponsoringvorlage.docx`
 - `Makeathon_Sponsoringvorlage.docx`
+
+`20260806090000_contract_templates_docx_parity.sql` regenerated all five from
+those sources 1:1. Three deliberate deviations remain:
+
+- `Anlage 1` of the long-term contract is package specific — the DOCX itself
+  instructs TUM.ai to adapt it — so it renders the package catalog blocks
+  (`{{package_label}}`, `{{package_benefits}}`, `{{addon_terms}}`,
+  `{{total_amount_label}}`, `{{package_footnote}}`).
+- Where the Word original leaves the sponsorship benefits open, the template
+  fills the gap from the catalog. Only the slots each contract actually needs
+  were added: `{{custom_terms}}` on all five, `{{package_benefits}}` on 001–004,
+  and `{{addon_terms}}` on 001 and 002 (the only templates with an add-on
+  catalog). The Hackathon, Makeathon and E-Lab benefit lists stay verbatim.
+- The blank signature rules became the inline `{{partner_signature}}` /
+  `{{board_signature}}` tokens plus the signer-name variables.
+
+`payment_account` holds **TUM.ai's own receiving account** as it is printed into
+§ 2 and sent to the partner with the contract. It is organisational payment data,
+not member or partner bank details, so it is deliberately outside the encrypted
+sensitive fields in `server/src/lib/sensitiveData.ts` — encrypting it would be
+pointless while the rendered contract text carries the same value. Partner or
+personal bank details must never be entered there.
 
 ## Document Rendering
 
@@ -60,6 +142,29 @@ Legal review uses the same page renderer for edited text via `POST /api/contract
 The document renderer mirrors the source Word templates' baseline page style:
 A4 pages, approximately 2.5 cm side/top margins, 11 pt Arial-like body text,
 1.5 line spacing, justified paragraphs, and centered contract titles.
+
+### Contract PDFs
+
+PDFs are typeset with [pdfmake](https://pdfmake.github.io) in
+`server/src/lib/simplePdf.ts`; the page itself is described in
+`contracts/contractPdfDocument.ts`. It is pure JavaScript - no service, no
+headless browser - and uses only the standard PDF fonts, so no font files are
+shipped or read at runtime. The layout follows the Word templates:
+
+- the TUM.ai word mark in the page header (inlined as base64 in
+  `contracts/contractLogo.ts`) and a `page | total` footer,
+- centered bold contract title, bold `§` headings,
+- justified 11 pt body at 1.5 line spacing,
+- hanging indents for `(a)` / `(1)` / `(i)` / `1.` outline items, so wrapped
+  lines align under the text rather than under the label,
+- address blocks kept on their own lines instead of being justified,
+- signatures drawn at their `{{partner_signature}}` / `{{board_signature}}`
+  token with a caption, a blank rule while a party has not signed, and a
+  trailing "Signaturen" page only for signatures the text never referenced.
+
+Paragraph classification is shared with the HTML preview (`contractDocument.ts`),
+so what Legal reviews on screen and what the partner receives agree. A signature
+image that cannot be decoded is skipped rather than failing the whole PDF.
 
 Submissions keep immutable rendered snapshots in `contract_document_versions`:
 
@@ -133,6 +238,13 @@ pnpm supabase:migrations:check
 ```
 
 The app uses the server-side service-role Supabase client for public signing, board signing, and final PDF generation. Partner signing links and final PDF links are token-based and do not require partner authentication. The current product generates the final PDF link; Legal & Finance shares that link with the partner.
+
+**Email is off outside production.** `isEmailSendingAllowed()` in
+`server/src/lib/contractEmails.ts` only lets mail through when
+`NODE_ENV=production`, or when `ALLOW_REAL_EMAILS=true` is set for that session.
+`scripts/setup-local-env.mjs` copies `RESEND_API_KEY` into `server/.env.local`,
+and local dev and Playwright boot the API with that file, so without this guard
+a seeded contract walking through its statuses sends live partner mail.
 
 Partner signing-link emails use Resend when `RESEND_API_KEY`,
 `CONTRACT_EMAIL_FROM`, and a usable app base URL are configured. `APP_BASE_URL`

@@ -1,3 +1,4 @@
+import { contractLanguageOf } from "@member-manager/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -17,6 +18,7 @@ import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import { ContractDocumentPreview } from "./ContractDocumentPreview";
+import { ContractLanguageToggle } from "./components/ContractLanguageToggle";
 import { DynamicForm, isVisible } from "./DynamicForm";
 import {
 	useContractSubmission,
@@ -214,6 +216,21 @@ export default function ContractFormPage(): JSX.Element {
 											The template can't be changed after a draft is created.
 										</p>
 									) : null}
+								</div>
+								<div className="mt-4">
+									<ContractLanguageToggle
+										value={contractLanguageOf(formData)}
+										englishAvailable={Boolean(
+											detailQuery.data.template.contract_text_en?.trim(),
+										)}
+										disabled={saving}
+										onChange={(language) =>
+											setFormData((current) => ({
+												...current,
+												contract_language: language,
+											}))
+										}
+									/>
 								</div>
 								<Separator className="my-5" />
 								<DynamicForm
