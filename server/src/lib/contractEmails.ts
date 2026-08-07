@@ -44,9 +44,29 @@ function escapeHtml(value: string): string {
 		.replace(/'/g, "&#39;");
 }
 
+/**
+ * Real mail only leaves production. Local dev, E2E and CI run against the same
+ * `server/.env.local` that may hold a real RESEND_API_KEY (setup-local-env.mjs
+ * copies it in), and a seeded contract walking through its statuses is enough
+ * to fire a dozen live notifications. Sending is therefore off everywhere else
+ * unless someone opts in for that session with ALLOW_REAL_EMAILS=true.
+ */
+export function isEmailSendingAllowed(): boolean {
+	if (process.env.ALLOW_REAL_EMAILS === "true") return true;
+	return process.env.NODE_ENV === "production";
+}
+
+function assertEmailSendingAllowed(): void {
+	if (isEmailSendingAllowed()) return;
+	throw new Error(
+		"Refusing to send email outside production. Set ALLOW_REAL_EMAILS=true to override.",
+	);
+}
+
 export function isContractEmailConfigured(): boolean {
 	return Boolean(
-		process.env.RESEND_API_KEY?.trim() &&
+		isEmailSendingAllowed() &&
+			process.env.RESEND_API_KEY?.trim() &&
 			process.env.CONTRACT_EMAIL_FROM?.trim(),
 	);
 }
@@ -66,6 +86,7 @@ export function formatContractStatusLabel(status: string | null): string {
 export async function sendContractPartnerEmail(
 	payload: ContractPartnerEmailPayload,
 ): Promise<void> {
+	assertEmailSendingAllowed();
 	const apiKey = requiredEnv("RESEND_API_KEY");
 	const from = requiredEnv("CONTRACT_EMAIL_FROM");
 	const subject =
@@ -121,6 +142,7 @@ export async function sendContractPartnerEmail(
 export async function sendContractClarificationEmail(
 	payload: ContractClarificationEmailPayload,
 ): Promise<void> {
+	assertEmailSendingAllowed();
 	const apiKey = requiredEnv("RESEND_API_KEY");
 	const from = requiredEnv("CONTRACT_EMAIL_FROM");
 	const partnerName = payload.partnerCompanyName?.trim() || "the partner";
@@ -176,6 +198,7 @@ export async function sendContractClarificationEmail(
 export async function sendContractStatusChangeEmail(
 	payload: ContractStatusChangeEmailPayload,
 ): Promise<void> {
+	assertEmailSendingAllowed();
 	const apiKey = requiredEnv("RESEND_API_KEY");
 	const from = requiredEnv("CONTRACT_EMAIL_FROM");
 	const partnerName = payload.partnerCompanyName?.trim() || "the partner";

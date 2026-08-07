@@ -355,6 +355,77 @@ describe("Contract Routes", async () => {
 		assert.match(data.html, /Hello Preview GmbH/);
 	});
 
+	test("renders the English body when the form asks for it", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+		const template = mockDatabase.contract_templates.find(
+			(row) => row.id === TEMPLATE_ID,
+		);
+		assert.ok(template);
+		template.contract_text_en = "Hello {{partner_name}} in English";
+
+		const preview = await app.inject({
+			method: "POST",
+			url: `/api/contracts/templates/${TEMPLATE_ID}/preview`,
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				form_data: { partner_name: "Preview GmbH", contract_language: "en" },
+			}),
+		});
+		assert.strictEqual(preview.statusCode, 200);
+		assert.strictEqual(
+			JSON.parse(preview.payload).text,
+			"Hello Preview GmbH in English",
+		);
+
+		const submission = await app.inject({
+			method: "POST",
+			url: "/api/contracts/submissions",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				template_id: TEMPLATE_ID,
+				form_data: { partner_name: "Partner GmbH", contract_language: "en" },
+				status: "submitted",
+			}),
+		});
+		assert.strictEqual(submission.statusCode, 200);
+		assert.strictEqual(
+			JSON.parse(submission.payload).generated_contract_text,
+			"Hello Partner GmbH in English",
+		);
+	});
+
+	test("falls back to the German body when no translation exists", async () => {
+		resetDatabase();
+		moveRegularUserToPartnersAndSponsors();
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/contracts/submissions",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				template_id: TEMPLATE_ID,
+				form_data: { partner_name: "Partner GmbH", contract_language: "en" },
+				status: "submitted",
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(
+			JSON.parse(response.payload).generated_contract_text,
+			"Hello Partner GmbH",
+		);
+	});
+
 	test("splits long preview paragraphs across pages", async () => {
 		resetDatabase();
 		moveRegularUserToPartnersAndSponsors();
@@ -558,10 +629,12 @@ describe("Contract Routes", async () => {
 		approveSeededSubmission();
 		const originalFetch = globalThis.fetch;
 		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalAllowEmails = process.env.ALLOW_REAL_EMAILS;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
 		const originalBaseUrl = process.env.APP_BASE_URL;
 		const sentBodies: Array<Record<string, unknown>> = [];
 		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.ALLOW_REAL_EMAILS = "true";
 		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
 		process.env.APP_BASE_URL = "https://member-manager.test";
 		globalThis.fetch = (async (_url, init) => {
@@ -616,6 +689,7 @@ describe("Contract Routes", async () => {
 		} finally {
 			globalThis.fetch = originalFetch;
 			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("ALLOW_REAL_EMAILS", originalAllowEmails);
 			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
 			restoreEnv("APP_BASE_URL", originalBaseUrl);
 		}
@@ -625,6 +699,7 @@ describe("Contract Routes", async () => {
 		resetDatabase();
 		approveSeededSubmission();
 		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalAllowEmails = process.env.ALLOW_REAL_EMAILS;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
 		delete process.env.RESEND_API_KEY;
 		delete process.env.CONTRACT_EMAIL_FROM;
@@ -656,6 +731,7 @@ describe("Contract Routes", async () => {
 			assert.match(JSON.parse(response.payload).error, /not configured/);
 		} finally {
 			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("ALLOW_REAL_EMAILS", originalAllowEmails);
 			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
 		}
 	});
@@ -665,8 +741,10 @@ describe("Contract Routes", async () => {
 		approveSeededSubmission();
 		const originalFetch = globalThis.fetch;
 		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalAllowEmails = process.env.ALLOW_REAL_EMAILS;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
 		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.ALLOW_REAL_EMAILS = "true";
 		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
 		globalThis.fetch = (async () =>
 			new Response("provider unavailable", { status: 500 })) as typeof fetch;
@@ -708,6 +786,7 @@ describe("Contract Routes", async () => {
 		} finally {
 			globalThis.fetch = originalFetch;
 			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("ALLOW_REAL_EMAILS", originalAllowEmails);
 			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
 		}
 	});
@@ -716,10 +795,12 @@ describe("Contract Routes", async () => {
 		resetDatabase();
 		const originalFetch = globalThis.fetch;
 		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalAllowEmails = process.env.ALLOW_REAL_EMAILS;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
 		const originalBaseUrl = process.env.APP_BASE_URL;
 		const sentBodies: Array<Record<string, unknown>> = [];
 		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.ALLOW_REAL_EMAILS = "true";
 		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
 		process.env.APP_BASE_URL = "https://member-manager.test";
 		globalThis.fetch = (async (_url, init) => {
@@ -777,6 +858,7 @@ describe("Contract Routes", async () => {
 		} finally {
 			globalThis.fetch = originalFetch;
 			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("ALLOW_REAL_EMAILS", originalAllowEmails);
 			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
 			restoreEnv("APP_BASE_URL", originalBaseUrl);
 		}
@@ -786,8 +868,10 @@ describe("Contract Routes", async () => {
 		resetDatabase();
 		const originalFetch = globalThis.fetch;
 		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalAllowEmails = process.env.ALLOW_REAL_EMAILS;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
 		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.ALLOW_REAL_EMAILS = "true";
 		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
 		globalThis.fetch = (async () =>
 			new Response("provider unavailable", { status: 500 })) as typeof fetch;
@@ -817,6 +901,7 @@ describe("Contract Routes", async () => {
 		} finally {
 			globalThis.fetch = originalFetch;
 			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("ALLOW_REAL_EMAILS", originalAllowEmails);
 			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
 		}
 	});
@@ -1899,7 +1984,11 @@ describe("Contract Routes", async () => {
 		const preview = JSON.parse(previewResponse.payload);
 		assert.doesNotMatch(preview.html, /\{\{partner_signature\}\}/);
 		assert.doesNotMatch(preview.html, /\{\{board_signature\}\}/);
-		assert.match(preview.html, /_______________________________/);
+		// Each token becomes a signature line in the preview.
+		assert.equal(
+			(preview.html.match(/<div class="signature-line"><\/div>/g) ?? []).length,
+			2,
+		);
 	});
 
 	// With the opt-in flag set, a board signature finalizes the
@@ -1908,10 +1997,12 @@ describe("Contract Routes", async () => {
 		resetDatabase();
 		const originalFetch = globalThis.fetch;
 		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalAllowEmails = process.env.ALLOW_REAL_EMAILS;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
 		const originalBaseUrl = process.env.APP_BASE_URL;
 		const sentBodies: Array<Record<string, unknown>> = [];
 		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.ALLOW_REAL_EMAILS = "true";
 		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
 		process.env.APP_BASE_URL = "https://member-manager.test";
 		globalThis.fetch = (async (_url, init) => {
@@ -1978,6 +2069,7 @@ describe("Contract Routes", async () => {
 		} finally {
 			globalThis.fetch = originalFetch;
 			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("ALLOW_REAL_EMAILS", originalAllowEmails);
 			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
 			restoreEnv("APP_BASE_URL", originalBaseUrl);
 		}
@@ -2020,6 +2112,7 @@ describe("Contract Routes", async () => {
 	test("skips auto-send when email is not configured", async () => {
 		resetDatabase();
 		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalAllowEmails = process.env.ALLOW_REAL_EMAILS;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
 		delete process.env.RESEND_API_KEY;
 		delete process.env.CONTRACT_EMAIL_FROM;
@@ -2058,6 +2151,7 @@ describe("Contract Routes", async () => {
 			assert.strictEqual(updated.status, "board_signed");
 		} finally {
 			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("ALLOW_REAL_EMAILS", originalAllowEmails);
 			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
 		}
 	});
@@ -2090,8 +2184,10 @@ describe("Contract Routes", async () => {
 		resetDatabase();
 		const originalFetch = globalThis.fetch;
 		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalAllowEmails = process.env.ALLOW_REAL_EMAILS;
 		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
 		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.ALLOW_REAL_EMAILS = "true";
 		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
 		globalThis.fetch = (async () =>
 			new Response(JSON.stringify({ message: "boom" }), {
@@ -2140,6 +2236,7 @@ describe("Contract Routes", async () => {
 		} finally {
 			globalThis.fetch = originalFetch;
 			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("ALLOW_REAL_EMAILS", originalAllowEmails);
 			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
 		}
 	});
