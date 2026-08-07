@@ -64,7 +64,13 @@ export function useEducationalCourses() {
 			!selectedPeriodId ||
 			!periods.some((period) => period.id === selectedPeriodId)
 		) {
-			setSelectedPeriodId(periods[0].id);
+			// Select the chronologically first period so the review panel always
+			// matches the first card the periods section renders, whatever order
+			// the API happens to return.
+			const [firstPeriod] = [...periods].sort((left, right) =>
+				left.startsOn.localeCompare(right.startsOn),
+			);
+			setSelectedPeriodId(firstPeriod.id);
 		}
 	}, [periods, selectedPeriodId]);
 

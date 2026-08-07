@@ -24,6 +24,9 @@ test("an independent education administrator reviews an application that the par
 		}),
 	).toBeVisible();
 
+	// A retry reuses the database this run already mutated, so the seeded
+	// application may or may not still be there. Withdraw it when present to
+	// reach a known "not applied" state.
 	const withdrawButton = applicantPage.getByRole("button", {
 		name: "Withdraw",
 	});
@@ -37,17 +40,20 @@ test("an independent education administrator reviews an application that the par
 		await withdrawButton.click();
 		expect((await withdrawResponse).status()).toBe(204);
 	}
+
+	// Withdrawal only invalidates the periods query, so the card can still render
+	// the stale Withdraw state for a moment. Waiting for Apply here keeps the
+	// application below from being skipped, which would leave no row to review.
 	const applyButton = applicantPage.getByRole("button", { name: "Apply" });
-	if (await applyButton.isVisible()) {
-		const applyResponse = applicantPage.waitForResponse(
-			(response) =>
-				response.url().includes("/api/education/periods/") &&
-				response.url().endsWith("/applications") &&
-				response.request().method() === "POST",
-		);
-		await applyButton.click();
-		expect((await applyResponse).status()).toBe(201);
-	}
+	await expect(applyButton).toBeVisible();
+	const applyResponse = applicantPage.waitForResponse(
+		(response) =>
+			response.url().includes("/api/education/periods/") &&
+			response.url().endsWith("/applications") &&
+			response.request().method() === "POST",
+	);
+	await applyButton.click();
+	expect((await applyResponse).status()).toBe(201);
 	await expect(applicantPage.getByText("Pending review")).toBeVisible();
 	await applicantContext.close();
 

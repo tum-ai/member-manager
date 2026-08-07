@@ -479,6 +479,7 @@ describe("Educational course routes", async () => {
 
 	test("uses the review RPC for capacity and returns minimal applicant identities", async () => {
 		getMember(testUserIds.admin).educational_course_role = "administrator";
+		getMember(testUserIds.user).educational_course_role = "participant";
 		addMember(OTHER_USER_ID, "Grace", "Hopper");
 		addPeriod(PERIOD_ID, { capacity: 1 });
 		addApplication(APPLICATION_ID, PERIOD_ID, testUserIds.user);
@@ -522,6 +523,55 @@ describe("Educational course routes", async () => {
 				"updatedAt",
 				"userId",
 			].sort(),
+		);
+	});
+
+	test("stops reviewing applications once the applicant is no longer a participant", async () => {
+		getMember(testUserIds.admin).educational_course_role = "administrator";
+		addMember(TARGET_USER_ID, "Ada", "Lovelace");
+		getMember(TARGET_USER_ID).educational_course_role = "participant";
+		addPeriod(PERIOD_ID);
+		addApplication(APPLICATION_ID, PERIOD_ID, TARGET_USER_ID);
+
+		const removal = await app.inject({
+			method: "DELETE",
+			url: `/api/education/participants/${TARGET_USER_ID}`,
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(removal.statusCode, 204);
+		// The members trigger reconciles pending applications away with the role.
+		assert.strictEqual(mockDatabase.educational_course_applications.length, 0);
+
+		addApplication(APPLICATION_ID, PERIOD_ID, TARGET_USER_ID);
+		const staleReview = await app.inject({
+			method: "PATCH",
+			url: `/api/education/applications/${APPLICATION_ID}`,
+			headers: authHeaders(testTokens.admin),
+			payload: { decision: "approved" },
+		});
+		assert.strictEqual(staleReview.statusCode, 409);
+		assert.strictEqual(
+			mockDatabase.educational_course_applications[0].status,
+			"pending",
+		);
+	});
+
+	test("stops an administrator from reviewing their own application", async () => {
+		getMember(testUserIds.admin).educational_course_role = "participant";
+		addPeriod(PERIOD_ID);
+		addApplication(APPLICATION_ID, PERIOD_ID, testUserIds.admin);
+		getMember(testUserIds.admin).educational_course_role = "administrator";
+
+		const selfReview = await app.inject({
+			method: "PATCH",
+			url: `/api/education/applications/${APPLICATION_ID}`,
+			headers: authHeaders(testTokens.admin),
+			payload: { decision: "approved" },
+		});
+		assert.strictEqual(selfReview.statusCode, 403);
+		assert.strictEqual(
+			mockDatabase.educational_course_applications[0].status,
+			"pending",
 		);
 	});
 

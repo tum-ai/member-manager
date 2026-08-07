@@ -360,6 +360,29 @@ begin
             using errcode = '40001';
     end if;
 
+    -- A reviewer promoted from participant keeps their own pending application,
+    -- so block self review explicitly instead of relying on the role check above.
+    if v_application.applicant_user_id = p_reviewer_user_id then
+        raise exception 'Educational course administrators cannot review their own application'
+            using errcode = '42501';
+    end if;
+
+    -- Roles and membership can change after the application was filed; only
+    -- applications from members who are still active participants stay reviewable.
+    if not exists (
+        select 1
+        from public.members member_row
+        where member_row.user_id = v_application.applicant_user_id
+          and member_row.educational_course_role = 'participant'
+          and coalesce(
+              member_row.member_status,
+              case when member_row.active then 'active' else 'inactive' end
+          ) = 'active'
+    ) then
+        raise exception 'Applicant is no longer an active educational course participant'
+            using errcode = '55000';
+    end if;
+
     if p_status = 'approved' then
         select count(*)::integer
         into v_approved_count
@@ -393,6 +416,36 @@ from public, anon, authenticated, service_role;
 grant execute
 on function "public"."review_educational_course_application"(uuid, text, uuid)
 to service_role;
+
+create or replace function "private"."reconcile_educational_course_applications"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+    -- Losing the participant role (removal, promotion to administrator) or
+    -- going inactive withdraws the member from anything not yet reviewed, so a
+    -- stale row can never be approved later. Reviewed rows stay as history.
+    if new.educational_course_role is distinct from 'participant'
+        or coalesce(
+            new.member_status,
+            case when new.active then 'active' else 'inactive' end
+        ) <> 'active' then
+        delete from public.educational_course_applications
+        where applicant_user_id = new.user_id
+          and status = 'pending';
+    end if;
+
+    return new;
+end;
+$$;
+
+create trigger "members_reconcile_educational_course_applications"
+after update of "educational_course_role", "member_status", "active"
+on "public"."members"
+for each row
+execute function "private"."reconcile_educational_course_applications"();
 
 create or replace function "public"."merge_duplicate_member"(
     "p_source_user_id" uuid,

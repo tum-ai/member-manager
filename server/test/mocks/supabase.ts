@@ -85,6 +85,8 @@ export const mockStorage = new Map<string, Buffer>();
 export const mockSupabaseErrors = {
 	userRolesUpsert: null as unknown,
 	tables: {} as Record<string, unknown>,
+	// Forces a specific RPC to fail, keyed by function name.
+	rpc: {} as Record<string, unknown>,
 };
 
 export const mockDatabase: MockData = {
@@ -524,6 +526,9 @@ function createQueryBuilder(table: string): QueryBuilder {
 				);
 				return updated ? { ...updated } : row;
 			});
+			if (table === "members") {
+				reconcileMockEducationalCourseApplications();
+			}
 		}
 
 		// Apply a pending DELETE now that filters are known.
@@ -1715,6 +1720,34 @@ function reviewMockFinanceBudgetTransferRequest(
 	return Promise.resolve({ data: request, error: null });
 }
 
+// Mirrors the members_reconcile_educational_course_applications trigger from
+// 20260804120000_educational_courses.sql: pending applications disappear as soon
+// as the applicant stops being an active participant.
+function reconcileMockEducationalCourseApplications() {
+	const activeParticipants = new Set(
+		mockDatabase.members
+			.filter((member) => {
+				const status =
+					member.member_status ?? (member.active ? "active" : "inactive");
+				return (
+					status === "active" &&
+					member.educational_course_role === "participant"
+				);
+			})
+			.map((member) => member.user_id),
+	);
+	const applications = mockDatabase.educational_course_applications;
+	for (let index = applications.length - 1; index >= 0; index--) {
+		const application = applications[index];
+		if (
+			application.status === "pending" &&
+			!activeParticipants.has(application.applicant_user_id)
+		) {
+			applications.splice(index, 1);
+		}
+	}
+}
+
 function reviewMockEducationalCourseApplication(
 	params: Record<string, unknown>,
 ) {
@@ -1741,6 +1774,29 @@ function reviewMockEducationalCourseApplication(
 		return Promise.resolve({
 			data: null,
 			error: { code: "42501", message: "Administrator access required" },
+		});
+	}
+
+	if (application.applicant_user_id === params.p_reviewer_user_id) {
+		return Promise.resolve({
+			data: null,
+			error: { code: "42501", message: "Cannot review own application" },
+		});
+	}
+
+	const applicant = mockDatabase.members.find(
+		(row) => row.user_id === application.applicant_user_id,
+	);
+	const applicantStatus =
+		applicant?.member_status ?? (applicant?.active ? "active" : "inactive");
+	if (
+		!applicant ||
+		applicantStatus !== "active" ||
+		applicant.educational_course_role !== "participant"
+	) {
+		return Promise.resolve({
+			data: null,
+			error: { code: "55000", message: "Applicant is no longer a participant" },
 		});
 	}
 
@@ -1895,6 +1951,12 @@ export function createMockSupabaseClient(): SupabaseClient {
 		// perspective. Returns a `.single()`-shaped thenable.
 		rpc: (fnName: string, params: Record<string, unknown>) => {
 			const run = () => {
+				if (mockSupabaseErrors.rpc[fnName]) {
+					return Promise.resolve({
+						data: null,
+						error: mockSupabaseErrors.rpc[fnName],
+					});
+				}
 				if (fnName === "merge_duplicate_member") {
 					return mergeDuplicateMember(params);
 				}
@@ -2044,6 +2106,7 @@ export function createMockSupabaseClient(): SupabaseClient {
 export function resetMockDatabase(): void {
 	mockSupabaseErrors.userRolesUpsert = null;
 	mockSupabaseErrors.tables = {};
+	mockSupabaseErrors.rpc = {};
 	mockDatabase.members = [
 		{
 			user_id: MOCK_USER_ID,

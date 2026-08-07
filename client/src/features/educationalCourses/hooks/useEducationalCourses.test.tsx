@@ -150,6 +150,41 @@ describe("useEducationalCourses", () => {
 		expect(showToast).toHaveBeenCalledWith("Course period created.", "success");
 	});
 
+	it("selects the chronologically first period regardless of API order", async () => {
+		accessState.educationalCourseRole = "administrator";
+		const earlier = makePeriod({
+			id: "20000000-0000-4000-8000-000000000010",
+			startsOn: "2027-02-01",
+			endsOn: "2027-02-07",
+		});
+		const later = makePeriod({
+			id: "20000000-0000-4000-8000-000000000011",
+			startsOn: "2027-09-01",
+			endsOn: "2027-09-07",
+		});
+		server.use(
+			http.get("/api/education/periods", () =>
+				HttpResponse.json({ periods: [later, earlier] }),
+			),
+			http.get("/api/education/participants", () =>
+				HttpResponse.json({ participants: [] }),
+			),
+			http.get("/api/education/periods/:periodId", ({ params }) =>
+				HttpResponse.json({
+					period: params.periodId === earlier.id ? earlier : later,
+					applications: [],
+				}),
+			),
+		);
+
+		const { result } = renderHookWithClient(() => useEducationalCourses());
+		await waitFor(() => expect(result.current.isLoadingPeriods).toBe(false));
+
+		await waitFor(() =>
+			expect(result.current.selectedPeriodId).toBe(earlier.id),
+		);
+	});
+
 	it("searches only the scoped participant candidates", async () => {
 		accessState.educationalCourseRole = "administrator";
 		let requestedSearch = "";

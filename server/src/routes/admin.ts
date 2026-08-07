@@ -824,11 +824,19 @@ export async function adminRoutes(server: FastifyInstance) {
 					return reply.status(403).send({ error: message });
 				}
 				if (
-					code === "23505" ||
 					message.includes("TUM.ai Day response conflicts") ||
 					message.includes("Educational course application conflicts")
 				) {
-					throw new ConflictError(message || "Member merge conflict");
+					throw new ConflictError(message);
+				}
+				if (code === "23505") {
+					// Any other unique violation is unexpected here, and its message
+					// names the constraint — log it instead of returning it.
+					request.log.error(
+						{ err: error },
+						"Unexpected unique violation while merging duplicate members",
+					);
+					throw new ConflictError("Member merge conflict");
 				}
 
 				request.log.error({ err: error }, "Failed to merge duplicate members");

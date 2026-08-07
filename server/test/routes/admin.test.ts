@@ -623,6 +623,39 @@ describe("Admin Routes", async () => {
 			);
 			assert.strictEqual(mockDatabase.member_merge_audit.length, 0);
 		});
+
+		test("hides constraint details from unexpected unique violations", async () => {
+			resetDatabase();
+			mockDatabase.members.push(
+				makeMergeMember(MERGE_TARGET_ID, { given_name: "Target" }),
+				makeMergeMember(MERGE_SOURCE_ID, { given_name: "Source" }),
+			);
+			mockSupabaseErrors.rpc.merge_duplicate_member = {
+				code: "23505",
+				message:
+					'duplicate key value violates unique constraint "members_secret_idx"',
+			};
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/admin/members/merge",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					source_user_id: MERGE_SOURCE_ID,
+					target_user_id: MERGE_TARGET_ID,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 409);
+			assert.doesNotMatch(
+				response.payload,
+				/unique constraint|members_secret/i,
+			);
+			assert.match(response.payload, /Member merge conflict/i);
+		});
 	});
 
 	describe("PATCH /api/admin/members/:userId/role", () => {

@@ -488,7 +488,9 @@ export async function educationalCourseRoutes(server: FastifyInstance) {
 				.select(
 					"id, starts_on, ends_on, capacity, applications_open, created_at, updated_at",
 				)
-				.order("starts_on", { ascending: false });
+				// Chronological order, matching how the periods list renders them so
+				// the default selection is the first card the user sees.
+				.order("starts_on", { ascending: true });
 			if (error) {
 				throw new DatabaseError("Failed to load educational course periods");
 			}
@@ -803,6 +805,10 @@ export async function educationalCourseRoutes(server: FastifyInstance) {
 					case "42501":
 						throw new ForbiddenError(
 							"Educational course administrator access required",
+						);
+					case "55000":
+						throw new ConflictError(
+							"The applicant is no longer an active educational course participant",
 						);
 					case "22023":
 						throw new ValidationError(

@@ -37,6 +37,36 @@ describe("educational course migration", () => {
 		);
 	});
 
+	test("revalidates the applicant before a review is recorded", () => {
+		const reviewFunction = migration.slice(
+			migration.indexOf(
+				'create or replace function "public"."review_educational_course_application"',
+			),
+			migration.indexOf(
+				'create or replace function "private"."reconcile_educational_course_applications"',
+			),
+		);
+		assert.match(
+			reviewFunction,
+			/v_application\.applicant_user_id = p_reviewer_user_id[\s\S]*?errcode = '42501'/i,
+		);
+		assert.match(
+			reviewFunction,
+			/member_row\.user_id = v_application\.applicant_user_id[\s\S]*?educational_course_role = 'participant'[\s\S]*?errcode = '55000'/i,
+		);
+	});
+
+	test("drops pending applications when education roles or membership change", () => {
+		assert.match(
+			migration,
+			/create or replace function "private"\."reconcile_educational_course_applications"[\s\S]*?delete from public\.educational_course_applications[\s\S]*?status = 'pending'/i,
+		);
+		assert.match(
+			migration,
+			/create trigger "members_reconcile_educational_course_applications"[\s\S]*?after update of "educational_course_role", "member_status", "active"[\s\S]*?on "public"\."members"/i,
+		);
+	});
+
 	test("uses the caller scoped helper in every education read policy", () => {
 		for (const policy of [
 			"Education members read course periods",
