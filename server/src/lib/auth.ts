@@ -1,6 +1,11 @@
-import { isActiveMember, type Permission } from "@member-manager/shared";
+import {
+	type EducationalCourseRole,
+	educationalCourseRoleSchema,
+	isActiveMember,
+	type Permission,
+} from "@member-manager/shared";
 import { fetchDepartmentPermissions } from "./departmentPermissions.js";
-import { ForbiddenError, isNotFoundError } from "./errors.js";
+import { DatabaseError, ForbiddenError, isNotFoundError } from "./errors.js";
 import { getSupabase } from "./supabase.js";
 
 export async function checkAdminRole(userId: string): Promise<boolean> {
@@ -15,6 +20,52 @@ export async function checkAdminRole(userId: string): Promise<boolean> {
 	}
 
 	return roleData?.role === "admin";
+}
+
+export async function getEducationalCourseRole(
+	userId: string,
+): Promise<EducationalCourseRole | null> {
+	const { data, error } = await getSupabase()
+		.from("members")
+		.select("educational_course_role, member_status, active")
+		.eq("user_id", userId)
+		.maybeSingle();
+
+	if (error) {
+		throw new DatabaseError("Failed to check educational course access");
+	}
+
+	const member = data as {
+		educational_course_role?: unknown;
+		member_status?: string | null;
+		active?: boolean | null;
+	} | null;
+	if (!member || !isActiveMember(member)) {
+		return null;
+	}
+
+	const role = educationalCourseRoleSchema.safeParse(
+		member.educational_course_role,
+	);
+	return role.success ? role.data : null;
+}
+
+export async function checkEducationalCourseParticipant(
+	userId: string,
+): Promise<boolean> {
+	return (await getEducationalCourseRole(userId)) === "participant";
+}
+
+export async function checkEducationalCourseAdministrator(
+	userId: string,
+): Promise<boolean> {
+	return (await getEducationalCourseRole(userId)) === "administrator";
+}
+
+export async function checkEducationalCourseAccess(
+	userId: string,
+): Promise<boolean> {
+	return (await getEducationalCourseRole(userId)) !== null;
 }
 
 // Department-scoped RBAC: admins are superusers; otherwise the member must be

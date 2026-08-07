@@ -1,4 +1,6 @@
 import {
+	type EducationalCourseRole,
+	educationalCourseRoleSchema,
 	isActiveMember,
 	isPermission,
 	PERMISSIONS,
@@ -40,42 +42,71 @@ export async function permissionRoutes(server: FastifyInstance) {
 
 			try {
 				const isBoardMember = await checkBoardRole(user.id);
-
-				if (await checkAdminRole(user.id)) {
-					// Admins are superusers with no single department scope.
-					return {
-						permissions: [...PERMISSIONS],
-						isBoardMember,
-						department: null,
-					};
-				}
-
+				const isAdmin = await checkAdminRole(user.id);
 				const { data, error } = await getSupabase()
 					.from("members")
-					.select("department, member_status, active")
+					.select("department, educational_course_role, member_status, active")
 					.eq("user_id", user.id)
 					.maybeSingle();
 
 				if (error) {
+					if (isAdmin) {
+						request.log.warn(
+							{ err: error, userId: user.id },
+							"Failed to load optional member metadata for admin tool access",
+						);
+						return {
+							permissions: [...PERMISSIONS],
+							isBoardMember,
+							department: null,
+							educationalCourseRole: null,
+						};
+					}
 					throw error;
 				}
 
 				const member = data as {
 					department?: string | null;
+					educational_course_role?: unknown;
 					member_status?: string | null;
 					active?: boolean | null;
 				} | null;
+				let educationalCourseRole: EducationalCourseRole | null = null;
+				if (isActiveMember(member)) {
+					const parsedRole = educationalCourseRoleSchema.safeParse(
+						member?.educational_course_role,
+					);
+					if (parsedRole.success) {
+						educationalCourseRole = parsedRole.data;
+					}
+				}
+
+				if (isAdmin) {
+					// Admins are superusers with no single department scope.
+					return {
+						permissions: [...PERMISSIONS],
+						isBoardMember,
+						department: null,
+						educationalCourseRole,
+					};
+				}
 
 				if (!member || !isActiveMember(member) || !member.department) {
 					return {
 						permissions: [] as Permission[],
 						isBoardMember,
 						department: null,
+						educationalCourseRole,
 					};
 				}
 
 				const permissions = await fetchDepartmentPermissions(member.department);
-				return { permissions, isBoardMember, department: member.department };
+				return {
+					permissions,
+					isBoardMember,
+					department: member.department,
+					educationalCourseRole,
+				};
 			} catch (error) {
 				request.log.error(
 					{ err: error, userId: user.id },

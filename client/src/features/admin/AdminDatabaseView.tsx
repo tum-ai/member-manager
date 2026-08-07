@@ -6,6 +6,7 @@ import { AdminMemberEditorDialog } from "./components/AdminMemberEditorDialog";
 import { AdminMemberMergeDialog } from "./components/AdminMemberMergeDialog";
 import { AdminMembersTable } from "./components/AdminMembersTable";
 import { AdminWorkspaceHeader } from "./components/AdminWorkspaceHeader";
+import { EducationalCourseAdministratorsCard } from "./components/EducationalCourseAdministratorsCard";
 import { DepartmentPermissionsCard } from "./DepartmentPermissionsCard";
 import { useAdminDatabase } from "./hooks/useAdminDatabase";
 import { useAdminMemberEditor } from "./hooks/useAdminMemberEditor";
@@ -17,6 +18,7 @@ export function AdminDatabaseView() {
 	const {
 		isLoading,
 		error,
+		members,
 		filters,
 		setFilters,
 		sortBy,
@@ -34,6 +36,8 @@ export function AdminDatabaseView() {
 		mergeMembersAsync,
 		isMergingMembers,
 		isSavingMember,
+		setEducationalCourseAdministratorAsync,
+		isUpdatingEducationalCourseAdministrator,
 	} = useAdminDatabase();
 
 	const editor = useAdminMemberEditor({ updateMemberAsync, isSavingMember });
@@ -59,6 +63,12 @@ export function AdminDatabaseView() {
 			<AdminWorkspaceHeader stats={stats} />
 
 			<DepartmentPermissionsCard />
+
+			<EducationalCourseAdministratorsCard
+				members={members}
+				isUpdating={isUpdatingEducationalCourseAdministrator}
+				onSetAdministrator={setEducationalCourseAdministratorAsync}
+			/>
 
 			<AdminFilterBar
 				filters={filters}

@@ -43,6 +43,8 @@ export function useAdminDatabase() {
 		mergeMembersAsync,
 		isMergingMembers,
 		isSavingMember,
+		setEducationalCourseAdministratorAsync,
+		isUpdatingEducationalCourseAdministrator,
 	} = useAdminData();
 	const { showToast } = useToast();
 
@@ -116,6 +118,7 @@ export function useAdminDatabase() {
 	return {
 		isLoading,
 		error,
+		members: allMembers,
 		filters,
 		setFilters,
 		sortBy,
@@ -133,6 +136,8 @@ export function useAdminDatabase() {
 		mergeMembersAsync,
 		isMergingMembers,
 		isSavingMember,
+		setEducationalCourseAdministratorAsync,
+		isUpdatingEducationalCourseAdministrator,
 	};
 }
 

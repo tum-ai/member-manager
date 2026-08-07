@@ -1311,3 +1311,74 @@ begin
           and s2.active_document_version_id is null;
     end loop;
 end $seed_contract_render$;
+
+-- Educational course fixtures use existing auth users so login and E2E identity
+-- fixtures remain unchanged. The administrator is intentionally not a global
+-- portal administrator, which keeps the two authorization roles independent.
+update "public"."members"
+set "educational_course_role" = 'administrator'
+where "user_id" = '00000000-0000-0000-0000-000000000007';
+
+update "public"."members"
+set "educational_course_role" = 'participant'
+where "user_id" = '00000000-0000-0000-0000-000000000006';
+
+insert into "public"."educational_course_periods" (
+    "id",
+    "starts_on",
+    "ends_on",
+    "capacity",
+    "applications_open",
+    "created_by",
+    "created_at",
+    "updated_at"
+)
+values
+    (
+        'ed000000-0000-4000-8000-000000000001',
+        '2030-09-16',
+        '2030-09-22',
+        2,
+        true,
+        '00000000-0000-0000-0000-000000000007',
+        '2026-07-15 09:00:00+00',
+        '2026-07-15 09:00:00+00'
+    ),
+    (
+        'ed000000-0000-4000-8000-000000000002',
+        '2031-02-17',
+        '2031-02-23',
+        3,
+        false,
+        '00000000-0000-0000-0000-000000000007',
+        '2026-07-15 09:05:00+00',
+        '2026-07-15 09:05:00+00'
+    )
+on conflict ("id") do update set
+    "applications_open" = excluded."applications_open",
+    "created_by" = excluded."created_by";
+
+insert into "public"."educational_course_applications" (
+    "id",
+    "period_id",
+    "applicant_user_id",
+    "status",
+    "reviewed_by",
+    "reviewed_at",
+    "created_at",
+    "updated_at"
+)
+values (
+    'ea000000-0000-4000-8000-000000000001',
+    'ed000000-0000-4000-8000-000000000001',
+    '00000000-0000-0000-0000-000000000006',
+    'pending',
+    null,
+    null,
+    '2026-08-01 10:00:00+00',
+    '2026-08-01 10:00:00+00'
+)
+on conflict ("period_id", "applicant_user_id") do update set
+    "status" = 'pending',
+    "reviewed_by" = null,
+    "reviewed_at" = null;

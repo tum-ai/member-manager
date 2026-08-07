@@ -4,11 +4,15 @@ import {
 	checkBoardRole,
 	checkContractsAdmin,
 	checkContractsCreate,
+	checkEducationalCourseAccess,
+	checkEducationalCourseAdministrator,
+	checkEducationalCourseParticipant,
 	checkFinanceViewer,
 	checkPartnerManager,
 	checkReimbursementReviewer,
 	checkTumaiDaysManager,
 } from "../lib/auth.js";
+import { ForbiddenError } from "../lib/errors.js";
 import { getSupabase } from "../lib/supabase.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -57,6 +61,33 @@ export async function requireAdmin(
 			"Failed to check admin role",
 		);
 		return reply.status(500).send({ error: "Internal Server Error" });
+	}
+}
+
+export async function requireEducationalCourseParticipant(
+	request: FastifyRequest,
+) {
+	const user = (request as AuthenticatedRequest).user;
+	if (!(await checkEducationalCourseParticipant(user.id))) {
+		throw new ForbiddenError("Educational course participant access required");
+	}
+}
+
+export async function requireEducationalCourseAdministrator(
+	request: FastifyRequest,
+) {
+	const user = (request as AuthenticatedRequest).user;
+	if (!(await checkEducationalCourseAdministrator(user.id))) {
+		throw new ForbiddenError(
+			"Educational course administrator access required",
+		);
+	}
+}
+
+export async function requireEducationalCourseAccess(request: FastifyRequest) {
+	const user = (request as AuthenticatedRequest).user;
+	if (!(await checkEducationalCourseAccess(user.id))) {
+		throw new ForbiddenError("Educational course access required");
 	}
 }
 
