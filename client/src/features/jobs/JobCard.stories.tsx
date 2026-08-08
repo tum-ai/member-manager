@@ -65,6 +65,45 @@ export const ExternalLink: Story = {
 	),
 };
 
+export const PreservesPlainTextFormatting: Story = {
+	args: {
+		job: {
+			...baseJob,
+			title: "Project Intern (2 weeks)",
+			partner: { name: "Neuplaner", logo_url: null },
+			description_markdown: `About NEUPLANER
+NEUPLANER unites leading regional tax advisory and auditing firms.
+
+The project: Take the Second Brain to the next level
+Build on an internal AI-powered knowledge assistant.
+
+Timeline (2 weeks)
+	•	Week 1: Onboarding, review, and alignment
+	•	Week 2: Development sprint and handover
+
+What's in it for you
+	•	€4,000 compensation
+	•	Hands-on AI / RAG / agent experience`,
+		},
+	},
+	render: (args) => (
+		<div className="w-[34rem] max-w-full">
+			<JobCard {...args} />
+		</div>
+	),
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(document.body);
+		await userEvent.click(
+			canvas.getByRole("button", {
+				name: "View details for Project Intern (2 weeks)",
+			}),
+		);
+		const dialog = await body.findByRole("dialog");
+		await expect(dialog.querySelector(".whitespace-pre-wrap")).not.toBeNull();
+	},
+};
+
 // Interaction test: the whole card opens the detail dialog via mouse click on
 // the stretched-overlay button AND via keyboard (focus + Enter). The dialog
 // renders in a Radix portal (outside the story canvas), so we query
@@ -86,9 +125,7 @@ export const OpensDetailDialog: Story = {
 		});
 		await userEvent.click(trigger);
 		const dialog = await body.findByRole("dialog");
-		await expect(
-			within(dialog).getByRole("heading", { name: baseJob.title }),
-		).toBeInTheDocument();
+		await expect(dialog).toHaveAccessibleName(baseJob.title);
 
 		// Close the dialog (Escape) and verify it is gone.
 		await userEvent.keyboard("{Escape}");
@@ -102,9 +139,7 @@ export const OpensDetailDialog: Story = {
 		await expect(reopenTrigger).toHaveFocus();
 		await userEvent.keyboard("{Enter}");
 		const reopenedDialog = await body.findByRole("dialog");
-		await expect(
-			within(reopenedDialog).getByRole("heading", { name: baseJob.title }),
-		).toBeInTheDocument();
+		await expect(reopenedDialog).toHaveAccessibleName(baseJob.title);
 
 		// Close again so the final, axe-audited state has no open dialog (the
 		// detail dialog reuses the card heading rather than a DialogTitle).
