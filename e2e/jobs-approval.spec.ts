@@ -103,7 +103,9 @@ test("an admin can create and edit a published job posting", async ({
 	await loginAsLocalAdmin(adminPage);
 	await adminPage.goto("/admin/job-requests");
 
-	await adminPage.getByRole("button", { name: "Create job" }).click();
+	await adminPage
+		.getByRole("button", { name: "Create standalone job" })
+		.click();
 	const createDialog = adminPage.getByRole("dialog");
 	await createDialog.getByLabel("Job title").fill(initialTitle);
 	await createDialog.getByLabel("Organization").fill("Admin Created Org");
