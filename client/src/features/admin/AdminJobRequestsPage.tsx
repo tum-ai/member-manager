@@ -1,10 +1,13 @@
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PartnerJobsDialog } from "@/features/partnerManagement/components/PartnerJobsDialog";
 import { AdminRequestsLayout } from "./AdminRequestsLayout";
 import { AdminJobEditorDialog } from "./components/AdminJobEditorDialog";
 import { AdminJobRequestCard } from "./components/AdminJobRequestCard";
+import { AdminPartnerJobsPanel } from "./components/AdminPartnerJobsPanel";
 import { useAdminJobRequests } from "./hooks/useAdminJobRequests";
 
 export default function AdminJobRequestsPage() {
@@ -14,8 +17,8 @@ export default function AdminJobRequestsPage() {
 		<AdminRequestsLayout
 			title="Job Postings"
 			description="Review submissions and manage member job postings."
-			isLoading={jobs.isLoading}
-			error={jobs.error}
+			isLoading={jobs.isLoadingJobRequests}
+			error={jobs.jobRequestsError}
 			actions={
 				<Button
 					type="button"
@@ -23,7 +26,7 @@ export default function AdminJobRequestsPage() {
 					onClick={jobs.openCreate}
 				>
 					<Plus className="size-4" />
-					Create job
+					Create standalone job
 				</Button>
 			}
 		>
@@ -35,6 +38,7 @@ export default function AdminJobRequestsPage() {
 					<TabsTrigger value="managed">
 						Managed ({jobs.managedJobs.length})
 					</TabsTrigger>
+					<TabsTrigger value="partner">Partner jobs</TabsTrigger>
 				</TabsList>
 
 				<TabsContent value="pending" className="pt-4">
@@ -87,6 +91,17 @@ export default function AdminJobRequestsPage() {
 						</div>
 					)}
 				</TabsContent>
+
+				<TabsContent value="partner" className="pt-4">
+					<AdminPartnerJobsPanel
+						partners={jobs.partnerManagement.partners}
+						selectedPartnerId={jobs.selectedPartnerId}
+						isLoading={jobs.partnerManagement.isLoading}
+						error={jobs.partnerManagement.error}
+						onPartnerChange={jobs.setSelectedPartnerId}
+						onManageJobs={jobs.openSelectedPartnerJobs}
+					/>
+				</TabsContent>
 			</Tabs>
 
 			<AdminJobEditorDialog
@@ -95,6 +110,39 @@ export default function AdminJobRequestsPage() {
 				isSaving={jobs.isSavingJob}
 				onClose={jobs.closeEditor}
 				onSubmit={jobs.submitEditor}
+			/>
+
+			<PartnerJobsDialog
+				partner={jobs.partnerManagement.jobsPartner}
+				jobs={jobs.partnerManagement.jobs}
+				isLoading={jobs.partnerManagement.jobsLoading}
+				error={jobs.partnerManagement.jobsError}
+				editorMode={jobs.partnerManagement.jobEditorMode}
+				form={jobs.partnerManagement.jobForm}
+				onOpenChange={(open) => {
+					if (!open) jobs.partnerManagement.closeJobs();
+				}}
+				onCreate={jobs.partnerManagement.openCreateJob}
+				onEdit={jobs.partnerManagement.openEditJob}
+				onCancelEdit={jobs.partnerManagement.cancelJobEdit}
+				onSubmit={jobs.partnerManagement.submitJobForm}
+				onDelete={jobs.partnerManagement.setJobDeleteTarget}
+				isSaving={jobs.partnerManagement.isSavingJob}
+			/>
+
+			<ConfirmDialog
+				open={!!jobs.partnerManagement.jobDeleteTarget}
+				onOpenChange={(open) => {
+					if (!open) jobs.partnerManagement.setJobDeleteTarget(null);
+				}}
+				title={`Delete ${jobs.partnerManagement.jobDeleteTarget?.title ?? "job"}?`}
+				description="The posting will be removed from the public job board. Its audit history will be retained."
+				confirmLabel={
+					jobs.partnerManagement.isDeletingJob ? "Deleting..." : "Delete job"
+				}
+				confirmDisabled={jobs.partnerManagement.isDeletingJob}
+				destructive
+				onConfirm={jobs.partnerManagement.confirmDeleteJob}
 			/>
 		</AdminRequestsLayout>
 	);

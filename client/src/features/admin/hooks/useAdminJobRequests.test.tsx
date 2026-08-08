@@ -26,6 +26,8 @@ const approvedJob: JobPostingRequest = {
 const {
 	adminState,
 	createJobAsync,
+	openJobs,
+	partnerManagementState,
 	updateJobAsync,
 	reviewJobRequestAsync,
 	removeJobRequestAsync,
@@ -36,10 +38,26 @@ const {
 		jobRequests: [] as JobPostingRequest[],
 	},
 	createJobAsync: vi.fn(),
+	openJobs: vi.fn(),
+	partnerManagementState: {
+		partners: [
+			{
+				id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
+				companyName: "Example Partner",
+			},
+		],
+	},
 	updateJobAsync: vi.fn(),
 	reviewJobRequestAsync: vi.fn(),
 	removeJobRequestAsync: vi.fn(),
 	showToast: vi.fn(),
+}));
+
+vi.mock("@/features/partnerManagement/hooks/usePartnerManagement", () => ({
+	usePartnerManagement: () => ({
+		...partnerManagementState,
+		openJobs,
+	}),
 }));
 
 vi.mock("@/hooks/useAdminData", () => ({
@@ -81,6 +99,7 @@ describe("useAdminJobRequests", () => {
 		adminState.isSavingJob = false;
 		adminState.jobRequests = [approvedJob];
 		createJobAsync.mockReset();
+		openJobs.mockReset();
 		updateJobAsync.mockReset();
 		reviewJobRequestAsync.mockReset();
 		removeJobRequestAsync.mockReset();
@@ -133,5 +152,20 @@ describe("useAdminJobRequests", () => {
 		act(() => result.current.closeEditor());
 
 		expect(result.current.editorMode).toBe("create");
+	});
+
+	it("opens job management for the selected partner", () => {
+		const { result } = renderHookWithClient(() => useAdminJobRequests());
+
+		act(() =>
+			result.current.setSelectedPartnerId(
+				"8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
+			),
+		);
+		act(() => result.current.openSelectedPartnerJobs());
+
+		expect(openJobs).toHaveBeenCalledWith(
+			expect.objectContaining({ companyName: "Example Partner" }),
+		);
 	});
 });

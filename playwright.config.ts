@@ -49,7 +49,18 @@ export default defineConfig({
 		trace: "retain-on-failure",
 		screenshot: "only-on-failure",
 	},
-	projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+	projects: [
+		{
+			name: "chromium",
+			testIgnore: /.*mobile\.spec\.ts/,
+			use: { ...devices["Desktop Chrome"] },
+		},
+		{
+			name: "mobile",
+			testMatch: /.*mobile\.spec\.ts/,
+			use: { ...devices["Pixel 7"] },
+		},
+	],
 	webServer: [
 		{
 			command: "node e2e/partner-portal-stub.mjs",

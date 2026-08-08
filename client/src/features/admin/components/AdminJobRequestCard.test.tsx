@@ -44,6 +44,8 @@ describe("AdminJobRequestCard", () => {
 
 		await user.click(screen.getByRole("button", { name: "Read more" }));
 		const dialog = screen.getByRole("dialog");
+		expect(dialog).toHaveClass("max-h-[calc(100dvh-2rem)]", "overflow-hidden");
+		expect(dialog.querySelector(".overflow-y-auto")).not.toBeNull();
 		await user.click(
 			within(dialog).getByRole("button", {
 				name: "Edit job posting AI Engineer",

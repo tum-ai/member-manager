@@ -60,20 +60,35 @@ function PartnerJobsDialogStory({
 	onDelete,
 	jobs,
 	isLoading,
+	editorMode,
 }: {
 	onEdit: (job: ManagedPartnerJob) => void;
 	onDelete: (job: ManagedPartnerJob) => void;
 	jobs: ManagedPartnerJob[];
 	isLoading: boolean;
+	editorMode: "create" | "edit" | null;
 }) {
-	const form = useForm<PartnerJobInput>();
+	const form = useForm<PartnerJobInput>({
+		defaultValues: {
+			title: job.title,
+			jobType: job.jobType,
+			location: job.location,
+			description: job.description.repeat(35),
+			callToAction: job.callToAction,
+			contactName: job.contactName,
+			contactEmail: job.contactEmail,
+			contactRole: job.contactRole ?? "",
+			externalUrl: job.externalUrl ?? "",
+			logoUrl: job.logoUrl ?? "",
+		},
+	});
 	return (
 		<PartnerJobsDialog
 			partner={partner}
 			jobs={jobs}
 			isLoading={isLoading}
 			error={null}
-			editorMode={null}
+			editorMode={editorMode}
 			form={form}
 			onOpenChange={() => {}}
 			onCreate={() => {}}
@@ -94,6 +109,7 @@ const meta = {
 		onDelete: fn(),
 		jobs: [job],
 		isLoading: false,
+		editorMode: null,
 	},
 } satisfies Meta<typeof PartnerJobsDialogStory>;
 
@@ -122,5 +138,18 @@ export const Loading: Story = {
 	play: async ({ canvasElement }) => {
 		const body = within(canvasElement.ownerDocument.body);
 		await expect(body.getByRole("button", { name: "Add job" })).toBeDisabled();
+	},
+};
+
+export const LongDescriptionEditor: Story = {
+	args: {
+		editorMode: "edit",
+	},
+	play: async ({ canvasElement }) => {
+		const body = within(canvasElement.ownerDocument.body);
+		await expect(body.getByLabelText(/description/i)).toBeVisible();
+		await expect(
+			body.getByRole("button", { name: "Save changes" }),
+		).toBeVisible();
 	},
 };

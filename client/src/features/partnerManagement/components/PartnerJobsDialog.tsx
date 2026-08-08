@@ -5,10 +5,10 @@ import type {
 	PartnerJobStatus,
 } from "@member-manager/shared";
 import {
-	Archive,
 	BriefcaseBusiness,
 	Pencil,
 	Plus,
+	Trash2,
 	TriangleAlert,
 } from "lucide-react";
 import type { UseFormReturn } from "react-hook-form";
@@ -101,8 +101,8 @@ export function PartnerJobsDialog({
 
 	return (
 		<Dialog open={!!partner} onOpenChange={onOpenChange}>
-			<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-				<DialogHeader>
+			<DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl">
+				<DialogHeader className="shrink-0 px-6 pt-6 pb-4">
 					<DialogTitle>
 						{editing
 							? `${editorMode === "create" ? "Add" : "Edit"} job - ${partner?.companyName ?? ""}`
@@ -122,7 +122,7 @@ export function PartnerJobsDialog({
 						submitLabel={editorMode === "edit" ? "Save changes" : "Publish job"}
 					/>
 				) : (
-					<div className="space-y-4">
+					<div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-6">
 						<div className="flex justify-end">
 							<Button
 								className="bg-[#9A64D9] text-white hover:bg-[#523573]"
@@ -193,13 +193,13 @@ export function PartnerJobsDialog({
 														<Button
 															size="icon-sm"
 															variant="ghost"
-															aria-label={`Archive ${job.title}`}
+															aria-label={`Delete ${job.title}`}
 															onClick={() => onDelete(job)}
 														>
-															<Archive />
+															<Trash2 />
 														</Button>
 													</TooltipTrigger>
-													<TooltipContent>Archive job</TooltipContent>
+													<TooltipContent>Delete job</TooltipContent>
 												</Tooltip>
 											</div>
 										</TooltipProvider>
