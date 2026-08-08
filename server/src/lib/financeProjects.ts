@@ -25,18 +25,19 @@ import {
 import { getSupabase } from "./supabase.js";
 
 const PROJECT_COLUMNS =
-	"id, parent_project_id, name, department, period_type, period_key, tax_area, target_amount, status, description, created_at, updated_at";
+	"id, parent_project_id, name, department, period_type, period_key, tax_area, target_amount, status, description, sub_team, created_at, updated_at";
 const TEMPLATE_COLUMNS =
 	"id, name, description, tax_area, is_active, created_at, updated_at";
 const TEMPLATE_ITEM_COLUMNS =
 	"id, template_id, label, category, direction, planned_amount, expected_month, note, sort_order";
 const MANAGED_PLAN_ITEM_COLUMNS =
-	"id, department, period_type, period_key, label, category, direction, planned_amount, expected_month, status, note, project_id, template_item_id";
+	"id, department, period_type, period_key, label, category, direction, planned_amount, expected_month, status, note, project_id, template_item_id, is_active, vat_rate";
 
 function parseProject(row: Record<string, unknown>): FinanceProject {
 	return FinanceProjectSchema.parse({
 		...row,
 		target_amount: Number(row.target_amount ?? 0),
+		sub_team: row.sub_team ?? null,
 	});
 }
 
@@ -65,6 +66,11 @@ function parseManagedPlanItem(
 		direction: row.direction === "income" ? "income" : "expense",
 		project_id: row.project_id ?? null,
 		template_item_id: row.template_item_id ?? null,
+		is_active: row.is_active !== false,
+		vat_rate:
+			row.vat_rate === null || row.vat_rate === undefined
+				? null
+				: Number(row.vat_rate),
 	});
 }
 
@@ -128,6 +134,7 @@ export async function createFinanceProject(
 			target_amount: input.target_amount,
 			status: input.status ?? "draft",
 			description: input.description ?? null,
+			sub_team: input.sub_team ?? null,
 			created_by: createdBy,
 			created_at: now,
 			updated_at: now,
@@ -156,6 +163,7 @@ export async function updateFinanceProject(
 		p_target_amount: input.target_amount,
 		p_status: input.status ?? "draft",
 		p_description: input.description ?? null,
+		p_sub_team: input.sub_team ?? null,
 	});
 
 	if (error) {

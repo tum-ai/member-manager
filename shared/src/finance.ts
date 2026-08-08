@@ -467,6 +467,18 @@ export const FinancePlanItemSchema = z.object({
 	note: z.string().nullable(),
 	project_id: z.string().uuid().nullable().optional(),
 	template_item_id: z.string().uuid().nullable().optional(),
+	// A disabled Planposten stays visible in the T-view but is excluded from
+	// every plan total and cannot receive new matches (FR-M3/FR-M8).
+	//
+	// Optional here and required on `FinanceManagedPlanItemSchema` below, the
+	// same way `project_id`/`template_item_id` are handled: the base schema stays
+	// tolerant of older payloads, the managed variant the T-account consumes is
+	// exact.
+	is_active: z.boolean().optional(),
+	// Planned VAT rate as a percentage (19, 7, 0 …). Null = unknown, rendered as
+	// "—" rather than 0 € so an unset rate is never mistaken for a zero-rated
+	// item (FR-N5).
+	vat_rate: z.number().min(0).max(100).nullable().optional(),
 });
 export type FinancePlanItem = z.infer<typeof FinancePlanItemSchema>;
 
@@ -482,6 +494,12 @@ export const FinancePlanItemCreateSchema = z
 		expected_month: z.string().regex(MONTH_PATTERN).nullable().optional(),
 		status: FinancePlanStatusSchema.optional(),
 		note: z.string().trim().max(500).nullable().optional(),
+		// FR-M1: a Planposten is created on a node of the T-view, so it has to be
+		// able to land inside a project or sub-project straight away. Until now
+		// only template assignment could set this.
+		project_id: z.string().uuid().nullable().optional(),
+		is_active: z.boolean().optional(),
+		vat_rate: z.number().min(0).max(100).nullable().optional(),
 	})
 	.superRefine((value, context) => {
 		if (!isValidFinancePeriodKey(value.period_type, value.period_key)) {
@@ -504,6 +522,12 @@ export const FinancePlanItemUpdateSchema = z.object({
 	expected_month: z.string().regex(MONTH_PATTERN).nullable().optional(),
 	status: FinancePlanStatusSchema,
 	note: z.string().trim().max(500).nullable().optional(),
+	// Moving a Planposten between projects is rejected server-side once postings
+	// are matched to it — a match is only valid while the posting is allocated to
+	// the item's project (FR-L7).
+	project_id: z.string().uuid().nullable().optional(),
+	is_active: z.boolean().optional(),
+	vat_rate: z.number().min(0).max(100).nullable().optional(),
 });
 export type FinancePlanItemUpdate = z.infer<typeof FinancePlanItemUpdateSchema>;
 
@@ -573,32 +597,45 @@ export const FinanceProjectSchema = z.object({
 	target_amount: z.number(),
 	status: FinanceProjectStatusSchema,
 	description: z.string().nullable(),
+	// The sub-team folder this project hangs under in the T-view (FR-L4). Set by
+	// hand; independent of the sub-team a cost-location mapping assigns to
+	// unallocated postings. Null = the project hangs directly off its department.
+	sub_team: z.string().nullable(),
 	created_at: DATE_TIME_SCHEMA,
 	updated_at: DATE_TIME_SCHEMA,
 });
 export type FinanceProject = z.infer<typeof FinanceProjectSchema>;
 
-export const FinanceProjectCreateSchema = z
-	.object({
-		parent_project_id: UUID_SCHEMA.nullable().optional(),
-		name: z.string().trim().min(1).max(200),
-		department: z.string().trim().min(1).max(120),
-		period_type: FinancePeriodTypeSchema,
-		period_key: z.string().trim().min(1),
-		tax_area: FinanceTaxAreaSchema.nullable().optional(),
-		target_amount: z.number().finite(),
-		status: FinanceProjectStatusSchema.optional(),
-		description: z.string().trim().max(2000).nullable().optional(),
-	})
-	.superRefine((value, context) => {
-		if (!isValidFinancePeriodKey(value.period_type, value.period_key)) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: "Invalid period key for period type",
-				path: ["period_key"],
-			});
-		}
-	});
+// Split out as a plain object so the "create from selected invoices" variant
+// (FR-L1) can extend it — a schema carrying `superRefine` effects cannot.
+const FinanceProjectCreateFieldsSchema = z.object({
+	parent_project_id: UUID_SCHEMA.nullable().optional(),
+	name: z.string().trim().min(1).max(200),
+	department: z.string().trim().min(1).max(120),
+	period_type: FinancePeriodTypeSchema,
+	period_key: z.string().trim().min(1),
+	tax_area: FinanceTaxAreaSchema.nullable().optional(),
+	target_amount: z.number().finite(),
+	status: FinanceProjectStatusSchema.optional(),
+	description: z.string().trim().max(2000).nullable().optional(),
+	sub_team: z.string().trim().min(1).max(120).nullable().optional(),
+});
+
+function validateProjectPeriodKey(
+	value: { period_type: FinancePeriodType; period_key: string },
+	context: z.RefinementCtx,
+): void {
+	if (!isValidFinancePeriodKey(value.period_type, value.period_key)) {
+		context.addIssue({
+			code: z.ZodIssueCode.custom,
+			message: "Invalid period key for period type",
+			path: ["period_key"],
+		});
+	}
+}
+
+export const FinanceProjectCreateSchema =
+	FinanceProjectCreateFieldsSchema.superRefine(validateProjectPeriodKey);
 export type FinanceProjectCreate = z.infer<typeof FinanceProjectCreateSchema>;
 
 export const FinanceProjectUpdateSchema = z
@@ -612,6 +649,7 @@ export const FinanceProjectUpdateSchema = z
 		target_amount: z.number().finite().optional(),
 		status: FinanceProjectStatusSchema.optional(),
 		description: z.string().trim().max(2000).nullable().optional(),
+		sub_team: z.string().trim().min(1).max(120).nullable().optional(),
 	})
 	.refine(
 		(value) => Object.values(value).some((entry) => entry !== undefined),
@@ -744,6 +782,8 @@ export type FinancePlanTemplatesResponse = z.infer<
 export const FinanceManagedPlanItemSchema = FinancePlanItemSchema.extend({
 	project_id: UUID_SCHEMA.nullable(),
 	template_item_id: UUID_SCHEMA.nullable(),
+	is_active: z.boolean(),
+	vat_rate: z.number().min(0).max(100).nullable(),
 });
 export type FinanceManagedPlanItem = z.infer<
 	typeof FinanceManagedPlanItemSchema
@@ -856,6 +896,88 @@ export const FinancePostingAllocationsResponseSchema = z.object({
 });
 export type FinancePostingAllocationsResponse = z.infer<
 	typeof FinancePostingAllocationsResponseSchema
+>;
+
+// --- Bulk assignment of invoices to a project (FR-K5 / FR-L2) ---------------
+
+// Assign many postings to one project in a single call. Deliberately narrower
+// than the per-posting replace endpoint: it only writes a whole-posting (100 %)
+// allocation, so a posting that is already split across several targets is
+// refused rather than silently flattened (FR-L5).
+export const FinancePostingAllocationBulkSchema = z.object({
+	project_id: UUID_SCHEMA,
+	posting_external_ids: z
+		.array(z.string().trim().min(1).max(200))
+		.min(1)
+		.max(200),
+	note: z.string().trim().max(500).nullable().optional(),
+});
+export type FinancePostingAllocationBulk = z.infer<
+	typeof FinancePostingAllocationBulkSchema
+>;
+
+export const FINANCE_ALLOCATION_SKIP_REASONS = [
+	// The posting already carries more than one allocation — use the split editor.
+	"already_split",
+	// The posting's booking date falls outside the project's period (FR-L8).
+	"period_mismatch",
+	// The posting is matched to a Planposten of another project (FR-L7).
+	"matched_elsewhere",
+	// The caller may not write the posting's department.
+	"forbidden",
+	"not_found",
+] as const;
+export const FinanceAllocationSkipReasonSchema = z.enum(
+	FINANCE_ALLOCATION_SKIP_REASONS,
+);
+export type FinanceAllocationSkipReason = z.infer<
+	typeof FinanceAllocationSkipReasonSchema
+>;
+
+// One entry per requested posting. A bulk assign is atomic *per posting*
+// (FR-L6): the applied ones stay applied and every skip says exactly why.
+export const FinanceAllocationResultSchema = z.object({
+	posting_external_id: z.string().min(1),
+	applied: z.boolean(),
+	reason: FinanceAllocationSkipReasonSchema.nullable(),
+});
+export type FinanceAllocationResult = z.infer<
+	typeof FinanceAllocationResultSchema
+>;
+
+export const FinancePostingAllocationBulkResponseSchema = z.object({
+	project_id: UUID_SCHEMA,
+	applied_count: z.number().int().nonnegative(),
+	skipped_count: z.number().int().nonnegative(),
+	results: z.array(FinanceAllocationResultSchema),
+});
+export type FinancePostingAllocationBulkResponse = z.infer<
+	typeof FinancePostingAllocationBulkResponseSchema
+>;
+
+// FR-L1: create the project and allocate the selected invoices to it in one
+// call, so a half-created project can never be left behind by a failed second
+// request. The project is created regardless; per-posting skips are reported
+// exactly as for a bulk assign.
+export const FinanceProjectFromPostingsCreateSchema =
+	FinanceProjectCreateFieldsSchema.extend({
+		posting_external_ids: z
+			.array(z.string().trim().min(1).max(200))
+			.min(1)
+			.max(200),
+	}).superRefine(validateProjectPeriodKey);
+export type FinanceProjectFromPostingsCreate = z.infer<
+	typeof FinanceProjectFromPostingsCreateSchema
+>;
+
+export const FinanceProjectFromPostingsResponseSchema = z.object({
+	project: FinanceProjectSchema,
+	applied_count: z.number().int().nonnegative(),
+	skipped_count: z.number().int().nonnegative(),
+	results: z.array(FinanceAllocationResultSchema),
+});
+export type FinanceProjectFromPostingsResponse = z.infer<
+	typeof FinanceProjectFromPostingsResponseSchema
 >;
 
 export const FINANCE_REALLOCATION_STATUSES = [
@@ -1139,6 +1261,51 @@ export type FinanceReimbursementLink = z.infer<
 export const FinanceTAccountQuerySchema = FinancePlanQuerySchema;
 export type FinanceTAccountQuery = z.infer<typeof FinanceTAccountQuerySchema>;
 
+// The expanded detail of a booked posting (FR-K2). Carried inline on the actual
+// line so opening a row costs no extra round-trip (FR-K3) — the server already
+// holds the postings in memory while it builds the response.
+export const FinanceTAccountPostingDetailSchema = z.object({
+	booking_date: z.string().regex(ISO_DATE_PATTERN),
+	// BB's `receipts_assigned_invoice_numbers`; absent on postings without a
+	// receipt (bank fees, corrections).
+	invoice_number: z.string().nullable(),
+	counterparty: z.string().nullable(),
+	purpose: z.string().nullable(),
+	currency: z.string().min(1),
+	// The posting's own gross amount, signed as BB reports it. `amount` on the
+	// line is this posting's share of the department after allocation splits, so
+	// the two differ on a split posting — showing both is the point of the panel.
+	posting_amount: z.number(),
+	debit_account: z.string().nullable(),
+	credit_account: z.string().nullable(),
+	account_label: z.string().nullable(),
+	cost_location: z.string().nullable(),
+	sub_team: z.string().nullable(),
+	allocations: z.array(FinancePostingAllocationSchema),
+	matches: z.array(FinancePlanItemPostingMatchSchema),
+});
+export type FinanceTAccountPostingDetail = z.infer<
+	typeof FinanceTAccountPostingDetailSchema
+>;
+
+// The expanded detail of a Planposten (FR-K4) plus the Plan/Ist/Delta readout
+// that backs "Plan auf Ist korrigieren" (FR-M6).
+export const FinanceTAccountPlanDetailSchema = z.object({
+	expected_month: z.string().nullable(),
+	note: z.string().nullable(),
+	planned_amount: z.number().nonnegative(),
+	// Σ of the matches against this Planposten — the realised "Ist".
+	matched_amount: z.number().nonnegative(),
+	// matched_amount − planned_amount: positive = overspent, negative = open.
+	delta: z.number(),
+	is_active: z.boolean(),
+	vat_rate: z.number().min(0).max(100).nullable(),
+	matches: z.array(FinancePlanItemPostingMatchSchema),
+});
+export type FinanceTAccountPlanDetail = z.infer<
+	typeof FinanceTAccountPlanDetailSchema
+>;
+
 // One row in a T-account column. `amount` is a positive magnitude — the column
 // (expense/income) carries the sign meaning. `vat_amount` is the VAT embedded in
 // that gross amount (income or expense), null when the rate is unknown/zero.
@@ -1150,12 +1317,32 @@ export const FinanceTAccountLineSchema = z.object({
 	project_id: UUID_SCHEMA.nullable(),
 	amount: z.number().nonnegative(),
 	vat_amount: z.number().nonnegative().nullable(),
+	// The rate behind `vat_amount`, so the UI can label it and drive the
+	// Netto/Brutto toggle without re-deriving it (FR-N1). Null = unknown.
+	vat_rate: z.number().min(0).max(100).nullable(),
+	// `amount` net of `vat_amount`. Precomputed so gross and net never disagree
+	// between client and server (FR-N4/FR-N6).
+	net_amount: z.number().nonnegative(),
 	// Plan lines carry their status (planned/committed/spent); actual lines null.
 	status: FinancePlanStatusSchema.nullable(),
 	posting_external_id: z.string().nullable(),
 	plan_item_id: z.string().nullable(),
+	// Exactly one of these is set, matching `kind`.
+	posting_detail: FinanceTAccountPostingDetailSchema.nullable(),
+	plan_detail: FinanceTAccountPlanDetailSchema.nullable(),
 });
 export type FinanceTAccountLine = z.infer<typeof FinanceTAccountLineSchema>;
+
+// VAT for one column of one node (FR-N3). Named by direction because the two
+// sides are legally different things: Vorsteuer is reclaimable input tax on
+// expenses, Umsatzsteuer is output tax owed on income.
+export const FinanceTAccountVatSchema = z.object({
+	// Σ VAT embedded in the booked lines of this column.
+	actual: z.number().nonnegative(),
+	// Σ VAT expected from the still-open planned lines of this column.
+	plan: z.number().nonnegative(),
+});
+export type FinanceTAccountVat = z.infer<typeof FinanceTAccountVatSchema>;
 
 // Income − expenses for one scope. `saldo` is the profit (positive) or deficit.
 export const FinanceTAccountSaldoSchema = z.object({
@@ -1171,6 +1358,14 @@ export const FinanceTAccountGroupSchema = z.object({
 	project_id: UUID_SCHEMA.nullable(),
 	project_name: z.string().nullable(),
 	parent_project_id: UUID_SCHEMA.nullable(),
+	// The sub-team folder this group hangs under. For a sub-team group itself it
+	// repeats its own name; for a project it is the project's `sub_team` (FR-L4).
+	// Null = hangs directly off the department.
+	sub_team: z.string().nullable(),
+	// True for the synthetic folder that represents a sub-team rather than a
+	// project, so the client can tell "Big Makeathon (sub-team)" apart from a
+	// project that happens to have no id yet.
+	is_sub_team: z.boolean(),
 	// The project's target balance (Zielsaldo), null for the ungrouped bucket and
 	// for projects without a target. Drives the deviation-vs-target readout.
 	target_amount: z.number().nullable(),
@@ -1178,6 +1373,10 @@ export const FinanceTAccountGroupSchema = z.object({
 	income_lines: z.array(FinanceTAccountLineSchema),
 	actual: FinanceTAccountSaldoSchema,
 	plan: FinanceTAccountSaldoSchema,
+	// Vorsteuer (expense column) and Umsatzsteuer (income column) for this group
+	// alone — children are not rolled in, matching `actual`/`plan` (FR-N3).
+	vorsteuer: FinanceTAccountVatSchema,
+	umsatzsteuer: FinanceTAccountVatSchema,
 });
 export type FinanceTAccountGroup = z.infer<typeof FinanceTAccountGroupSchema>;
 
@@ -1193,6 +1392,9 @@ export const FinanceTAccountResponseSchema = z.object({
 		// VAT embedded in the gross income / expense magnitudes (always >= 0).
 		vat_income: z.number().nonnegative(),
 		vat_expenses: z.number().nonnegative(),
+		// Umsatzsteuer owed minus Vorsteuer reclaimable = what the department
+		// actually owes the tax office. Signed: negative means a refund (FR-N3).
+		vat_payload: z.number(),
 	}),
 	source: z.enum(["mock", "real"]),
 	generated_at: DATE_TIME_SCHEMA,
