@@ -107,4 +107,26 @@ describe("JobCard", () => {
 		const applyLink = screen.getByRole("link", { name: /apply now/i });
 		expect(applyLink).toHaveClass("relative", "z-10");
 	});
+
+	it("preserves authored whitespace in job descriptions", async () => {
+		const user = userEvent.setup();
+		render(
+			<JobCard
+				job={makeJob({
+					description_markdown:
+						"About the role\n\n\t•\tFirst item\n\t•\tSecond item",
+				})}
+			/>,
+		);
+
+		const preview = screen.getByText(/About the role/).closest(".text-sm");
+		expect(preview).toHaveClass("whitespace-pre-wrap", "[tab-size:2]");
+
+		await user.click(screen.getByRole("button", { name: /view details for/i }));
+		const dialog = await screen.findByRole("dialog");
+		const detail = dialog.querySelector(".whitespace-pre-wrap");
+		expect(detail).not.toBeNull();
+		expect(detail).toHaveTextContent("First item");
+		expect(detail).toHaveTextContent("Second item");
+	});
 });

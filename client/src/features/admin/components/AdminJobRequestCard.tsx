@@ -209,7 +209,7 @@ export function AdminJobRequestCard({
 									: undefined
 							}
 						>
-							<Markdown className="text-muted-foreground">
+							<Markdown preserveWhitespace className="text-muted-foreground">
 								{request.description_markdown}
 							</Markdown>
 						</div>
@@ -244,7 +244,7 @@ export function AdminJobRequestCard({
 					</DialogHeader>
 					<div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6">
 						{badges}
-						<Markdown className="text-muted-foreground">
+						<Markdown preserveWhitespace className="text-muted-foreground">
 							{request.description_markdown}
 						</Markdown>
 						<Separator />

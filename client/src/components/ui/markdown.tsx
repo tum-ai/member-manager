@@ -69,12 +69,15 @@ export interface MarkdownProps {
 	className?: string;
 	/** Cap rendered height (e.g. "7.5rem") with a soft bottom fade for previews. */
 	clampHeight?: string;
+	/** Preserve authored line breaks, blank lines, repeated spaces, and tabs. */
+	preserveWhitespace?: boolean;
 }
 
 export function Markdown({
 	children,
 	className,
 	clampHeight,
+	preserveWhitespace = false,
 }: MarkdownProps): React.ReactElement {
 	const clampStyle: CSSProperties | undefined = clampHeight
 		? {
@@ -88,7 +91,12 @@ export function Markdown({
 
 	return (
 		<div
-			className={cn("text-sm", clampHeight && "overflow-hidden", className)}
+			className={cn(
+				"text-sm",
+				clampHeight && "overflow-hidden",
+				preserveWhitespace && "whitespace-pre-wrap [tab-size:2]",
+				className,
+			)}
 			style={clampStyle}
 		>
 			<ReactMarkdown

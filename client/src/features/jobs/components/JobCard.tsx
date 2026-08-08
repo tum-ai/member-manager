@@ -4,7 +4,13 @@ import { useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Markdown } from "@/components/ui/markdown";
 import { Separator } from "@/components/ui/separator";
@@ -104,10 +110,14 @@ function JobDetailDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="max-h-[85vh] gap-5 overflow-y-auto sm:max-w-2xl">
 				<DialogHeader>
+					<DialogTitle className="sr-only">{job.title}</DialogTitle>
+					<DialogDescription className="sr-only">
+						Full job posting details for {job.partner.name}.
+					</DialogDescription>
 					<JobCardHeader job={job} />
 				</DialogHeader>
 				<JobBadges job={job} />
-				<Markdown className="text-muted-foreground">
+				<Markdown preserveWhitespace className="text-muted-foreground">
 					{job.description_markdown}
 				</Markdown>
 				<Separator />
@@ -131,7 +141,11 @@ export function JobCard({ job }: { job: PartnerJob }): React.ReactElement {
 					<JobBadges job={job} />
 
 					<div>
-						<Markdown clampHeight="7.5rem" className="text-muted-foreground">
+						<Markdown
+							clampHeight="7.5rem"
+							preserveWhitespace
+							className="text-muted-foreground"
+						>
 							{job.description_markdown}
 						</Markdown>
 						<button
