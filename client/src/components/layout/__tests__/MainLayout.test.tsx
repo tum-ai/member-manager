@@ -63,7 +63,7 @@ describe("MainLayout sidebar navigation", () => {
 		expect(screen.getByText("Tools")).toBeInTheDocument();
 	});
 
-	it("surfaces Research and Task Forces as their own member nav links", () => {
+	it("surfaces Research, Task Forces, and the Job Board in TUM.ai", () => {
 		// Render within the members area so the (collapsible) Members menu is open.
 		renderLayout({ isAdmin: false, route: "/members" });
 
@@ -71,6 +71,10 @@ describe("MainLayout sidebar navigation", () => {
 		expect(
 			screen.getByRole("link", { name: /task forces/i }),
 		).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: /job board/i })).toHaveAttribute(
+			"href",
+			"/tools/jobs",
+		);
 	});
 
 	it("shows an Administration section for admin users", () => {

@@ -168,23 +168,16 @@ test("admins manage Partner Portal jobs from the job-posting page", async ({
 	await page.getByLabel("Contract start").fill("2026-08-01");
 	await page.getByLabel("Contract end").fill("2027-07-31");
 	await page.getByRole("button", { name: "Create partner" }).click();
-	await page.getByRole("button", { name: "Close" }).click();
+	const activationDialog = page.getByRole("dialog", {
+		name: "Activation link",
+	});
+	await activationDialog.getByRole("button", { name: "Close" }).click();
+	await expect(activationDialog).not.toBeVisible();
 
-	await page.goto("/admin/job-requests");
-
-	await page.getByRole("tab", { name: "Partner jobs" }).click();
-	await page.getByLabel("Partner organization").click();
-	await page.getByRole("option", { name: "Admin Managed Partner" }).click();
-	await page.getByRole("button", { name: "Manage jobs" }).click();
-
-	await expect(
-		page.getByRole("heading", { name: "Jobs - Admin Managed Partner" }),
-	).toBeVisible();
-
+	await page
+		.getByRole("button", { name: "Manage jobs for Admin Managed Partner" })
+		.click();
 	await page.getByRole("button", { name: "Add job" }).click();
-	await expect(
-		page.getByRole("heading", { name: "Add job - Admin Managed Partner" }),
-	).toBeVisible();
 	await page.getByLabel("Job title").fill("Admin Created AI Role");
 	await page.getByLabel("Location").fill("Remote");
 	await page
@@ -193,6 +186,20 @@ test("admins manage Partner Portal jobs from the job-posting page", async ({
 	await page.getByLabel("Contact name").fill("Admin Contact");
 	await page.getByLabel("Contact email").fill("admin-managed@e2e.test");
 	await page.getByRole("button", { name: "Publish job" }).click();
+	await page.getByRole("button", { name: "Close" }).click();
+
+	await page
+		.getByRole("button", { name: "Archive Admin Managed Partner" })
+		.click();
+	await page.getByRole("button", { name: "Archive partner" }).click();
+
+	await page.goto("/admin/job-requests");
+	await page.getByRole("tab", { name: "Partner jobs" }).click();
+	await page.getByLabel("Partner organization").click();
+	await page
+		.getByRole("option", { name: "Admin Managed Partner · Archived" })
+		.click();
+	await page.getByRole("button", { name: "Manage jobs" }).click();
 
 	await expect(page.getByText("Admin Created AI Role")).toBeVisible();
 	await page

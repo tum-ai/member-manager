@@ -94,7 +94,7 @@ export default function AdminJobRequestsPage() {
 
 				<TabsContent value="partner" className="pt-4">
 					<AdminPartnerJobsPanel
-						partners={jobs.partnerManagement.partners}
+						partners={jobs.partnerManagement.allPartners}
 						selectedPartnerId={jobs.selectedPartnerId}
 						isLoading={jobs.partnerManagement.isLoading}
 						error={jobs.partnerManagement.error}

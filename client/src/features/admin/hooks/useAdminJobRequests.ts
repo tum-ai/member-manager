@@ -104,7 +104,7 @@ export function useAdminJobRequests() {
 	}
 
 	function openSelectedPartnerJobs() {
-		const partner = partnerManagement.partners.find(
+		const partner = partnerManagement.allPartners.find(
 			(candidate) => candidate.id === selectedPartnerId,
 		);
 		if (partner) partnerManagement.openJobs(partner);
