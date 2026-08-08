@@ -1331,6 +1331,8 @@ values
     ('50', 'Venture',             null, null),
     ('51', 'Venture',             null, 'Med.ai'),
     ('52', 'Venture',             null, 'ACC'),
+    ('53', 'Venture',             null, 'Quant Finance'),
+    ('60', 'Makeathon',           null, null),
     ('61', 'Makeathon',           null, 'Big Makeathon'),
     ('62', 'Makeathon',           null, 'Small Makeathon'),
     ('71', 'Other',               null, null),
@@ -1342,7 +1344,10 @@ values
     ('83', 'Legal & Finance',     null, 'Tax'),
     ('84', 'Legal & Finance',     null, 'Insurance'),
     ('85', 'Legal & Finance',     null, 'Banking Fees'),
-    ('86', 'Legal & Finance',     null, 'Fines')
+    ('86', 'Legal & Finance',     null, 'Fines'),
+    -- Berlin (city 1): normalization only strips leading zeroes, so 111 keeps its
+    -- own row and does not collapse into München's 11 (Community / Onboarding).
+    ('111', 'Community',          null, 'Onboarding')
 on conflict (cost_location) do update set
     department = excluded.department,
     bereich = excluded.bereich,

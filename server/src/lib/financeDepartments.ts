@@ -45,11 +45,23 @@ export function buildMappingLookup(
 
 // The sub-team label a cost location maps to (2nd Kostenstelle digit), or null.
 // Used by the T-account to group a department's direct postings per sub-team.
+//
+// `effectiveDepartment` is the department the posting is being rendered under
+// (which may differ from the cost location's own department after a reallocation
+// override). The sub-team only applies when the cost location still maps to that
+// same department — otherwise a posting reallocated into another department would
+// leak its source sub-team (e.g. a Community/Onboarding posting moved to Makeathon
+// must not surface under "Makeathon > Onboarding").
 export function resolveCostLocationSubTeam(
 	costLocation: string,
 	lookup: Map<string, ResolvedDepartmentMapping>,
+	effectiveDepartment: string,
 ): string | null {
-	return lookup.get(normalizeCostLocation(costLocation))?.subTeam ?? null;
+	const mapping = lookup.get(normalizeCostLocation(costLocation));
+	if (!mapping || mapping.department !== effectiveDepartment) {
+		return null;
+	}
+	return mapping.subTeam ?? null;
 }
 
 interface EffectiveDepartmentMetadata {

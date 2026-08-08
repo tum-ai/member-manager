@@ -87,6 +87,10 @@ export function useFinanceTAccount({
 		error: error as Error | null,
 		setPeriodType,
 		setPeriodKey,
+		// Adopt a period wholesale — used when a drill-down (e.g. from the budget
+		// overview) must open the T-account on the same period the user was viewing
+		// instead of resetting to the default.
+		setPeriod,
 		setDepartment: setSelectedDepartment,
 	};
 }

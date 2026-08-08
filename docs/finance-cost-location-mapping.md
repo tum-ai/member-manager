@@ -70,7 +70,7 @@ department mappings must leave `bereich = null` and let the account decide.
 | `070`           | `70`       | Taskforces | (team)             | 1   |                                          |
 | `071`–`076`     | `71`–`76`  | Taskforces | sub 1–6 (see below)| 14  | member names only — labels unconfirmed   |
 | `080`           | `80`       | LnF        | (team)             | 18  | UK Online Giving, PayPal, GLS            |
-| `081`           | `81`       | LnF        | Legal counceling   | 57  | Notare, Campbell Hoermann                |
+| `081`           | `81`       | LnF        | Legal Counseling   | 57  | Notare, Campbell Hoermann                |
 | `082`           | `82`       | LnF        | Memberfees         | 928 | member names, accts 180000/400010        |
 | `083`           | `83`       | LnF        | Tax                | 44  | Finanzamt München                        |
 | `084`           | `84`       | LnF        | Insurance          | 8   | ROLAND Rechtsschutz-Versicherung         |
@@ -94,7 +94,7 @@ Departments not listed have only the team code (`0`).
 | Venture 5   | 1 Med.ai · 2 ACC · 3 Quant Finance · 4 Robotics · (5 Global Affairs · 6 women@tumai?)|
 | Makeathon 6 | 1 Big Makeathon · 2 Small Makeathon                                                  |
 | Taskforces 7| 1–6 unconfirmed (may include Global Affairs / women@tumai — see open items)          |
-| LnF 8       | 1 Legal counceling · 2 Memberfees · 3 Tax · 4 Insurance · 5 Banking fees · 6 Fines   |
+| LnF 8       | 1 Legal Counseling · 2 Memberfees · 3 Tax · 4 Insurance · 5 Banking fees · 6 Fines   |
 
 ## `cost_location_two` → category
 

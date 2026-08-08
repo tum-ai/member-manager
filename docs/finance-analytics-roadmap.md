@@ -36,8 +36,7 @@ The original phased plan is retained below. The implementation status is authori
   render a single department as expenses vs. income, actual vs. planned, with Ist- and Plan-Saldo and
   expandable project folders (Makeathon/Hackathon) showing net profit; income lines explain their
   embedded VAT. It reuses the existing department/project assignment (no second mapping path) so its
-  actual saldo equals the analytics net. The budget overview drills down into it. See
-  `docs/finance-t-account-view.md`.
+  actual saldo equals the analytics net. The budget overview drills down into it.
 
 The remaining BB-specific enhancement is direct receipt/document retrieval from a posting for
 in-app drill-down. Upload ingestion already exists in the reimbursement workflow, but a stable BB

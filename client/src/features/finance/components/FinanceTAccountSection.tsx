@@ -138,8 +138,14 @@ function TAccountBody({
 		return <Skeleton className="h-64 w-full" />;
 	}
 
+	// A named project or sub-team folder is renderable content even with no lines:
+	// the server deliberately emits empty projects so a freshly created one shows
+	// up (FR-I3). Only the bare ungrouped bucket (no name, no id) counts as "no
+	// activity" and falls through to the empty-state card.
 	const hasActivity = tree.some(
 		(node) =>
+			node.projectId !== null ||
+			node.projectName !== null ||
 			node.expenseLines.length > 0 ||
 			node.incomeLines.length > 0 ||
 			node.children.length > 0,

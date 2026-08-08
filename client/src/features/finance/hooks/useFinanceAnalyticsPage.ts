@@ -64,8 +64,11 @@ export function useFinanceAnalyticsPage() {
 
 	// Drill down from the budget overview into one department's T-account
 	// ("rauf/runterstufen" — FR-H2). Only reviewers pick a department; scoped
-	// members are already pinned to their own.
+	// members are already pinned to their own. Carry the budget's active period
+	// across so the T-account shows the same semester/year the user was viewing,
+	// not its own independent default.
 	function openDepartmentTAccount(nextDepartment: string): void {
+		tAccount.setPeriod(budgets.period);
 		tAccount.setDepartment(nextDepartment);
 		setActiveTab("t-account");
 	}

@@ -239,3 +239,48 @@ export const Loading: Story = {
 		onDepartmentChange: noop,
 	},
 };
+
+// A freshly created project with no postings or plan lines yet. The server emits
+// it as an empty folder (FR-I3); the section must render that folder rather than
+// collapsing to the "no activity" empty-state card.
+export const EmptyProjectOnly: Story = {
+	args: {
+		period,
+		canChooseDepartment: true,
+		department: "Makeathon",
+		groups: [
+			{
+				project_id: MAKEATHON_ID,
+				project_name: "Neues Projekt",
+				parent_project_id: null,
+				target_amount: null,
+				expense_lines: [],
+				income_lines: [],
+				actual: { income: 0, expenses: 0, saldo: 0 },
+				plan: { income: 0, expenses: 0, saldo: 0 },
+			},
+		],
+		totals: {
+			actual: { income: 0, expenses: 0, saldo: 0 },
+			plan: { income: 0, expenses: 0, saldo: 0 },
+			vat_income: 0,
+			vat_expenses: 0,
+		},
+		isLoading: false,
+		error: null,
+		onPeriodTypeChange: noop,
+		onPeriodKeyChange: noop,
+		onDepartmentChange: noop,
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		// The named project folder renders...
+		await expect(
+			canvas.getByRole("button", { name: /Neues Projekt/ }),
+		).toBeVisible();
+		// ...and the "no activity" empty-state card does not take over.
+		await expect(
+			canvas.queryByText(/Keine Buchungen oder Planposten/),
+		).toBeNull();
+	},
+};

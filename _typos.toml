@@ -43,5 +43,7 @@ Offen = "Offen"
 offen = "offen"
 oder = "oder"
 unter = "unter"
+# German article in finance UI copy ("Bitte ein Department wählen"), not "in".
+ein = "ein"
 # Product name for the design platform (not "Canvas").
 Canva = "Canva"

@@ -4,6 +4,7 @@ import type {
 	BuchhaltungsButlerTransaction,
 	FinanceDepartmentMapping,
 	FinanceManagedPlanItem,
+	FinancePlanItemPostingMatch,
 	FinancePostingAllocation,
 	FinanceProject,
 	FinanceTAccountResponse,
@@ -91,6 +92,22 @@ function planItem(
 	};
 }
 
+function match(
+	overrides: Partial<FinancePlanItemPostingMatch> &
+		Pick<
+			FinancePlanItemPostingMatch,
+			"plan_item_id" | "posting_external_id" | "matched_amount"
+		>,
+): FinancePlanItemPostingMatch {
+	return {
+		id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+		match_type: "manual",
+		created_by: null,
+		created_at: GENERATED_AT,
+		...overrides,
+	};
+}
+
 function project(
 	overrides: Partial<FinanceProject> & Pick<FinanceProject, "id" | "name">,
 ): FinanceProject {
@@ -166,6 +183,7 @@ function build(): FinanceTAccountResponse {
 		mappings,
 		allocations,
 		planItems,
+		matches: [],
 		projects,
 		source: "mock",
 		generatedAt: GENERATED_AT,
@@ -235,6 +253,7 @@ describe("buildFinanceTAccount", () => {
 			],
 			allocations: [],
 			planItems: [],
+			matches: [],
 			projects: [],
 			source: "mock",
 			generatedAt: GENERATED_AT,
@@ -275,6 +294,133 @@ describe("buildFinanceTAccount", () => {
 		const { totals } = build();
 		assert.strictEqual(totals.vat_income, 1_900);
 		assert.strictEqual(totals.vat_expenses, 19);
+	});
+
+	test("a fully matched plan item drops out of the Plan-Saldo (no double count)", () => {
+		// 100 EUR booked expense + a 100 EUR plan item matched to it. The forecast
+		// must stay 100, not 200: the booked posting already covers the plan.
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-100",
+					cost_location: "120",
+					transaction_amount: -100,
+					postingtext: "Venue deposit",
+				}),
+			],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [],
+			planItems: [
+				planItem({ id: "p-venue", label: "Venue", planned_amount: 100 }),
+			],
+			matches: [
+				match({
+					plan_item_id: "p-venue",
+					posting_external_id: "BB-100",
+					matched_amount: 100,
+				}),
+			],
+			projects: [],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+		const ungrouped = result.groups.find((g) => g.project_id === null);
+		assert.ok(ungrouped);
+		// Only the actual line remains; the fully-matched plan line is gone.
+		assert.strictEqual(
+			ungrouped.expense_lines.filter((l) => l.kind === "plan").length,
+			0,
+		);
+		assert.strictEqual(ungrouped.actual.saldo, -100);
+		assert.strictEqual(ungrouped.plan.saldo, -100);
+		assert.strictEqual(result.totals.plan.saldo, -100);
+	});
+
+	test("a partially matched plan item only carries the open remainder", () => {
+		// 40 EUR booked against a 100 EUR plan → 40 realised + 60 still planned.
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-40",
+					cost_location: "120",
+					transaction_amount: -40,
+					postingtext: "Partial invoice",
+				}),
+			],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [],
+			planItems: [
+				planItem({ id: "p-venue", label: "Venue", planned_amount: 100 }),
+			],
+			matches: [
+				match({
+					plan_item_id: "p-venue",
+					posting_external_id: "BB-40",
+					matched_amount: 40,
+				}),
+			],
+			projects: [],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+		const ungrouped = result.groups.find((g) => g.project_id === null);
+		assert.ok(ungrouped);
+		const planLine = ungrouped?.expense_lines.find((l) => l.kind === "plan");
+		assert.strictEqual(planLine?.amount, 60);
+		// Ist 40 booked + 60 still planned = 100 forecast, not 140.
+		assert.strictEqual(ungrouped.actual.saldo, -40);
+		assert.strictEqual(ungrouped.plan.saldo, -100);
+	});
+
+	test("a reallocated posting does not inherit its source sub-team", () => {
+		// A Community/Onboarding posting (cost location 111 → sub-team "Onboarding")
+		// explicitly reallocated to Makeathon must render under Makeathon's direct
+		// bucket, never under a leaked "Onboarding" sub-team folder.
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-realloc",
+					cost_location: "111",
+					transaction_amount: -300,
+					postingtext: "Reallocated spend",
+				}),
+			],
+			mappings: [
+				mapping("111", "Community", "Onboarding"),
+				mapping("60", "Makeathon"),
+			],
+			allocations: [
+				allocation({
+					posting_external_id: "BB-realloc",
+					department: "Makeathon",
+					allocated_amount: -300,
+					allocated_percentage: 100,
+				}),
+			],
+			planItems: [],
+			matches: [],
+			projects: [],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+		// No sub-team folder leaked in; the posting sits in the direct bucket.
+		const subTeams = result.groups.filter(
+			(g) => g.project_id === null && g.project_name !== null,
+		);
+		assert.deepStrictEqual(subTeams, []);
+		const ungrouped = result.groups.find(
+			(g) => g.project_id === null && g.project_name === null,
+		);
+		assert.strictEqual(ungrouped?.actual.saldo, -300);
 	});
 
 	test("actual saldo matches aggregateByDepartment net (consistency, FR-G5)", () => {

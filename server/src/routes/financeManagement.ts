@@ -978,9 +978,14 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 						department,
 					),
 				]);
-			const allocations = await loadPostingAllocations(
-				transactions.map((transaction) => transaction.external_id),
-			);
+			const [allocations, matches] = await Promise.all([
+				loadPostingAllocations(
+					transactions.map((transaction) => transaction.external_id),
+				),
+				loadPlanItemPostingMatches({
+					planItemIds: planItems.map((item) => item.id),
+				}),
+			]);
 			return buildFinanceTAccount({
 				periodType: query.period_type,
 				periodKey: query.period_key,
@@ -989,6 +994,7 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 				mappings,
 				allocations,
 				planItems,
+				matches,
 				projects,
 				source,
 				generatedAt: new Date().toISOString(),

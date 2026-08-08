@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
 	plans: vi.fn(),
 	tAccount: vi.fn(),
 	setDepartment: vi.fn(),
+	setPeriod: vi.fn(),
 	management: vi.fn(),
 }));
 
@@ -56,10 +57,16 @@ describe("useFinanceAnalyticsPage", () => {
 		mocks.mappings.mockReturnValue({});
 		mocks.categories.mockReturnValue({});
 		mocks.accounts.mockReturnValue({});
-		mocks.budgets.mockReturnValue({});
+		mocks.budgets.mockReturnValue({
+			period: { type: "semester", key: "2026-S1" },
+		});
 		mocks.plans.mockReturnValue({});
 		mocks.setDepartment.mockClear();
-		mocks.tAccount.mockReturnValue({ setDepartment: mocks.setDepartment });
+		mocks.setPeriod.mockClear();
+		mocks.tAccount.mockReturnValue({
+			setDepartment: mocks.setDepartment,
+			setPeriod: mocks.setPeriod,
+		});
 		mocks.management.mockReturnValue({});
 	});
 
@@ -131,5 +138,18 @@ describe("useFinanceAnalyticsPage", () => {
 
 		expect(mocks.setDepartment).toHaveBeenCalledWith("Makeathon");
 		expect(result.current.activeTab).toBe("t-account");
+	});
+
+	it("carries the budget's active period into the T-account on drill-down", () => {
+		const { result } = renderHookWithClient(() => useFinanceAnalyticsPage());
+
+		act(() => result.current.openDepartmentTAccount("Makeathon"));
+
+		// A non-default budget period (2026-S1) must be copied over so the
+		// T-account renders the same period the user was viewing.
+		expect(mocks.setPeriod).toHaveBeenCalledWith({
+			type: "semester",
+			key: "2026-S1",
+		});
 	});
 });
