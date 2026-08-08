@@ -124,6 +124,28 @@ describe("Educational course routes", async () => {
 		);
 	});
 
+	test("tolerates the path query parameter the production rewrite injects", async () => {
+		// vercel.json rewrites `/api/:path*` onto `/api/[...path]`, which forwards
+		// the captured segment as a `path` query parameter. The client never sends
+		// it, so this only ever reproduced on a deployment: a strict empty query
+		// schema rejected every education request in production.
+		getMember(testUserIds.user).educational_course_role = "participant";
+		const periods = await app.inject({
+			method: "GET",
+			url: "/api/education/periods?path=education/periods",
+			headers: authHeaders(testTokens.user),
+		});
+		assert.strictEqual(periods.statusCode, 200);
+
+		getMember(testUserIds.admin).educational_course_role = "administrator";
+		const participants = await app.inject({
+			method: "GET",
+			url: "/api/education/participants?path=education/participants",
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(participants.statusCode, 200);
+	});
+
 	test("lets global admins assign and remove education administrators", async () => {
 		addMember(TARGET_USER_ID, "Ada", "Lovelace");
 
