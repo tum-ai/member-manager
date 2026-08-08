@@ -82,7 +82,11 @@ export function useAdminData() {
 			},
 		});
 
-	const { data: jobRequests, error: jobRequestsError } = useQuery({
+	const {
+		data: jobRequests,
+		error: jobRequestsError,
+		isLoading: isLoadingJobRequests,
+	} = useQuery({
 		queryKey: ["admin-job-requests"],
 		queryFn: async () => {
 			return await apiClient<JobPostingRequest[]>("/api/admin/job-requests");
@@ -378,9 +382,11 @@ export function useAdminData() {
 		changeRequests: changeRequests ?? [],
 		certificateRequests: certificateRequests ?? [],
 		jobRequests: jobRequests ?? [],
+		jobRequestsError,
 		duplicateCandidates: duplicateCandidates ?? [],
 		duplicateCandidatesError,
 		isLoading: membersQuery.isLoading,
+		isLoadingJobRequests,
 		isLoadingMoreMembers: membersQuery.isFetchingNextPage,
 		isRefreshingMembers:
 			membersQuery.isFetching && !membersQuery.isFetchingNextPage,

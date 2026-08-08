@@ -13,13 +13,16 @@ import {
 	jobRequestToForm,
 } from "@/features/admin/adminJobRequestsUtils";
 import { getMemberDisplayName } from "@/features/admin/adminRequests";
+import { usePartnerManagement } from "@/features/partnerManagement/hooks/usePartnerManagement";
 import { useAdminData } from "@/hooks/useAdminData";
 
 export function useAdminJobRequests() {
 	const { showToast } = useToast();
 	const adminData = useAdminData();
+	const partnerManagement = usePartnerManagement();
 	const [editorMode, setEditorMode] = useState<"create" | "edit" | null>(null);
 	const [editingJob, setEditingJob] = useState<JobPostingRequest | null>(null);
+	const [selectedPartnerId, setSelectedPartnerId] = useState("");
 	const [actionIds, setActionIds] = useState(() => new Set<string>());
 	const editorSessionRef = useRef(0);
 
@@ -100,6 +103,13 @@ export function useAdminJobRequests() {
 		form.reset(jobRequestToForm(request));
 	}
 
+	function openSelectedPartnerJobs() {
+		const partner = partnerManagement.partners.find(
+			(candidate) => candidate.id === selectedPartnerId,
+		);
+		if (partner) partnerManagement.openJobs(partner);
+	}
+
 	function resetEditor() {
 		setEditorMode(null);
 		setEditingJob(null);
@@ -149,5 +159,9 @@ export function useAdminJobRequests() {
 		submitEditor,
 		reviewJob,
 		removeJob,
+		partnerManagement,
+		selectedPartnerId,
+		setSelectedPartnerId,
+		openSelectedPartnerJobs,
 	};
 }

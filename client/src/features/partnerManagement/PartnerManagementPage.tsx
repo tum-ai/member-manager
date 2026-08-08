@@ -110,9 +110,9 @@ export default function PartnerManagementPage(): React.ReactElement {
 				onOpenChange={(open) => {
 					if (!open) management.setJobDeleteTarget(null);
 				}}
-				title={`Archive ${management.jobDeleteTarget?.title ?? "job"}?`}
-				description="The posting will leave the public job board while its audit history remains available."
-				confirmLabel={management.isDeletingJob ? "Archiving..." : "Archive job"}
+				title={`Delete ${management.jobDeleteTarget?.title ?? "job"}?`}
+				description="The posting will be removed from the public job board. Its audit history will be retained."
+				confirmLabel={management.isDeletingJob ? "Deleting..." : "Delete job"}
 				confirmDisabled={management.isDeletingJob}
 				destructive
 				onConfirm={management.confirmDeleteJob}

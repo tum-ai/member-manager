@@ -39,13 +39,13 @@ export function PartnerJobForm({
 	} = form;
 
 	return (
-		<>
-			<form
-				id="partner-job-form"
-				className="grid grid-cols-1 gap-4 sm:grid-cols-2"
-				onSubmit={onSubmit}
-				noValidate
-			>
+		<form
+			id="partner-job-form"
+			className="flex min-h-0 flex-1 flex-col overflow-hidden"
+			onSubmit={onSubmit}
+			noValidate
+		>
+			<div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto px-6 pb-5 sm:grid-cols-2">
 				<Field
 					label="Job title"
 					htmlFor="partner-job-title"
@@ -137,6 +137,7 @@ export function PartnerJobForm({
 				>
 					<Textarea
 						id="partner-job-description"
+						className="field-sizing-fixed min-h-40 max-h-64 overflow-y-auto"
 						rows={6}
 						aria-invalid={!!errors.description}
 						aria-describedby={
@@ -229,21 +230,20 @@ export function PartnerJobForm({
 						{...register("contactRole")}
 					/>
 				</Field>
-			</form>
+			</div>
 
-			<DialogFooter>
-				<Button variant="ghost" onClick={onCancel}>
+			<DialogFooter className="shrink-0 px-6 pb-6">
+				<Button type="button" variant="ghost" onClick={onCancel}>
 					Cancel
 				</Button>
 				<Button
 					type="submit"
-					form="partner-job-form"
 					className="bg-[#9A64D9] text-white hover:bg-[#523573]"
 					disabled={isSaving}
 				>
 					{isSaving ? "Saving..." : submitLabel}
 				</Button>
 			</DialogFooter>
-		</>
+		</form>
 	);
 }
