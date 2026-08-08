@@ -25,12 +25,12 @@ const {
 
 vi.mock("@/features/partnerManagement/hooks/usePartnerManagement", () => ({
 	usePartnerManagement: () => ({
-		partners: [
+		allPartners: [
 			{
 				id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
 				companyName: "Example Partner",
 				primaryEmail: "partner@example.com",
-				status: "active",
+				status: "archived",
 				partnerKind: "single_job_buyer",
 				tierId: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c11",
 				tier: null,
@@ -44,6 +44,7 @@ vi.mock("@/features/partnerManagement/hooks/usePartnerManagement", () => ({
 				updatedAt: "2026-01-02T00:00:00.000Z",
 			},
 		],
+		partners: [],
 		isLoading: false,
 		error: null,
 		openJobs,
@@ -323,7 +324,11 @@ describe("AdminJobRequestsPage", () => {
 		await user.click(
 			screen.getByRole("combobox", { name: "Partner organization" }),
 		);
-		await user.click(screen.getByRole("option", { name: "Example Partner" }));
+		await user.click(
+			screen.getByRole("option", {
+				name: "Example Partner · Archived",
+			}),
+		);
 		await user.click(screen.getByRole("button", { name: "Manage jobs" }));
 
 		expect(openJobs).toHaveBeenCalledWith(

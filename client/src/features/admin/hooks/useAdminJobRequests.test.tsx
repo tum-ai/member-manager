@@ -40,7 +40,7 @@ const {
 	createJobAsync: vi.fn(),
 	openJobs: vi.fn(),
 	partnerManagementState: {
-		partners: [
+		allPartners: [
 			{
 				id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
 				companyName: "Example Partner",
