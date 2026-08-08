@@ -1406,6 +1406,10 @@ function assignMockFinancePlanTemplate(params: Record<string, unknown>) {
 				created_by: actor,
 				project_id: projectId,
 				template_item_id: templateItem.id,
+				// Column defaults from 20260808120100_finance_plan_item_lifecycle:
+				// a template-assigned Planposten starts active with no planned VAT.
+				is_active: true,
+				vat_rate: null,
 				created_at: now,
 				updated_at: now,
 			};

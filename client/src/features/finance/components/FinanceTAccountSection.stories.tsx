@@ -1,5 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
+import {
+	tAccountGroup,
+	tAccountLine,
+	tAccountTotals,
+} from "@/features/finance/financeTAccountFixtures";
 import type { FinanceTAccountGroup } from "@/features/finance/financeTypes";
 import type { FinancePeriod } from "@/features/finance/financeUtils";
 import { FinanceTAccountSection } from "./FinanceTAccountSection";
@@ -10,149 +15,109 @@ const MAKEATHON_ID = "11111111-1111-4111-8111-111111111111";
 const HACKATHON_ID = "22222222-2222-4222-8222-222222222222";
 
 const groups: FinanceTAccountGroup[] = [
-	{
-		project_id: null,
-		project_name: null,
-		parent_project_id: null,
-		target_amount: null,
+	tAccountGroup({
 		expense_lines: [
-			{
-				kind: "actual",
-				direction: "expense",
+			tAccountLine({
 				label: "Catering",
 				category: "Verpflegung",
-				project_id: null,
 				amount: 119,
 				vat_amount: 19,
-				status: null,
+				vat_rate: 19,
 				posting_external_id: "BB-1",
-				plan_item_id: null,
-			},
-			{
+			}),
+			tAccountLine({
 				kind: "plan",
-				direction: "expense",
 				label: "Venue (geplant)",
-				category: null,
-				project_id: null,
 				amount: 800,
-				vat_amount: null,
 				status: "planned",
-				posting_external_id: null,
 				plan_item_id: "p-venue",
-			},
+			}),
 		],
-		income_lines: [],
 		actual: { income: 0, expenses: 119, saldo: -119 },
 		plan: { income: 0, expenses: 919, saldo: -919 },
-	},
-	{
+		vorsteuer: { actual: 19, plan: 0 },
+	}),
+	tAccountGroup({
 		project_id: MAKEATHON_ID,
 		project_name: "Makeathon",
-		parent_project_id: null,
 		target_amount: 50_000,
 		expense_lines: [
-			{
-				kind: "actual",
-				direction: "expense",
+			tAccountLine({
 				label: "Team-Offsite",
-				category: null,
 				project_id: MAKEATHON_ID,
 				amount: 1200,
 				vat_amount: 0,
-				status: null,
 				posting_external_id: "BB-2",
-				plan_item_id: null,
-			},
-			{
-				kind: "actual",
-				direction: "expense",
+			}),
+			tAccountLine({
 				label: "Tooling",
-				category: null,
 				project_id: MAKEATHON_ID,
 				amount: 340,
 				vat_amount: 0,
-				status: null,
 				posting_external_id: "BB-3",
-				plan_item_id: null,
-			},
-			{
+			}),
+			tAccountLine({
 				kind: "plan",
-				direction: "expense",
 				label: "Recruiting-Event",
-				category: null,
 				project_id: MAKEATHON_ID,
 				amount: 800,
-				vat_amount: null,
 				status: "planned",
-				posting_external_id: null,
 				plan_item_id: "p-recruiting",
-			},
+			}),
 		],
 		income_lines: [
-			{
-				kind: "actual",
+			tAccountLine({
 				direction: "income",
 				label: "Partner-Retainer",
-				category: null,
 				project_id: MAKEATHON_ID,
 				amount: 3000,
 				vat_amount: 479,
-				status: null,
+				vat_rate: 19,
 				posting_external_id: "BB-4",
-				plan_item_id: null,
-			},
+			}),
 		],
 		actual: { income: 3000, expenses: 1540, saldo: 1460 },
 		plan: { income: 3000, expenses: 2340, saldo: 660 },
-	},
-	{
+		umsatzsteuer: { actual: 479, plan: 0 },
+	}),
+	tAccountGroup({
 		project_id: HACKATHON_ID,
 		project_name: "Hackathon",
 		parent_project_id: MAKEATHON_ID,
-		target_amount: null,
 		expense_lines: [
-			{
-				kind: "actual",
-				direction: "expense",
+			tAccountLine({
 				label: "Preise",
 				category: "Prizes",
 				project_id: HACKATHON_ID,
 				amount: 2000,
 				vat_amount: 0,
-				status: null,
 				posting_external_id: "BB-5",
-				plan_item_id: null,
-			},
+			}),
 		],
 		income_lines: [
-			{
-				kind: "actual",
+			tAccountLine({
 				direction: "income",
 				label: "Sponsoring Acme",
-				category: null,
 				project_id: HACKATHON_ID,
 				amount: 17_420,
 				vat_amount: 2781.51,
-				status: null,
+				vat_rate: 19,
 				posting_external_id: "BB-6",
-				plan_item_id: null,
-			},
-			{
+			}),
+			tAccountLine({
 				kind: "plan",
 				direction: "income",
 				label: "Sponsoring (offen)",
-				category: null,
 				project_id: HACKATHON_ID,
 				amount: 1100,
-				vat_amount: null,
 				status: "planned",
-				posting_external_id: null,
 				plan_item_id: "p-sponsor",
-			},
+			}),
 		],
 		actual: { income: 17_420, expenses: 2000, saldo: 15_420 },
 		plan: { income: 18_520, expenses: 2000, saldo: 16_520 },
-	},
+		umsatzsteuer: { actual: 2781.51, plan: 0 },
+	}),
 ];
 
 const meta = {
@@ -173,12 +138,13 @@ export const Default: Story = {
 		canChooseDepartment: true,
 		department: "Makeathon",
 		groups,
-		totals: {
+		totals: tAccountTotals({
 			actual: { income: 20_420, expenses: 3659, saldo: 16_761 },
 			plan: { income: 21_520, expenses: 5259, saldo: 16_261 },
 			vat_income: 3260.51,
 			vat_expenses: 19,
-		},
+			vat_payload: 3241.51,
+		}),
 		isLoading: false,
 		error: null,
 		onPeriodTypeChange: noop,
@@ -249,23 +215,12 @@ export const EmptyProjectOnly: Story = {
 		canChooseDepartment: true,
 		department: "Makeathon",
 		groups: [
-			{
+			tAccountGroup({
 				project_id: MAKEATHON_ID,
 				project_name: "Neues Projekt",
-				parent_project_id: null,
-				target_amount: null,
-				expense_lines: [],
-				income_lines: [],
-				actual: { income: 0, expenses: 0, saldo: 0 },
-				plan: { income: 0, expenses: 0, saldo: 0 },
-			},
+			}),
 		],
-		totals: {
-			actual: { income: 0, expenses: 0, saldo: 0 },
-			plan: { income: 0, expenses: 0, saldo: 0 },
-			vat_income: 0,
-			vat_expenses: 0,
-		},
+		totals: tAccountTotals(),
 		isLoading: false,
 		error: null,
 		onPeriodTypeChange: noop,

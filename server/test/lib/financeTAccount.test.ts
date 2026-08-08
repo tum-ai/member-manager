@@ -22,6 +22,10 @@ const { aggregateByDepartment } = await import(
 
 const HACKATHON_ID = "11111111-1111-4111-8111-111111111111";
 const EMPTY_ID = "33333333-3333-4333-8333-333333333333";
+// Plan item ids are real uuids: a match record embedded in a plan line carries
+// its plan_item_id through the shared match schema, which enforces uuid format.
+const VENUE_PLAN_ID = "44444444-4444-4444-8444-444444444444";
+const SPONSOR_PLAN_ID = "55555555-5555-4555-8555-555555555555";
 const GENERATED_AT = "2026-08-04T10:00:00.000Z";
 
 function tx(
@@ -88,6 +92,8 @@ function planItem(
 		note: null,
 		project_id: null,
 		template_item_id: null,
+		is_active: true,
+		vat_rate: null,
 		...overrides,
 	};
 }
@@ -120,6 +126,7 @@ function project(
 		target_amount: 0,
 		status: "active",
 		description: null,
+		sub_team: null,
 		created_at: GENERATED_AT,
 		updated_at: GENERATED_AT,
 		...overrides,
@@ -162,9 +169,9 @@ function build(): FinanceTAccountResponse {
 		}),
 	];
 	const planItems = [
-		planItem({ id: "p-venue", label: "Venue", planned_amount: 200 }),
+		planItem({ id: VENUE_PLAN_ID, label: "Venue", planned_amount: 200 }),
 		planItem({
-			id: "p-sponsor",
+			id: SPONSOR_PLAN_ID,
 			label: "Sponsoring (geplant)",
 			planned_amount: 5_000,
 			direction: "income",
@@ -185,6 +192,7 @@ function build(): FinanceTAccountResponse {
 		planItems,
 		matches: [],
 		projects,
+		accountLabels: [],
 		source: "mock",
 		generatedAt: GENERATED_AT,
 	});
@@ -314,11 +322,11 @@ describe("buildFinanceTAccount", () => {
 			mappings: [mapping("120", "Makeathon")],
 			allocations: [],
 			planItems: [
-				planItem({ id: "p-venue", label: "Venue", planned_amount: 100 }),
+				planItem({ id: VENUE_PLAN_ID, label: "Venue", planned_amount: 100 }),
 			],
 			matches: [
 				match({
-					plan_item_id: "p-venue",
+					plan_item_id: VENUE_PLAN_ID,
 					posting_external_id: "BB-100",
 					matched_amount: 100,
 				}),
@@ -356,11 +364,11 @@ describe("buildFinanceTAccount", () => {
 			mappings: [mapping("120", "Makeathon")],
 			allocations: [],
 			planItems: [
-				planItem({ id: "p-venue", label: "Venue", planned_amount: 100 }),
+				planItem({ id: VENUE_PLAN_ID, label: "Venue", planned_amount: 100 }),
 			],
 			matches: [
 				match({
-					plan_item_id: "p-venue",
+					plan_item_id: VENUE_PLAN_ID,
 					posting_external_id: "BB-40",
 					matched_amount: 40,
 				}),

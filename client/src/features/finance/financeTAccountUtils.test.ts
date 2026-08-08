@@ -1,44 +1,12 @@
 import { describe, expect, it } from "vitest";
-import type {
-	FinanceTAccountGroup,
-	FinanceTAccountLine,
-} from "@/features/finance/financeTypes";
+import {
+	tAccountGroup as group,
+	tAccountLine as line,
+} from "@/features/finance/financeTAccountFixtures";
 import { buildTAccountTree } from "./financeTAccountUtils";
 
 const MAKEATHON = "11111111-1111-4111-8111-111111111111";
 const HACKATHON = "22222222-2222-4222-8222-222222222222";
-
-function line(overrides: Partial<FinanceTAccountLine>): FinanceTAccountLine {
-	return {
-		kind: "actual",
-		direction: "expense",
-		label: "Line",
-		category: null,
-		project_id: null,
-		amount: 0,
-		vat_amount: null,
-		status: null,
-		posting_external_id: null,
-		plan_item_id: null,
-		...overrides,
-	};
-}
-
-function group(
-	overrides: Partial<FinanceTAccountGroup> = {},
-): FinanceTAccountGroup {
-	return {
-		project_id: null,
-		project_name: null,
-		parent_project_id: null,
-		target_amount: null,
-		expense_lines: [],
-		income_lines: [],
-		actual: { income: 0, expenses: 0, saldo: 0 },
-		plan: { income: 0, expenses: 0, saldo: 0 },
-		...overrides,
-	};
-}
 
 describe("buildTAccountTree", () => {
 	it("derives per-column Ist and planned-only Plan subtotals", () => {

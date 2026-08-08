@@ -9,12 +9,17 @@ import type {
 	FinancePlanStatus,
 } from "@member-manager/shared";
 import { FINANCE_UNMAPPED_DEPARTMENT } from "@member-manager/shared";
-import { ConflictError, DatabaseError, NotFoundError } from "./errors.js";
+import {
+	ConflictError,
+	DatabaseError,
+	NotFoundError,
+	ValidationError,
+} from "./errors.js";
 import { getSupabase } from "./supabase.js";
 
 const PLAN_ITEMS_TABLE = "finance_plan_items";
 const PLAN_COLUMNS =
-	"id, department, period_type, period_key, label, category, direction, planned_amount, expected_month, status, note, project_id, template_item_id";
+	"id, department, period_type, period_key, label, category, direction, planned_amount, expected_month, status, note, project_id, template_item_id, is_active, vat_rate";
 
 function mapRow(row: Record<string, unknown>): FinancePlanItem {
 	return {
@@ -31,6 +36,13 @@ function mapRow(row: Record<string, unknown>): FinancePlanItem {
 		note: (row.note ?? null) as string | null,
 		project_id: (row.project_id ?? null) as string | null,
 		template_item_id: (row.template_item_id ?? null) as string | null,
+		// Rows written before the lifecycle migration have no flag; treat anything
+		// that is not an explicit `false` as active.
+		is_active: row.is_active !== false,
+		vat_rate:
+			row.vat_rate === null || row.vat_rate === undefined
+				? null
+				: Number(row.vat_rate),
 	};
 }
 
@@ -88,6 +100,12 @@ export async function createPlanItem(
 			expected_month: input.expected_month ?? null,
 			status: input.status ?? "planned",
 			note: input.note ?? null,
+			// FR-M1: a Planposten created on a T-view node lands in that node's
+			// project straight away. Previously dropped here, so only template
+			// assignment could ever set it.
+			project_id: input.project_id ?? null,
+			is_active: input.is_active ?? true,
+			vat_rate: input.vat_rate ?? null,
 			created_by: createdBy,
 			updated_at: new Date().toISOString(),
 		})
@@ -113,18 +131,28 @@ export async function updatePlanItem(
 		p_expected_month: input.expected_month ?? null,
 		p_status: input.status,
 		p_note: input.note ?? null,
+		p_project_id: input.project_id ?? null,
+		p_is_active: input.is_active ?? null,
+		p_vat_rate: input.vat_rate ?? null,
 	});
 
 	if (error) {
 		const message = error.message;
+		if (message.includes("Finance project not found")) {
+			throw new NotFoundError("Finance project not found");
+		}
 		if (message.includes("not found")) {
 			throw new NotFoundError("Finance plan item not found");
 		}
 		if (
 			message.includes("below its matched total") ||
-			message.includes("direction cannot change")
+			message.includes("direction cannot change") ||
+			message.includes("project cannot change")
 		) {
 			throw new ConflictError(message);
+		}
+		if (message.includes("must use the same department and period")) {
+			throw new ValidationError(message);
 		}
 		throw new DatabaseError("Failed to update finance plan item");
 	}
@@ -148,6 +176,10 @@ function round(value: number): number {
 
 // Planned (Σ line items) vs budget (Σ ceilings) vs actual (Σ gross expenses)
 // for the scope. The unmapped bucket never counts toward actual.
+//
+// Disabled Planposten (FR-M3) are excluded from every planned figure: disabling
+// is how a department parks an item it is not going to spend, so counting it
+// would keep inflating the plan against the budget ceiling.
 export function computePlanTotals(
 	items: FinancePlanItem[],
 	budgets: FinanceBudget[],
@@ -160,10 +192,11 @@ export function computePlanTotals(
 	budget: number;
 	actual: number;
 } {
-	const plannedExpenses = items
+	const activeItems = items.filter((item) => item.is_active !== false);
+	const plannedExpenses = activeItems
 		.filter((item) => (item.direction ?? "expense") === "expense")
 		.reduce((sum, item) => sum + item.planned_amount, 0);
-	const plannedIncome = items
+	const plannedIncome = activeItems
 		.filter((item) => item.direction === "income")
 		.reduce((sum, item) => sum + item.planned_amount, 0);
 	const budget = budgets.reduce((sum, entry) => sum + entry.amount_planned, 0);

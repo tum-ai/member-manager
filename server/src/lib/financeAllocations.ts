@@ -530,6 +530,13 @@ export async function createPlanItemPostingMatch(
 				"Posting direction does not match the plan item direction",
 			);
 		}
+		// FR-M8: a disabled Planposten is excluded from every plan total, so
+		// letting it absorb a posting would hide that money from the forecast.
+		if (message.includes("plan item is disabled")) {
+			throw new ConflictError(
+				"This plan item is disabled and cannot take new matches",
+			);
+		}
 		if (!message.includes("already matched")) {
 			throw new DatabaseError("Failed to create plan item posting match");
 		}
@@ -538,15 +545,21 @@ export async function createPlanItemPostingMatch(
 	return parseMatch(data);
 }
 
+// Goes through the RPC rather than a plain delete so the Planposten's status
+// walks back with the match that is being detached (FR-M7) — a plain delete
+// would leave an item marked "spent" with nothing matched against it.
 export async function deletePlanItemPostingMatch(
 	matchId: string,
 ): Promise<void> {
-	const { error } = await getSupabase()
-		.from("finance_plan_item_posting_matches")
-		.delete()
-		.eq("id", matchId);
+	const { error } = await getSupabase().rpc(
+		"delete_finance_plan_item_posting_match",
+		{ p_id: matchId },
+	);
 
 	if (error) {
+		if (error.message.includes("not found")) {
+			throw new NotFoundError("Plan item posting match not found");
+		}
 		throw new DatabaseError("Failed to delete plan item posting match");
 	}
 }
