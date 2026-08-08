@@ -11,6 +11,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PARTNER_STATUS_LABELS } from "@/features/partnerManagement/partnerManagementUtils";
 
 interface AdminPartnerJobsPanelProps {
 	partners: ManagedPartner[];
@@ -45,7 +46,7 @@ export function AdminPartnerJobsPanel({
 	if (partners.length === 0) {
 		return (
 			<p className="py-6 text-sm text-muted-foreground">
-				No active partner organizations.
+				No partner organizations.
 			</p>
 		);
 	}
@@ -64,7 +65,7 @@ export function AdminPartnerJobsPanel({
 					<SelectContent>
 						{partners.map((partner) => (
 							<SelectItem key={partner.id} value={partner.id}>
-								{partner.companyName}
+								{partner.companyName} · {PARTNER_STATUS_LABELS[partner.status]}
 							</SelectItem>
 						))}
 					</SelectContent>

@@ -386,6 +386,7 @@ export function usePartnerManagement() {
 	);
 
 	return {
+		allPartners: partners,
 		partners: currentPartners,
 		archivedPartners,
 		currentPartnerCount: partners.filter(

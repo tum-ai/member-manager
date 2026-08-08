@@ -168,6 +168,7 @@ export function MainLayout({
 				},
 				{ label: "Research", to: "/members/research", icon: FlaskConical },
 				{ label: "Task Forces", to: "/members/innovation", icon: Target },
+				{ label: "Job Board", to: "/tools/jobs", icon: Briefcase },
 			],
 		},
 		{
@@ -257,9 +258,8 @@ export function MainLayout({
 					key: "partners",
 					label: "Partners & Sponsors",
 					icon: Handshake,
-					match: ["/tools/jobs", "/tools/partners"],
+					match: ["/tools/partners"],
 					items: [
-						{ label: "Job Board", to: "/tools/jobs", icon: Briefcase },
 						{
 							label: "Partner Management",
 							to: "/tools/partners",

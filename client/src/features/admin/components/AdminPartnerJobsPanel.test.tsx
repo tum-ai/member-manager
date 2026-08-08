@@ -8,7 +8,7 @@ const partner: ManagedPartner = {
 	id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
 	companyName: "Example Partner",
 	primaryEmail: "partner@example.com",
-	status: "active",
+	status: "archived",
 	partnerKind: "single_job_buyer",
 	tierId: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c11",
 	tier: null,
@@ -42,7 +42,9 @@ describe("AdminPartnerJobsPanel", () => {
 		await user.click(
 			screen.getByRole("combobox", { name: "Partner organization" }),
 		);
-		await user.click(screen.getByRole("option", { name: "Example Partner" }));
+		await user.click(
+			screen.getByRole("option", { name: "Example Partner · Archived" }),
+		);
 		expect(onPartnerChange).toHaveBeenCalledWith(partner.id);
 
 		rerender(
