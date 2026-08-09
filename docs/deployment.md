@@ -55,7 +55,6 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `SLACK_SIGNING_SECRET` | Slack signing secret | required for Slack approve / approve-and-sync interactions |
 | `CRON_SECRET` | strong random bearer secret | required for Vercel Cron calls to `/api/tum-ai-days/send-pending` |
 | `RSVP_TARGET_EMAILS` | comma-separated target emails | required before scheduled TUM.ai Days Slack DMs are sent; `TEST_RSVP_EMAIL` can restrict to one test recipient |
-| `ALLOW_REAL_EMAILS` | `true` | required outside production before any mail is sent; local dev, E2E and CI skip sending without it even when `RESEND_API_KEY` is set |
 | `RESEND_API_KEY` | Resend API key | required to send partner contract signing-link emails |
 | `CONTRACT_EMAIL_FROM` | verified sender, e.g. `contracts@tum-ai.com` | required with `RESEND_API_KEY`; must be accepted by Resend |
 | `OPENSIGN_API_TOKEN` | OpenSign API token | required to send reviewed contracts through hosted OpenSign |
