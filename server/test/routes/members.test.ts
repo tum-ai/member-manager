@@ -364,6 +364,7 @@ describe("Members Routes", async () => {
 			assert.ok("department" in member);
 			assert.ok("member_role" in member);
 			assert.ok("board_role" in member);
+			assert.ok(!("educational_course_role" in member));
 			assert.ok("degree" in member);
 			assert.ok("school" in member);
 			assert.ok("active" in member);

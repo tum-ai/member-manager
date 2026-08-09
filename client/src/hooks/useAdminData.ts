@@ -82,7 +82,11 @@ export function useAdminData() {
 			},
 		});
 
-	const { data: jobRequests, error: jobRequestsError } = useQuery({
+	const {
+		data: jobRequests,
+		error: jobRequestsError,
+		isLoading: isLoadingJobRequests,
+	} = useQuery({
 		queryKey: ["admin-job-requests"],
 		queryFn: async () => {
 			return await apiClient<JobPostingRequest[]>("/api/admin/job-requests");
@@ -219,6 +223,24 @@ export function useAdminData() {
 		onSuccess: () => {
 			invalidateMemberViews();
 			queryClient.invalidateQueries({ queryKey: ["user-role"] });
+		},
+	});
+
+	const setEducationalCourseAdministratorMutation = useMutation({
+		mutationFn: async ({
+			userId,
+			enabled,
+		}: {
+			userId: string;
+			enabled: boolean;
+		}) => {
+			await apiClient(`/api/admin/education/administrators/${userId}`, {
+				method: enabled ? "PUT" : "DELETE",
+			});
+		},
+		onSuccess: () => {
+			invalidateMemberViews();
+			queryClient.invalidateQueries({ queryKey: ["tool-access"] });
 		},
 	});
 
@@ -378,9 +400,11 @@ export function useAdminData() {
 		changeRequests: changeRequests ?? [],
 		certificateRequests: certificateRequests ?? [],
 		jobRequests: jobRequests ?? [],
+		jobRequestsError,
 		duplicateCandidates: duplicateCandidates ?? [],
 		duplicateCandidatesError,
 		isLoading: membersQuery.isLoading,
+		isLoadingJobRequests,
 		isLoadingMoreMembers: membersQuery.isFetchingNextPage,
 		isRefreshingMembers:
 			membersQuery.isFetching && !membersQuery.isFetchingNextPage,
@@ -394,6 +418,8 @@ export function useAdminData() {
 		updateStatusAsync: updateStatusMutation.mutateAsync,
 		updateAccessRoleAsync: updateAccessRoleMutation.mutateAsync,
 		updateMemberAsync: updateMemberMutation.mutateAsync,
+		setEducationalCourseAdministratorAsync:
+			setEducationalCourseAdministratorMutation.mutateAsync,
 		mergeMembersAsync: mergeMembersMutation.mutateAsync,
 		reviewChangeRequestAsync: reviewChangeRequestMutation.mutateAsync,
 		reviewCertificateRequestAsync: reviewCertificateRequestMutation.mutateAsync,
@@ -407,6 +433,8 @@ export function useAdminData() {
 			updateStatusMutation.isPending ||
 			updateAccessRoleMutation.isPending ||
 			updateMemberMutation.isPending,
+		isUpdatingEducationalCourseAdministrator:
+			setEducationalCourseAdministratorMutation.isPending,
 		isMergingMembers: mergeMembersMutation.isPending,
 		isReviewingChangeRequest: reviewChangeRequestMutation.isPending,
 		isReviewingCertificateRequest: reviewCertificateRequestMutation.isPending,

@@ -10,7 +10,7 @@ import {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { getAuthProfiles } from "../lib/authEmails.js";
-import { DatabaseError } from "../lib/errors.js";
+import { ConflictError, DatabaseError } from "../lib/errors.js";
 import {
 	BOARD_MEMBER_ROLE,
 	buildDuplicateMemberNameKey,
@@ -810,6 +810,10 @@ export async function adminRoutes(server: FastifyInstance) {
 					typeof error === "object" && "message" in error
 						? String((error as { message?: unknown }).message ?? "")
 						: "";
+				const code =
+					typeof error === "object" && "code" in error
+						? String((error as { code?: unknown }).code ?? "")
+						: "";
 				if (message.includes("must differ")) {
 					return reply.status(400).send({ error: message });
 				}
@@ -819,8 +823,20 @@ export async function adminRoutes(server: FastifyInstance) {
 				if (message.includes("admin must have admin role")) {
 					return reply.status(403).send({ error: message });
 				}
-				if (message.includes("TUM.ai Day response conflicts")) {
-					return reply.status(409).send({ error: message });
+				if (
+					message.includes("TUM.ai Day response conflicts") ||
+					message.includes("Educational course application conflicts")
+				) {
+					throw new ConflictError(message);
+				}
+				if (code === "23505") {
+					// Any other unique violation is unexpected here, and its message
+					// names the constraint — log it instead of returning it.
+					request.log.error(
+						{ err: error },
+						"Unexpected unique violation while merging duplicate members",
+					);
+					throw new ConflictError("Member merge conflict");
 				}
 
 				request.log.error({ err: error }, "Failed to merge duplicate members");

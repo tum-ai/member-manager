@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import {
 	Award,
+	BookOpen,
 	Briefcase,
 	Building2,
 	CalendarDays,
@@ -126,13 +127,17 @@ export function MainLayout({
 }: MainLayoutProps) {
 	const location = useLocation();
 	const isMobile = useIsMobile();
-	const { permissions } = useToolAccess();
+	const { permissions, educationalCourseRole } = useToolAccess();
 
 	const showFinanceReview = permissions.includes("finance.review");
 	const showFinanceAnalytics =
 		showFinanceReview || permissions.includes("finance.department");
 	const showTumaiDays = permissions.includes("tumai_days.manage");
 	const showPartnerManagement = permissions.includes("partners.manage");
+	const isEducationalCourseAdministrator =
+		educationalCourseRole === "administrator";
+	const isEducationalCourseParticipant =
+		educationalCourseRole === "participant";
 	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
 
 	const pathname = location.pathname;
@@ -163,6 +168,7 @@ export function MainLayout({
 				},
 				{ label: "Research", to: "/members/research", icon: FlaskConical },
 				{ label: "Task Forces", to: "/members/innovation", icon: Target },
+				{ label: "Job Board", to: "/tools/jobs", icon: Briefcase },
 			],
 		},
 		{
@@ -240,15 +246,20 @@ export function MainLayout({
 							icon: CalendarDays,
 							visible: showTumaiDays,
 						},
+						{
+							label: "Educational Courses",
+							to: "/education/courses",
+							icon: BookOpen,
+							visible: isEducationalCourseParticipant,
+						},
 					],
 				},
 				{
 					key: "partners",
 					label: "Partners & Sponsors",
 					icon: Handshake,
-					match: ["/tools/jobs", "/tools/partners"],
+					match: ["/tools/partners"],
 					items: [
-						{ label: "Job Board", to: "/tools/jobs", icon: Briefcase },
 						{
 							label: "Partner Management",
 							to: "/tools/partners",
@@ -262,20 +273,33 @@ export function MainLayout({
 		{
 			key: "administration",
 			label: "Administration",
-			visible: isAdmin,
+			visible: isAdmin || isEducationalCourseAdministrator,
 			entries: [
-				{ label: "Members", to: "/admin", icon: Users },
+				{ label: "Members", to: "/admin", icon: Users, visible: isAdmin },
 				{
 					label: "Change Requests",
 					to: "/admin/change-requests",
 					icon: FileText,
+					visible: isAdmin,
 				},
 				{
 					label: "Certificate Requests",
 					to: "/admin/certificate-requests",
 					icon: Award,
+					visible: isAdmin,
 				},
-				{ label: "Job Postings", to: "/admin/job-requests", icon: Briefcase },
+				{
+					label: "Job Postings",
+					to: "/admin/job-requests",
+					icon: Briefcase,
+					visible: isAdmin,
+				},
+				{
+					label: "Educational Courses",
+					to: "/education/courses",
+					icon: BookOpen,
+					visible: isEducationalCourseAdministrator,
+				},
 			],
 		},
 	];

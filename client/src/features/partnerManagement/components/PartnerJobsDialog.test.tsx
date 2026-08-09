@@ -124,7 +124,7 @@ describe("PartnerJobsDialog", () => {
 			screen.getByRole("button", { name: "Edit AI Engineer" }),
 		);
 		await userEvent.click(
-			screen.getByRole("button", { name: "Archive AI Engineer" }),
+			screen.getByRole("button", { name: "Delete AI Engineer" }),
 		);
 		expect(onEdit).toHaveBeenCalledWith(job);
 		expect(onDelete).toHaveBeenCalledWith(job);
@@ -181,5 +181,19 @@ describe("PartnerJobsDialog", () => {
 		expect(
 			screen.getByRole("button", { name: "Save changes" }),
 		).toBeInTheDocument();
+	});
+
+	it("keeps long descriptions inside a viewport-safe scroll region", () => {
+		render(<Harness editorMode="edit" />);
+
+		expect(screen.getByRole("dialog")).toHaveClass(
+			"max-h-[calc(100dvh-2rem)]",
+			"overflow-hidden",
+		);
+		expect(screen.getByLabelText(/description/i)).toHaveClass(
+			"field-sizing-fixed",
+			"max-h-64",
+			"overflow-y-auto",
+		);
 	});
 });

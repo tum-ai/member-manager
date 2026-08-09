@@ -4,15 +4,67 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import AdminJobRequestsPage from "./AdminJobRequestsPage";
 
 const {
+	adminQueryState,
 	createJobAsync,
+	openJobs,
 	updateJobAsync,
 	reviewJobRequestAsync,
 	removeJobRequestAsync,
 } = vi.hoisted(() => ({
+	adminQueryState: {
+		error: null as Error | null,
+		jobRequestsError: null as Error | null,
+		isLoadingJobRequests: false,
+	},
 	createJobAsync: vi.fn(),
+	openJobs: vi.fn(),
 	updateJobAsync: vi.fn(),
 	reviewJobRequestAsync: vi.fn(),
 	removeJobRequestAsync: vi.fn(),
+}));
+
+vi.mock("@/features/partnerManagement/hooks/usePartnerManagement", () => ({
+	usePartnerManagement: () => ({
+		allPartners: [
+			{
+				id: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c10",
+				companyName: "Example Partner",
+				primaryEmail: "partner@example.com",
+				status: "archived",
+				partnerKind: "single_job_buyer",
+				tierId: "8b8e1d6c-9c50-4f1e-9a3a-2a8a5e1b1c11",
+				tier: null,
+				contractStart: "2026-01-01",
+				contractEnd: "2026-12-31",
+				websiteUrl: null,
+				notes: null,
+				invitedAt: "2026-01-01T00:00:00.000Z",
+				acceptedAt: "2026-01-02T00:00:00.000Z",
+				createdAt: "2026-01-01T00:00:00.000Z",
+				updatedAt: "2026-01-02T00:00:00.000Z",
+			},
+		],
+		partners: [],
+		isLoading: false,
+		error: null,
+		openJobs,
+		jobsPartner: null,
+		jobs: [],
+		jobsLoading: false,
+		jobsError: null,
+		jobEditorMode: null,
+		jobForm: {},
+		closeJobs: vi.fn(),
+		openCreateJob: vi.fn(),
+		openEditJob: vi.fn(),
+		cancelJobEdit: vi.fn(),
+		submitJobForm: vi.fn(),
+		setJobDeleteTarget: vi.fn(),
+		isSavingJob: false,
+		jobDeleteTarget: null,
+		isDeletingJob: false,
+		confirmDeleteJob: vi.fn(),
+	}),
 }));
 
 vi.mock("../../hooks/useAdminData", () => ({
@@ -80,7 +132,9 @@ vi.mock("../../hooks/useAdminData", () => ({
 			},
 		],
 		isLoading: false,
-		error: null,
+		isLoadingJobRequests: adminQueryState.isLoadingJobRequests,
+		error: adminQueryState.error,
+		jobRequestsError: adminQueryState.jobRequestsError,
 		createJobAsync,
 		updateJobAsync,
 		reviewJobRequestAsync,
@@ -96,7 +150,11 @@ vi.mock("../../contexts/ToastContext", () => ({
 
 describe("AdminJobRequestsPage", () => {
 	beforeEach(() => {
+		adminQueryState.error = null;
+		adminQueryState.jobRequestsError = null;
+		adminQueryState.isLoadingJobRequests = false;
 		createJobAsync.mockReset().mockResolvedValue(undefined);
+		openJobs.mockReset();
 		updateJobAsync.mockReset().mockResolvedValue(undefined);
 		reviewJobRequestAsync.mockReset().mockResolvedValue(undefined);
 		removeJobRequestAsync.mockReset().mockResolvedValue(undefined);
@@ -136,11 +194,25 @@ describe("AdminJobRequestsPage", () => {
 		).toBeInTheDocument();
 	});
 
+	it("keeps partner job management available when another admin query fails", () => {
+		adminQueryState.error = new Error("Certificate requests unavailable");
+		render(<AdminJobRequestsPage />);
+
+		expect(
+			screen.getByRole("tab", { name: "Partner jobs" }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByText("Unable to load requests"),
+		).not.toBeInTheDocument();
+	});
+
 	it("lets admins create and immediately publish a job posting", async () => {
 		const user = userEvent.setup();
 		render(<AdminJobRequestsPage />);
 
-		await user.click(screen.getByRole("button", { name: /create job/i }));
+		await user.click(
+			screen.getByRole("button", { name: /create standalone job/i }),
+		);
 		await user.type(
 			screen.getByLabelText(/job title/i),
 			"AI Platform Engineer",
@@ -242,5 +314,25 @@ describe("AdminJobRequestsPage", () => {
 		});
 
 		confirmSpy.mockRestore();
+	});
+
+	it("opens partner job management for an administrator", async () => {
+		const user = userEvent.setup();
+		render(<AdminJobRequestsPage />);
+
+		await user.click(screen.getByRole("tab", { name: "Partner jobs" }));
+		await user.click(
+			screen.getByRole("combobox", { name: "Partner organization" }),
+		);
+		await user.click(
+			screen.getByRole("option", {
+				name: "Example Partner · Archived",
+			}),
+		);
+		await user.click(screen.getByRole("button", { name: "Manage jobs" }));
+
+		expect(openJobs).toHaveBeenCalledWith(
+			expect.objectContaining({ companyName: "Example Partner" }),
+		);
 	});
 });

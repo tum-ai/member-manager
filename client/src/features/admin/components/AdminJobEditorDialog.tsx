@@ -56,7 +56,7 @@ export function AdminJobEditorDialog({
 			}}
 		>
 			<DialogContent
-				className="max-h-[90vh] overflow-y-auto sm:max-w-3xl"
+				className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl"
 				onEscapeKeyDown={(event) => {
 					if (isSaving) event.preventDefault();
 				}}
@@ -64,8 +64,13 @@ export function AdminJobEditorDialog({
 					if (isSaving) event.preventDefault();
 				}}
 			>
-				<form id="admin-job-form" onSubmit={onSubmit} noValidate>
-					<DialogHeader>
+				<form
+					id="admin-job-form"
+					className="flex min-h-0 flex-1 flex-col overflow-hidden"
+					onSubmit={onSubmit}
+					noValidate
+				>
+					<DialogHeader className="shrink-0 px-6 pt-6">
 						<DialogTitle>
 							{mode === "edit" ? "Edit job posting" : "Create job posting"}
 						</DialogTitle>
@@ -74,7 +79,7 @@ export function AdminJobEditorDialog({
 						</DialogDescription>
 					</DialogHeader>
 
-					<div className="grid grid-cols-1 gap-4 py-5 sm:grid-cols-2">
+					<div className="grid min-h-0 flex-1 grid-cols-1 gap-4 overflow-y-auto px-6 py-5 sm:grid-cols-2">
 						<Field
 							label="Job title"
 							htmlFor="admin-job-title"
@@ -170,6 +175,7 @@ export function AdminJobEditorDialog({
 						>
 							<Textarea
 								id="admin-job-description"
+								className="field-sizing-fixed min-h-40 max-h-64 overflow-y-auto"
 								required
 								rows={7}
 								aria-invalid={!!errors.description_markdown}
@@ -298,7 +304,7 @@ export function AdminJobEditorDialog({
 						</Field>
 					</div>
 
-					<DialogFooter>
+					<DialogFooter className="shrink-0 px-6 pb-6">
 						<Button
 							type="button"
 							variant="ghost"

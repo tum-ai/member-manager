@@ -209,7 +209,7 @@ export function AdminJobRequestCard({
 									: undefined
 							}
 						>
-							<Markdown className="text-muted-foreground">
+							<Markdown preserveWhitespace className="text-muted-foreground">
 								{request.description_markdown}
 							</Markdown>
 						</div>
@@ -234,21 +234,23 @@ export function AdminJobRequestCard({
 			</GlassCard>
 
 			<Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-				<DialogContent className="max-h-[85vh] gap-5 overflow-y-auto sm:max-w-2xl">
-					<DialogHeader>
+				<DialogContent className="flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+					<DialogHeader className="shrink-0 px-6 pt-6 pb-4">
 						<DialogTitle className="sr-only">{request.title}</DialogTitle>
 						<DialogDescription className="sr-only">
 							Full job posting details.
 						</DialogDescription>
 						{header}
 					</DialogHeader>
-					{badges}
-					<Markdown className="text-muted-foreground">
-						{request.description_markdown}
-					</Markdown>
-					<Separator />
-					{meta}
-					{actions}
+					<div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-6 pb-6">
+						{badges}
+						<Markdown preserveWhitespace className="text-muted-foreground">
+							{request.description_markdown}
+						</Markdown>
+						<Separator />
+						{meta}
+						{actions}
+					</div>
 				</DialogContent>
 			</Dialog>
 		</>

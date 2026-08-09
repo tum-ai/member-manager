@@ -13,6 +13,7 @@ import { bugReportRoutes } from "./routes/bugReports.js";
 import { changeRequestRoutes } from "./routes/changeRequests.js";
 import { contractRoutes } from "./routes/contracts.js";
 import { cvRoutes, partnerExportRoutes } from "./routes/cv.js";
+import { educationalCourseRoutes } from "./routes/educationCourses.js";
 import { engagementCertificateRoutes } from "./routes/engagementCertificates.js";
 import { financeRoutes } from "./routes/finance.js";
 import { financeManagementRoutes } from "./routes/financeManagement.js";
@@ -108,6 +109,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(memberRoutes);
 			await api.register(cvRoutes);
 			await api.register(partnerExportRoutes);
+			await api.register(educationalCourseRoutes);
 			await api.register(sepaRoutes);
 			await api.register(adminRoutes);
 			await api.register(permissionRoutes);

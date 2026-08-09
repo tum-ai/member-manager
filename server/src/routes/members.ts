@@ -500,10 +500,20 @@ export async function memberRoutes(server: FastifyInstance) {
 				return (data || []).map((member: any) => {
 					const profile = profileMap.get(String(member.user_id));
 					return {
-						...member,
+						user_id: member.user_id,
 						given_name: member.given_name || profile?.given_name || "",
 						surname: member.surname || profile?.surname || "",
+						batch: member.batch,
 						department: normalizeOperationalDepartment(member.department),
+						member_role: member.member_role,
+						board_role: member.board_role,
+						research_project_id: member.research_project_id,
+						degree: member.degree,
+						school: member.school,
+						active: member.active,
+						member_status: member.member_status,
+						linkedin_profile_url: member.linkedin_profile_url,
+						public_location: member.public_location,
 						email: profile?.email ?? "",
 						avatar_url: profile?.avatar_url ?? "",
 					};

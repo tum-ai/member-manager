@@ -72,9 +72,9 @@ test("creates, updates, archives, and restores a Partner Portal organization", a
 	await expect(page.getByText("Senior Robotics AI Engineer")).toBeVisible();
 
 	await page
-		.getByRole("button", { name: "Archive Senior Robotics AI Engineer" })
+		.getByRole("button", { name: "Delete Senior Robotics AI Engineer" })
 		.click();
-	await page.getByRole("button", { name: "Archive job" }).click();
+	await page.getByRole("button", { name: "Delete job" }).click();
 	await expect(page.getByText("No active job postings.")).toBeVisible();
 	await page.getByRole("button", { name: "Close" }).click();
 
@@ -137,8 +137,8 @@ test("enforces the single-job account contract", async ({ page }) => {
 
 	await expect(page.getByText("Single Job Role")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Add job" })).toBeDisabled();
-	await page.getByRole("button", { name: "Archive Single Job Role" }).click();
-	await page.getByRole("button", { name: "Archive job" }).click();
+	await page.getByRole("button", { name: "Delete Single Job Role" }).click();
+	await page.getByRole("button", { name: "Delete job" }).click();
 	await expect(page.getByText("No active job postings.")).toBeVisible();
 	await expect(page.getByRole("button", { name: "Add job" })).toBeEnabled();
 
@@ -152,4 +152,59 @@ test("enforces the single-job account contract", async ({ page }) => {
 	await page.getByLabel("Contact email").fill("single@e2e.test");
 	await page.getByRole("button", { name: "Publish job" }).click();
 	await expect(page.getByText("Replacement Job Role")).toBeVisible();
+});
+
+test("admins manage Partner Portal jobs from the job-posting page", async ({
+	page,
+}) => {
+	await loginAsLocalAdmin(page);
+	await page.goto("/tools/partners");
+
+	await page.getByRole("button", { name: "Add partner" }).click();
+	await page.getByLabel("Company name").fill("Admin Managed Partner");
+	await page.getByLabel("Primary contact email").fill("admin-managed@e2e.test");
+	await page.getByLabel("Partner type").click();
+	await page.getByRole("option", { name: "Single job posting" }).click();
+	await page.getByLabel("Contract start").fill("2026-08-01");
+	await page.getByLabel("Contract end").fill("2027-07-31");
+	await page.getByRole("button", { name: "Create partner" }).click();
+	const activationDialog = page.getByRole("dialog", {
+		name: "Activation link",
+	});
+	await activationDialog.getByRole("button", { name: "Close" }).click();
+	await expect(activationDialog).not.toBeVisible();
+
+	await page
+		.getByRole("button", { name: "Manage jobs for Admin Managed Partner" })
+		.click();
+	await page.getByRole("button", { name: "Add job" }).click();
+	await page.getByLabel("Job title").fill("Admin Created AI Role");
+	await page.getByLabel("Location").fill("Remote");
+	await page
+		.getByLabel("Description")
+		.fill("Build reliable AI products with the partner engineering team.");
+	await page.getByLabel("Contact name").fill("Admin Contact");
+	await page.getByLabel("Contact email").fill("admin-managed@e2e.test");
+	await page.getByRole("button", { name: "Publish job" }).click();
+	await page.getByRole("button", { name: "Close" }).click();
+
+	await page
+		.getByRole("button", { name: "Archive Admin Managed Partner" })
+		.click();
+	await page.getByRole("button", { name: "Archive partner" }).click();
+
+	await page.goto("/admin/job-requests");
+	await page.getByRole("tab", { name: "Partner jobs" }).click();
+	await page.getByLabel("Partner organization").click();
+	await page
+		.getByRole("option", { name: "Admin Managed Partner · Archived" })
+		.click();
+	await page.getByRole("button", { name: "Manage jobs" }).click();
+
+	await expect(page.getByText("Admin Created AI Role")).toBeVisible();
+	await page
+		.getByRole("button", { name: "Delete Admin Created AI Role" })
+		.click();
+	await page.getByRole("button", { name: "Delete job" }).click();
+	await expect(page.getByText("No active job postings.")).toBeVisible();
 });

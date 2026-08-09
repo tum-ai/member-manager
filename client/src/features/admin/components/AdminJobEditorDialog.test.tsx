@@ -48,4 +48,18 @@ describe("AdminJobEditorDialog", () => {
 			screen.getByRole("heading", { name: "Create job posting" }),
 		).toBeVisible();
 	});
+
+	it("keeps long job descriptions inside a viewport-safe scroll region", () => {
+		render(<Harness isSaving={false} onClose={() => {}} />);
+
+		expect(screen.getByRole("dialog")).toHaveClass(
+			"max-h-[calc(100dvh-2rem)]",
+			"overflow-hidden",
+		);
+		expect(screen.getByLabelText(/description/i)).toHaveClass(
+			"field-sizing-fixed",
+			"max-h-64",
+			"overflow-y-auto",
+		);
+	});
 });

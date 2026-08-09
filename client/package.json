@@ -16,6 +16,7 @@
 		"build-storybook": "storybook build"
 	},
 	"dependencies": {
+		"@daypicker/react": "^10.0.1",
 		"@hookform/resolvers": "^5.4.0",
 		"@member-manager/shared": "workspace:*",
 		"@supabase/supabase-js": "^2.108.1",

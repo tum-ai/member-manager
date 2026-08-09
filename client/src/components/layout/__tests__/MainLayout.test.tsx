@@ -7,6 +7,7 @@ import { ToastProvider } from "@/contexts/ToastContext";
 
 const toolAccessState = vi.hoisted(() => ({
 	permissions: [] as string[],
+	educationalCourseRole: null as "participant" | "administrator" | null,
 	isLoading: false,
 }));
 
@@ -63,7 +64,7 @@ describe("MainLayout sidebar navigation", () => {
 		expect(screen.getByText("Tools")).toBeInTheDocument();
 	});
 
-	it("surfaces Research and Task Forces as their own member nav links", () => {
+	it("surfaces Research, Task Forces, and the Job Board in TUM.ai", () => {
 		// Render within the members area so the (collapsible) Members menu is open.
 		renderLayout({ isAdmin: false, route: "/members" });
 
@@ -71,6 +72,10 @@ describe("MainLayout sidebar navigation", () => {
 		expect(
 			screen.getByRole("link", { name: /task forces/i }),
 		).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: /job board/i })).toHaveAttribute(
+			"href",
+			"/tools/jobs",
+		);
 	});
 
 	it("shows an Administration section for admin users", () => {
@@ -83,6 +88,31 @@ describe("MainLayout sidebar navigation", () => {
 		renderLayout({ isAdmin: false });
 
 		expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+	});
+
+	it("shows educational courses under Community for participants", () => {
+		toolAccessState.educationalCourseRole = "participant";
+		renderLayout({ isAdmin: false, route: "/education/courses" });
+
+		expect(
+			screen.getByRole("link", { name: /educational courses/i }),
+		).toBeInTheDocument();
+		expect(screen.queryByText("Administration")).not.toBeInTheDocument();
+		toolAccessState.educationalCourseRole = null;
+	});
+
+	it("gives an independent educational administrator a focused Administration section", () => {
+		toolAccessState.educationalCourseRole = "administrator";
+		renderLayout({ isAdmin: false, route: "/education/courses" });
+
+		expect(screen.getByText("Administration")).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: /educational courses/i }),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: /^members$/i }),
+		).not.toBeInTheDocument();
+		toolAccessState.educationalCourseRole = null;
 	});
 
 	it("shows the Legal department only when the user has contracts access", () => {

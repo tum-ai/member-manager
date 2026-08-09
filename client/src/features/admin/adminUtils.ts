@@ -1,3 +1,4 @@
+import type { EducationalCourseRole } from "@member-manager/shared";
 import {
 	buildMemberNameSearchText,
 	getOperationalDepartment,
@@ -5,6 +6,7 @@ import {
 import type { Member, Sepa } from "@/types";
 
 export interface AdminMember extends Member {
+	educational_course_role?: EducationalCourseRole | null;
 	sepa?: Partial<Sepa> | null;
 }
 

@@ -253,7 +253,7 @@ export function usePartnerManagement() {
 		onSuccess: async () => {
 			await refreshJobs();
 			setJobDeleteTarget(null);
-			showToast("Job archived.", "success");
+			showToast("Job deleted.", "success");
 		},
 		onError: (error) => showToast(error.message, "error"),
 	});
@@ -386,6 +386,7 @@ export function usePartnerManagement() {
 	);
 
 	return {
+		allPartners: partners,
 		partners: currentPartners,
 		archivedPartners,
 		currentPartnerCount: partners.filter(
