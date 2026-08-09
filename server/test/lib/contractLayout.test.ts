@@ -199,6 +199,6 @@ describe("preview html", () => {
 		const out = html("Partner: <script>alert(1)</script>");
 
 		assert.match(out, /&lt;script&gt;/);
-		assert.doesNotMatch(out, /<script>/);
+		assert.doesNotMatch(out, /<script>/i);
 	});
 });
