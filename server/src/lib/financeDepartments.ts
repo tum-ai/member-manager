@@ -25,6 +25,7 @@ export interface ResolvedDepartmentMapping {
 	department: string | null;
 	bereich: FinanceBereich | null;
 	note: string | null;
+	subTeam: string | null;
 }
 
 export function buildMappingLookup(
@@ -36,9 +37,31 @@ export function buildMappingLookup(
 			department: mapping.department,
 			bereich: mapping.bereich,
 			note: mapping.note,
+			subTeam: mapping.sub_team ?? null,
 		});
 	}
 	return lookup;
+}
+
+// The sub-team label a cost location maps to (2nd Kostenstelle digit), or null.
+// Used by the T-account to group a department's direct postings per sub-team.
+//
+// `effectiveDepartment` is the department the posting is being rendered under
+// (which may differ from the cost location's own department after a reallocation
+// override). The sub-team only applies when the cost location still maps to that
+// same department — otherwise a posting reallocated into another department would
+// leak its source sub-team (e.g. a Community/Onboarding posting moved to Makeathon
+// must not surface under "Makeathon > Onboarding").
+export function resolveCostLocationSubTeam(
+	costLocation: string,
+	lookup: Map<string, ResolvedDepartmentMapping>,
+	effectiveDepartment: string,
+): string | null {
+	const mapping = lookup.get(normalizeCostLocation(costLocation));
+	if (!mapping || mapping.department !== effectiveDepartment) {
+		return null;
+	}
+	return mapping.subTeam ?? null;
 }
 
 interface EffectiveDepartmentMetadata {
@@ -387,7 +410,7 @@ export async function loadDepartmentMappings(): Promise<
 > {
 	const { data, error } = await getSupabase()
 		.from(MAPPINGS_TABLE)
-		.select("cost_location, department, bereich, note");
+		.select("cost_location, department, bereich, note, sub_team");
 
 	if (error) {
 		throw error;
@@ -398,6 +421,7 @@ export async function loadDepartmentMappings(): Promise<
 		department: row.department ?? null,
 		bereich: (row.bereich ?? null) as FinanceBereich | null,
 		note: row.note ?? null,
+		sub_team: row.sub_team ?? null,
 	}));
 }
 
@@ -408,6 +432,7 @@ export async function upsertDepartmentMapping(input: {
 	department: string | null;
 	bereich: FinanceBereich | null;
 	note: string | null;
+	subTeam: string | null;
 }): Promise<FinanceDepartmentMapping> {
 	const costLocation = normalizeCostLocation(input.costLocation);
 	const { data, error } = await getSupabase()
@@ -418,11 +443,12 @@ export async function upsertDepartmentMapping(input: {
 				department: input.department,
 				bereich: input.bereich,
 				note: input.note,
+				sub_team: input.subTeam,
 				updated_at: new Date().toISOString(),
 			},
 			{ onConflict: "cost_location" },
 		)
-		.select("cost_location, department, bereich, note")
+		.select("cost_location, department, bereich, note, sub_team")
 		.single();
 
 	if (error) {
@@ -434,6 +460,7 @@ export async function upsertDepartmentMapping(input: {
 		department: data.department ?? null,
 		bereich: (data.bereich ?? null) as FinanceBereich | null,
 		note: data.note ?? null,
+		sub_team: data.sub_team ?? null,
 	};
 }
 
@@ -626,6 +653,7 @@ export function buildMappingRows(
 					department: resolved?.department ?? null,
 					bereich: resolved?.bereich ?? null,
 					note: resolved?.note ?? null,
+					sub_team: resolved?.subTeam ?? null,
 					posting_count: stat?.count ?? 0,
 					net: round(stat?.net ?? 0),
 					sample_texts: stat?.sampleTexts ?? [],

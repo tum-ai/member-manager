@@ -10,11 +10,13 @@ import {
 	useFinanceManagement,
 } from "./useFinanceManagement";
 import { useFinancePlanItems } from "./useFinancePlanItems";
+import { useFinanceTAccount } from "./useFinanceTAccount";
 
 export type FinanceAnalyticsTab =
 	| "overview"
 	| "budget"
 	| "planning"
+	| "t-account"
 	| "categories"
 	| "accounts"
 	| "projects"
@@ -43,6 +45,11 @@ export function useFinanceAnalyticsPage() {
 	});
 	const budgets = useFinanceBudgets({ enabled: activeTab === "budget" });
 	const plans = useFinancePlanItems({ enabled: activeTab === "planning" });
+	const tAccount = useFinanceTAccount({
+		enabled: activeTab === "t-account",
+		canManage,
+		department,
+	});
 	const managementSection: FinanceManagementSection | null =
 		activeTab === "projects" ||
 		activeTab === "reconciliation" ||
@@ -55,10 +62,22 @@ export function useFinanceAnalyticsPage() {
 		department: canManage ? null : department,
 	});
 
+	// Drill down from the budget overview into one department's T-account
+	// ("rauf/runterstufen" — FR-H2). Only reviewers pick a department; scoped
+	// members are already pinned to their own. Carry the budget's active period
+	// across so the T-account shows the same semester/year the user was viewing,
+	// not its own independent default.
+	function openDepartmentTAccount(nextDepartment: string): void {
+		tAccount.setPeriod(budgets.period);
+		tAccount.setDepartment(nextDepartment);
+		setActiveTab("t-account");
+	}
+
 	return {
 		activeTab,
 		setActiveTab: (value: string) => setActiveTab(value as FinanceAnalyticsTab),
 		canManage,
+		openDepartmentTAccount,
 		department,
 		analytics,
 		mappings,
@@ -66,6 +85,7 @@ export function useFinanceAnalyticsPage() {
 		accounts,
 		budgets,
 		plans,
+		tAccount,
 		management,
 	};
 }

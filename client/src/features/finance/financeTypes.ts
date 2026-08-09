@@ -24,6 +24,10 @@ import type {
 	FinancePlanItem,
 	FinancePlanItemsResponse,
 	FinancePlanStatus,
+	FinanceTAccountGroup,
+	FinanceTAccountLine,
+	FinanceTAccountResponse,
+	FinanceTAccountSaldo,
 	FinanceVatRateSummary,
 } from "@member-manager/shared";
 
@@ -53,6 +57,10 @@ export type {
 	FinancePlanItem,
 	FinancePlanItemsResponse,
 	FinancePlanStatus,
+	FinanceTAccountGroup,
+	FinanceTAccountLine,
+	FinanceTAccountResponse,
+	FinanceTAccountSaldo,
 	FinanceVatRateSummary,
 };
 

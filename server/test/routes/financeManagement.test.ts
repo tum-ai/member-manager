@@ -634,6 +634,69 @@ describe("Finance management routes", async () => {
 		);
 	});
 
+	test("returns a department T-account with expense/income columns and salden", async () => {
+		seedMakeathonMapping();
+		mockDatabase.finance_plan_items.push({
+			id: PLAN_ITEM_ID,
+			department: "Makeathon",
+			period_type: "year",
+			period_key: "2026",
+			label: "Geplante Ausgabe",
+			category: null,
+			direction: "expense",
+			planned_amount: 750,
+			expected_month: "2026-06",
+			status: "planned",
+			note: null,
+			project_id: null,
+			template_item_id: null,
+		});
+
+		const response = await app.inject({
+			method: "GET",
+			url: "/api/finance/t-account?period_type=year&period_key=2026&department=Makeathon",
+			headers: authHeaders(testTokens.admin),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const payload = JSON.parse(response.payload);
+		assert.strictEqual(payload.department, "Makeathon");
+		const ungrouped = payload.groups.find(
+			(group: { project_id: string | null }) => group.project_id === null,
+		);
+		assert.ok(ungrouped);
+		// The planned expense contributes to Plan- but not Ist-Saldo.
+		assert.ok(
+			ungrouped.expense_lines.some(
+				(line: { kind: string; label: string }) =>
+					line.kind === "plan" && line.label === "Geplante Ausgabe",
+			),
+		);
+		assert.strictEqual(
+			payload.totals.plan.expenses - payload.totals.actual.expenses,
+			750,
+		);
+	});
+
+	test("rejects a T-account request without a department", async () => {
+		const response = await app.inject({
+			method: "GET",
+			url: "/api/finance/t-account?period_type=year&period_key=2026",
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(response.statusCode, 400);
+	});
+
+	test("forbids a department viewer from reading another department's T-account", async () => {
+		seedDepartmentFinanceMember();
+		const response = await app.inject({
+			method: "GET",
+			url: "/api/finance/t-account?period_type=year&period_key=2026&department=Community",
+			headers: authHeaders(testTokens.otherUser),
+		});
+		assert.strictEqual(response.statusCode, 403);
+	});
+
 	test("forces department viewers to request transfers from their own budget", async () => {
 		seedDepartmentFinanceMember();
 		const response = await app.inject({

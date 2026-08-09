@@ -10,6 +10,7 @@ import {
 	FinanceReallocationRequestCreateSchema,
 	FinanceReconciliationPostingSchema,
 	FinanceReimbursementLinkSchema,
+	FinanceTAccountResponseSchema,
 } from "../dist/index.js";
 
 describe("finance management contracts", () => {
@@ -194,6 +195,115 @@ describe("finance management contracts", () => {
 		assert.strictEqual(
 			FinanceReimbursementLinkSchema.safeParse({
 				bb_posting_external_id: "BB-1001\nforged",
+			}).success,
+			false,
+		);
+	});
+
+	test("accepts a T-account response with an ungrouped bucket and a project", () => {
+		const parsed = FinanceTAccountResponseSchema.safeParse({
+			period_type: "year",
+			period_key: "2026",
+			department: "Makeathon",
+			groups: [
+				{
+					project_id: null,
+					project_name: null,
+					parent_project_id: null,
+					target_amount: null,
+					expense_lines: [
+						{
+							kind: "actual",
+							direction: "expense",
+							label: "Catering",
+							category: "1",
+							project_id: null,
+							amount: 119,
+							vat_amount: 19,
+							status: null,
+							posting_external_id: "BB-1",
+							plan_item_id: null,
+						},
+					],
+					income_lines: [],
+					actual: { income: 0, expenses: 119, saldo: -119 },
+					plan: { income: 0, expenses: 119, saldo: -119 },
+				},
+				{
+					project_id: "11111111-1111-4111-8111-111111111111",
+					project_name: "Hackathon",
+					parent_project_id: null,
+					target_amount: 50000,
+					expense_lines: [],
+					income_lines: [
+						{
+							kind: "plan",
+							direction: "income",
+							label: "Sponsoring",
+							category: null,
+							project_id: "11111111-1111-4111-8111-111111111111",
+							amount: 15420,
+							vat_amount: null,
+							status: "planned",
+							posting_external_id: null,
+							plan_item_id: "22222222-2222-4222-8222-222222222222",
+						},
+					],
+					actual: { income: 0, expenses: 0, saldo: 0 },
+					plan: { income: 15420, expenses: 0, saldo: 15420 },
+				},
+			],
+			totals: {
+				actual: { income: 0, expenses: 119, saldo: -119 },
+				plan: { income: 15420, expenses: 119, saldo: 15301 },
+				vat_income: 0,
+				vat_expenses: 19,
+			},
+			source: "mock",
+			generated_at: "2026-08-04T10:00:00.000Z",
+		});
+		assert.strictEqual(parsed.success, true);
+	});
+
+	test("rejects a T-account line with a negative amount", () => {
+		assert.strictEqual(
+			FinanceTAccountResponseSchema.safeParse({
+				period_type: "year",
+				period_key: "2026",
+				department: "Makeathon",
+				groups: [
+					{
+						project_id: null,
+						project_name: null,
+						parent_project_id: null,
+						target_amount: null,
+						expense_lines: [
+							{
+								kind: "actual",
+								direction: "expense",
+								label: "Catering",
+								category: null,
+								project_id: null,
+								amount: -1,
+								vat_amount: null,
+								status: null,
+								posting_external_id: "BB-1",
+								plan_item_id: null,
+							},
+						],
+						income_lines: [],
+						actual: { income: 0, expenses: 1, saldo: -1 },
+						plan: { income: 0, expenses: 1, saldo: -1 },
+					},
+				],
+				totals: {
+					actual: { income: 0, expenses: 1, saldo: -1 },
+					plan: { income: 0, expenses: 1, saldo: -1 },
+					vat_income: 0,
+					vat_expenses: 0,
+				},
+				source: "mock",
+				generated_at: "2026-08-04T10:00:00.000Z",
 			}).success,
 			false,
 		);

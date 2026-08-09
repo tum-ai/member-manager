@@ -93,6 +93,7 @@ describe("useFinanceDepartmentMappings", () => {
 				department: "Membership",
 				bereich: "ideell",
 				note: "Membership fees",
+				subTeam: "Memberfees",
 			});
 		});
 
@@ -107,6 +108,7 @@ describe("useFinanceDepartmentMappings", () => {
 			department: "Membership",
 			bereich: "ideell",
 			note: "Membership fees",
+			sub_team: "Memberfees",
 		});
 	});
 
@@ -159,12 +161,14 @@ describe("useFinanceDepartmentMappings", () => {
 				department: "Makeathon",
 				bereich: "wirtschaftlich",
 				note: null,
+				subTeam: null,
 			});
 			secondSave = result.current.saveMapping({
 				costLocation: "83",
 				department: "Legal & Finance",
 				bereich: "ideell",
 				note: null,
+				subTeam: null,
 			});
 		});
 

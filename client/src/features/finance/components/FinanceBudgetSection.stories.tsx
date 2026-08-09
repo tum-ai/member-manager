@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type { FinanceBudgetVsActualRow } from "@/features/finance/financeTypes";
 import type { FinancePeriod } from "@/features/finance/financeUtils";
 import { FinanceBudgetSection } from "./FinanceBudgetSection";
@@ -79,6 +79,28 @@ export const Loading: Story = {
 		onPeriodTypeChange: () => undefined,
 		onPeriodKeyChange: () => undefined,
 		onSave: () => undefined,
+	},
+};
+
+// The overview offers a drill-down into each department's T-account (FR-H2).
+export const WithDrilldown: Story = {
+	args: {
+		period,
+		rows,
+		totals: { amount_planned: 14000, actual_expenses: 15100, remaining: -1100 },
+		isLoading: false,
+		error: null,
+		savingDepartment: null,
+		onOpenDepartment: fn(),
+		onPeriodTypeChange: () => undefined,
+		onPeriodKeyChange: () => undefined,
+		onSave: () => undefined,
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const button = canvas.getByLabelText("T-Konto für Marketing öffnen");
+		await userEvent.click(button);
+		await expect(args.onOpenDepartment).toHaveBeenCalledWith("Marketing");
 	},
 };
 

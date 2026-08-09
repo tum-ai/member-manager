@@ -5,6 +5,7 @@ import {
 	aggregateByVatRate,
 	embeddedVat,
 	expenseVatTotal,
+	incomeVatTotal,
 } from "../../src/lib/financeVat.js";
 
 function tx(
@@ -49,6 +50,18 @@ describe("expenseVatTotal", () => {
 			tx({ transaction_amount: 1190, vat: 19 }),
 		]);
 		assert.strictEqual(total, 26);
+	});
+});
+
+describe("incomeVatTotal", () => {
+	test("sums VAT of income postings only", () => {
+		const total = incomeVatTotal([
+			tx({ transaction_amount: 1190, vat: 19 }),
+			tx({ transaction_amount: 107, vat: 7 }),
+			// Expense posting is ignored.
+			tx({ transaction_amount: -119, vat: 19 }),
+		]);
+		assert.strictEqual(total, 197);
 	});
 });
 

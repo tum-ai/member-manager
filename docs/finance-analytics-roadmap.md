@@ -32,6 +32,12 @@ The original phased plan is retained below. The implementation status is authori
   service-role database access; authenticated database access is read-only and department-scoped.
   Allocation and matching writes are concurrency-safe database operations.
 
+- **A per-department T-account view is implemented.** `GET /finance/t-account` and the T-Konto tab
+  render a single department as expenses vs. income, actual vs. planned, with Ist- and Plan-Saldo and
+  expandable project folders (Makeathon/Hackathon) showing net profit; income lines explain their
+  embedded VAT. It reuses the existing department/project assignment (no second mapping path) so its
+  actual saldo equals the analytics net. The budget overview drills down into it.
+
 The remaining BB-specific enhancement is direct receipt/document retrieval from a posting for
 in-app drill-down. Upload ingestion already exists in the reimbursement workflow, but a stable BB
 receipt-read endpoint or document URL must be confirmed before adding the reverse lookup.

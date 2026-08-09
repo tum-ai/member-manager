@@ -12,6 +12,7 @@ import { FinancePlanSection } from "./components/FinancePlanSection";
 import { FinanceProjectsSection } from "./components/FinanceProjectsSection";
 import { FinanceReconciliationSection } from "./components/FinanceReconciliationSection";
 import { FinanceReportSection } from "./components/FinanceReportSection";
+import { FinanceTAccountSection } from "./components/FinanceTAccountSection";
 import { FinanceVatSummarySection } from "./components/FinanceVatSummarySection";
 import { useFinanceAnalyticsPage } from "./hooks/useFinanceAnalyticsPage";
 
@@ -20,6 +21,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		activeTab,
 		setActiveTab,
 		canManage,
+		openDepartmentTAccount,
 		department,
 		analytics,
 		mappings,
@@ -27,6 +29,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		accounts,
 		budgets,
 		plans,
+		tAccount,
 		management,
 	} = useFinanceAnalyticsPage();
 
@@ -40,6 +43,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 					<TabsTrigger value="overview">Übersicht</TabsTrigger>
 					<TabsTrigger value="budget">Budget</TabsTrigger>
 					<TabsTrigger value="planning">Planung</TabsTrigger>
+					<TabsTrigger value="t-account">T-Konto</TabsTrigger>
 					<TabsTrigger value="projects">Projekte</TabsTrigger>
 					<TabsTrigger value="reconciliation">Abgleich</TabsTrigger>
 					<TabsTrigger value="report">Berichte</TabsTrigger>
@@ -77,6 +81,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						error={budgets.error}
 						savingDepartment={budgets.savingDepartment}
 						canEdit={canManage}
+						onOpenDepartment={canManage ? openDepartmentTAccount : undefined}
 						onPeriodTypeChange={budgets.setPeriodType}
 						onPeriodKeyChange={budgets.setPeriodKey}
 						onSave={budgets.saveBudget}
@@ -96,6 +101,20 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						onCreate={plans.createItem}
 						onUpdate={plans.updateItem}
 						onDelete={plans.deleteItem}
+					/>
+				</TabsContent>
+				<TabsContent value="t-account" className="mt-5">
+					<FinanceTAccountSection
+						period={tAccount.period}
+						canChooseDepartment={tAccount.canChooseDepartment}
+						department={tAccount.department}
+						groups={tAccount.groups}
+						totals={tAccount.totals}
+						isLoading={tAccount.isLoading}
+						error={tAccount.error}
+						onPeriodTypeChange={tAccount.setPeriodType}
+						onPeriodKeyChange={tAccount.setPeriodKey}
+						onDepartmentChange={tAccount.setDepartment}
 					/>
 				</TabsContent>
 				<TabsContent value="projects" className="mt-5">

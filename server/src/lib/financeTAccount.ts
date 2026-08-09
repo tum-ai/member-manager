@@ -1,0 +1,344 @@
+import type {
+	BuchhaltungsButlerTransaction,
+	FinanceDepartmentMapping,
+	FinanceManagedPlanItem,
+	FinancePeriodType,
+	FinancePlanItemPostingMatch,
+	FinancePostingAllocation,
+	FinanceProject,
+	FinanceTAccountGroup,
+	FinanceTAccountLine,
+	FinanceTAccountResponse,
+	FinanceTAccountSaldo,
+} from "@member-manager/shared";
+import { FinanceTAccountResponseSchema } from "@member-manager/shared";
+import {
+	buildEffectivePostingSplits,
+	buildMappingLookup,
+	type EffectivePostingSplit,
+	resolveCostLocationSubTeam,
+} from "./financeDepartments.js";
+import { embeddedVat } from "./financeVat.js";
+
+function round(value: number): number {
+	return Math.round(value * 100) / 100;
+}
+
+// A posting split recombined to one line per (posting, project) for the target
+// department. `buildEffectivePostingSplits` doubles gemischt postings into
+// ideell + wirtschaftlich; those share a posting/department/project, so we sum
+// their amounts back together to avoid duplicate-looking rows. The net is
+// preserved, keeping the actual saldo equal to `aggregateByDepartment` (FR-G5).
+interface MergedSplit {
+	posting: BuchhaltungsButlerTransaction;
+	projectId: string | null;
+	amount: number;
+}
+
+function mergeSplitsForDepartment(
+	splits: EffectivePostingSplit[],
+	department: string,
+): MergedSplit[] {
+	const byKey = new Map<string, MergedSplit>();
+	for (const split of splits) {
+		if (split.department !== department) {
+			continue;
+		}
+		const key = `${split.posting.external_id}\u001f${split.projectId ?? ""}`;
+		const existing = byKey.get(key);
+		if (existing) {
+			existing.amount += split.amount;
+		} else {
+			byKey.set(key, {
+				posting: split.posting,
+				projectId: split.projectId,
+				amount: split.amount,
+			});
+		}
+	}
+	return [...byKey.values()];
+}
+
+function normalizeCategory(costLocationTwo: string): string | null {
+	const trimmed = costLocationTwo.trim();
+	if (trimmed === "" || trimmed === "0") {
+		return null;
+	}
+	return trimmed;
+}
+
+function postingLabel(posting: BuchhaltungsButlerTransaction): string {
+	const text = posting.postingtext.trim();
+	if (text) return text;
+	const purpose = posting.transaction_purpose.trim();
+	if (purpose) return purpose;
+	return posting.external_id;
+}
+
+function actualLine(split: MergedSplit): FinanceTAccountLine {
+	const magnitude = Math.abs(split.amount);
+	return {
+		kind: "actual",
+		direction: split.amount < 0 ? "expense" : "income",
+		label: postingLabel(split.posting),
+		category: normalizeCategory(split.posting.cost_location_two),
+		project_id: split.projectId,
+		amount: round(magnitude),
+		vat_amount: round(embeddedVat(split.amount, split.posting.vat)),
+		status: null,
+		posting_external_id: split.posting.external_id,
+		plan_item_id: null,
+	};
+}
+
+// `plannedAmount` is the still-open remainder (planned minus already-matched
+// postings), so a plan line never double-counts a booked/matched posting that
+// already appears as an actual line in the same column.
+function planLine(
+	item: FinanceManagedPlanItem,
+	plannedAmount: number,
+): FinanceTAccountLine {
+	return {
+		kind: "plan",
+		direction: item.direction ?? "expense",
+		label: item.label,
+		category: item.category,
+		project_id: item.project_id ?? null,
+		amount: round(plannedAmount),
+		vat_amount: null,
+		status: item.status,
+		posting_external_id: null,
+		plan_item_id: item.id,
+	};
+}
+
+interface GroupAccumulator {
+	projectId: string | null;
+	// Sub-team label for a non-project group (from the cost-location mapping);
+	// null for the true "Direkt zugeordnet" bucket and for project groups.
+	subTeam: string | null;
+	expenseLines: FinanceTAccountLine[];
+	incomeLines: FinanceTAccountLine[];
+}
+
+function emptyGroup(
+	projectId: string | null,
+	subTeam: string | null,
+): GroupAccumulator {
+	return { projectId, subTeam, expenseLines: [], incomeLines: [] };
+}
+
+function addLine(group: GroupAccumulator, line: FinanceTAccountLine): void {
+	if (line.direction === "expense") {
+		group.expenseLines.push(line);
+	} else {
+		group.incomeLines.push(line);
+	}
+}
+
+function saldo(income: number, expenses: number): FinanceTAccountSaldo {
+	return {
+		income: round(income),
+		expenses: round(expenses),
+		saldo: round(income - expenses),
+	};
+}
+
+function groupSaldi(group: GroupAccumulator): {
+	actual: FinanceTAccountSaldo;
+	plan: FinanceTAccountSaldo;
+} {
+	let actualIncome = 0;
+	let actualExpenses = 0;
+	let planIncome = 0;
+	let planExpenses = 0;
+	for (const line of group.incomeLines) {
+		if (line.kind === "actual") actualIncome += line.amount;
+		planIncome += line.amount;
+	}
+	for (const line of group.expenseLines) {
+		if (line.kind === "actual") actualExpenses += line.amount;
+		planExpenses += line.amount;
+	}
+	return {
+		// `plan` deliberately includes the actual lines: it is the projected
+		// end-state (booked + still planned), so its saldo is the Plan-Saldo.
+		actual: saldo(actualIncome, actualExpenses),
+		plan: saldo(planIncome, planExpenses),
+	};
+}
+
+// Build the single-department T-account: expenses vs income, actual vs plan,
+// grouped by project. Empty projects for the department are still emitted as
+// folders so a freshly created project (e.g. Makeathon) shows up (FR-I3).
+export function buildFinanceTAccount(input: {
+	periodType: FinancePeriodType;
+	periodKey: string;
+	department: string;
+	transactions: BuchhaltungsButlerTransaction[];
+	mappings: FinanceDepartmentMapping[];
+	allocations: FinancePostingAllocation[];
+	planItems: FinanceManagedPlanItem[];
+	matches: FinancePlanItemPostingMatch[];
+	projects: FinanceProject[];
+	source: "mock" | "real";
+	generatedAt: string;
+}): FinanceTAccountResponse {
+	const merged = mergeSplitsForDepartment(
+		buildEffectivePostingSplits(
+			input.transactions,
+			input.mappings,
+			input.allocations,
+		),
+		input.department,
+	);
+
+	const mappingLookup = buildMappingLookup(input.mappings);
+
+	const groups = new Map<string, GroupAccumulator>();
+	// A group is a project, else a named sub-team, else the ungrouped bucket.
+	const groupKey = (
+		projectId: string | null,
+		subTeam: string | null,
+	): string =>
+		projectId ? `proj:${projectId}` : subTeam ? `sub:${subTeam}` : "ungrouped";
+	const ensureGroup = (
+		projectId: string | null,
+		subTeam: string | null,
+	): GroupAccumulator => {
+		const key = groupKey(projectId, subTeam);
+		const existing = groups.get(key);
+		if (existing) return existing;
+		const created = emptyGroup(projectId, subTeam);
+		groups.set(key, created);
+		return created;
+	};
+
+	// Always emit the ungrouped bucket and every department project as a folder.
+	ensureGroup(null, null);
+	for (const project of input.projects) {
+		if (project.department === input.department) {
+			ensureGroup(project.id, null);
+		}
+	}
+
+	for (const split of merged) {
+		// Un-allocated postings fall into their cost location's sub-team group
+		// (e.g. "Big Makeathon"); an explicit project allocation takes precedence.
+		// The department is passed so a posting reallocated in from elsewhere does
+		// not inherit its original cost location's sub-team.
+		const subTeam = split.projectId
+			? null
+			: resolveCostLocationSubTeam(
+					split.posting.cost_location,
+					mappingLookup,
+					input.department,
+				);
+		addLine(ensureGroup(split.projectId, subTeam), actualLine(split));
+	}
+
+	// Postings matched to a plan item are already booked and appear as actual
+	// lines, so the plan line only carries the still-open remainder to avoid
+	// double-counting the realised amount in the Plan-Saldo.
+	const matchedByPlanItem = new Map<string, number>();
+	for (const match of input.matches) {
+		matchedByPlanItem.set(
+			match.plan_item_id,
+			(matchedByPlanItem.get(match.plan_item_id) ?? 0) + match.matched_amount,
+		);
+	}
+	for (const item of input.planItems) {
+		if (item.department !== input.department) {
+			continue;
+		}
+		const remaining = round(
+			item.planned_amount - (matchedByPlanItem.get(item.id) ?? 0),
+		);
+		if (remaining <= 0) {
+			continue;
+		}
+		addLine(
+			ensureGroup(item.project_id ?? null, null),
+			planLine(item, remaining),
+		);
+	}
+
+	const projectById = new Map(
+		input.projects.map((project) => [project.id, project]),
+	);
+
+	const built: FinanceTAccountGroup[] = [...groups.values()]
+		.map((group) => {
+			const project = group.projectId
+				? projectById.get(group.projectId)
+				: undefined;
+			const saldi = groupSaldi(group);
+			return {
+				project_id: group.projectId,
+				// Projects show their name; sub-team groups reuse `project_name` as
+				// their folder label (project_id stays null → not a project).
+				project_name: project?.name ?? group.subTeam ?? null,
+				parent_project_id: project?.parent_project_id ?? null,
+				target_amount: project?.target_amount ?? null,
+				expense_lines: sortLines(group.expenseLines),
+				income_lines: sortLines(group.incomeLines),
+				actual: saldi.actual,
+				plan: saldi.plan,
+			};
+		})
+		// The true "Direkt zugeordnet" bucket (no project, no sub-team) first, then
+		// every named group (sub-teams + projects) alphabetically by label.
+		.sort((a, b) => {
+			const aUngrouped = a.project_id === null && a.project_name === null;
+			const bUngrouped = b.project_id === null && b.project_name === null;
+			if (aUngrouped !== bUngrouped) return aUngrouped ? -1 : 1;
+			return (a.project_name ?? "").localeCompare(b.project_name ?? "");
+		});
+
+	const totals = built.reduce(
+		(sum, group) => ({
+			actualIncome: sum.actualIncome + group.actual.income,
+			actualExpenses: sum.actualExpenses + group.actual.expenses,
+			planIncome: sum.planIncome + group.plan.income,
+			planExpenses: sum.planExpenses + group.plan.expenses,
+		}),
+		{ actualIncome: 0, actualExpenses: 0, planIncome: 0, planExpenses: 0 },
+	);
+
+	let vatIncome = 0;
+	let vatExpenses = 0;
+	for (const group of built) {
+		for (const line of group.income_lines) {
+			if (line.kind === "actual") vatIncome += line.vat_amount ?? 0;
+		}
+		for (const line of group.expense_lines) {
+			if (line.kind === "actual") vatExpenses += line.vat_amount ?? 0;
+		}
+	}
+
+	return FinanceTAccountResponseSchema.parse({
+		period_type: input.periodType,
+		period_key: input.periodKey,
+		department: input.department,
+		groups: built,
+		totals: {
+			actual: saldo(totals.actualIncome, totals.actualExpenses),
+			plan: saldo(totals.planIncome, totals.planExpenses),
+			vat_income: round(vatIncome),
+			vat_expenses: round(vatExpenses),
+		},
+		source: input.source,
+		generated_at: input.generatedAt,
+	});
+}
+
+// Actual lines first (booked reality), then planned; within each, largest
+// magnitude first so the biggest items lead each column.
+function sortLines(lines: FinanceTAccountLine[]): FinanceTAccountLine[] {
+	return [...lines].sort((a, b) => {
+		if (a.kind !== b.kind) {
+			return a.kind === "actual" ? -1 : 1;
+		}
+		return b.amount - a.amount;
+	});
+}
