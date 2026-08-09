@@ -37,7 +37,12 @@ const periodParamsSchema = z.object({ periodId: z.string().uuid() }).strict();
 const applicationParamsSchema = z
 	.object({ applicationId: z.string().uuid() })
 	.strict();
-const emptyQuerySchema = z.object({}).strict();
+// Deliberately not `.strict()`: the production rewrite in vercel.json maps
+// `/api/:path*` onto `/api/[...path]` and forwards the captured segment as a
+// `path` query parameter, so every deployed request carries a key the client
+// never sent. Zod strips unknown keys by default, which is what the other route
+// files already rely on; `.strict()` here rejected the whole request instead.
+const emptyQuerySchema = z.object({});
 const emptyBodySchema = z.union([
 	z.undefined(),
 	z.null(),
