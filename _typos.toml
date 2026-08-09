@@ -47,3 +47,7 @@ unter = "unter"
 ein = "ein"
 # Product name for the design platform (not "Canvas").
 Canva = "Canva"
+# German marker example in the template formatting hint ("# Titel"), not "Title".
+Titel = "Titel"
+# German contract prose in the layout fixtures ("Vor diesem Hintergrund"), not "For".
+Vor = "Vor"
