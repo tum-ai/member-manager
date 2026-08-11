@@ -1,4 +1,6 @@
 import type {
+	FinancePlanItemPostingMatch,
+	FinancePostingAllocation,
 	FinanceTAccountGroup,
 	FinanceTAccountLine,
 	FinanceTAccountPlanDetail,
@@ -11,6 +13,42 @@ import type {
 // objects in every spec turns each contract change into a mechanical rewrite of
 // a dozen files. Every builder takes overrides and fills the rest with inert
 // defaults, so a spec only states the fields it is actually asserting on.
+
+const FIXTURE_TIMESTAMP = "2026-03-01T09:00:00.000Z";
+
+export function tAccountAllocation(
+	overrides: Partial<FinancePostingAllocation> = {},
+): FinancePostingAllocation {
+	return {
+		id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+		posting_external_id: "BB-1",
+		department: null,
+		project_id: null,
+		tax_area: null,
+		allocated_amount: 0,
+		allocated_percentage: 100,
+		note: null,
+		created_by: null,
+		created_at: FIXTURE_TIMESTAMP,
+		updated_at: FIXTURE_TIMESTAMP,
+		...overrides,
+	};
+}
+
+export function tAccountMatch(
+	overrides: Partial<FinancePlanItemPostingMatch> = {},
+): FinancePlanItemPostingMatch {
+	return {
+		id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+		plan_item_id: "cccccccc-cccc-4ccc-8ccc-cccccccccccc",
+		posting_external_id: "BB-1",
+		matched_amount: 0,
+		match_type: "manual",
+		created_by: null,
+		created_at: FIXTURE_TIMESTAMP,
+		...overrides,
+	};
+}
 
 export function tAccountPostingDetail(
 	overrides: Partial<FinanceTAccountPostingDetail> = {},

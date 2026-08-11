@@ -56,6 +56,33 @@ function tAccountResponse(department: string) {
 	};
 }
 
+// The hook also loads the department's projects, which back the "add to
+// project" picker (FR-L2). They are requested together with the T-account, so
+// every test needs the handler.
+function projectsHandler() {
+	return http.get("/api/finance/projects", () =>
+		HttpResponse.json({
+			projects: [
+				{
+					id: "11111111-1111-4111-8111-111111111111",
+					parent_project_id: null,
+					name: "Hackathon",
+					department: "Makeathon",
+					period_type: "year",
+					period_key: "2026",
+					tax_area: null,
+					target_amount: 0,
+					status: "active",
+					description: null,
+					sub_team: null,
+					created_at: "2026-08-04T10:00:00.000Z",
+					updated_at: "2026-08-04T10:00:00.000Z",
+				},
+			],
+		}),
+	);
+}
+
 describe("useFinanceTAccount", () => {
 	it("does not fetch until a reviewer selects a department", async () => {
 		let requestedDepartment: string | null = null;
@@ -66,6 +93,7 @@ describe("useFinanceTAccount", () => {
 				);
 				return HttpResponse.json(tAccountResponse(requestedDepartment ?? "?"));
 			}),
+			projectsHandler(),
 		);
 
 		const { result } = renderHookWithClient(() =>
@@ -81,6 +109,8 @@ describe("useFinanceTAccount", () => {
 		await waitFor(() => expect(result.current.groups.length).toBe(1));
 		expect(requestedDepartment).toBe("Makeathon");
 		expect(result.current.totals?.vat_expenses).toBe(19);
+		// The project picker is fed from the same period and department.
+		await waitFor(() => expect(result.current.projects.length).toBe(1));
 	});
 
 	it("pins a scoped member to their own department", async () => {
@@ -92,6 +122,7 @@ describe("useFinanceTAccount", () => {
 				);
 				return HttpResponse.json(tAccountResponse(requestedDepartment ?? "?"));
 			}),
+			projectsHandler(),
 		);
 
 		const { result } = renderHookWithClient(() =>

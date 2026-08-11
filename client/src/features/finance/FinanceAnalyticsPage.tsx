@@ -12,8 +12,8 @@ import { FinancePlanSection } from "./components/FinancePlanSection";
 import { FinanceProjectsSection } from "./components/FinanceProjectsSection";
 import { FinanceReconciliationSection } from "./components/FinanceReconciliationSection";
 import { FinanceReportSection } from "./components/FinanceReportSection";
-import { FinanceTAccountSection } from "./components/FinanceTAccountSection";
 import { FinanceVatSummarySection } from "./components/FinanceVatSummarySection";
+import { FinanceTAccountSection } from "./components/tAccount/FinanceTAccountSection";
 import { useFinanceAnalyticsPage } from "./hooks/useFinanceAnalyticsPage";
 
 export default function FinanceAnalyticsPage(): ReactElement {
@@ -30,6 +30,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 		budgets,
 		plans,
 		tAccount,
+		tAccountWorkbench,
 		management,
 	} = useFinanceAnalyticsPage();
 
@@ -115,6 +116,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						onPeriodTypeChange={tAccount.setPeriodType}
 						onPeriodKeyChange={tAccount.setPeriodKey}
 						onDepartmentChange={tAccount.setDepartment}
+						{...tAccountWorkbench}
 					/>
 				</TabsContent>
 				<TabsContent value="projects" className="mt-5">

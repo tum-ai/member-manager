@@ -1,24 +1,21 @@
-import { ChevronDown, FolderClosed } from "lucide-react";
+import { ChevronDown, FolderClosed, FolderPlus } from "lucide-react";
 import { type ReactElement, useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import {
-	Tooltip,
-	TooltipContent,
-	TooltipProvider,
-	TooltipTrigger,
-} from "@/components/ui/tooltip";
-import type {
-	TAccountColumnSummary,
-	TAccountDisplayLine,
-	TAccountNode,
+	type TAccountColumnSummary,
+	type TAccountDisplayLine,
+	type TAccountNode,
+	vatLabel,
 } from "@/features/finance/financeTAccountUtils";
 import { formatFinanceAmount } from "@/features/finance/financeUtils";
 import { cn } from "@/lib/utils";
+import { FinanceTAccountLineRow } from "./FinanceTAccountLineRow";
+import type { TAccountInteraction } from "./tAccountInteraction";
 
 // Colour a saldo the way the mockup reads it: profit (>= 0) positive, deficit
 // negative. Colour is always backed by an explicit sign in the number, never
@@ -29,71 +26,16 @@ function saldoClass(value: number): string {
 	return "text-foreground";
 }
 
-function AmountWithVat({ line }: { line: TAccountDisplayLine }): ReactElement {
-	const amount = (
-		<span className="tabular-nums">{formatFinanceAmount(line.amount)}</span>
-	);
-	if (line.direction !== "income" || !line.vatAmount || line.vatAmount <= 0) {
-		return amount;
-	}
-	return (
-		<TooltipProvider>
-			<Tooltip>
-				<TooltipTrigger asChild>
-					<button
-						type="button"
-						className="cursor-help tabular-nums underline decoration-dotted underline-offset-2"
-						aria-label={`${formatFinanceAmount(line.amount)}, enthält ${formatFinanceAmount(line.vatAmount)} Umsatzsteuer`}
-					>
-						{formatFinanceAmount(line.amount)}
-					</button>
-				</TooltipTrigger>
-				<TooltipContent>
-					enthält {formatFinanceAmount(line.vatAmount)} USt
-				</TooltipContent>
-			</Tooltip>
-		</TooltipProvider>
-	);
-}
-
-function LineRow({ line }: { line: TAccountDisplayLine }): ReactElement {
-	const isPlan = line.kind === "plan";
-	return (
-		<div
-			className={cn(
-				"flex items-baseline justify-between gap-3 py-1 text-sm",
-				isPlan && "text-muted-foreground",
-			)}
-		>
-			<div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5">
-				{line.isProjectRollup ? (
-					<FolderClosed
-						className="size-3.5 shrink-0 self-center text-muted-foreground"
-						aria-hidden
-					/>
-				) : null}
-				<span className="truncate font-medium">{line.label}</span>
-				{line.category ? (
-					<span className="text-xs text-muted-foreground">
-						· {line.category}
-					</span>
-				) : null}
-				{isPlan ? (
-					<Badge variant="neutral" className="ml-0.5">
-						Geplant
-					</Badge>
-				) : null}
-			</div>
-			<AmountWithVat line={line} />
-		</div>
-	);
-}
-
+// Ist / Plan and the VAT embedded in each, named by the column's direction so
+// reclaimable Vorsteuer is never confused with Umsatzsteuer owed (FR-N3).
 function ColumnSubtotals({
 	summary,
+	direction,
 }: {
 	summary: TAccountColumnSummary;
+	direction: "expense" | "income";
 }): ReactElement {
+	const label = vatLabel(direction);
 	return (
 		<dl className="mt-2 space-y-0.5 border-t border-border/60 pt-2 text-sm">
 			<div className="flex items-baseline justify-between">
@@ -106,18 +48,34 @@ function ColumnSubtotals({
 				<dt>Plan</dt>
 				<dd className="tabular-nums">{formatFinanceAmount(summary.plan)}</dd>
 			</div>
+			<div className="flex items-baseline justify-between text-muted-foreground">
+				<dt>{label}</dt>
+				<dd className="tabular-nums">{formatFinanceAmount(summary.vatIst)}</dd>
+			</div>
+			{summary.vatPlan > 0 ? (
+				<div className="flex items-baseline justify-between text-muted-foreground">
+					<dt>{label} (geplant)</dt>
+					<dd className="tabular-nums">
+						{formatFinanceAmount(summary.vatPlan)}
+					</dd>
+				</div>
+			) : null}
 		</dl>
 	);
 }
 
 function Column({
 	title,
+	direction,
 	lines,
 	summary,
+	interaction,
 }: {
 	title: string;
+	direction: "expense" | "income";
 	lines: TAccountDisplayLine[];
 	summary: TAccountColumnSummary;
+	interaction?: TAccountInteraction;
 }): ReactElement {
 	return (
 		<div className="min-w-0 flex-1">
@@ -129,11 +87,15 @@ function Column({
 			) : (
 				<div className="divide-y divide-border/60">
 					{lines.map((line) => (
-						<LineRow key={line.key} line={line} />
+						<FinanceTAccountLineRow
+							key={line.key}
+							line={line}
+							interaction={interaction}
+						/>
 					))}
 				</div>
 			)}
-			<ColumnSubtotals summary={summary} />
+			<ColumnSubtotals summary={summary} direction={direction} />
 		</div>
 	);
 }
@@ -181,29 +143,69 @@ function SaldoFooter({ node }: { node: TAccountNode }): ReactElement {
 	);
 }
 
-function NodeBody({ node }: { node: TAccountNode }): ReactElement {
+// FR-L3: every folder can grow a project in place. A department or sub-team
+// folder creates a project; a project creates a sub-project under itself.
+function NodeActions({
+	node,
+	interaction,
+}: {
+	node: TAccountNode;
+	interaction?: TAccountInteraction;
+}): ReactElement | null {
+	if (interaction?.canWrite !== true) {
+		return null;
+	}
+	const isProject = node.projectId !== null;
+	return (
+		<Button
+			type="button"
+			size="sm"
+			variant="outline"
+			onClick={() => interaction.onCreateProject(node)}
+		>
+			<FolderPlus />
+			{isProject ? "Neues Teilprojekt" : "Neues Projekt"}
+		</Button>
+	);
+}
+
+function NodeBody({
+	node,
+	interaction,
+}: {
+	node: TAccountNode;
+	interaction?: TAccountInteraction;
+}): ReactElement {
 	return (
 		<>
 			<div className="flex flex-col gap-4 sm:flex-row sm:gap-6">
 				<Column
 					title="Ausgaben"
+					direction="expense"
 					lines={node.expenseLines}
 					summary={node.expenseSummary}
+					interaction={interaction}
 				/>
 				<div className="hidden w-px self-stretch bg-border sm:block" />
 				<Column
 					title="Einnahmen"
+					direction="income"
 					lines={node.incomeLines}
 					summary={node.incomeSummary}
+					interaction={interaction}
 				/>
 			</div>
 			<SaldoFooter node={node} />
+			<div className="mt-3 flex flex-wrap gap-2">
+				<NodeActions node={node} interaction={interaction} />
+			</div>
 			{node.children.length > 0 ? (
 				<div className="mt-4 flex flex-col gap-4 border-l-2 border-border/60 pl-4">
 					{node.children.map((child) => (
 						<FinanceTAccountGroup
-							key={child.projectId ?? child.projectName ?? "__ungrouped__"}
+							key={child.key}
 							node={child}
+							interaction={interaction}
 						/>
 					))}
 				</div>
@@ -214,8 +216,10 @@ function NodeBody({ node }: { node: TAccountNode }): ReactElement {
 
 export function FinanceTAccountGroup({
 	node,
+	interaction,
 }: {
 	node: TAccountNode;
+	interaction?: TAccountInteraction;
 }): ReactElement {
 	// Only the true unlabelled bucket (no project, no sub-team) renders open as
 	// "Direkt zugeordnet". Sub-teams (project_id null but named, e.g. "Big
@@ -224,14 +228,20 @@ export function FinanceTAccountGroup({
 		return (
 			<section className="rounded-lg border border-border bg-card p-4">
 				<h3 className="mb-2 text-sm font-semibold">Direkt zugeordnet</h3>
-				<NodeBody node={node} />
+				<NodeBody node={node} interaction={interaction} />
 			</section>
 		);
 	}
-	return <ProjectGroup node={node} />;
+	return <ProjectGroup node={node} interaction={interaction} />;
 }
 
-function ProjectGroup({ node }: { node: TAccountNode }): ReactElement {
+function ProjectGroup({
+	node,
+	interaction,
+}: {
+	node: TAccountNode;
+	interaction?: TAccountInteraction;
+}): ReactElement {
 	const [open, setOpen] = useState(false);
 	return (
 		<Collapsible
@@ -253,6 +263,11 @@ function ProjectGroup({ node }: { node: TAccountNode }): ReactElement {
 				/>
 				<span className="min-w-0 flex-1 truncate font-semibold">
 					{node.projectName ?? "Projekt"}
+					{node.isSubTeam ? (
+						<span className="ml-1.5 font-normal text-muted-foreground">
+							Sub-Team
+						</span>
+					) : null}
 				</span>
 				{node.targetAmount !== null ? (
 					<span className="text-sm text-muted-foreground">
@@ -276,7 +291,7 @@ function ProjectGroup({ node }: { node: TAccountNode }): ReactElement {
 				)}
 			</CollapsibleTrigger>
 			<CollapsibleContent className="px-4 pb-4">
-				<NodeBody node={node} />
+				<NodeBody node={node} interaction={interaction} />
 			</CollapsibleContent>
 		</Collapsible>
 	);

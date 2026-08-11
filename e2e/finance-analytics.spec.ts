@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import {
 	loginAsLocalAdmin,
 	loginWithSeedEmail,
@@ -7,6 +7,22 @@ import {
 } from "./helpers";
 
 const FINANCE_ANALYTICS_ROUTE = "/tools/finance/analytics";
+
+// Expand every T-account folder. A folder header is the only disclosure that
+// carries a Zielsaldo or a Profit, which keeps line-row disclosures out of it.
+// Repeated because expanding a folder can reveal nested ones.
+async function expandAllFolders(page: Page): Promise<void> {
+	for (let pass = 0; pass < 4; pass += 1) {
+		const collapsed = page
+			.getByRole("button", { expanded: false })
+			.filter({ hasText: /Profit|Zielsaldo/ });
+		const count = await collapsed.count();
+		if (count === 0) return;
+		for (let index = count - 1; index >= 0; index -= 1) {
+			await collapsed.nth(index).click();
+		}
+	}
+}
 
 test.describe("Finance Analytics tool", () => {
 	test.beforeEach(async ({ page }) => {
@@ -143,6 +159,75 @@ test.describe("Finance Analytics tool", () => {
 		await expect(page.getByText("Plan-Saldo").first()).toBeVisible();
 		await expect(page.getByText("Ausgaben").first()).toBeVisible();
 		await expect(page.getByText("Einnahmen").first()).toBeVisible();
+	});
+
+	test("builds a project from selected invoices and refuses the one that is matched elsewhere", async ({
+		page,
+	}) => {
+		await page.getByRole("tab", { name: "T-Konto" }).click();
+		// Community is the department the T-Konto fixtures are seeded for: cost
+		// location 111 → Community / Onboarding, with "Onboarding SS Catering"
+		// already allocated to the seeded "Onboarding SS26" project and matched to
+		// one of its Planposten.
+		await page.getByLabel("Department").click();
+		await page.getByRole("option", { name: "Community", exact: true }).click();
+		await expect(page.getByText("Ist-Saldo").first()).toBeVisible({
+			timeout: 20000,
+		});
+
+		// Open every folder, so the two invoices are found wherever they currently
+		// live. The suite does not reset the database between runs, so the free
+		// invoice sits in the sub-team folder on a fresh seed and inside the project
+		// a previous run created on any later one — the flow must work from both.
+		await expandAllFolders(page);
+
+		const freeInvoice = page.getByRole("checkbox", {
+			name: "Onboarding SS Location auswählen",
+		});
+		await expect(freeInvoice).toBeVisible({ timeout: 20000 });
+		await freeInvoice.check();
+
+		// "Onboarding SS Catering" funds a Planposten of the seeded "Onboarding
+		// SS26" project, so it can never be moved — it stays put on every run.
+		const matchedInvoice = page.getByRole("checkbox", {
+			name: "Onboarding SS Catering auswählen",
+		});
+		await expect(matchedInvoice).toBeVisible();
+		await matchedInvoice.check();
+
+		// Selection spans folders and states its size (FR-K1/FR-K5).
+		const selectionBar = page.getByRole("region", { name: "Auswahl" });
+		await expect(selectionBar.getByText("2 Buchungen")).toBeVisible();
+
+		// One call creates the project and files what may legally be filed (FR-L1).
+		const projectName = `E2E Sammelprojekt ${Date.now()}`;
+		await selectionBar
+			.getByRole("button", { name: /Neues Projekt aus Auswahl/ })
+			.click();
+		const dialog = page.getByRole("dialog");
+		await expect(
+			dialog.getByText(/2 Buchungen über .* werden dem neuen Projekt/),
+		).toBeVisible();
+		await dialog.getByLabel("Name").fill(projectName);
+		await dialog.getByRole("button", { name: "Anlegen" }).click();
+
+		// The invoice funding another project's Planposten is refused by name
+		// rather than silently moved (FR-L6/FR-L7).
+		await expect(page.getByText(/1 von 2 Buchungen zugeordnet/)).toBeVisible({
+			timeout: 20000,
+		});
+		await expect(
+			page.getByText(/Planposten eines anderen Projekts verknüpft/),
+		).toBeVisible();
+
+		// The selection is consumed (FR-K7) and the free invoice now sits in the
+		// new project folder.
+		await expect(selectionBar).toBeHidden();
+		const projectFolder = page.getByRole("button", { name: projectName });
+		await expect(projectFolder).toBeVisible({ timeout: 20000 });
+		await expect(freeInvoice).toBeHidden();
+		await projectFolder.click();
+		await expect(freeInvoice).toBeVisible();
 	});
 
 	test("drills from the budget overview into a department T-account", async ({

@@ -1,12 +1,16 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import type { ComponentProps, ReactElement } from "react";
+import { expect, fn, screen, userEvent, within } from "storybook/test";
 import {
 	tAccountGroup,
 	tAccountLine,
+	tAccountPlanDetail,
+	tAccountPostingDetail,
 	tAccountTotals,
 } from "@/features/finance/financeTAccountFixtures";
 import type { FinanceTAccountGroup } from "@/features/finance/financeTypes";
 import type { FinancePeriod } from "@/features/finance/financeUtils";
+import { useFinanceTAccountSelection } from "@/features/finance/hooks/useFinanceTAccountSelection";
 import { FinanceTAccountSection } from "./FinanceTAccountSection";
 
 const period: FinancePeriod = { type: "year", key: "2026" };
@@ -24,6 +28,15 @@ const groups: FinanceTAccountGroup[] = [
 				vat_amount: 19,
 				vat_rate: 19,
 				posting_external_id: "BB-1",
+				posting_detail: tAccountPostingDetail({
+					booking_date: "2026-03-04",
+					invoice_number: "RE-2026-0042",
+					counterparty: "Kantine München GmbH",
+					posting_amount: -119,
+					debit_account: "6840",
+					credit_account: "1200",
+					cost_location: "120",
+				}),
 			}),
 			tAccountLine({
 				kind: "plan",
@@ -31,6 +44,19 @@ const groups: FinanceTAccountGroup[] = [
 				amount: 800,
 				status: "planned",
 				plan_item_id: "p-venue",
+			}),
+			// A parked Planposten: visible and flagged, but excluded from every plan
+			// subtotal and from the forecast (FR-M3).
+			tAccountLine({
+				kind: "plan",
+				label: "Merch (gestrichen)",
+				amount: 400,
+				status: "planned",
+				plan_item_id: "p-merch",
+				plan_detail: tAccountPlanDetail({
+					planned_amount: 400,
+					is_active: false,
+				}),
 			}),
 		],
 		actual: { income: 0, expenses: 119, saldo: -119 },
@@ -120,10 +146,24 @@ const groups: FinanceTAccountGroup[] = [
 	}),
 ];
 
+// Drives the real selection hook, so the story exercises what the page does
+// rather than a hand-rolled stand-in.
+function SelectableSection(
+	props: ComponentProps<typeof FinanceTAccountSection>,
+): ReactElement {
+	const selection = useFinanceTAccountSelection({
+		groups: props.groups,
+		department: props.department,
+		periodType: period.type,
+		periodKey: period.key,
+	});
+	return <FinanceTAccountSection {...props} selection={selection} />;
+}
+
 const meta = {
 	title: "Features/Finance/FinanceTAccountSection",
 	component: FinanceTAccountSection,
-	parameters: { layout: "padded" },
+	parameters: { layout: "padded", a11y: { test: "error" } },
 } satisfies Meta<typeof FinanceTAccountSection>;
 
 export default meta;
@@ -159,6 +199,16 @@ export const Default: Story = {
 		await expect(canvas.getAllByText(/Plan-Saldo/).length).toBeGreaterThan(0);
 		await expect(canvas.getByText(/Grau = geplant/)).toBeVisible();
 		await expect(canvas.getAllByText("Geplant").length).toBeGreaterThan(0);
+		// VAT is named by direction on both sides, and the department states what
+		// it owes the tax office (FR-N2/FR-N3).
+		await expect(canvas.getAllByText("Vorsteuer").length).toBeGreaterThan(0);
+		await expect(canvas.getAllByText("Umsatzsteuer").length).toBeGreaterThan(0);
+		await expect(canvas.getByText("Zahllast")).toBeVisible();
+		// A disabled Planposten stays on screen, flagged as parked.
+		await expect(canvas.getByText("Deaktiviert")).toBeVisible();
+		// A booked invoice expands in place to its detail, without a round-trip.
+		await userEvent.click(canvas.getByRole("button", { name: /Catering/ }));
+		await expect(await canvas.findByText("RE-2026-0042")).toBeVisible();
 		// The Makeathon project shows its Zielsaldo on the collapsed header and
 		// expands to reveal its deviation-vs-target and its rolled-up child.
 		await expect(canvas.getByText(/Zielsaldo/)).toBeInTheDocument();
@@ -167,6 +217,72 @@ export const Default: Story = {
 		// The nested Hackathon project expands to its own detail lines.
 		await userEvent.click(canvas.getByRole("button", { name: /Hackathon/ }));
 		await expect(await canvas.findByText("Sponsoring Acme")).toBeVisible();
+	},
+};
+
+// The workbench half (FR-K5–K7, FR-L1): tick two invoices from two different
+// folders, and turn the selection into a project in one call.
+export const Workbench: Story = {
+	args: {
+		...Default.args,
+		canWrite: true,
+		projects: [],
+		isCreatingProject: false,
+		isAssigning: false,
+		onCreateProject: fn(),
+		onAssignToProject: fn(),
+	},
+	render: (args) => <SelectableSection {...args} />,
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		// Nothing ticked yet: no selection bar.
+		await expect(canvas.queryByRole("region", { name: "Auswahl" })).toBeNull();
+
+		await userEvent.click(canvas.getByRole("checkbox", { name: /Catering/ }));
+		const bar = await canvas.findByRole("region", { name: "Auswahl" });
+		await expect(within(bar).getByText("1 Buchung")).toBeVisible();
+
+		// Selection spans folders: open the project and tick one of its invoices.
+		await userEvent.click(canvas.getByRole("button", { name: /Makeathon/ }));
+		await userEvent.click(
+			await canvas.findByRole("checkbox", { name: /Team-Offsite/ }),
+		);
+		await expect(within(bar).getByText("2 Buchungen")).toBeVisible();
+
+		await userEvent.click(
+			within(bar).getByRole("button", { name: /Neues Projekt aus Auswahl/ }),
+		);
+
+		// The dialog states what it is about to do before it does it.
+		const dialog = within(await screen.findByRole("dialog"));
+		await expect(
+			dialog.getByText(/2 Buchungen über .* werden dem neuen Projekt/),
+		).toBeVisible();
+		await userEvent.type(dialog.getByLabelText(/Name/), "Sponsoring-Kampagne");
+		await userEvent.click(dialog.getByRole("button", { name: "Anlegen" }));
+
+		await expect(args.onCreateProject).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "Sponsoring-Kampagne",
+				postingExternalIds: ["BB-1", "BB-2"],
+			}),
+		);
+	},
+};
+
+// A read-only viewer (no write permission on the department): rows still expand,
+// but nothing is selectable and no folder offers a project action (FR-K6).
+export const ReadOnly: Story = {
+	args: { ...Default.args, canWrite: false },
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.queryByRole("checkbox")).toBeNull();
+		await expect(
+			canvas.queryByRole("button", { name: /Neues Projekt/ }),
+		).toBeNull();
+		// The disclosure still works.
+		await userEvent.click(canvas.getByRole("button", { name: /Catering/ }));
+		await expect(await canvas.findByText("RE-2026-0042")).toBeVisible();
 	},
 };
 
