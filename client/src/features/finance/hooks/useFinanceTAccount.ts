@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import type {
 	FinancePeriodType,
+	FinanceProjectsResponse,
 	FinanceTAccountResponse,
 } from "@/features/finance/financeTypes";
 import {
@@ -10,19 +11,26 @@ import {
 	switchFinancePeriodType,
 } from "@/features/finance/financeUtils";
 import { apiClient } from "@/lib/apiClient";
+import { FINANCE_MANAGEMENT_QUERY_KEYS } from "./useFinanceManagement";
 
 export const FINANCE_T_ACCOUNT_QUERY_KEY = "finance-t-account";
+
+function buildPeriodDepartmentQuery(
+	period: FinancePeriod,
+	department: string,
+): string {
+	return new URLSearchParams({
+		period_type: period.type,
+		period_key: period.key,
+		department,
+	}).toString();
+}
 
 function buildTAccountEndpoint(
 	period: FinancePeriod,
 	department: string,
 ): string {
-	const params = new URLSearchParams({
-		period_type: period.type,
-		period_key: period.key,
-		department,
-	});
-	return `/api/finance/t-account?${params.toString()}`;
+	return `/api/finance/t-account?${buildPeriodDepartmentQuery(period, department)}`;
 }
 
 // The T-account is always for exactly one department. A reviewer (canManage)
@@ -62,6 +70,23 @@ export function useFinanceTAccount({
 			enabled: enabled && Boolean(activeDepartment),
 		});
 
+	// The department's projects for this period back the "add to project" dialog
+	// (FR-L2) and are refetched by the same invalidation as the T-account, so a
+	// project created from the T-view appears in the picker immediately.
+	const projectsQuery = useQuery<FinanceProjectsResponse>({
+		queryKey: [
+			FINANCE_MANAGEMENT_QUERY_KEYS.projects,
+			period.type,
+			period.key,
+			activeDepartment,
+		],
+		queryFn: async () =>
+			await apiClient(
+				`/api/finance/projects?${buildPeriodDepartmentQuery(period, activeDepartment as string)}`,
+			),
+		enabled: enabled && Boolean(activeDepartment),
+	});
+
 	function setPeriodType(type: FinancePeriodType): void {
 		setPeriod((current) =>
 			current.type === type
@@ -80,6 +105,7 @@ export function useFinanceTAccount({
 		department: activeDepartment,
 		response: data ?? null,
 		groups: data?.groups ?? [],
+		projects: projectsQuery.data?.projects ?? [],
 		totals: data?.totals,
 		source: data?.source,
 		isLoading: Boolean(activeDepartment) && isLoading,
