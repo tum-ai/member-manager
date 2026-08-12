@@ -141,9 +141,14 @@ export function tAccountTotals(
 	return {
 		actual: { income: 0, expenses: 0, saldo: 0 },
 		plan: { income: 0, expenses: 0, saldo: 0 },
+		actual_net: { income: 0, expenses: 0, saldo: 0 },
+		plan_net: { income: 0, expenses: 0, saldo: 0 },
 		vat_income: 0,
 		vat_expenses: 0,
+		vat_income_plan: 0,
+		vat_expenses_plan: 0,
 		vat_payload: 0,
+		vat_payload_forecast: 0,
 		...overrides,
 	};
 }

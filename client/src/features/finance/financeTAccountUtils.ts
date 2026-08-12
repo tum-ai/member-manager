@@ -93,6 +93,10 @@ export interface TAccountMatchView {
 	projectId: string | null;
 }
 
+// Which amount every figure in the T-view stands for (FR-N4). Gross is what the
+// bank moved; net is that minus the VAT embedded in it.
+export type TAccountAmountMode = "gross" | "net";
+
 // A line as rendered in a T-account column: either a real posting/plan line or a
 // rolled-up child-project subtotal (folder line) injected into its parent.
 export interface TAccountDisplayLine {
@@ -101,9 +105,18 @@ export interface TAccountDisplayLine {
 	direction: "expense" | "income";
 	label: string;
 	category: string | null;
+	// The amount to render, already in the active mode — every subtotal and
+	// saldo is derived from this, so switching the mode switches all of them at
+	// once and none of them can disagree.
 	amount: number;
+	// The mode `amount` is in, so a row can say whether its VAT is included in
+	// what it shows or comes on top of it.
+	amountMode: TAccountAmountMode;
 	vatAmount: number | null;
 	vatRate: number | null;
+	// Always the gross and net figures, whatever the active mode is — the detail
+	// panel states both.
+	grossAmount: number;
 	netAmount: number;
 	status: FinancePlanStatus | null;
 	// False only for a disabled Planposten (FR-M3): it still renders, but it is
@@ -385,6 +398,7 @@ function matchViews(
 function toDisplayLine(
 	line: FinanceTAccountLine,
 	lookups: TAccountLookups,
+	amountMode: TAccountAmountMode,
 ): TAccountDisplayLine {
 	return {
 		key: `${line.kind}-${line.posting_external_id ?? line.plan_item_id ?? line.label}`,
@@ -392,9 +406,13 @@ function toDisplayLine(
 		direction: line.direction,
 		label: line.label,
 		category: line.category,
-		amount: line.amount,
+		// Both figures come from the server, so switching modes never re-derives
+		// money on the client (FR-N6).
+		amount: amountMode === "net" ? line.net_amount : line.amount,
+		amountMode,
 		vatAmount: line.vat_amount,
 		vatRate: line.vat_rate,
+		grossAmount: line.amount,
 		netAmount: line.net_amount,
 		status: line.status,
 		isActive: line.plan_detail?.is_active !== false,
@@ -439,8 +457,11 @@ function rollupLine(
 	child: TAccountNode,
 	kind: "actual" | "plan",
 	net: number,
+	amountMode: TAccountAmountMode,
 ): TAccountDisplayLine {
 	const suffix = kind === "plan" ? " (offen)" : "";
+	// The child's saldo is already in the active mode, so a folder line inherits
+	// it rather than converting anything.
 	const amount = round(Math.abs(net));
 	return {
 		key: `rollup-${kind}-${child.projectId}`,
@@ -449,11 +470,13 @@ function rollupLine(
 		label: `${child.projectName ?? "Projekt"}${suffix}`,
 		category: null,
 		amount,
+		amountMode,
 		// A folder line is a net of many lines with different rates; it carries no
 		// VAT of its own, which also keeps the parent's VAT subtotal free of the
 		// child's (children are not rolled into VAT, matching the server).
 		vatAmount: null,
 		vatRate: null,
+		grossAmount: amount,
 		netAmount: amount,
 		status: null,
 		isActive: true,
@@ -477,9 +500,17 @@ function rollupLine(
 // server `totals`, so a child is never counted twice (keeps FR-G5 intact).
 export function buildTAccountTree(
 	groups: FinanceTAccountGroup[],
-	planItems: Record<string, FinanceTAccountPlanItemRef> = {},
+	options: {
+		// Every Planposten of the department by id, so a reference can be named
+		// and attributed to the project whose share it spends.
+		planItems?: Record<string, FinanceTAccountPlanItemRef>;
+		// Every amount, subtotal and saldo in the returned tree is in this mode
+		// (FR-N4). Defaults to what the bank moved.
+		amountMode?: TAccountAmountMode;
+	} = {},
 ): TAccountNode[] {
-	const lookups = buildLookups(groups, planItems);
+	const amountMode = options.amountMode ?? "gross";
+	const lookups = buildLookups(groups, options.planItems ?? {});
 	const byId = new Map<string, FinanceTAccountGroup>();
 	const subTeamGroups = new Set<string>();
 	for (const group of groups) {
@@ -523,10 +554,10 @@ export function buildTAccountTree(
 	): TAccountNode => {
 		const key = groupKey(group);
 		const expenseLines = group.expense_lines.map((line) =>
-			toDisplayLine(line, lookups),
+			toDisplayLine(line, lookups, amountMode),
 		);
 		const incomeLines = group.income_lines.map((line) =>
-			toDisplayLine(line, lookups),
+			toDisplayLine(line, lookups, amountMode),
 		);
 
 		const nextSeen = new Set(seen).add(key);
@@ -540,12 +571,12 @@ export function buildTAccountTree(
 			const child = buildNode(childGroup, nextSeen);
 			children.push(child);
 			if (child.actualSaldo !== 0) {
-				const line = rollupLine(child, "actual", child.actualSaldo);
+				const line = rollupLine(child, "actual", child.actualSaldo, amountMode);
 				(line.direction === "income" ? incomeLines : expenseLines).push(line);
 			}
 			const planOnly = round(child.planSaldo - child.actualSaldo);
 			if (planOnly !== 0) {
-				const line = rollupLine(child, "plan", planOnly);
+				const line = rollupLine(child, "plan", planOnly, amountMode);
 				(line.direction === "income" ? incomeLines : expenseLines).push(line);
 			}
 		}

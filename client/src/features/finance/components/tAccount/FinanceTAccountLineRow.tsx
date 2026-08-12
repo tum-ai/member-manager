@@ -19,14 +19,18 @@ import type { TAccountInteraction } from "./tAccountInteraction";
 
 // The embedded VAT, stated in words next to the amount rather than hidden in a
 // hover tooltip: it must be readable on touch and by a screen reader, and it
-// must name its side of the ledger (FR-N1/FR-N2).
+// must name its side of the ledger (FR-N1/FR-N2). The preposition follows the
+// amount mode — in Netto the VAT is not in the number shown, it comes on top
+// of it (FR-N4).
 function VatNote({ line }: { line: TAccountDisplayLine }): ReactElement | null {
 	if (line.vatAmount === null || line.vatAmount <= 0) {
 		return null;
 	}
+	const preposition = line.amountMode === "net" ? "zzgl." : "inkl.";
 	return (
 		<span className="block text-xs font-normal text-muted-foreground">
-			inkl. {formatFinanceAmount(line.vatAmount)} {vatLabel(line.direction)}
+			{preposition} {formatFinanceAmount(line.vatAmount)}{" "}
+			{vatLabel(line.direction)}
 		</span>
 	);
 }

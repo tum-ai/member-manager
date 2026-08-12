@@ -1,5 +1,5 @@
 import { TUMAI_DEPARTMENTS } from "@member-manager/shared";
-import { type ReactElement, useMemo } from "react";
+import { type ReactElement, useMemo, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,7 @@ import { FinanceManagementPeriodControls } from "@/features/finance/components/F
 import {
 	buildTAccountTree,
 	collectSubTeamOptions,
+	type TAccountAmountMode,
 } from "@/features/finance/financeTAccountUtils";
 import type {
 	FinancePeriodType,
@@ -159,9 +160,13 @@ function TAccountBody({
 >): ReactElement {
 	// Build the nested display tree (per-column subtotals + child roll-ups) once
 	// per data change, before any early return so the hook order stays stable.
+	// Gross is the default: it is what the bank moved and what an invoice says.
+	// Net is the working view for anyone reasoning about the department's real
+	// cost, and the header always states which one is on (FR-N4).
+	const [amountMode, setAmountMode] = useState<TAccountAmountMode>("gross");
 	const tree = useMemo(
-		() => buildTAccountTree(groups, planItems),
-		[groups, planItems],
+		() => buildTAccountTree(groups, { planItems, amountMode }),
+		[groups, planItems, amountMode],
 	);
 	// The sub-team folders the project dialog may drop a new project into
 	// (FR-L4). Derived from the groups rather than the display tree, so a folder
@@ -177,7 +182,13 @@ function TAccountBody({
 
 	return (
 		<div className="flex flex-col gap-5">
-			<TotalsSummary department={department} period={period} totals={totals} />
+			<TotalsSummary
+				department={department}
+				period={period}
+				totals={totals}
+				amountMode={amountMode}
+				onAmountModeChange={setAmountMode}
+			/>
 			<FinanceTAccountWorkbench
 				tree={tree}
 				department={department}
