@@ -118,22 +118,42 @@ export async function createPlanItem(
 	return mapRow(data);
 }
 
+// Resolve an optional update field: absent means "leave as it is", an explicit
+// null means "clear it". The RPC assigns most columns unconditionally, so
+// without this an update that omits a field would wipe it — which is exactly
+// how a Planposten edited from the plan tab used to lose its project and its
+// VAT rate (both are omitted by that form).
+function keepUnlessProvided<T>(next: T | undefined, current: T): T {
+	return next === undefined ? current : next;
+}
+
 export async function updatePlanItem(
 	id: string,
 	input: FinancePlanItemUpdate,
 ): Promise<FinancePlanItem> {
+	const existing = await getPlanItem(id);
+	if (!existing) {
+		throw new NotFoundError("Finance plan item not found");
+	}
+
 	const { data, error } = await getSupabase().rpc("update_finance_plan_item", {
 		p_id: id,
-		p_label: input.label,
-		p_category: input.category ?? null,
+		p_label: keepUnlessProvided(input.label, existing.label),
+		p_category: keepUnlessProvided(input.category, existing.category),
 		p_direction: input.direction ?? null,
-		p_planned_amount: input.planned_amount,
-		p_expected_month: input.expected_month ?? null,
-		p_status: input.status,
-		p_note: input.note ?? null,
-		p_project_id: input.project_id ?? null,
+		p_planned_amount: keepUnlessProvided(
+			input.planned_amount,
+			existing.planned_amount,
+		),
+		p_expected_month: keepUnlessProvided(
+			input.expected_month,
+			existing.expected_month,
+		),
+		p_status: keepUnlessProvided(input.status, existing.status),
+		p_note: keepUnlessProvided(input.note, existing.note),
+		p_project_id: keepUnlessProvided(input.project_id, existing.project_id),
 		p_is_active: input.is_active ?? null,
-		p_vat_rate: input.vat_rate ?? null,
+		p_vat_rate: keepUnlessProvided(input.vat_rate, existing.vat_rate),
 	});
 
 	if (error) {

@@ -431,6 +431,48 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(ungrouped?.actual.saldo, -300);
 	});
 
+	test("names every Planposten, including one with no line of its own", () => {
+		// A fully matched Planposten carries no open remainder and is therefore not
+		// emitted as a line — but an invoice still references it, and that
+		// reference has to be nameable.
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-settled",
+					cost_location: "120",
+					transaction_amount: -100,
+					postingtext: "Venue deposit",
+				}),
+			],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [],
+			planItems: [
+				planItem({ id: VENUE_PLAN_ID, label: "Venue", planned_amount: 100 }),
+			],
+			matches: [
+				match({
+					plan_item_id: VENUE_PLAN_ID,
+					posting_external_id: "BB-settled",
+					matched_amount: 100,
+				}),
+			],
+			projects: [],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+
+		assert.strictEqual(
+			result.groups
+				.flatMap((group) => group.expense_lines)
+				.filter((line) => line.kind === "plan").length,
+			0,
+		);
+		assert.strictEqual(result.plan_item_labels[VENUE_PLAN_ID], "Venue");
+	});
+
 	test("carries the posting detail inline on the actual line (FR-K2/FR-K3)", () => {
 		const result = buildFinanceTAccount({
 			periodType: "year",

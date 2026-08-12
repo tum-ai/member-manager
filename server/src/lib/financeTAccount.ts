@@ -483,11 +483,22 @@ export function buildFinanceTAccount(input: {
 		vatExpenses += group.vorsteuer.actual;
 	}
 
+	// Every Planposten of the department, including the fully matched ones that
+	// carry no open remainder and therefore no line, so an expanded invoice can
+	// still name what it funds.
+	const planItemLabels: Record<string, string> = {};
+	for (const item of input.planItems) {
+		if (item.department === input.department) {
+			planItemLabels[item.id] = item.label;
+		}
+	}
+
 	return FinanceTAccountResponseSchema.parse({
 		period_type: input.periodType,
 		period_key: input.periodKey,
 		department: input.department,
 		groups: built,
+		plan_item_labels: planItemLabels,
 		totals: {
 			actual: saldo(totals.actualIncome, totals.actualExpenses),
 			plan: saldo(totals.planIncome, totals.planExpenses),

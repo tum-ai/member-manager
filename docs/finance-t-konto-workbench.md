@@ -359,13 +359,62 @@ income posting to the Community project and matching it to an **expense** Planpo
 the API validates against and would never create. Fixed in `supabase/seed.sql`, with a comment
 warning that the id has to be re-checked whenever mock postings are added ahead of it.
 
-### Phase 3 — Planposten in the T-view (FR-M)
+### Phase 3 — Planposten in the T-view (FR-M) — **done**
 `project_id` on plan-item create/update; enable/disable with plan totals excluding inactive
 items; create/edit dialogs on every node; match + detach from both directions; the
 *Plan auf Ist korrigieren* action; the FR-M4 status transitions.
 *Tests:* server tests for the status transitions, the inactive-item match refusal and the
 correct-to-actual guard; hook tests for totals excluding disabled items; a Playwright spec for
 *plan → invoice arrives → match → status becomes spent → correct the amount*.
+
+Landed — almost entirely client work, because Phase 0 had already built the server side
+(automatic status transitions with manual override, the inactive-item match refusal, the
+status walk-back on detach, and the "below its matched total" guard):
+
+- **Partial updates are now possible, and safe.** `FinancePlanItemUpdateSchema` makes every
+  field optional (with an "at least one field" refinement), and `updatePlanItem` reads the
+  stored row first so an omitted field keeps its value while an explicit `null` still clears
+  it. Without this the T-view could not send a one-field update at all.
+- **Bug found and fixed:** the RPC assigns most columns unconditionally, so the *existing*
+  plan tab — which never sends `project_id` or `vat_rate` — was **clearing a Planposten's
+  project and VAT rate on every edit**. Phase 0's `project_id` would have been erased by the
+  first rename from that form.
+- `useFinanceTAccountPlanActions` — create/edit, park/revive, correct-to-actual, match,
+  detach. Parking is optimistic (the cache is patched so the row mutes and leaves the plan
+  subtotals immediately) and undoable from the toast, which meant giving `ToastContext` an
+  optional action button.
+- `FinancePlanItemDialog` (create on any node with its project preset, edit in place) and
+  `FinanceMatchPlanItemDialog` (one dialog, both directions: the expanded side is fixed, the
+  other is picked from the candidates of the same direction **and the same scope**, amount
+  defaulting to the open remainder).
+- **What "in scope" turned out to mean (FR-M5).** The E2E caught the first version offering
+  candidates the database then refused: a match may only draw on the part of a posting
+  allocated to the Planposten's own *(department, project)*, so a department-level Planposten
+  cannot absorb an invoice that belongs to a project. The candidate lists now carry their
+  project and are paired like with like. Folders also became named `role="group"` regions,
+  which a screen reader can move between — and which let the E2E act inside one folder.
+- The plan detail panel is where a Planposten is worked on: edit, match, correct, park, and
+  detach per match. Parked items collapse into a "Deaktiviert (n)" disclosure per column.
+- `FinanceTAccountWorkbench` was extracted from the section, which was about to blow the
+  400-line warn threshold; the section keeps the department/period chrome and the totals card.
+- Tests: 4 server cases pinning the partial-update semantics, `collectMatchCandidates` /
+  `openPostingAmount` util cases, `PlannedItemWritable` / `ParkedPlanItem` / `PlanFromNode`
+  play + a11y stories, and a Playwright spec for *plan 5.000 → match an invoice → status
+  becomes Zugesagt → correct the plan to the 600 that arrived*.
+
+- **Third find:** a fully matched Planposten carries no open remainder, so the server emits no
+  line for it — and the invoice funding it then showed a nameless "Planposten". The response
+  now carries `plan_item_labels` (every Planposten of the department by id) so a reference can
+  always be named, whether or not the item has a line.
+
+Deliberately **not** included: deleting a Planposten from the T-view. FR-M covers parking, not
+deletion, and the plan tab still owns delete until Phase 5 retires it — that phase has to grow
+a delete affordance here or the capability disappears with the tab.
+
+**Open for Phase 5:** a fully matched Planposten is invisible in the T-view (no line, only a
+name on the invoice that funds it), so it cannot be edited, parked or detached from there. That
+is survivable while the Planung tab exists; when that tab goes, these items need a home — most
+likely an "Erledigt" disclosure per column, mirroring "Deaktiviert".
 
 ### Phase 4 — Netto/Brutto and planned VAT (FR-N4–N6)
 The toggle plus planned VAT feeding the plan-side subtotals and the forecast Zahllast.

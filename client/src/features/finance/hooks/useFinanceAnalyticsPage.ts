@@ -12,6 +12,7 @@ import {
 import { useFinancePlanItems } from "./useFinancePlanItems";
 import { useFinanceTAccount } from "./useFinanceTAccount";
 import { useFinanceTAccountActions } from "./useFinanceTAccountActions";
+import { useFinanceTAccountPlanActions } from "./useFinanceTAccountPlanActions";
 import { useFinanceTAccountSelection } from "./useFinanceTAccountSelection";
 
 export type FinanceAnalyticsTab =
@@ -64,6 +65,10 @@ export function useFinanceAnalyticsPage() {
 		// A bulk action consumes the selection; clearing it here means the bar
 		// disappears exactly when the work is done (FR-K7).
 		onApplied: tAccountSelection.clear,
+	});
+	const tAccountPlanActions = useFinanceTAccountPlanActions({
+		department: tAccount.department,
+		period: tAccount.period,
 	});
 	const managementSection: FinanceManagementSection | null =
 		activeTab === "projects" ||
@@ -122,6 +127,14 @@ export function useFinanceAnalyticsPage() {
 					postingExternalIds,
 				});
 			},
+			// Planposten live next to the actuals they plan (FR-M).
+			isSavingPlanItem: tAccountPlanActions.isSavingPlanItem,
+			isMatching: tAccountPlanActions.isMatching,
+			onSavePlanItem: tAccountPlanActions.savePlanItem,
+			onTogglePlanItem: tAccountPlanActions.togglePlanItemActive,
+			onCorrectPlanToActual: tAccountPlanActions.correctPlanToActual,
+			onMatch: tAccountPlanActions.matchPosting,
+			onDetachMatch: tAccountPlanActions.detachMatch,
 		},
 		management,
 	};

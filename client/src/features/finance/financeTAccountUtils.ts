@@ -107,6 +107,9 @@ export interface TAccountDisplayLine {
 	// folder line neither.
 	postingExternalId: string | null;
 	planItemId: string | null;
+	// The project this line belongs to, so editing a Planposten can resend its
+	// project unchanged instead of clearing it.
+	projectId: string | null;
 	// True when the line summarises a nested project rolled into its parent.
 	isProjectRollup: boolean;
 	// Exactly one is set on a real line; a roll-up folder line carries neither and
@@ -171,6 +174,75 @@ function groupKey(group: FinanceTAccountGroup): string {
 	return subTeam === null ? "ungrouped" : `sub:${subTeam}`;
 }
 
+// One side of a possible match (FR-M5), with what is still open on it.
+export interface TAccountMatchCandidate {
+	id: string;
+	label: string;
+	direction: "expense" | "income";
+	// The scope both sides must share: the database only lets a Planposten
+	// absorb the part of a posting allocated to that same (department, project),
+	// so a department-level Planposten cannot take a project's invoice and vice
+	// versa. Offering such a pair would only produce a rejection.
+	projectId: string | null;
+	openAmount: number;
+}
+
+// What is left of a booked invoice after the Planposten already matched to it.
+// A plan line already carries its own open remainder as its amount, so it needs
+// no equivalent.
+export function openPostingAmount(line: TAccountDisplayLine): number {
+	const matched = line.matches.reduce((sum, match) => sum + match.amount, 0);
+	return round(line.amount - matched);
+}
+
+// Everything in the department that could still absorb a match, from both
+// sides. A parked Planposten is excluded: it refuses matches server-side
+// (FR-M8), so offering it would only produce a rejection.
+export function collectMatchCandidates(nodes: TAccountNode[]): {
+	planItems: TAccountMatchCandidate[];
+	postings: TAccountMatchCandidate[];
+} {
+	const planItems: TAccountMatchCandidate[] = [];
+	const postings: TAccountMatchCandidate[] = [];
+
+	const visit = (node: TAccountNode): void => {
+		for (const line of [...node.expenseLines, ...node.incomeLines]) {
+			if (line.isProjectRollup) continue;
+			if (line.kind === "plan" && line.planItemId !== null) {
+				if (line.isActive && line.amount > 0) {
+					planItems.push({
+						id: line.planItemId,
+						label: line.label,
+						direction: line.direction,
+						projectId: line.projectId,
+						openAmount: line.amount,
+					});
+				}
+				continue;
+			}
+			if (line.kind === "actual" && line.postingExternalId !== null) {
+				const open = openPostingAmount(line);
+				if (open > 0) {
+					postings.push({
+						id: line.postingExternalId,
+						label: line.label,
+						direction: line.direction,
+						projectId: line.projectId,
+						openAmount: open,
+					});
+				}
+			}
+		}
+		for (const child of node.children) {
+			visit(child);
+		}
+	};
+	for (const node of nodes) {
+		visit(node);
+	}
+	return { planItems, postings };
+}
+
 // Names for the ids that appear inside a line's detail payload. Built once per
 // response from the groups themselves — the server sends every project folder
 // and every plan line of the department, so no extra request is needed (FR-K3).
@@ -180,9 +252,16 @@ interface TAccountLookups {
 	postingLabels: Map<string, string>;
 }
 
-function buildLookups(groups: FinanceTAccountGroup[]): TAccountLookups {
+function buildLookups(
+	groups: FinanceTAccountGroup[],
+	knownPlanItemLabels: Record<string, string>,
+): TAccountLookups {
 	const projectNames = new Map<string, string>();
-	const planItemLabels = new Map<string, string>();
+	// Seeded from the response so a fully matched Planposten — which has no line
+	// of its own — is still named where an invoice references it.
+	const planItemLabels = new Map<string, string>(
+		Object.entries(knownPlanItemLabels),
+	);
 	const postingLabels = new Map<string, string>();
 	for (const group of groups) {
 		if (group.project_id !== null && group.project_name !== null) {
@@ -258,6 +337,7 @@ function toDisplayLine(
 		isActive: line.plan_detail?.is_active !== false,
 		postingExternalId: line.posting_external_id,
 		planItemId: line.plan_item_id,
+		projectId: line.project_id,
 		isProjectRollup: false,
 		postingDetail: line.posting_detail,
 		planDetail: line.plan_detail,
@@ -316,6 +396,7 @@ function rollupLine(
 		isActive: true,
 		postingExternalId: null,
 		planItemId: null,
+		projectId: child.projectId,
 		isProjectRollup: true,
 		postingDetail: null,
 		planDetail: null,
@@ -333,8 +414,9 @@ function rollupLine(
 // server `totals`, so a child is never counted twice (keeps FR-G5 intact).
 export function buildTAccountTree(
 	groups: FinanceTAccountGroup[],
+	planItemLabels: Record<string, string> = {},
 ): TAccountNode[] {
-	const lookups = buildLookups(groups);
+	const lookups = buildLookups(groups, planItemLabels);
 	const byId = new Map<string, FinanceTAccountGroup>();
 	const subTeamGroups = new Set<string>();
 	for (const group of groups) {

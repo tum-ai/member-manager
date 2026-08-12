@@ -514,21 +514,33 @@ export type FinancePlanItemCreate = z.infer<typeof FinancePlanItemCreateSchema>;
 
 // Update leaves the item's department/period fixed; only the editable
 // attributes travel in the body (the id is in the URL).
-export const FinancePlanItemUpdateSchema = z.object({
-	label: z.string().trim().min(1).max(200),
-	category: z.string().trim().min(1).max(200).nullable().optional(),
-	direction: FinancePlanDirectionSchema.optional(),
-	planned_amount: z.number().nonnegative(),
-	expected_month: z.string().regex(MONTH_PATTERN).nullable().optional(),
-	status: FinancePlanStatusSchema,
-	note: z.string().trim().max(500).nullable().optional(),
-	// Moving a Planposten between projects is rejected server-side once postings
-	// are matched to it — a match is only valid while the posting is allocated to
-	// the item's project (FR-L7).
-	project_id: z.string().uuid().nullable().optional(),
-	is_active: z.boolean().optional(),
-	vat_rate: z.number().min(0).max(100).nullable().optional(),
-});
+//
+// Every field is optional and omitting one leaves it as it is, so the T-view can
+// send a single-field update — flip `is_active` (FR-M3), or set the planned
+// amount to the matched total (FR-M6) — without restating the whole Planposten
+// and risking clearing what it did not mention.
+export const FinancePlanItemUpdateSchema = z
+	.object({
+		label: z.string().trim().min(1).max(200).optional(),
+		category: z.string().trim().min(1).max(200).nullable().optional(),
+		direction: FinancePlanDirectionSchema.optional(),
+		planned_amount: z.number().nonnegative().optional(),
+		expected_month: z.string().regex(MONTH_PATTERN).nullable().optional(),
+		status: FinancePlanStatusSchema.optional(),
+		note: z.string().trim().max(500).nullable().optional(),
+		// Moving a Planposten between projects is rejected server-side once
+		// postings are matched to it — a match is only valid while the posting is
+		// allocated to the item's project (FR-L7).
+		project_id: z.string().uuid().nullable().optional(),
+		is_active: z.boolean().optional(),
+		vat_rate: z.number().min(0).max(100).nullable().optional(),
+	})
+	.refine(
+		(value) => Object.values(value).some((entry) => entry !== undefined),
+		{
+			message: "At least one plan item field is required",
+		},
+	);
 export type FinancePlanItemUpdate = z.infer<typeof FinancePlanItemUpdateSchema>;
 
 export const FinancePlanQuerySchema = z
@@ -1386,6 +1398,10 @@ export const FinanceTAccountResponseSchema = z.object({
 	department: z.string().min(1),
 	// Ungrouped bucket first (project_id null), then one group per project.
 	groups: z.array(FinanceTAccountGroupSchema),
+	// Every Planposten of the department by id, so an expanded invoice can name
+	// the plan item it funds even when that item has no line of its own — a fully
+	// matched one carries no open remainder and is not emitted as a line.
+	plan_item_labels: z.record(z.string(), z.string()),
 	totals: z.object({
 		actual: FinanceTAccountSaldoSchema,
 		plan: FinanceTAccountSaldoSchema,

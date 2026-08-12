@@ -1,5 +1,5 @@
 import { TUMAI_DEPARTMENTS } from "@member-manager/shared";
-import { type ReactElement, useMemo, useState } from "react";
+import { type ReactElement, useMemo } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,6 @@ import { FinanceManagementPeriodControls } from "@/features/finance/components/F
 import { buildTAccountTree } from "@/features/finance/financeTAccountUtils";
 import type {
 	FinancePeriodType,
-	FinanceProject,
 	FinanceTAccountGroup as FinanceTAccountGroupData,
 	FinanceTAccountResponse,
 } from "@/features/finance/financeTypes";
@@ -24,48 +23,38 @@ import {
 	formatFinanceAmount,
 	formatFinancePeriodLabel,
 } from "@/features/finance/financeUtils";
-import type { TAccountProjectInput } from "@/features/finance/hooks/useFinanceTAccountActions";
-import type { FinanceTAccountSelection } from "@/features/finance/hooks/useFinanceTAccountSelection";
 import { cn } from "@/lib/utils";
 import {
-	type FinanceAssignDialogPreset,
-	FinanceAssignToProjectDialog,
-} from "./FinanceAssignToProjectDialog";
-import {
-	FinanceProjectDialog,
-	type FinanceProjectDialogPreset,
-} from "./FinanceProjectDialog";
-import { FinanceTAccountGroup } from "./FinanceTAccountGroup";
-import { FinanceTAccountSelectionBar } from "./FinanceTAccountSelectionBar";
-import type { TAccountInteraction } from "./tAccountInteraction";
+	FinanceTAccountWorkbench,
+	type FinanceTAccountWorkbenchProps,
+} from "./FinanceTAccountWorkbench";
 
 const OTHER_DEPARTMENT = "Other";
 const DEPARTMENT_OPTIONS = [...TUMAI_DEPARTMENTS, OTHER_DEPARTMENT] as const;
 
-interface FinanceTAccountSectionProps {
+// The department picker, the period controls and the totals card — the parts
+// that are there whether or not the viewer may write anything.
+interface FinanceTAccountChromeProps {
 	period: FinancePeriod;
 	canChooseDepartment: boolean;
 	department: string | null;
 	groups: FinanceTAccountGroupData[];
+	// Names for Planposten that have no line of their own (fully matched ones),
+	// so an expanded invoice can still say what it funds.
+	planItemLabels?: Record<string, string>;
 	totals?: FinanceTAccountResponse["totals"];
 	isLoading: boolean;
 	error: Error | null;
 	onPeriodTypeChange: (type: FinancePeriodType) => void;
 	onPeriodKeyChange: (key: string) => void;
 	onDepartmentChange: (department: string) => void;
-	// Write surface (FR-K5–K7, FR-L). Omitted for a read-only viewer: rows still
-	// expand, nothing is selectable (FR-K6).
-	canWrite?: boolean;
-	projects?: FinanceProject[];
-	selection?: FinanceTAccountSelection;
-	isCreatingProject?: boolean;
-	isAssigning?: boolean;
-	onCreateProject?: (input: TAccountProjectInput) => Promise<void>;
-	onAssignToProject?: (
-		projectId: string,
-		postingExternalIds: string[],
-	) => Promise<void>;
 }
+
+// The write surface (FR-K5–K7, FR-L, FR-M) travels straight through to the
+// workbench. All optional: omitted, the view is read-only — rows still expand,
+// nothing is selectable or writable (FR-K6).
+type FinanceTAccountSectionProps = FinanceTAccountChromeProps &
+	Partial<Omit<FinanceTAccountWorkbenchProps, "tree">>;
 
 function saldoClass(value: number): string {
 	if (value > 0) return "text-emerald-600 dark:text-emerald-400";
@@ -78,19 +67,14 @@ export function FinanceTAccountSection({
 	canChooseDepartment,
 	department,
 	groups,
+	planItemLabels = {},
 	totals,
 	isLoading,
 	error,
 	onPeriodTypeChange,
 	onPeriodKeyChange,
 	onDepartmentChange,
-	canWrite = false,
-	projects = [],
-	selection,
-	isCreatingProject = false,
-	isAssigning = false,
-	onCreateProject,
-	onAssignToProject,
+	...workbench
 }: FinanceTAccountSectionProps): ReactElement {
 	return (
 		<div className="flex flex-col gap-5">
@@ -141,15 +125,10 @@ export function FinanceTAccountSection({
 					department={department}
 					period={period}
 					groups={groups}
+					planItemLabels={planItemLabels}
 					totals={totals}
 					isLoading={isLoading}
-					canWrite={canWrite}
-					projects={projects}
-					selection={selection}
-					isCreatingProject={isCreatingProject}
-					isAssigning={isAssigning}
-					onCreateProject={onCreateProject}
-					onAssignToProject={onAssignToProject}
+					{...workbench}
 				/>
 			)}
 		</div>
@@ -160,66 +139,30 @@ function TAccountBody({
 	department,
 	period,
 	groups,
+	planItemLabels,
 	totals,
 	isLoading,
-	canWrite,
-	projects,
-	selection,
-	isCreatingProject,
-	isAssigning,
-	onCreateProject,
-	onAssignToProject,
+	canWrite = false,
+	projects = [],
+	isCreatingProject = false,
+	isAssigning = false,
+	isSavingPlanItem = false,
+	isMatching = false,
+	...workbench
 }: {
 	department: string;
 	period: FinancePeriod;
 	groups: FinanceTAccountGroupData[];
+	planItemLabels: Record<string, string>;
 	totals?: FinanceTAccountResponse["totals"];
 	isLoading: boolean;
-	canWrite: boolean;
-	projects: FinanceProject[];
-	selection?: FinanceTAccountSelection;
-	isCreatingProject: boolean;
-	isAssigning: boolean;
-	onCreateProject?: (input: TAccountProjectInput) => Promise<void>;
-	onAssignToProject?: (
-		projectId: string,
-		postingExternalIds: string[],
-	) => Promise<void>;
-}): ReactElement {
+} & Partial<Omit<FinanceTAccountWorkbenchProps, "tree">>): ReactElement {
 	// Build the nested display tree (per-column subtotals + child roll-ups) once
 	// per data change, before any early return so the hook order stays stable.
-	const tree = useMemo(() => buildTAccountTree(groups), [groups]);
-	// Which dialog is open is pure view state — it never outlives the section and
-	// nothing else needs it, so it stays here rather than in the page hook.
-	const [projectPreset, setProjectPreset] =
-		useState<FinanceProjectDialogPreset | null>(null);
-	const [assignPreset, setAssignPreset] =
-		useState<FinanceAssignDialogPreset | null>(null);
-
-	const writable = canWrite && selection !== undefined;
-	const interaction: TAccountInteraction | undefined = writable
-		? {
-				canWrite: true,
-				isSelected: selection.isSelected,
-				onToggleSelect: selection.toggle,
-				onCreateProject: (node) =>
-					setProjectPreset({
-						// A project node becomes the parent of a sub-project; a sub-team
-						// folder passes its sub-team on (FR-L3/FR-L4).
-						parentProjectId: node.projectId,
-						parentProjectName:
-							node.projectId !== null ? node.projectName : null,
-						subTeam: node.subTeam,
-						postingExternalIds: [],
-						selectionSum: 0,
-					}),
-				onAssignPosting: (postingExternalId, amount) =>
-					setAssignPreset({
-						postingExternalIds: [postingExternalId],
-						selectionSum: amount,
-					}),
-			}
-		: undefined;
+	const tree = useMemo(
+		() => buildTAccountTree(groups, planItemLabels),
+		[groups, planItemLabels],
+	);
 
 	if (isLoading) {
 		return <Skeleton className="h-64 w-full" />;
@@ -242,41 +185,16 @@ function TAccountBody({
 		<div className="flex flex-col gap-5">
 			<TotalsSummary department={department} period={period} totals={totals} />
 			{hasActivity ? (
-				<div className="flex flex-col gap-4">
-					<p className="text-xs text-muted-foreground">
-						Grau = geplant · schwarz = gebucht. Projekte und einzelne Zeilen
-						sind aufklappbar.
-					</p>
-					{tree.map((node) => (
-						<FinanceTAccountGroup
-							key={node.key}
-							node={node}
-							interaction={interaction}
-						/>
-					))}
-					{selection ? (
-						<FinanceTAccountSelectionBar
-							count={selection.count}
-							grossSum={selection.grossSum}
-							onCreateProject={() =>
-								setProjectPreset({
-									parentProjectId: null,
-									parentProjectName: null,
-									subTeam: null,
-									postingExternalIds: selection.selectedIds,
-									selectionSum: selection.grossSum,
-								})
-							}
-							onAssignToProject={() =>
-								setAssignPreset({
-									postingExternalIds: selection.selectedIds,
-									selectionSum: selection.grossSum,
-								})
-							}
-							onClear={selection.clear}
-						/>
-					) : null}
-				</div>
+				<FinanceTAccountWorkbench
+					tree={tree}
+					canWrite={canWrite}
+					projects={projects}
+					isCreatingProject={isCreatingProject}
+					isAssigning={isAssigning}
+					isSavingPlanItem={isSavingPlanItem}
+					isMatching={isMatching}
+					{...workbench}
+				/>
 			) : (
 				<Card>
 					<CardContent className="py-10 text-center text-muted-foreground">
@@ -284,26 +202,6 @@ function TAccountBody({
 					</CardContent>
 				</Card>
 			)}
-
-			<FinanceProjectDialog
-				preset={projectPreset}
-				isPending={isCreatingProject}
-				onClose={() => setProjectPreset(null)}
-				onSubmit={async (input) => {
-					await onCreateProject?.(input);
-					setProjectPreset(null);
-				}}
-			/>
-			<FinanceAssignToProjectDialog
-				preset={assignPreset}
-				projects={projects}
-				isPending={isAssigning}
-				onClose={() => setAssignPreset(null)}
-				onSubmit={async (projectId, postingExternalIds) => {
-					await onAssignToProject?.(projectId, postingExternalIds);
-					setAssignPreset(null);
-				}}
-			/>
 		</div>
 	);
 }

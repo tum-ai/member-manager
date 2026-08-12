@@ -591,14 +591,17 @@ function PlanItemRow({
 	}, [form, item]);
 
 	function submit(values: FinancePlanItemUpdate): void {
+		// Every field of the update contract is optional now (the T-view sends
+		// single-field updates), so this full-form edit falls back to what the item
+		// already holds rather than sending undefined.
 		onUpdate({
 			id: item.id,
-			label: values.label,
+			label: values.label ?? item.label,
 			category: values.category ?? null,
 			direction: values.direction ?? "expense",
-			plannedAmount: values.planned_amount,
+			plannedAmount: values.planned_amount ?? item.planned_amount,
 			expectedMonth: values.expected_month ?? null,
-			status: values.status,
+			status: values.status ?? item.status,
 			note: values.note ?? null,
 		});
 	}

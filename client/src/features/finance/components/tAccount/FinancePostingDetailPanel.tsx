@@ -1,4 +1,4 @@
-import { Target } from "lucide-react";
+import { Link2, Target } from "lucide-react";
 import type { ReactElement } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,6 +17,7 @@ import {
 	DetailList,
 	TAccountMatchList,
 } from "./FinanceTAccountDetailList";
+import type { TAccountInteraction } from "./tAccountInteraction";
 
 function formatRate(rate: number | null): string {
 	// A rate the import never carried is unknown, not zero.
@@ -42,10 +43,12 @@ function costLocationValue(detail: FinanceTAccountPostingDetail): string {
 export function FinancePostingDetailPanel({
 	line,
 	detail,
+	interaction,
 	onAssignToProject,
 }: {
 	line: TAccountDisplayLine;
 	detail: FinanceTAccountPostingDetail;
+	interaction?: TAccountInteraction;
 	// Absent for a read-only viewer (FR-K6); present, this files just this one
 	// invoice into an existing project (FR-L2).
 	onAssignToProject?: () => void;
@@ -128,6 +131,11 @@ export function FinancePostingDetailPanel({
 					<TAccountMatchList
 						matches={line.matches}
 						emptyLabel="Noch kein Planposten verknüpft."
+						onDetach={
+							interaction?.canWrite === true
+								? (matchId) => interaction.onDetachMatch(matchId)
+								: undefined
+						}
 					/>
 				</DetailBlock>
 			</div>
@@ -142,6 +150,17 @@ export function FinancePostingDetailPanel({
 					>
 						<Target />
 						Zu Projekt hinzufügen
+					</Button>
+					{/* FR-M5 from the invoice side: pick the Planposten this invoice
+					    settles. */}
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						onClick={() => interaction?.onMatchFromPosting(line)}
+					>
+						<Link2 />
+						Planposten zuordnen
 					</Button>
 					{/* A split posting cannot take the fast path without destroying its
 					    split, so say so here rather than letting the server refuse it
