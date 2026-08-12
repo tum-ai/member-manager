@@ -164,6 +164,12 @@ test.describe("Finance Analytics tool", () => {
 		await expect(page.getByText("Plan-Saldo").first()).toBeVisible();
 		await expect(page.getByText("Ausgaben").first()).toBeVisible();
 		await expect(page.getByText("Einnahmen").first()).toBeVisible();
+
+		// The amount mode is stated, not implied, and the toggle switches it
+		// (FR-N4).
+		await expect(page.getByText(/Beträge brutto/)).toBeVisible();
+		await page.getByRole("radio", { name: "Nettobeträge" }).click();
+		await expect(page.getByText(/Beträge netto/)).toBeVisible();
 	});
 
 	test("builds a project from selected invoices and refuses the one that is matched elsewhere", async ({

@@ -18,6 +18,126 @@ import {
 const MAKEATHON = "11111111-1111-4111-8111-111111111111";
 const HACKATHON = "22222222-2222-4222-8222-222222222222";
 
+describe("buildTAccountTree amount mode (FR-N4)", () => {
+	// 119 gross / 100 net on the expense side, 11.900 / 10.000 on the income
+	// side — the classic 19 % pair, so every figure below is checkable by hand.
+	function groups() {
+		return [
+			group({
+				expense_lines: [
+					line({
+						kind: "actual",
+						amount: 119,
+						vat_amount: 19,
+						vat_rate: 19,
+						net_amount: 100,
+						label: "Catering",
+					}),
+					line({
+						kind: "plan",
+						amount: 1190,
+						vat_amount: 190,
+						vat_rate: 19,
+						net_amount: 1000,
+						label: "Venue",
+						plan_item_id: "plan-venue",
+					}),
+				],
+				income_lines: [
+					line({
+						kind: "actual",
+						direction: "income",
+						amount: 11_900,
+						vat_amount: 1900,
+						vat_rate: 19,
+						net_amount: 10_000,
+						label: "Sponsoring",
+					}),
+				],
+			}),
+		];
+	}
+
+	it("shows gross amounts and gross saldi by default", () => {
+		const [node] = buildTAccountTree(groups());
+
+		expect(node.expenseLines[0]?.amount).toBe(119);
+		expect(node.incomeLines[0]?.amount).toBe(11_900);
+		expect(node.expenseSummary.ist).toBe(119);
+		expect(node.incomeSummary.ist).toBe(11_900);
+		expect(node.actualSaldo).toBe(11_781);
+		// Forecast = booked 11.781 − the still-open 1.190.
+		expect(node.planSaldo).toBe(10_591);
+	});
+
+	it("switches every amount, subtotal and saldo to net (FR-N4)", () => {
+		const [node] = buildTAccountTree(groups(), { amountMode: "net" });
+
+		// Both directions, booked and planned.
+		expect(node.expenseLines[0]?.amount).toBe(100);
+		expect(node.expenseLines[1]?.amount).toBe(1000);
+		expect(node.incomeLines[0]?.amount).toBe(10_000);
+		expect(node.expenseSummary).toEqual({
+			ist: 100,
+			plan: 1000,
+			// VAT is VAT in either mode — only the amounts it sits on change.
+			vatIst: 19,
+			vatPlan: 190,
+		});
+		expect(node.incomeSummary.ist).toBe(10_000);
+		expect(node.actualSaldo).toBe(9_900);
+		expect(node.planSaldo).toBe(8_900);
+	});
+
+	it("keeps both figures on the line, whichever mode is active", () => {
+		const [gross] = buildTAccountTree(groups());
+		const [net] = buildTAccountTree(groups(), { amountMode: "net" });
+
+		for (const node of [gross, net]) {
+			expect(node.expenseLines[0]?.grossAmount).toBe(119);
+			expect(node.expenseLines[0]?.netAmount).toBe(100);
+		}
+		// The mode travels with the line, so a row can say whether the VAT it
+		// names is inside the amount shown or on top of it.
+		expect(gross.expenseLines[0]?.amountMode).toBe("gross");
+		expect(net.expenseLines[0]?.amountMode).toBe("net");
+	});
+
+	it("rolls a child up in the active mode", () => {
+		const nested = [
+			group({
+				project_id: MAKEATHON,
+				project_name: "Makeathon",
+			}),
+			group({
+				project_id: HACKATHON,
+				project_name: "Hackathon",
+				parent_project_id: MAKEATHON,
+				income_lines: [
+					line({
+						kind: "actual",
+						direction: "income",
+						amount: 11_900,
+						vat_amount: 1900,
+						net_amount: 10_000,
+					}),
+				],
+			}),
+		];
+
+		const [grossParent] = buildTAccountTree(nested);
+		const [netParent] = buildTAccountTree(nested, { amountMode: "net" });
+
+		expect(grossParent.incomeLines.find((l) => l.isProjectRollup)?.amount).toBe(
+			11_900,
+		);
+		expect(netParent.incomeLines.find((l) => l.isProjectRollup)?.amount).toBe(
+			10_000,
+		);
+		expect(netParent.actualSaldo).toBe(10_000);
+	});
+});
+
 describe("collectMatchCandidates", () => {
 	function tree() {
 		return buildTAccountTree([
@@ -491,7 +611,7 @@ describe("buildTAccountTree", () => {
 					],
 				}),
 			],
-			{ "plan-venue": "Venue" },
+			{ planItemLabels: { "plan-venue": "Venue" } },
 		);
 
 		expect(node.expenseLines[0]?.matches.map((m) => m.label)).toEqual([

@@ -1,5 +1,6 @@
 import { TUMAI_DEPARTMENTS } from "@member-manager/shared";
-import { type ReactElement, useMemo } from "react";
+import { Receipt, Wallet } from "lucide-react";
+import { type ReactElement, useMemo, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -11,8 +12,12 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { FinanceManagementPeriodControls } from "@/features/finance/components/FinanceManagementPeriodControls";
-import { buildTAccountTree } from "@/features/finance/financeTAccountUtils";
+import {
+	buildTAccountTree,
+	type TAccountAmountMode,
+} from "@/features/finance/financeTAccountUtils";
 import type {
 	FinancePeriodType,
 	FinanceTAccountGroup as FinanceTAccountGroupData,
@@ -159,9 +164,13 @@ function TAccountBody({
 } & Partial<Omit<FinanceTAccountWorkbenchProps, "tree">>): ReactElement {
 	// Build the nested display tree (per-column subtotals + child roll-ups) once
 	// per data change, before any early return so the hook order stays stable.
+	// Gross is the default: it is what the bank moved and what an invoice says.
+	// Net is the working view for anyone reasoning about the department's real
+	// cost, and the header always states which one is on (FR-N4).
+	const [amountMode, setAmountMode] = useState<TAccountAmountMode>("gross");
 	const tree = useMemo(
-		() => buildTAccountTree(groups, planItemLabels),
-		[groups, planItemLabels],
+		() => buildTAccountTree(groups, { planItemLabels, amountMode }),
+		[groups, planItemLabels, amountMode],
 	);
 
 	if (isLoading) {
@@ -183,7 +192,13 @@ function TAccountBody({
 
 	return (
 		<div className="flex flex-col gap-5">
-			<TotalsSummary department={department} period={period} totals={totals} />
+			<TotalsSummary
+				department={department}
+				period={period}
+				totals={totals}
+				amountMode={amountMode}
+				onAmountModeChange={setAmountMode}
+			/>
 			{hasActivity ? (
 				<FinanceTAccountWorkbench
 					tree={tree}
@@ -210,20 +225,58 @@ function TotalsSummary({
 	department,
 	period,
 	totals,
+	amountMode,
+	onAmountModeChange,
 }: {
 	department: string;
 	period: FinancePeriod;
 	totals?: FinanceTAccountResponse["totals"];
+	amountMode: TAccountAmountMode;
+	onAmountModeChange: (mode: TAccountAmountMode) => void;
 }): ReactElement {
-	const actualSaldo = totals?.actual.saldo ?? 0;
-	const planSaldo = totals?.plan.saldo ?? 0;
+	const isNet = amountMode === "net";
+	// The saldi come from the server in both modes, so the header can never
+	// disagree with the columns below it (FR-N6).
+	const saldi = isNet
+		? { actual: totals?.actual_net, plan: totals?.plan_net }
+		: { actual: totals?.actual, plan: totals?.plan };
+	const actualSaldo = saldi.actual?.saldo ?? 0;
+	const planSaldo = saldi.plan?.saldo ?? 0;
 	const vatPayload = totals?.vat_payload ?? 0;
+	const vatPayloadForecast = totals?.vat_payload_forecast ?? 0;
 	return (
 		<Card>
 			<CardHeader className="pb-2">
-				<CardTitle className="text-base">
-					{department} — {formatFinancePeriodLabel(period)}
-				</CardTitle>
+				<div className="flex flex-wrap items-center justify-between gap-3">
+					<CardTitle className="text-base">
+						{department} — {formatFinancePeriodLabel(period)}
+						{/* The active mode is stated, never merely implied (FR-N4). */}
+						<span className="ml-2 font-normal text-muted-foreground">
+							· Beträge {isNet ? "netto" : "brutto"}
+						</span>
+					</CardTitle>
+					<ToggleGroup
+						type="single"
+						value={amountMode}
+						variant="outline"
+						size="sm"
+						onValueChange={(value) => {
+							if (value === "gross" || value === "net") {
+								onAmountModeChange(value);
+							}
+						}}
+						aria-label="Beträge"
+					>
+						<ToggleGroupItem value="gross" aria-label="Bruttobeträge">
+							<Wallet />
+							Brutto
+						</ToggleGroupItem>
+						<ToggleGroupItem value="net" aria-label="Nettobeträge">
+							<Receipt />
+							Netto
+						</ToggleGroupItem>
+					</ToggleGroup>
+				</div>
 			</CardHeader>
 			<CardContent>
 				<dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
@@ -231,11 +284,13 @@ function TotalsSummary({
 						label="Ist-Saldo"
 						value={formatFinanceAmount(actualSaldo)}
 						className={saldoClass(actualSaldo)}
+						hint={isNet ? "netto" : undefined}
 					/>
 					<Metric
 						label="Plan-Saldo"
 						value={formatFinanceAmount(planSaldo)}
 						className={saldoClass(planSaldo)}
+						hint={isNet ? "netto" : undefined}
 					/>
 					<Metric
 						label="Umsatzsteuer"
@@ -251,10 +306,14 @@ function TotalsSummary({
 						label="Zahllast"
 						value={formatFinanceAmount(vatPayload)}
 						// Signed on purpose: a negative Zahllast is a refund, not a debt.
+						// The forecast is only worth stating when the still-open plan
+						// actually changes it (FR-N5).
 						hint={
-							vatPayload < 0
-								? "Erstattung (USt − Vorsteuer)"
-								: "USt − Vorsteuer"
+							vatPayloadForecast !== vatPayload
+								? `Forecast ${formatFinanceAmount(vatPayloadForecast)}`
+								: vatPayload < 0
+									? "Erstattung (USt − Vorsteuer)"
+									: "USt − Vorsteuer"
 						}
 					/>
 				</dl>

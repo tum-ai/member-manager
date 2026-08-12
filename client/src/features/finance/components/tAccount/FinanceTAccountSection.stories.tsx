@@ -181,9 +181,12 @@ export const Default: Story = {
 		totals: tAccountTotals({
 			actual: { income: 20_420, expenses: 3659, saldo: 16_761 },
 			plan: { income: 21_520, expenses: 5259, saldo: 16_261 },
+			actual_net: { income: 17_159.49, expenses: 3640, saldo: 13_519.49 },
+			plan_net: { income: 18_259.49, expenses: 5240, saldo: 13_019.49 },
 			vat_income: 3260.51,
 			vat_expenses: 19,
 			vat_payload: 3241.51,
+			vat_payload_forecast: 3241.51,
 		}),
 		isLoading: false,
 		error: null,
@@ -270,6 +273,32 @@ export const Workbench: Story = {
 				postingExternalIds: ["BB-1", "BB-2"],
 			}),
 		);
+	},
+};
+
+// FR-N4: one toggle switches every amount in the view — the rows, the column
+// subtotals and the department saldi — and the header says which mode is on.
+export const NettoBrutto: Story = {
+	args: Default.args,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		// Brutto by default: the invoice shows what the bank moved, VAT included.
+		await expect(canvas.getByText(/Beträge brutto/)).toBeVisible();
+		await expect(canvas.getByText("16.761,00 €")).toBeVisible();
+		await expect(canvas.getByText(/inkl\. .* Vorsteuer/)).toBeVisible();
+
+		await userEvent.click(canvas.getByRole("radio", { name: "Nettobeträge" }));
+
+		// Netto: the header states the mode, the saldo is the net one, and the VAT
+		// now sits on top of the amount rather than inside it.
+		await expect(canvas.getByText(/Beträge netto/)).toBeVisible();
+		await expect(canvas.getByText("13.519,49 €")).toBeVisible();
+		await expect(canvas.getByText(/zzgl\. .* Vorsteuer/)).toBeVisible();
+		await expect(canvas.queryByText("16.761,00 €")).toBeNull();
+
+		// The VAT figures themselves are the same money either way.
+		await expect(canvas.getByText("3.260,51 €")).toBeVisible();
 	},
 };
 
