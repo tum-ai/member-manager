@@ -17,6 +17,7 @@ const mocks = vi.hoisted(() => ({
 	selection: vi.fn(),
 	clearSelection: vi.fn(),
 	actions: vi.fn(),
+	planActions: vi.fn(),
 	management: vi.fn(),
 }));
 
@@ -49,6 +50,9 @@ vi.mock("./useFinanceTAccountSelection", () => ({
 }));
 vi.mock("./useFinanceTAccountActions", () => ({
 	useFinanceTAccountActions: mocks.actions,
+}));
+vi.mock("./useFinanceTAccountPlanActions", () => ({
+	useFinanceTAccountPlanActions: mocks.planActions,
 }));
 vi.mock("./useFinanceManagement", () => ({
 	useFinanceManagement: mocks.management,
@@ -95,6 +99,15 @@ describe("useFinanceAnalyticsPage", () => {
 			assignToProject: vi.fn(),
 			isCreatingProject: false,
 			isAssigning: false,
+		});
+		mocks.planActions.mockReturnValue({
+			savePlanItem: vi.fn(),
+			togglePlanItemActive: vi.fn(),
+			correctPlanToActual: vi.fn(),
+			matchPosting: vi.fn(),
+			detachMatch: vi.fn(),
+			isSavingPlanItem: false,
+			isMatching: false,
 		});
 		mocks.management.mockReturnValue({});
 	});

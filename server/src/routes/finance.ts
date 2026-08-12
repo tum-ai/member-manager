@@ -584,7 +584,7 @@ export async function financeRoutes(server: FastifyInstance) {
 			await assertCanWriteDepartment(userId, existing.department);
 
 			try {
-				return await updatePlanItem(id, parsed.data, existing);
+				return await updatePlanItem(id, parsed.data);
 			} catch (error) {
 				if (error instanceof AppError) {
 					throw error;

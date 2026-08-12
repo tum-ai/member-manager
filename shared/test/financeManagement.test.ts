@@ -277,6 +277,9 @@ describe("finance management contracts", () => {
 				vat_expenses: 19,
 				vat_payload: -19,
 			},
+			// Every Planposten of the department by id, so an invoice can name what
+			// it funds even when the item has no line of its own.
+			plan_item_labels: { "44444444-4444-4444-8444-444444444444": "Venue" },
 			source: "mock",
 			generated_at: "2026-08-04T10:00:00.000Z",
 		});

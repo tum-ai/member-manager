@@ -1,5 +1,7 @@
+import { Equal, Link2, PauseCircle, Pencil, PlayCircle } from "lucide-react";
 import type { ReactElement } from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
 	type TAccountDisplayLine,
 	vatLabel,
@@ -19,6 +21,7 @@ import {
 	DetailList,
 	TAccountMatchList,
 } from "./FinanceTAccountDetailList";
+import type { TAccountInteraction } from "./tAccountInteraction";
 
 const STATUS_LABELS: Record<FinancePlanStatus, string> = {
 	planned: "Geplant",
@@ -34,15 +37,24 @@ function deltaClass(delta: number): string {
 	return "text-foreground";
 }
 
-// The expanded detail of a Planposten (FR-K4) with the Plan / Ist / Delta
-// readout that "Plan auf Ist korrigieren" will act on in Phase 3 (FR-M6).
+// The expanded detail of a Planposten (FR-K4), and the place it is worked on:
+// edit, park, match, detach, and correct the plan to what actually arrived
+// (FR-M2/M3/M5/M6/M7).
 export function FinancePlanItemDetailPanel({
 	line,
 	detail,
+	interaction,
 }: {
 	line: TAccountDisplayLine;
 	detail: FinanceTAccountPlanDetail;
+	interaction?: TAccountInteraction;
 }): ReactElement {
+	const planItemId = line.planItemId;
+	const canWrite = interaction?.canWrite === true && planItemId !== null;
+	// Correcting is only meaningful once something has arrived and the two
+	// numbers disagree.
+	const canCorrect =
+		canWrite && detail.matched_amount > 0 && detail.delta !== 0;
 	const plannedVat =
 		detail.vat_rate !== null && detail.vat_rate > 0 && line.vatAmount !== null
 			? formatFinanceAmount(line.vatAmount)
@@ -120,9 +132,66 @@ export function FinancePlanItemDetailPanel({
 					<TAccountMatchList
 						matches={line.matches}
 						emptyLabel="Noch keine Buchung zugeordnet."
+						onDetach={
+							canWrite
+								? (matchId) => interaction.onDetachMatch(matchId)
+								: undefined
+						}
 					/>
 				</DetailBlock>
 			</div>
+
+			{canWrite ? (
+				<div className="flex flex-wrap gap-2">
+					<Button
+						type="button"
+						size="sm"
+						variant="outline"
+						onClick={() => interaction.onEditPlanItem(line)}
+					>
+						<Pencil />
+						Bearbeiten
+					</Button>
+					{detail.is_active ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							onClick={() => interaction.onMatchFromPlanItem(line)}
+						>
+							<Link2 />
+							Buchung zuordnen
+						</Button>
+					) : null}
+					{canCorrect ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							onClick={() =>
+								interaction.onCorrectPlanToActual(
+									planItemId,
+									detail.matched_amount,
+								)
+							}
+						>
+							<Equal />
+							Plan auf Ist korrigieren
+						</Button>
+					) : null}
+					<Button
+						type="button"
+						size="sm"
+						variant="ghost"
+						onClick={() =>
+							interaction.onTogglePlanItem(planItemId, !detail.is_active)
+						}
+					>
+						{detail.is_active ? <PauseCircle /> : <PlayCircle />}
+						{detail.is_active ? "Deaktivieren" : "Aktivieren"}
+					</Button>
+				</div>
+			) : null}
 		</div>
 	);
 }

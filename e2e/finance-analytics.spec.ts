@@ -12,15 +12,20 @@ const FINANCE_ANALYTICS_ROUTE = "/tools/finance/analytics";
 // carries a Zielsaldo or a Profit, which keeps line-row disclosures out of it.
 // Repeated because expanding a folder can reveal nested ones.
 async function expandAllFolders(page: Page): Promise<void> {
-	for (let pass = 0; pass < 4; pass += 1) {
+	// Wait for the tree itself first. Called too early, the loop below would find
+	// nothing to expand and return as if the work were done.
+	await expect(page.getByText(/Grau = geplant/)).toBeVisible({
+		timeout: 20000,
+	});
+	// One folder per iteration, re-querying every time: expanding a folder both
+	// reveals nested folders and renumbers the list, so indexing into a live
+	// locator silently skips some of them.
+	for (let opened = 0; opened < 25; opened += 1) {
 		const collapsed = page
 			.getByRole("button", { expanded: false })
 			.filter({ hasText: /Profit|Zielsaldo/ });
-		const count = await collapsed.count();
-		if (count === 0) return;
-		for (let index = count - 1; index >= 0; index -= 1) {
-			await collapsed.nth(index).click();
-		}
+		if ((await collapsed.count()) === 0) return;
+		await collapsed.first().click();
 	}
 }
 
@@ -228,6 +233,102 @@ test.describe("Finance Analytics tool", () => {
 		await expect(freeInvoice).toBeHidden();
 		await projectFolder.click();
 		await expect(freeInvoice).toBeVisible();
+	});
+
+	test("plans, matches an invoice, and corrects the plan to the actual", async ({
+		page,
+	}) => {
+		await page.getByRole("tab", { name: "T-Konto" }).click();
+		await page.getByLabel("Department").click();
+		await page.getByRole("option", { name: "Community", exact: true }).click();
+		await expect(page.getByText("Ist-Saldo").first()).toBeVisible({
+			timeout: 20000,
+		});
+		await expandAllFolders(page);
+
+		// Plan in the folder the invoice actually sits in (FR-M1). It has to be that
+		// folder: a Planposten can only absorb the part of a posting allocated to
+		// its own department *and* project, so a department-level Planposten cannot
+		// take an invoice that belongs to a project. Which folder that is depends on
+		// what earlier specs did with the invoice, so it is looked up rather than
+		// assumed. The amount is deliberately larger than the invoice, so the
+		// correction has something to correct.
+		const planLabel = `E2E Planposten ${Date.now()}`;
+		const invoice = page.getByRole("checkbox", {
+			name: "Onboarding SS Location auswählen",
+		});
+		await expect(invoice).toBeVisible({ timeout: 20000 });
+		const invoiceFolder = page
+			.getByRole("group")
+			.filter({ has: invoice })
+			.last();
+		await invoiceFolder
+			.getByRole("button", { name: "Neuer Planposten" })
+			.first()
+			.click();
+		const planDialog = page.getByRole("dialog");
+		await planDialog.getByLabel("Bezeichnung").fill(planLabel);
+		await planDialog.getByLabel("Betrag (€)").fill("5000");
+		await planDialog.getByRole("button", { name: "Anlegen" }).click();
+		await expect(page.getByText("Planposten angelegt.")).toBeVisible({
+			timeout: 20000,
+		});
+
+		// It shows up as a planned line and expands to its own detail (FR-K4).
+		await expandAllFolders(page);
+		const planRow = page.getByRole("button", { name: new RegExp(planLabel) });
+		await expect(planRow).toBeVisible({ timeout: 20000 });
+		await planRow.click();
+
+		// Match an invoice to it from the Planposten side (FR-M5).
+		await page.getByRole("button", { name: "Buchung zuordnen" }).click();
+		const matchDialog = page.getByRole("dialog");
+		await matchDialog.getByLabel("Buchung").click();
+		await page.getByRole("option", { name: /Onboarding SS Location/ }).click();
+		await matchDialog.getByRole("button", { name: "Zuordnen" }).click();
+		await expect(
+			page.getByText("Buchung dem Planposten zugeordnet."),
+		).toBeVisible({ timeout: 20000 });
+
+		// The match moved the status on its own: planned → committed (FR-M4).
+		await expandAllFolders(page);
+		await page.getByRole("button", { name: new RegExp(planLabel) }).click();
+		await expect(page.getByText("Zugesagt").first()).toBeVisible();
+
+		// Plan 5.000 vs Ist 600 — correcting sets the plan to what arrived (FR-M6).
+		await page
+			.getByRole("button", { name: /Plan auf Ist korrigieren/ })
+			.click();
+		await expect(page.getByText("Plan auf Ist korrigiert.")).toBeVisible({
+			timeout: 20000,
+		});
+
+		// Fully matched now, so the Planposten no longer carries an open remainder
+		// and drops out of the plan column entirely.
+		await expandAllFolders(page);
+		await expect(
+			page.getByRole("button", { name: new RegExp(planLabel) }),
+		).toBeHidden();
+
+		// Detaching from the invoice side restores the open remainder and walks the
+		// status back (FR-M7) — which also returns the seeded invoice to the state
+		// the other specs expect, so this one can run again without a reset.
+		await page
+			.getByRole("button", { name: /Onboarding SS Location/ })
+			.first()
+			.click();
+		await page
+			.getByRole("button", { name: new RegExp(`Zuordnung ${planLabel}`) })
+			.click();
+		await expect(page.getByText("Zuordnung entfernt.")).toBeVisible({
+			timeout: 20000,
+		});
+
+		await expandAllFolders(page);
+		const revived = page.getByRole("button", { name: new RegExp(planLabel) });
+		await expect(revived).toBeVisible({ timeout: 20000 });
+		await revived.click();
+		await expect(page.getByText("Geplant").first()).toBeVisible();
 	});
 
 	test("drills from the budget overview into a department T-account", async ({
