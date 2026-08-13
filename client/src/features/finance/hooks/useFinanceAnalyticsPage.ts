@@ -9,45 +9,44 @@ import {
 	type FinanceManagementSection,
 	useFinanceManagement,
 } from "./useFinanceManagement";
-import { useFinancePlanItems } from "./useFinancePlanItems";
 import { useFinanceTAccount } from "./useFinanceTAccount";
 import { useFinanceTAccountActions } from "./useFinanceTAccountActions";
 import { useFinanceTAccountPlanActions } from "./useFinanceTAccountPlanActions";
 import { useFinanceTAccountSelection } from "./useFinanceTAccountSelection";
 
+// Six tabs (FR-O1). Kategorien, Konten and the VAT summary are panels of
+// Übersicht now; Planung, Projekte and Abgleich were absorbed by the T-Konto
+// and the new Anträge inbox.
 export type FinanceAnalyticsTab =
 	| "overview"
 	| "budget"
-	| "planning"
 	| "t-account"
-	| "categories"
-	| "accounts"
-	| "projects"
-	| "reconciliation"
+	| "approvals"
 	| "report"
-	| "mapping";
+	| "settings";
 
 export function useFinanceAnalyticsPage() {
-	const [activeTab, setActiveTab] = useState<FinanceAnalyticsTab>("overview");
 	const { permissions, department } = useToolAccess();
 	const canManage = permissions.includes("finance.review");
-	const analyticsEnabled =
-		activeTab === "overview" ||
-		activeTab === "categories" ||
-		activeTab === "accounts";
+	// FR-O2: LnF lands on the org-wide overview, a department-scoped member on
+	// the surface they actually work in.
+	const [activeTab, setActiveTab] = useState<FinanceAnalyticsTab>(
+		canManage ? "overview" : "t-account",
+	);
+	const analyticsEnabled = activeTab === "overview";
 
 	const analytics = useFinanceAnalytics({ enabled: analyticsEnabled });
+	const settingsActive = canManage && activeTab === "settings";
 	const mappings = useFinanceDepartmentMappings(analytics.range, {
-		enabled: canManage && activeTab === "mapping",
+		enabled: settingsActive,
 	});
 	const categories = useFinanceCategoryMappings(analytics.range, {
-		enabled: canManage && activeTab === "mapping",
+		enabled: settingsActive,
 	});
 	const accounts = useFinanceAccountLabels(analytics.range, {
-		enabled: canManage && activeTab === "mapping",
+		enabled: settingsActive,
 	});
 	const budgets = useFinanceBudgets({ enabled: activeTab === "budget" });
-	const plans = useFinancePlanItems({ enabled: activeTab === "planning" });
 	const tAccount = useFinanceTAccount({
 		enabled: activeTab === "t-account",
 		canManage,
@@ -71,8 +70,8 @@ export function useFinanceAnalyticsPage() {
 		period: tAccount.period,
 	});
 	const managementSection: FinanceManagementSection | null =
-		activeTab === "projects" ||
-		activeTab === "reconciliation" ||
+		activeTab === "approvals" ||
+		activeTab === "settings" ||
 		activeTab === "report"
 			? activeTab
 			: null;
@@ -104,7 +103,6 @@ export function useFinanceAnalyticsPage() {
 		categories,
 		accounts,
 		budgets,
-		plans,
 		tAccount,
 		// Everything the T-view needs to be a working surface, in one prop bag the
 		// page can spread onto the section (FR-K5–K7, FR-L).
@@ -135,6 +133,13 @@ export function useFinanceAnalyticsPage() {
 			onCorrectPlanToActual: tAccountPlanActions.correctPlanToActual,
 			onMatch: tAccountPlanActions.matchPosting,
 			onDetachMatch: tAccountPlanActions.detachMatch,
+			onDeletePlanItem: tAccountPlanActions.deletePlanItem,
+			// Raising a cross-department reallocation still goes through the
+			// management hook — it is a request, reviewed in the Anträge tab.
+			isRequestingReallocation: management.reallocationRequest.isPending,
+			isSplitting: tAccountActions.isSplitting,
+			onSplitAllocation: tAccountActions.splitAllocation,
+			onRequestReallocation: management.reallocationRequest.onSubmit,
 		},
 		management,
 	};

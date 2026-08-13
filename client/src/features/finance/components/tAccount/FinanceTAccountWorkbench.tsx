@@ -1,3 +1,7 @@
+import type {
+	FinancePostingAllocationInput,
+	FinanceReallocationRequestCreate,
+} from "@member-manager/shared";
 import { FolderPlus } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -31,6 +35,14 @@ import {
 	FinanceProjectDialog,
 	type FinanceProjectDialogPreset,
 } from "./FinanceProjectDialog";
+import {
+	type FinanceReallocationDialogPreset,
+	FinanceReallocationRequestDialog,
+} from "./FinanceReallocationRequestDialog";
+import {
+	FinanceSplitAllocationDialog,
+	type FinanceSplitDialogPreset,
+} from "./FinanceSplitAllocationDialog";
 import { FinanceTAccountGroup } from "./FinanceTAccountGroup";
 import { FinanceTAccountSelectionBar } from "./FinanceTAccountSelectionBar";
 import type { TAccountInteraction } from "./tAccountInteraction";
@@ -60,6 +72,16 @@ export interface FinanceTAccountWorkbenchProps {
 	onCorrectPlanToActual?: (planItemId: string, matchedAmount: number) => void;
 	onMatch?: (input: TAccountMatchInput) => Promise<void>;
 	onDetachMatch?: (matchId: string) => void;
+	onDeletePlanItem?: (planItemId: string) => void;
+	isRequestingReallocation?: boolean;
+	onRequestReallocation?: (
+		input: FinanceReallocationRequestCreate,
+	) => Promise<void>;
+	isSplitting?: boolean;
+	onSplitAllocation?: (input: {
+		postingExternalId: string;
+		allocations: FinancePostingAllocationInput[];
+	}) => Promise<void>;
 }
 
 // The interactive half of the T-view: the folder tree, the selection bar and
@@ -84,6 +106,11 @@ export function FinanceTAccountWorkbench({
 	onCorrectPlanToActual,
 	onMatch,
 	onDetachMatch,
+	onDeletePlanItem,
+	isRequestingReallocation = false,
+	onRequestReallocation,
+	isSplitting = false,
+	onSplitAllocation,
 }: FinanceTAccountWorkbenchProps): ReactElement {
 	const [projectPreset, setProjectPreset] =
 		useState<FinanceProjectDialogPreset | null>(null);
@@ -93,6 +120,10 @@ export function FinanceTAccountWorkbench({
 		useState<FinancePlanItemDialogPreset | null>(null);
 	const [matchPreset, setMatchPreset] =
 		useState<FinanceMatchDialogPreset | null>(null);
+	const [reallocationPreset, setReallocationPreset] =
+		useState<FinanceReallocationDialogPreset | null>(null);
+	const [splitPreset, setSplitPreset] =
+		useState<FinanceSplitDialogPreset | null>(null);
 
 	const candidates = useMemo(() => collectMatchCandidates(tree), [tree]);
 
@@ -172,6 +203,31 @@ export function FinanceTAccountWorkbench({
 					});
 				},
 				onDetachMatch: (matchId) => onDetachMatch?.(matchId),
+				onEditSplit: (line) => {
+					if (line.postingExternalId === null) return;
+					setSplitPreset({
+						postingExternalId: line.postingExternalId,
+						label: line.label,
+					});
+				},
+				onRequestReallocation: (line) => {
+					if (line.postingExternalId === null) return;
+					setReallocationPreset({
+						postingExternalId: line.postingExternalId,
+						label: line.label,
+					});
+				},
+				onDeletePlanItem: (planItemId, label) => {
+					// Deleting a Planposten cannot be undone from a toast the way
+					// parking can, so it asks first.
+					if (
+						window.confirm(
+							`Planposten „${label}" wirklich löschen? Zum Zurückstellen gibt es „Deaktivieren".`,
+						)
+					) {
+						onDeletePlanItem?.(planItemId);
+					}
+				},
 			}
 		: undefined;
 
@@ -286,6 +342,32 @@ export function FinanceTAccountWorkbench({
 				onSubmit={async (input) => {
 					await onSavePlanItem?.(input);
 					setPlanItemPreset(null);
+				}}
+			/>
+			<FinanceSplitAllocationDialog
+				preset={splitPreset}
+				projects={projects}
+				department={department}
+				isPending={isSplitting}
+				onClose={() => setSplitPreset(null)}
+				onAllocateToProject={async ({ postingExternalId, projectId }) => {
+					await onSplitAllocation?.({
+						postingExternalId,
+						allocations: [{ project_id: projectId, percentage: 100 }],
+					});
+				}}
+				onSplitAllocation={async (input) => {
+					await onSplitAllocation?.(input);
+				}}
+			/>
+			<FinanceReallocationRequestDialog
+				preset={reallocationPreset}
+				projects={projects}
+				department={department}
+				isPending={isRequestingReallocation}
+				onClose={() => setReallocationPreset(null)}
+				onSubmit={async (input) => {
+					await onRequestReallocation?.(input);
 				}}
 			/>
 			<FinanceMatchPlanItemDialog

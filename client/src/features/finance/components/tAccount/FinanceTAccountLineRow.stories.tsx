@@ -145,6 +145,9 @@ function writableInteraction(): TAccountInteraction {
 		onMatchFromPlanItem: fn(),
 		onMatchFromPosting: fn(),
 		onDetachMatch: fn(),
+		onEditSplit: fn(),
+		onRequestReallocation: fn(),
+		onDeletePlanItem: fn(),
 	};
 }
 

@@ -37,7 +37,6 @@ const PROJECT_ID = "10000000-0000-4000-8000-000000000001";
 const TEMPLATE_ID = "20000000-0000-4000-8000-000000000001";
 const TEMPLATE_ITEM_ID = "30000000-0000-4000-8000-000000000001";
 const PLAN_ITEM_ID = "40000000-0000-4000-8000-000000000001";
-const MATCH_ID = "50000000-0000-4000-8000-000000000001";
 const REQUEST_ID = "60000000-0000-4000-8000-000000000001";
 
 const project = {
@@ -64,22 +63,6 @@ const template = {
 	items: [],
 	created_at: "2026-01-01T00:00:00.000Z",
 	updated_at: "2026-01-01T00:00:00.000Z",
-};
-
-const transaction = {
-	external_id: "BB-1",
-	date: "2026-05-04",
-	postingtext: "Makeathon venue",
-	amount: -4800,
-	currency: "EUR",
-	vat: 19,
-	credit_type: "debit",
-	debit_postingaccount_number: "6300",
-	credit_postingaccount_number: "1200",
-	cost_location: "161",
-	cost_location_two: "5",
-	transaction_amount: -4800,
-	transaction_purpose: "Venue deposit",
 };
 
 function financeGetHandlers() {
@@ -157,25 +140,24 @@ describe("useFinanceManagement", () => {
 		const { result, rerender } = renderHookWithClient(
 			(options: { canManage: boolean; department: string | null }) =>
 				useFinanceManagement({
-					activeSection: "projects",
+					activeSection: "settings",
 					...options,
 				}),
 			{ initialProps: { canManage: false, department: null } },
 		);
 
-		expect(result.current.projectSection.isLoading).toBe(false);
 		expect(projectRequests).toBe(0);
 		expect(templateRequests).toBe(0);
 
 		rerender({ canManage: true, department: null });
 		await waitFor(() =>
-			expect(result.current.projectSection.projects).toHaveLength(1),
+			expect(result.current.templateAssignForm.projects).toHaveLength(1),
 		);
 		expect(projectRequests).toBe(1);
 		expect(templateRequests).toBe(1);
 	});
 
-	it("creates projects and templates, manages template items, and assigns templates", async () => {
+	it("manages plan templates and assigns one to a project", async () => {
 		const requests: Array<{ method: string; body?: unknown }> = [];
 		server.use(
 			...financeGetHandlers(),
@@ -227,29 +209,21 @@ describe("useFinanceManagement", () => {
 
 		const { result } = renderHookWithClient(() =>
 			useFinanceManagement({
-				activeSection: "projects",
+				activeSection: "settings",
 				canManage: true,
 				department: null,
 			}),
 		);
 		await waitFor(() =>
-			expect(result.current.projectSection.projects).toHaveLength(1),
+			expect(result.current.templateAssignForm.projects).toHaveLength(1),
 		);
 
 		await act(async () => {
-			await result.current.projectSection.onCreateProject({
-				name: "Makeathon sub-project",
-				department: "Makeathon",
-				period_type: "year",
-				period_key: "2026",
-				target_amount: -5000,
-				status: "draft",
-			});
-			await result.current.projectSection.onCreateTemplate({
+			await result.current.templateManager.onCreateTemplate({
 				name: "Event baseline",
 				tax_area: "wirtschaftlich",
 			});
-			await result.current.projectSection.onCreateTemplateItem({
+			await result.current.templateManager.onCreateTemplateItem({
 				templateId: TEMPLATE_ID,
 				item: {
 					label: "Venue",
@@ -258,18 +232,16 @@ describe("useFinanceManagement", () => {
 					expected_month: "2026-05",
 				},
 			});
-			await result.current.projectSection.onDeleteTemplateItem({
+			await result.current.templateManager.onDeleteTemplateItem({
 				templateId: TEMPLATE_ID,
 				itemId: TEMPLATE_ITEM_ID,
 			});
-			await result.current.projectSection.onAssignTemplate({
-				projectId: PROJECT_ID,
-				templateId: TEMPLATE_ID,
-			});
+			await result.current.templateAssignForm.onAssign(PROJECT_ID, TEMPLATE_ID);
 		});
 
+		// Projects are created in the T-view now, so this tab only writes
+		// templates and their items (FR-O).
 		expect(requests.map((request) => request.method)).toEqual([
-			"project",
 			"template",
 			"template-item",
 		]);
@@ -279,17 +251,12 @@ describe("useFinanceManagement", () => {
 		);
 	});
 
-	it("handles allocations, requests, reviews, and plan-item matches", async () => {
+	it("raises a reallocation request and reviews both kinds of approval", async () => {
+		// Allocation and matching moved to the T-view with their own hooks (FR-O);
+		// what this hook still writes is the request and the two reviews.
 		const methods: string[] = [];
 		server.use(
 			...financeGetHandlers(),
-			http.put("/api/finance/posting-allocations/:externalId", () => {
-				methods.push("allocation");
-				return HttpResponse.json({
-					posting: transaction,
-					allocations: [],
-				});
-			}),
 			http.post("/api/finance/reallocation-requests", () => {
 				methods.push("request");
 				return HttpResponse.json(
@@ -312,120 +279,41 @@ describe("useFinanceManagement", () => {
 			}),
 			http.post("/api/finance/reallocation-requests/:requestId/review", () => {
 				methods.push("review");
-				return HttpResponse.json({
-					id: REQUEST_ID,
-					posting_external_id: "BB-1",
-					requesting_department: "Makeathon",
-					reason: "Move it",
-					status: "approved",
-					requested_by: "user-1",
-					reviewed_by: "reviewer-1",
-					review_note: "Confirmed",
-					reviewed_at: "2026-07-21T12:00:00.000Z",
-					allocations: [],
-					created_at: "2026-07-21T12:00:00.000Z",
-					updated_at: "2026-07-21T12:00:00.000Z",
-				});
+				return HttpResponse.json({ ok: true });
 			}),
 			http.post("/api/finance/budget-transfer-requests", () => {
 				methods.push("budget-transfer");
-				return HttpResponse.json(
-					{
-						id: REQUEST_ID,
-						source_department: "Makeathon",
-						target_department: "Community",
-						period_type: "year",
-						period_key: "2026",
-						amount: 1000,
-						reason: "Move budget",
-						status: "pending",
-						requested_by: "user-1",
-						reviewed_by: null,
-						review_note: null,
-						reviewed_at: null,
-						created_at: "2026-07-21T12:00:00.000Z",
-						updated_at: "2026-07-21T12:00:00.000Z",
-					},
-					{ status: 201 },
-				);
+				return HttpResponse.json({ ok: true }, { status: 201 });
 			}),
 			http.post(
 				"/api/finance/budget-transfer-requests/:requestId/review",
 				() => {
 					methods.push("budget-transfer-review");
-					return HttpResponse.json({
-						id: REQUEST_ID,
-						source_department: "Makeathon",
-						target_department: "Community",
-						period_type: "year",
-						period_key: "2026",
-						amount: 1000,
-						reason: "Move budget",
-						status: "approved",
-						requested_by: "user-1",
-						reviewed_by: "reviewer-1",
-						review_note: "Confirmed",
-						reviewed_at: "2026-07-21T12:00:00.000Z",
-						created_at: "2026-07-21T12:00:00.000Z",
-						updated_at: "2026-07-21T12:00:00.000Z",
-					});
+					return HttpResponse.json({ ok: true });
 				},
 			),
-			http.post("/api/finance/plan-item-matches", () => {
-				methods.push("match");
-				return HttpResponse.json(
-					{
-						id: MATCH_ID,
-						plan_item_id: PLAN_ITEM_ID,
-						posting_external_id: "BB-1",
-						matched_amount: 1000,
-						match_type: "manual",
-						created_by: "user-1",
-						created_at: "2026-07-21T12:00:00.000Z",
-					},
-					{ status: 201 },
-				);
-			}),
-			http.delete("/api/finance/plan-item-matches/:matchId", () => {
-				methods.push("delete-match");
-				return new HttpResponse(null, { status: 204 });
-			}),
 		);
 
 		const { result } = renderHookWithClient(() =>
 			useFinanceManagement({
-				activeSection: "reconciliation",
+				activeSection: "approvals",
 				canManage: true,
 				department: null,
 			}),
 		);
-		await waitFor(() =>
-			expect(result.current.reconciliationSection.planItems).toHaveLength(1),
-		);
 
 		await act(async () => {
-			await result.current.reconciliationSection.onAllocateToProject({
-				postingExternalId: "BB-1",
-				projectId: PROJECT_ID,
-			});
-			await result.current.reconciliationSection.onSplitAllocation({
-				postingExternalId: "BB-1",
-				allocations: [
-					{ department: "Makeathon", percentage: 60 },
-					{ department: "Community", percentage: 40 },
-				],
-			});
-			await result.current.reconciliationSection.onCreateReallocation({
+			await result.current.reallocationRequest.onSubmit({
 				posting_external_id: "BB-1",
 				requesting_department: "Makeathon",
 				reason: "Move it",
 				allocations: [{ project_id: PROJECT_ID, percentage: 100 }],
 			});
-			await result.current.reconciliationSection.onReviewReallocation({
+			await result.current.approvalsSection.onReviewReallocation({
 				requestId: REQUEST_ID,
 				review: { decision: "approved", review_note: "Confirmed" },
 			});
-			await result.current.reconciliationSection.onCreateBudgetTransfer({
+			await result.current.approvalsSection.onCreateBudgetTransfer({
 				source_department: "Makeathon",
 				target_department: "Community",
 				period_type: "year",
@@ -433,28 +321,17 @@ describe("useFinanceManagement", () => {
 				amount: 1000,
 				reason: "Move budget",
 			});
-			await result.current.reconciliationSection.onReviewBudgetTransfer({
+			await result.current.approvalsSection.onReviewBudgetTransfer({
 				requestId: REQUEST_ID,
 				review: { decision: "approved", review_note: "Confirmed" },
 			});
-			await result.current.reconciliationSection.onMatchPlanItem({
-				plan_item_id: PLAN_ITEM_ID,
-				posting_external_id: "BB-1",
-				matched_amount: 1000,
-				match_type: "manual",
-			});
-			await result.current.reconciliationSection.onDeleteMatch(MATCH_ID);
 		});
 
 		expect(methods).toEqual([
-			"allocation",
-			"allocation",
 			"request",
 			"review",
 			"budget-transfer",
 			"budget-transfer-review",
-			"match",
-			"delete-match",
 		]);
 	});
 
