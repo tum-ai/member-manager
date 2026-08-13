@@ -545,6 +545,36 @@ describe("buildTAccountTree", () => {
 		});
 	});
 
+	it("marks a fully matched Planposten as settled and stops offering it", () => {
+		// Nothing open left, but it still has to be reachable: since the plan tab
+		// retired, the T-view is the only place it can be edited from.
+		const [node] = buildTAccountTree([
+			group({
+				expense_lines: [
+					line({
+						kind: "plan",
+						amount: 0,
+						label: "Venue",
+						plan_item_id: "plan-venue",
+						plan_detail: planDetail({
+							planned_amount: 1000,
+							matched_amount: 1000,
+							delta: 0,
+						}),
+					}),
+				],
+			}),
+		]);
+
+		const settled = node.expenseLines[0];
+		expect(settled?.isSettled).toBe(true);
+		expect(settled?.isActive).toBe(true);
+		// It contributes nothing to the plan column…
+		expect(node.expenseSummary.plan).toBe(0);
+		// …and is not offered as a match candidate, having no capacity left.
+		expect(collectMatchCandidates([node]).planItems).toEqual([]);
+	});
+
 	it("keeps a disabled Planposten visible but out of every plan subtotal", () => {
 		const [node] = buildTAccountTree([
 			group({

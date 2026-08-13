@@ -280,7 +280,9 @@ test.describe("Finance Analytics tool", () => {
 
 		// It shows up as a planned line and expands to its own detail (FR-K4).
 		await expandAllFolders(page);
-		const planRow = page.getByRole("button", { name: new RegExp(planLabel) });
+		const planRow = page.getByRole("button", {
+			name: new RegExp(`^${planLabel}`),
+		});
 		await expect(planRow).toBeVisible({ timeout: 20000 });
 		await planRow.click();
 
@@ -296,7 +298,9 @@ test.describe("Finance Analytics tool", () => {
 
 		// The match moved the status on its own: planned → committed (FR-M4).
 		await expandAllFolders(page);
-		await page.getByRole("button", { name: new RegExp(planLabel) }).click();
+		await page
+			.getByRole("button", { name: new RegExp(`^${planLabel}`) })
+			.click();
 		await expect(page.getByText("Zugesagt").first()).toBeVisible();
 
 		// Plan 5.000 vs Ist 600 — correcting sets the plan to what arrived (FR-M6).
@@ -307,12 +311,21 @@ test.describe("Finance Analytics tool", () => {
 			timeout: 20000,
 		});
 
-		// Fully matched now, so the Planposten no longer carries an open remainder
-		// and drops out of the plan column entirely.
+		// Fully matched now: no open remainder, so it leaves the open plan lines
+		// and moves into "Erledigt" — still reachable, since the plan tab that
+		// used to list it is gone (FR-O).
 		await expandAllFolders(page);
 		await expect(
-			page.getByRole("button", { name: new RegExp(planLabel) }),
+			page.getByRole("button", { name: new RegExp(`^${planLabel}`) }),
 		).toBeHidden();
+		const settledDisclosure = page
+			.getByRole("button", { name: /Erledigt \(\d+\)/ })
+			.first();
+		await expect(settledDisclosure).toBeVisible();
+		await settledDisclosure.click();
+		await expect(
+			page.getByRole("button", { name: new RegExp(`^${planLabel}`) }),
+		).toBeVisible();
 
 		// Detaching from the invoice side restores the open remainder and walks the
 		// status back (FR-M7) — which also returns the seeded invoice to the state
@@ -329,7 +342,9 @@ test.describe("Finance Analytics tool", () => {
 		});
 
 		await expandAllFolders(page);
-		const revived = page.getByRole("button", { name: new RegExp(planLabel) });
+		const revived = page.getByRole("button", {
+			name: new RegExp(`^${planLabel}`),
+		});
 		await expect(revived).toBeVisible({ timeout: 20000 });
 		await revived.click();
 		await expect(page.getByText("Geplant").first()).toBeVisible();

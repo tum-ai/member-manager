@@ -115,6 +115,10 @@ export interface TAccountDisplayLine {
 	// False only for a disabled Planposten (FR-M3): it still renders, but it is
 	// parked, so it must not move any plan subtotal.
 	isActive: boolean;
+	// A Planposten with nothing left open: the invoices that were planned for
+	// have arrived. It stays on the response so it can still be edited or
+	// detached from, but it belongs out of the way of what is still to come.
+	isSettled: boolean;
 	// The object this line stands for. A booked line carries a posting id (what
 	// the selection collects, FR-K1), a plan line a Planposten id; a roll-up
 	// folder line neither.
@@ -222,7 +226,7 @@ export function collectMatchCandidates(nodes: TAccountNode[]): {
 		for (const line of [...node.expenseLines, ...node.incomeLines]) {
 			if (line.isProjectRollup) continue;
 			if (line.kind === "plan" && line.planItemId !== null) {
-				if (line.isActive && line.amount > 0) {
+				if (line.isActive && !line.isSettled && line.amount > 0) {
 					planItems.push({
 						id: line.planItemId,
 						label: line.label,
@@ -353,6 +357,10 @@ function toDisplayLine(
 		netAmount: line.net_amount,
 		status: line.status,
 		isActive: line.plan_detail?.is_active !== false,
+		isSettled:
+			line.kind === "plan" &&
+			line.amount === 0 &&
+			(line.plan_detail?.matched_amount ?? 0) > 0,
 		postingExternalId: line.posting_external_id,
 		planItemId: line.plan_item_id,
 		projectId: line.project_id,
@@ -417,6 +425,7 @@ function rollupLine(
 		netAmount: amount,
 		status: null,
 		isActive: true,
+		isSettled: false,
 		postingExternalId: null,
 		planItemId: null,
 		projectId: child.projectId,
