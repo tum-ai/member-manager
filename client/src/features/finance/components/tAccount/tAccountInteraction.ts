@@ -28,6 +28,9 @@ export interface TAccountInteraction {
 	// Open the project dialog for this node: a department or sub-team folder
 	// creates a project, a project creates a sub-project (FR-L3).
 	onCreateProject: (node: TAccountNode) => void;
+	// Remove a project again. Its invoices and Planposten are detached, not
+	// deleted — they fall back to the department.
+	onDeleteProject: (node: TAccountNode) => void;
 
 	// --- Planposten (FR-M) ----------------------------------------------------
 	// Create one on this node, with its project preset (FR-M1).

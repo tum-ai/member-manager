@@ -138,6 +138,7 @@ function writableInteraction(): TAccountInteraction {
 		onToggleSelect: fn(),
 		onAssignPosting: fn(),
 		onCreateProject: fn(),
+		onDeleteProject: fn(),
 		onCreatePlanItem: fn(),
 		onEditPlanItem: fn(),
 		onTogglePlanItem: fn(),

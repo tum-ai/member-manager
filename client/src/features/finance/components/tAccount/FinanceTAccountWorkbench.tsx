@@ -64,6 +64,7 @@ export interface FinanceTAccountWorkbenchProps {
 	onMatch?: (input: TAccountMatchInput) => Promise<void>;
 	onDetachMatch?: (matchId: string) => void;
 	onDeletePlanItem?: (planItemId: string) => void;
+	onDeleteProject?: (projectId: string) => void;
 	department?: string | null;
 	isRequestingReallocation?: boolean;
 	onRequestReallocation?: (
@@ -97,6 +98,7 @@ export function FinanceTAccountWorkbench({
 	onMatch,
 	onDetachMatch,
 	onDeletePlanItem,
+	onDeleteProject,
 	department = null,
 	isRequestingReallocation = false,
 	onRequestReallocation,
@@ -140,6 +142,15 @@ export function FinanceTAccountWorkbench({
 						postingExternalIds: [],
 						selectionSum: 0,
 					}),
+				onDeleteProject: (node) => {
+					if (node.projectId === null) return;
+					// Say what actually happens before asking: nothing is destroyed,
+					// but invoices and Planposten fall back to the department and
+					// sub-projects move up a level.
+					if (window.confirm(deleteProjectPrompt(node))) {
+						onDeleteProject?.(node.projectId);
+					}
+				},
 				onCreatePlanItem: (node) =>
 					setPlanItemPreset({
 						id: null,
@@ -322,6 +333,37 @@ export function FinanceTAccountWorkbench({
 			/>
 		</div>
 	);
+}
+
+// Everything the deletion detaches, counted from the node the user is looking
+// at, so the confirm can be specific instead of a generic "are you sure".
+function deleteProjectPrompt(node: TAccountNode): string {
+	const lines = [...node.expenseLines, ...node.incomeLines].filter(
+		(line) => !line.isProjectRollup,
+	);
+	const invoices = lines.filter((line) => line.kind === "actual").length;
+	const planItems = lines.filter((line) => line.kind === "plan").length;
+	const parts: string[] = [];
+	if (invoices > 0) {
+		parts.push(
+			`${invoices} ${invoices === 1 ? "Buchung fällt" : "Buchungen fallen"} zurück ans Department`,
+		);
+	}
+	if (planItems > 0) {
+		parts.push(
+			`${planItems} ${planItems === 1 ? "Planposten verliert" : "Planposten verlieren"} das Projekt`,
+		);
+	}
+	if (node.children.length > 0) {
+		parts.push(
+			`${node.children.length} ${node.children.length === 1 ? "Teilprojekt rückt" : "Teilprojekte rücken"} eine Ebene hoch`,
+		);
+	}
+	const consequences =
+		parts.length === 0
+			? "Das Projekt ist leer."
+			: `${parts.join(", ")} — gelöscht wird nichts davon.`;
+	return `Projekt „${node.projectName ?? "Projekt"}" löschen? ${consequences}`;
 }
 
 // An edit starts from the Planposten's own values (FR-M2). `line.amount` is the

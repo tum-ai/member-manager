@@ -237,6 +237,24 @@ test.describe("Finance Analytics tool", () => {
 		await expect(freeInvoice).toBeHidden();
 		await projectFolder.click();
 		await expect(freeInvoice).toBeVisible();
+
+		// A project created here can be removed here. Deleting detaches rather
+		// than destroys: the invoice returns to the department instead of
+		// disappearing with the folder.
+		page.once("dialog", (dialog) => {
+			expect(dialog.message()).toContain("fällt zurück ans Department");
+			void dialog.accept();
+		});
+		await page
+			.getByRole("group", { name: projectName })
+			.getByRole("button", { name: "Projekt löschen" })
+			.click();
+		await expect(page.getByText("Projekt gelöscht.")).toBeVisible({
+			timeout: 20000,
+		});
+		await expect(projectFolder).toBeHidden();
+		await expandAllFolders(page);
+		await expect(freeInvoice).toBeVisible();
 	});
 
 	test("plans, matches an invoice, and corrects the plan to the actual", async ({

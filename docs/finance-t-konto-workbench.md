@@ -494,6 +494,22 @@ Then closed:
   T-Konto). The approvals header gained a named landmark so its open count can be read apart
   from the per-request status badges.
 
+### Follow-up — projects are removable where they are created
+
+Reported while driving the running app: FR-L lets a project be created from the T-view, but
+nothing could take one back out, so a mistyped or abandoned project was permanent.
+
+- `DELETE /finance/projects/:projectId` — `requireFinanceViewer`, 404 for an unknown id, then
+  `assertCanWriteDepartment` against the project's own department, 204 on success.
+- Deleting **detaches rather than destroys**: every foreign key at `finance_projects` is
+  `ON DELETE SET NULL` (allocations, plan items, reimbursement links, `parent_project_id`), so
+  the project's invoices fall back to their department bucket, its Planposten lose the project
+  and its sub-projects become top-level. Only template assignments cascade away. Verified
+  against real Postgres, since the in-memory route harness does not model FKs.
+- A red **"Projekt löschen"** sits on the project folder, gated by the same `canWrite` as the
+  other node actions, behind a confirm that counts the consequences ("1 Buchung fällt zurück ans
+  Department — gelöscht wird nichts davon.") instead of a generic prompt.
+
 ---
 
 ## Decisions (settled 2026-08-09)

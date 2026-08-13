@@ -141,6 +141,23 @@ export function useFinanceTAccountActions({
 			reportError(error, "Zuordnung konnte nicht gespeichert werden."),
 	});
 
+	// Projects are created in the T-view, so they are removed there too. The
+	// server detaches rather than destroys — invoices fall back to the
+	// department — and the caller states that before asking.
+	const deleteProjectMutation = useMutation({
+		mutationFn: async (projectId: string) =>
+			await apiClient(
+				`/api/finance/projects/${encodeURIComponent(projectId)}`,
+				{ method: "DELETE" },
+			),
+		onSuccess: () => {
+			showToast("Projekt gelöscht.", "success");
+			invalidate();
+		},
+		onError: (error) =>
+			reportError(error, "Projekt konnte nicht gelöscht werden."),
+	});
+
 	// The split editor writes through the replace endpoint, which is
 	// reviewer-only and replaces *every* allocation of the posting — which is
 	// exactly why the bulk assign refuses split postings and sends them here
@@ -166,6 +183,9 @@ export function useFinanceTAccountActions({
 	});
 
 	return {
+		deleteProject: (projectId: string) => {
+			deleteProjectMutation.mutate(projectId);
+		},
 		splitAllocation: async (input: {
 			postingExternalId: string;
 			allocations: FinancePostingAllocationInput[];

@@ -81,6 +81,7 @@ import {
 	createFinancePlanTemplateItem,
 	createFinanceProject,
 	deleteFinancePlanTemplateItem,
+	deleteFinanceProject,
 	getFinancePlanTemplate,
 	getFinanceProject,
 	getManagedPlanItem,
@@ -427,6 +428,32 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 			await assertCanWriteDepartment(actor, merged.department);
 			await validateProjectParent(projectId, merged);
 			return await updateFinanceProject(projectId, merged);
+		},
+	);
+
+	// FR-O follow-up: projects are created in the T-view, so they have to be
+	// removable there too. Every foreign key to a project is ON DELETE SET NULL,
+	// so this detaches its invoices and Planposten rather than destroying them —
+	// they fall back to the department, and sub-projects become top-level.
+	server.delete(
+		"/finance/projects/:projectId",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const { projectId } = parseInput(
+				ProjectParamsSchema,
+				request.params,
+				"Invalid finance project id",
+			);
+			const existing = await getFinanceProject(projectId);
+			if (!existing) {
+				throw new NotFoundError("Finance project not found");
+			}
+			await assertCanWriteDepartment(
+				userId(request as AuthenticatedRequest),
+				existing.department,
+			);
+			await deleteFinanceProject(projectId);
+			return reply.status(204).send();
 		},
 	);
 
