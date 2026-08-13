@@ -185,6 +185,23 @@ export function useFinanceTAccountPlanActions({
 			reportError(error, "Zuordnung konnte nicht gespeichert werden."),
 	});
 
+	// The plan tab used to own this; with that tab gone (FR-O) the T-view is the
+	// only place a Planposten can be removed, so the capability moves here rather
+	// than disappearing. Parking (FR-M3) stays the softer, reversible option.
+	const deleteMutation = useMutation({
+		mutationFn: async (planItemId: string) =>
+			await apiClient(
+				`/api/finance/plan-items/${encodeURIComponent(planItemId)}`,
+				{ method: "DELETE" },
+			),
+		onSuccess: () => {
+			showToast("Planposten gelöscht.", "success");
+			invalidate();
+		},
+		onError: (error) =>
+			reportError(error, "Planposten konnte nicht gelöscht werden."),
+	});
+
 	const detachMutation = useMutation({
 		mutationFn: async (matchId: string) =>
 			await apiClient(
@@ -215,6 +232,9 @@ export function useFinanceTAccountPlanActions({
 		},
 		detachMatch: (matchId: string) => {
 			detachMutation.mutate(matchId);
+		},
+		deletePlanItem: (planItemId: string) => {
+			deleteMutation.mutate(planItemId);
 		},
 		isSavingPlanItem: saveMutation.isPending,
 		isMatching: matchMutation.isPending,

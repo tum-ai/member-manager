@@ -13,6 +13,12 @@ export interface TAccountInteraction {
 	// --- Invoices (FR-K1, FR-L2) ---------------------------------------------
 	isSelected: (postingExternalId: string) => boolean;
 	onToggleSelect: (postingExternalId: string) => void;
+	// Edit an existing split in place. Reviewer-only, like the endpoint behind
+	// it — a split posting is refused by the fast path and sent here (FR-L5).
+	onEditSplit: (line: TAccountDisplayLine) => void;
+	// Ask another department to take this posting. The only allocation change a
+	// department member cannot make directly, so it stays a request (FR-O).
+	onRequestReallocation: (line: TAccountDisplayLine) => void;
 	// Add this single invoice to an existing project from its expanded row
 	// (FR-L2). The amount travels along so the dialog can state what it is about
 	// to move without looking the line up again.
@@ -38,4 +44,7 @@ export interface TAccountInteraction {
 	onMatchFromPosting: (line: TAccountDisplayLine) => void;
 	// Detach a match; the server walks the status back with it (FR-M7).
 	onDetachMatch: (matchId: string) => void;
+	// Remove a Planposten outright. Only reachable here since the plan tab
+	// retired (FR-O); parking it (FR-M3) is the reversible alternative.
+	onDeletePlanItem: (planItemId: string, label: string) => void;
 }

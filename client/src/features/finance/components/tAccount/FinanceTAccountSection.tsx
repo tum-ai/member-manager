@@ -202,6 +202,7 @@ function TAccountBody({
 			{hasActivity ? (
 				<FinanceTAccountWorkbench
 					tree={tree}
+					department={department}
 					canWrite={canWrite}
 					projects={projects}
 					isCreatingProject={isCreatingProject}

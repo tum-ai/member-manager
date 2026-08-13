@@ -1,3 +1,4 @@
+import type { FinancePostingAllocationInput } from "@member-manager/shared";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/contexts/ToastContext";
 import { summarizeAllocationResults } from "@/features/finance/financeTAccountUtils";
@@ -140,7 +141,38 @@ export function useFinanceTAccountActions({
 			reportError(error, "Zuordnung konnte nicht gespeichert werden."),
 	});
 
+	// The split editor writes through the replace endpoint, which is
+	// reviewer-only and replaces *every* allocation of the posting — which is
+	// exactly why the bulk assign refuses split postings and sends them here
+	// instead (FR-L5).
+	const splitMutation = useMutation({
+		mutationFn: async (input: {
+			postingExternalId: string;
+			allocations: FinancePostingAllocationInput[];
+		}) =>
+			await apiClient(
+				`/api/finance/posting-allocations/${encodeURIComponent(input.postingExternalId)}`,
+				{
+					method: "PUT",
+					body: JSON.stringify({ allocations: input.allocations }),
+				},
+			),
+		onSuccess: () => {
+			showToast("Aufteilung gespeichert.", "success");
+			invalidate();
+		},
+		onError: (error) =>
+			reportError(error, "Aufteilung konnte nicht gespeichert werden."),
+	});
+
 	return {
+		splitAllocation: async (input: {
+			postingExternalId: string;
+			allocations: FinancePostingAllocationInput[];
+		}) => {
+			await splitMutation.mutateAsync(input);
+		},
+		isSplitting: splitMutation.isPending,
 		createProject: async (input: TAccountProjectInput) => {
 			await createProjectMutation.mutateAsync(input);
 		},

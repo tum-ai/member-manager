@@ -47,7 +47,7 @@ test.describe("Finance Analytics tool", () => {
 		await expect(page.getByText("Umsatzsteuer")).toBeVisible();
 
 		// Switch to the mapping editor.
-		await page.getByRole("tab", { name: "Zuordnung" }).click();
+		await page.getByRole("tab", { name: "Einstellungen" }).click();
 		await expect(
 			page.getByRole("columnheader", {
 				name: "Kostenstelle",
@@ -78,12 +78,11 @@ test.describe("Finance Analytics tool", () => {
 	test("shows the category breakdown and labels a second cost location", async ({
 		page,
 	}) => {
-		// Category breakdown tab renders the by-category table.
-		await page.getByRole("tab", { name: "Kategorien" }).click();
+		// The category breakdown is a panel of Übersicht now (FR-O), not a tab.
 		await expect(page.getByText("Ausgaben pro Kategorie")).toBeVisible();
 
-		// The category editor lives under the mapping tab, below the department one.
-		await page.getByRole("tab", { name: "Zuordnung" }).click();
+		// The category editor lives under Einstellungen, below the department one.
+		await page.getByRole("tab", { name: "Einstellungen" }).click();
 		await expect(
 			page.getByRole("columnheader", { name: "Kostenstelle 2" }),
 		).toBeVisible();
@@ -106,12 +105,11 @@ test.describe("Finance Analytics tool", () => {
 	test("shows the account breakdown and labels a ledger account", async ({
 		page,
 	}) => {
-		// Accounts breakdown tab renders the by-account table.
-		await page.getByRole("tab", { name: "Konten" }).click();
+		// The account breakdown is a panel of Übersicht now (FR-O), not a tab.
 		await expect(page.getByText("Ausgaben pro Konto")).toBeVisible();
 
-		// The account editor lives under the mapping tab, below the others.
-		await page.getByRole("tab", { name: "Zuordnung" }).click();
+		// The account editor lives under Einstellungen, below the others.
+		await page.getByRole("tab", { name: "Einstellungen" }).click();
 		await expect(
 			page.getByRole("columnheader", { name: "Konto", exact: true }),
 		).toBeVisible();
@@ -356,34 +354,19 @@ test.describe("Finance Analytics tool", () => {
 		});
 	});
 
-	test("adds a plan line item", async ({ page }) => {
-		await page.getByRole("tab", { name: "Planung" }).click();
-		await expect(page.getByText("Planposten hinzufügen")).toBeVisible();
-
-		// Reviewer must choose a department, then fill the line item.
-		await page.getByLabel("Department").click();
-		await page.getByRole("option", { name: "Makeathon", exact: true }).click();
-		await page.getByLabel("Bezeichnung").fill("Venue deposit");
-		await page.getByLabel("Betrag (€)").fill("3000");
-		await page.getByRole("button", { name: /Hinzufügen/ }).click();
-
-		await expect(page.getByText("Planposten hinzugefügt.")).toBeVisible();
-	});
-
-	test("runs planning, allocation, reallocation, matching, reporting, and reimbursement linkage", async ({
+	test("runs template setup, both approval flows, reporting, and reimbursement linkage", async ({
 		page,
 		browser,
 	}) => {
-		await page.getByRole("tab", { name: "Projekte" }).click();
-		await expect(
-			page.getByRole("heading", { name: "Projekt anlegen" }),
-		).toBeVisible();
-
 		const unique = Date.now();
 		const projectName = `E2E Finance Project ${unique}`;
 		const templateName = `E2E Event Template ${unique}`;
 		const planItemName = `E2E Venue Plan ${unique}`;
 
+		// Plan templates moved to Einstellungen (FR-O); project creation moved to
+		// the T-view and is covered by its own spec, so this one creates the
+		// project through the API and stays focused on approvals and reporting.
+		await page.getByRole("tab", { name: "Einstellungen" }).click();
 		await page.getByLabel("Neue Vorlage").fill(templateName);
 		await page.getByRole("button", { name: "Anlegen", exact: true }).click();
 		await expect(page.getByText("Plan template created.")).toBeVisible();
@@ -402,19 +385,33 @@ test.describe("Finance Analytics tool", () => {
 			.click();
 		await expect(page.getByText("Template item added.")).toBeVisible();
 
-		await page.getByLabel("Name *").fill(projectName);
-		await page.getByLabel("Projekt-Department").click();
-		await page.getByRole("option", { name: "Makeathon", exact: true }).click();
-		await page.getByLabel("Zielbetrag (€) *").fill("-5000");
-		await page.getByRole("button", { name: "Projekt anlegen" }).click();
-		await expect(page.getByText("Finance project created.")).toBeVisible();
-		const projectRow = page.getByRole("row").filter({ hasText: projectName });
-		await expect(projectRow).toBeVisible();
-		await projectRow.getByRole("combobox", { name: /Vorlage für/ }).click();
+		await page.evaluate(async (name) => {
+			const { apiClient } = await import("/src/lib/apiClient.ts");
+			await apiClient("/api/finance/projects", {
+				method: "POST",
+				body: JSON.stringify({
+					name,
+					department: "Makeathon",
+					period_type: "year",
+					period_key: "2026",
+					target_amount: -5000,
+					status: "draft",
+				}),
+			});
+		}, projectName);
+
+		// The template is applied from Einstellungen now that project rows are
+		// gone (FR-O).
+		await page.reload();
+		await page.getByRole("tab", { name: "Einstellungen" }).click();
+		const assignRegion = page.getByRole("region", {
+			name: "Vorlage auf Projekt anwenden",
+		});
+		await assignRegion.getByLabel("Projekt").click();
+		await page.getByRole("option", { name: new RegExp(projectName) }).click();
+		await assignRegion.getByLabel("Vorlage").click();
 		await page.getByRole("option", { name: templateName }).click();
-		await projectRow
-			.getByRole("button", { name: new RegExp(`Vorlage auf ${projectName}`) })
-			.click();
+		await assignRegion.getByRole("button", { name: "Anwenden" }).click();
 		await expect(page.getByText("1 plan item(s) created.")).toBeVisible();
 
 		const postingIds = await page.evaluate(async () => {
@@ -489,7 +486,7 @@ test.describe("Finance Analytics tool", () => {
 		const departmentPage = await departmentContext.newPage();
 		await loginWithSeedEmail(departmentPage, SEED_MAKEATHON_LEAD_EMAIL);
 		await departmentPage.goto(FINANCE_ANALYTICS_ROUTE);
-		await departmentPage.getByRole("tab", { name: "Abgleich" }).click();
+		await departmentPage.getByRole("tab", { name: "Anträge" }).click();
 		const budgetTransferSection = departmentPage.getByRole("region", {
 			name: "Budgetübertragungen",
 		});
@@ -508,29 +505,32 @@ test.describe("Finance Analytics tool", () => {
 			departmentPage.getByText("Budget transfer request submitted."),
 		).toBeVisible();
 
-		const departmentVenue = departmentPage
-			.getByRole("button", { name: /Makeathon venue/ })
-			.first();
-		await expect(departmentVenue).toBeVisible();
-		await departmentVenue.click();
-		await departmentPage.getByLabel("Projekt für Aufteilung 1").click();
-		await departmentPage.getByRole("option", { name: projectName }).click();
+		// Asking another department to take a posting now starts at the invoice
+		// itself, in the T-view (FR-O).
+		await departmentPage.getByRole("tab", { name: "T-Konto" }).click();
+		await expandAllFolders(departmentPage);
 		await departmentPage
+			.getByRole("button", { name: /Makeathon venue/ })
+			.first()
+			.click();
+		await departmentPage
+			.getByRole("button", { name: "Umverteilung beantragen" })
+			.first()
+			.click();
+		const requestDialog = departmentPage.getByRole("dialog");
+		await requestDialog.getByLabel("Projekt für Aufteilung 1").click();
+		await departmentPage.getByRole("option", { name: projectName }).click();
+		await requestDialog
 			.getByLabel("Begründung *")
 			.fill("Assign the venue to the approved Makeathon project");
-		await departmentPage
-			.getByRole("button", { name: "Anfrage senden" })
-			.click();
+		await requestDialog.getByRole("button", { name: "Anfrage senden" }).click();
 		await expect(
 			departmentPage.getByText("Reallocation request submitted."),
 		).toBeVisible();
 		await departmentContext.close();
 
-		await page.getByRole("tab", { name: "Abgleich" }).click();
-		await expect(page.getByText("Nicht abgeglichen").first()).toBeVisible();
-		await expect(page.getByText("Nicht geplant").first()).toBeVisible();
 		await page.reload();
-		await page.getByRole("tab", { name: "Abgleich" }).click();
+		await page.getByRole("tab", { name: "Anträge" }).click();
 
 		const budgetTransferReview = page
 			.locator("div.grid")
@@ -567,26 +567,6 @@ test.describe("Finance Analytics tool", () => {
 			.getByRole("button", { name: "Genehmigen" })
 			.click();
 		await expect(page.getByText("Reallocation approved.")).toBeVisible();
-
-		const venueRow = page
-			.getByRole("button", { name: /Makeathon venue/ })
-			.first();
-		await expect(venueRow).toBeVisible();
-		await venueRow.click();
-		await page.getByLabel("Planposten zuordnen").click();
-		await page.getByRole("option", { name: new RegExp(planItemName) }).click();
-		await page.getByRole("button", { name: "Abgleichen" }).click();
-		await expect(page.getByText("Posting matched to plan item.")).toBeVisible();
-
-		const cateringRow = page
-			.getByRole("button", { name: /Makeathon catering/ })
-			.first();
-		await expect(cateringRow).toBeVisible();
-		await cateringRow.click();
-		await page.getByLabel("Projekt für vollständige Zuordnung").click();
-		await page.getByRole("option", { name: new RegExp(projectName) }).click();
-		await page.getByRole("button", { name: "Vollständig zuordnen" }).click();
-		await expect(page.getByText("Posting allocation saved.")).toBeVisible();
 
 		await page.getByRole("tab", { name: "Berichte" }).click();
 		await expect(page.getByText("Budget").first()).toBeVisible();

@@ -10,7 +10,6 @@ const mocks = vi.hoisted(() => ({
 	categories: vi.fn(),
 	accounts: vi.fn(),
 	budgets: vi.fn(),
-	plans: vi.fn(),
 	tAccount: vi.fn(),
 	setDepartment: vi.fn(),
 	setPeriod: vi.fn(),
@@ -38,9 +37,6 @@ vi.mock("./useFinanceAccountLabels", () => ({
 }));
 vi.mock("./useFinanceBudgets", () => ({
 	useFinanceBudgets: mocks.budgets,
-}));
-vi.mock("./useFinancePlanItems", () => ({
-	useFinancePlanItems: mocks.plans,
 }));
 vi.mock("./useFinanceTAccount", () => ({
 	useFinanceTAccount: mocks.tAccount,
@@ -73,7 +69,6 @@ describe("useFinanceAnalyticsPage", () => {
 		mocks.budgets.mockReturnValue({
 			period: { type: "semester", key: "2026-S1" },
 		});
-		mocks.plans.mockReturnValue({});
 		mocks.setDepartment.mockClear();
 		mocks.setPeriod.mockClear();
 		mocks.tAccount.mockReturnValue({
@@ -106,26 +101,29 @@ describe("useFinanceAnalyticsPage", () => {
 			correctPlanToActual: vi.fn(),
 			matchPosting: vi.fn(),
 			detachMatch: vi.fn(),
+			deletePlanItem: vi.fn(),
 			isSavingPlanItem: false,
 			isMatching: false,
 		});
-		mocks.management.mockReturnValue({});
+		mocks.management.mockReturnValue({
+			reallocationRequest: { isPending: false, onSubmit: vi.fn() },
+		});
 	});
 
 	it("enables only the queries needed for the active tab", () => {
 		const { result } = renderHookWithClient(() => useFinanceAnalyticsPage());
 
+		// A reviewer lands on the org-wide overview (FR-O2), which is also the
+		// only tab that needs the analytics query now that the category and
+		// account breakdowns are panels of it.
+		expect(result.current.activeTab).toBe("overview");
 		expect(mocks.analytics).toHaveBeenLastCalledWith({ enabled: true });
 		expect(mocks.mappings).toHaveBeenLastCalledWith(range, { enabled: false });
 		expect(mocks.budgets).toHaveBeenLastCalledWith({ enabled: false });
-		expect(mocks.plans).toHaveBeenLastCalledWith({ enabled: false });
 
 		act(() => result.current.setActiveTab("budget"));
 		expect(mocks.analytics).toHaveBeenLastCalledWith({ enabled: false });
 		expect(mocks.budgets).toHaveBeenLastCalledWith({ enabled: true });
-
-		act(() => result.current.setActiveTab("planning"));
-		expect(mocks.plans).toHaveBeenLastCalledWith({ enabled: true });
 
 		act(() => result.current.setActiveTab("t-account"));
 		expect(mocks.tAccount).toHaveBeenLastCalledWith({
@@ -134,17 +132,35 @@ describe("useFinanceAnalyticsPage", () => {
 			department: "Legal & Finance",
 		});
 
-		act(() => result.current.setActiveTab("projects"));
+		act(() => result.current.setActiveTab("approvals"));
 		expect(mocks.management).toHaveBeenLastCalledWith({
-			activeSection: "projects",
+			activeSection: "approvals",
 			canManage: true,
 			department: null,
 		});
 
-		act(() => result.current.setActiveTab("mapping"));
+		act(() => result.current.setActiveTab("settings"));
+		expect(mocks.management).toHaveBeenLastCalledWith({
+			activeSection: "settings",
+			canManage: true,
+			department: null,
+		});
 		expect(mocks.mappings).toHaveBeenLastCalledWith(range, { enabled: true });
 		expect(mocks.categories).toHaveBeenLastCalledWith(range, { enabled: true });
 		expect(mocks.accounts).toHaveBeenLastCalledWith(range, { enabled: true });
+	});
+
+	it("lands a department-scoped member on their working surface (FR-O2)", () => {
+		mocks.toolAccess.mockReturnValue({
+			permissions: ["finance.department"],
+			department: "Makeathon",
+		});
+
+		const { result } = renderHookWithClient(() => useFinanceAnalyticsPage());
+
+		expect(result.current.activeTab).toBe("t-account");
+		// …and the org-wide analytics query is not fetched for them at all.
+		expect(mocks.analytics).toHaveBeenLastCalledWith({ enabled: false });
 	});
 
 	it("never enables reviewer-only mapping queries for department viewers", () => {
@@ -154,7 +170,7 @@ describe("useFinanceAnalyticsPage", () => {
 		});
 		const { result } = renderHookWithClient(() => useFinanceAnalyticsPage());
 
-		act(() => result.current.setActiveTab("mapping"));
+		act(() => result.current.setActiveTab("settings"));
 
 		expect(result.current.canManage).toBe(false);
 		expect(mocks.mappings).toHaveBeenLastCalledWith(range, { enabled: false });
@@ -165,9 +181,9 @@ describe("useFinanceAnalyticsPage", () => {
 			enabled: false,
 		});
 
-		act(() => result.current.setActiveTab("projects"));
+		act(() => result.current.setActiveTab("approvals"));
 		expect(mocks.management).toHaveBeenLastCalledWith({
-			activeSection: "projects",
+			activeSection: "approvals",
 			canManage: false,
 			department: "Makeathon",
 		});
