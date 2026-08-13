@@ -190,6 +190,23 @@ export async function updateFinanceProject(
 	return parseProject(data);
 }
 
+// Deleting a project detaches rather than destroys: every foreign key pointing
+// at it is ON DELETE SET NULL (allocations, plan items, reimbursement links,
+// and the parent link of its sub-projects), so its invoices fall back to the
+// department bucket they came from and its sub-projects become top-level. Only
+// its template assignments cascade away, which is what they are for. The caller
+// is responsible for telling the user that before asking.
+export async function deleteFinanceProject(projectId: string): Promise<void> {
+	const { error } = await getSupabase()
+		.from("finance_projects")
+		.delete()
+		.eq("id", projectId);
+
+	if (error) {
+		throw new DatabaseError("Failed to delete finance project");
+	}
+}
+
 export function wouldCreateFinanceProjectCycle(
 	projectId: string,
 	parentProjectId: string | null,

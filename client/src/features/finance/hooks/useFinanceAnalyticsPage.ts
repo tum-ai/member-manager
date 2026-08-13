@@ -134,6 +134,7 @@ export function useFinanceAnalyticsPage() {
 			onMatch: tAccountPlanActions.matchPosting,
 			onDetachMatch: tAccountPlanActions.detachMatch,
 			onDeletePlanItem: tAccountPlanActions.deletePlanItem,
+			onDeleteProject: tAccountActions.deleteProject,
 			// Raising a cross-department reallocation still goes through the
 			// management hook — it is a request, reviewed in the Anträge tab.
 			isRequestingReallocation: management.reallocationRequest.isPending,

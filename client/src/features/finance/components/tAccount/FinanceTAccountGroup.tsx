@@ -3,6 +3,7 @@ import {
 	ChevronDown,
 	FolderClosed,
 	FolderPlus,
+	Trash2,
 } from "lucide-react";
 import { type ReactElement, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -240,6 +241,20 @@ function NodeActions({
 				<CalendarPlus />
 				Neuer Planposten
 			</Button>
+			{/* Only a real project can be removed: a sub-team folder is a view of
+			    the cost-location mapping, not a record. */}
+			{isProject ? (
+				<Button
+					type="button"
+					size="sm"
+					variant="ghost"
+					className="text-destructive hover:text-destructive"
+					onClick={() => interaction.onDeleteProject(node)}
+				>
+					<Trash2 />
+					Projekt löschen
+				</Button>
+			) : null}
 		</>
 	);
 }

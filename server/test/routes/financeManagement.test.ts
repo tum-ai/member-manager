@@ -142,6 +142,78 @@ describe("Finance management routes", async () => {
 		);
 	});
 
+	test("deletes a project it may write", async () => {
+		const created = await app.inject({
+			method: "POST",
+			url: "/api/finance/projects",
+			headers: authHeaders(testTokens.admin),
+			payload: {
+				name: "Wegwerf-Projekt",
+				department: "Makeathon",
+				period_type: "year",
+				period_key: "2026",
+				target_amount: -1000,
+				status: "draft",
+			},
+		});
+		assert.strictEqual(created.statusCode, 201);
+		const project = JSON.parse(created.payload);
+
+		const deleted = await app.inject({
+			method: "DELETE",
+			url: `/api/finance/projects/${project.id}`,
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(deleted.statusCode, 204);
+
+		const projects = await app.inject({
+			method: "GET",
+			url: "/api/finance/projects",
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(
+			JSON.parse(projects.payload).projects.some(
+				(row: { id: string }) => row.id === project.id,
+			),
+			false,
+		);
+		// What happens to the rows that pointed at it is the database's job (ON
+		// DELETE SET NULL), which this in-memory harness does not model — it is
+		// covered against real Postgres by the E2E instead.
+	});
+
+	test("refuses deletion without finance write access", async () => {
+		const created = await app.inject({
+			method: "POST",
+			url: "/api/finance/projects",
+			headers: authHeaders(testTokens.admin),
+			payload: {
+				name: "Fremdes Projekt",
+				department: "Community",
+				period_type: "year",
+				period_key: "2026",
+				target_amount: -1000,
+				status: "draft",
+			},
+		});
+		assert.strictEqual(created.statusCode, 201);
+		const project = JSON.parse(created.payload);
+
+		const forbidden = await app.inject({
+			method: "DELETE",
+			url: `/api/finance/projects/${project.id}`,
+			headers: authHeaders(testTokens.user),
+		});
+		assert.strictEqual(forbidden.statusCode, 403);
+
+		const missing = await app.inject({
+			method: "DELETE",
+			url: "/api/finance/projects/99999999-9999-4999-8999-999999999999",
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(missing.statusCode, 404);
+	});
+
 	test("rejects project scope changes once dependent finance rows exist", async (t) => {
 		const project = {
 			id: PROJECT_ID,
