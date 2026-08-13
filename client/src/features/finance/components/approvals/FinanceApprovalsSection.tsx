@@ -73,7 +73,12 @@ export function FinanceApprovalsSection({
 					onPeriodTypeChange={onPeriodTypeChange}
 					onPeriodKeyChange={onPeriodKeyChange}
 				/>
-				<p className="flex items-center gap-2 text-sm text-muted-foreground">
+				{/* A named landmark so the open count can be read (and asserted on)
+				    apart from the per-request status badges below. */}
+				<section
+					aria-label="Anträge"
+					className="flex items-center gap-2 text-sm text-muted-foreground"
+				>
 					<Inbox className="size-4" aria-hidden />
 					{openCount === 0 ? (
 						"Keine offenen Anträge."
@@ -83,7 +88,7 @@ export function FinanceApprovalsSection({
 							<Badge variant="warning">{openCount}</Badge>
 						</>
 					)}
-				</p>
+				</section>
 			</div>
 
 			{error ? (

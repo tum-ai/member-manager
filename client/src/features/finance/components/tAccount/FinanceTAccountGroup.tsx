@@ -83,7 +83,9 @@ function Column({
 	interaction?: TAccountInteraction;
 }): ReactElement {
 	const [showParked, setShowParked] = useState(false);
-	const active = lines.filter((line) => line.isActive);
+	const [showSettled, setShowSettled] = useState(false);
+	const active = lines.filter((line) => line.isActive && !line.isSettled);
+	const settled = lines.filter((line) => line.isActive && line.isSettled);
 	const parked = lines.filter((line) => !line.isActive);
 
 	return (
@@ -91,7 +93,7 @@ function Column({
 			<h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 				{title}
 			</h4>
-			{active.length === 0 && parked.length === 0 ? (
+			{active.length === 0 && parked.length === 0 && settled.length === 0 ? (
 				<p className="py-1 text-sm text-muted-foreground">—</p>
 			) : (
 				<div className="divide-y divide-border/60">
@@ -104,6 +106,32 @@ function Column({
 					))}
 				</div>
 			)}
+			{/* A Planposten whose invoices have all arrived is done, but still
+			    editable — and since the plan tab retired (FR-O) this is the only
+			    place it can be reached from. */}
+			{settled.length > 0 ? (
+				<Collapsible open={showSettled} onOpenChange={setShowSettled}>
+					<CollapsibleTrigger className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+						<ChevronDown
+							className={cn(
+								"size-3.5 transition-transform",
+								showSettled ? "rotate-0" : "-rotate-90",
+							)}
+							aria-hidden
+						/>
+						Erledigt ({settled.length})
+					</CollapsibleTrigger>
+					<CollapsibleContent className="divide-y divide-border/60">
+						{settled.map((line) => (
+							<FinanceTAccountLineRow
+								key={line.key}
+								line={line}
+								interaction={interaction}
+							/>
+						))}
+					</CollapsibleContent>
+				</Collapsible>
+			) : null}
 			{/* A parked Planposten stays reachable — it can be revived from here —
 			    but it is out of the way and out of every subtotal (FR-M3). */}
 			{parked.length > 0 ? (
