@@ -68,7 +68,7 @@ export function FinanceCategoryBreakdownSection({
 				<CardTitle className="text-base">Ausgaben pro Kategorie</CardTitle>
 				<CardDescription>
 					Auswertung nach zweiter Kostenstelle (Kostenstelle 2). Pflege die
-					Kategorien im Tab „Zuordnung".
+					Kategorien im Tab „Einstellungen".
 				</CardDescription>
 			</CardHeader>
 			<CardContent className="flex flex-col gap-5">

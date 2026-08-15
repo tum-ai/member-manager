@@ -373,7 +373,7 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(totals.vat_payload_forecast, 0);
 	});
 
-	test("a fully matched plan item drops out of the Plan-Saldo (no double count)", () => {
+	test("a fully matched plan item adds nothing to the Plan-Saldo (no double count)", () => {
 		// 100 EUR booked expense + a 100 EUR plan item matched to it. The forecast
 		// must stay 100, not 200: the booked posting already covers the plan.
 		const result = buildFinanceTAccount({
@@ -406,11 +406,12 @@ describe("buildFinanceTAccount", () => {
 		});
 		const ungrouped = result.groups.find((g) => g.project_id === null);
 		assert.ok(ungrouped);
-		// Only the actual line remains; the fully-matched plan line is gone.
-		assert.strictEqual(
-			ungrouped.expense_lines.filter((l) => l.kind === "plan").length,
-			0,
-		);
+		// The plan line stays on the response so the Planposten remains reachable
+		// once the plan tab is gone, but with nothing open it moves no total.
+		const settled = ungrouped.expense_lines.find((l) => l.kind === "plan");
+		assert.strictEqual(settled?.amount, 0);
+		assert.strictEqual(settled?.plan_detail?.matched_amount, 100);
+		assert.strictEqual(settled?.plan_detail?.delta, 0);
 		assert.strictEqual(ungrouped.actual.saldo, -100);
 		assert.strictEqual(ungrouped.plan.saldo, -100);
 		assert.strictEqual(result.totals.plan.saldo, -100);
@@ -500,10 +501,9 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(ungrouped?.actual.saldo, -300);
 	});
 
-	test("names every Planposten, including one with no line of its own", () => {
-		// A fully matched Planposten carries no open remainder and is therefore not
-		// emitted as a line — but an invoice still references it, and that
-		// reference has to be nameable.
+	test("names every Planposten by id, whatever state it is in", () => {
+		// The lookup is what lets an invoice name the Planposten it funds without
+		// depending on that item having a visible line.
 		const result = buildFinanceTAccount({
 			periodType: "year",
 			periodKey: "2026",
@@ -533,12 +533,6 @@ describe("buildFinanceTAccount", () => {
 			generatedAt: GENERATED_AT,
 		});
 
-		assert.strictEqual(
-			result.groups
-				.flatMap((group) => group.expense_lines)
-				.filter((line) => line.kind === "plan").length,
-			0,
-		);
 		assert.strictEqual(result.plan_item_labels[VENUE_PLAN_ID], "Venue");
 	});
 

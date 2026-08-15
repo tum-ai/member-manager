@@ -444,13 +444,71 @@ this phase is the toggle and the forecast:
   line), 2 server cases (net saldi, and a forecast where a planned 19 % expense cancels the
   booked USt), a `NettoBrutto` play + a11y story, and a toggle assertion in the T-Konto E2E.
 
-### Phase 5 — Consolidation (FR-O)
+### Phase 5 — Consolidation (FR-O) — **done**
 Trim the tab set; move Kategorien/Konten/USt into Übersicht; extract the Anträge tab from
 `FinanceReconciliationSection`; move plan templates into Einstellungen; delete
 `FinancePlanSection` and the project-CRUD half of `FinanceProjectsSection`; set the
 role-dependent landing tab.
 *Tests:* update `e2e/finance-analytics.spec.ts` for the new navigation; delete the tests of
 deleted components, keep coverage at or above the current floor.
+
+Landed:
+
+- **Six tabs, down from ten** (FR-O1): Übersicht · Budget · T-Konto · Anträge · Berichte ·
+  Einstellungen. Kategorien, Konten and the VAT summary became panels of Übersicht; Planung,
+  Projekte and Abgleich are gone.
+- **Landing tab by role** (FR-O2): LnF lands on Übersicht, a department-scoped member on the
+  T-Konto — and the org-wide analytics query is no longer fetched for them at all.
+- `FinanceApprovalsSection` — the approval inbox extracted from `FinanceReconciliationSection`
+  (reallocation queue + budget transfers), and `FinancePlanTemplateAssignForm`, since applying
+  a template used to hang off a row of the project table that no longer exists.
+- Deleted: `FinancePlanSection`, `FinanceProjectsSection`, `FinanceReconciliationSection`,
+  `FinanceProjectCreateForm`, `FinanceReconciliationPostingRow`, `FinancePlanMatchForm`,
+  `useFinancePlanItems` and their tests/stories, plus the now-dead allocation/matching
+  mutations and the reconciliation query in `useFinanceManagement`. **No endpoint was removed**
+  (FR-O4) — every one of them is still called, from the T-view's own hooks.
+- **Capabilities that lived only in a deleted tab moved into the T-view rather than
+  disappearing** — this was the bulk of the work, and each one is a promise the earlier phases
+  made:
+  - *Deleting a Planposten* (the Phase 3 gap): offered in the plan detail panel while nothing
+    is matched to it, behind a confirm, with parking still the reversible option.
+  - *The split editor*: FR-L5 refuses a split posting and points at "the split editor", which
+    only existed on the Abgleich tab. It is now a dialog on the invoice's own row —
+    reviewer-only, exactly like the endpoint behind it. That message pointed at nothing for
+    the length of this phase's WIP; it points at a real control again.
+  - *Requesting a cross-department reallocation*: from the invoice row, reviewed in Anträge.
+- Tests updated: the management hook's prop bags and its test, the page hook's tabs/landing
+  test, and the E2E navigation (Einstellungen/Anträge, template setup and both approval flows;
+  the parts now covered by the T-view specs were dropped rather than re-pointed).
+
+Then closed:
+
+- **The regression is fixed.** The server no longer drops a fully matched Planposten: every
+  Planposten of the department is emitted, whatever state it is in. One with nothing open
+  contributes its zero to the plan column — so the no-double-count property that the skip was
+  protecting is unchanged — and the client groups those under an **"Erledigt (n)"** disclosure
+  per column, mirroring "Deaktiviert". A settled item is still editable and detachable, and is
+  no longer offered as a match candidate, having no capacity left.
+- Stories for `FinanceApprovalsSection` (open inbox, empty, department member) and
+  `FinancePlanTemplateAssignForm` (assigning, and the no-projects state that points at the
+  T-Konto). The approvals header gained a named landmark so its open count can be read apart
+  from the per-request status badges.
+
+### Follow-up — projects are removable where they are created
+
+Reported while driving the running app: FR-L lets a project be created from the T-view, but
+nothing could take one back out, so a mistyped or abandoned project was permanent.
+
+- `DELETE /finance/projects/:projectId` — `requireFinanceViewer`, 404 for an unknown id, then
+  `assertCanWriteDepartment` against the project's own department, 204 on success.
+- Deleting **detaches rather than destroys**: every foreign key at `finance_projects` is
+  `ON DELETE SET NULL` (allocations, plan items, reimbursement links, `parent_project_id`), so
+  the project's invoices fall back to their department bucket, its Planposten lose the project
+  and its sub-projects become top-level. Only template assignments cascade away. Verified
+  against real Postgres, since the in-memory route harness does not model FKs.
+- A red **"Projekt löschen"** sits on the project folder, gated by the same `canWrite` as the
+  other node actions, behind a confirm that counts the consequences ("1 Buchung fällt zurück ans
+  Department — gelöscht wird nichts davon.") instead of a generic prompt.
 
 ---
 

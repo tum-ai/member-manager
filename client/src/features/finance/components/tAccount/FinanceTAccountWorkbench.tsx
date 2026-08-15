@@ -1,3 +1,7 @@
+import type {
+	FinancePostingAllocationInput,
+	FinanceReallocationRequestCreate,
+} from "@member-manager/shared";
 import { type ReactElement, useMemo, useState } from "react";
 import {
 	collectMatchCandidates,
@@ -28,6 +32,14 @@ import {
 	FinanceProjectDialog,
 	type FinanceProjectDialogPreset,
 } from "./FinanceProjectDialog";
+import {
+	type FinanceReallocationDialogPreset,
+	FinanceReallocationRequestDialog,
+} from "./FinanceReallocationRequestDialog";
+import {
+	FinanceSplitAllocationDialog,
+	type FinanceSplitDialogPreset,
+} from "./FinanceSplitAllocationDialog";
 import { FinanceTAccountGroup } from "./FinanceTAccountGroup";
 import { FinanceTAccountSelectionBar } from "./FinanceTAccountSelectionBar";
 import type { TAccountInteraction } from "./tAccountInteraction";
@@ -51,6 +63,18 @@ export interface FinanceTAccountWorkbenchProps {
 	onCorrectPlanToActual?: (planItemId: string, matchedAmount: number) => void;
 	onMatch?: (input: TAccountMatchInput) => Promise<void>;
 	onDetachMatch?: (matchId: string) => void;
+	onDeletePlanItem?: (planItemId: string) => void;
+	onDeleteProject?: (projectId: string) => void;
+	department?: string | null;
+	isRequestingReallocation?: boolean;
+	onRequestReallocation?: (
+		input: FinanceReallocationRequestCreate,
+	) => Promise<void>;
+	isSplitting?: boolean;
+	onSplitAllocation?: (input: {
+		postingExternalId: string;
+		allocations: FinancePostingAllocationInput[];
+	}) => Promise<void>;
 }
 
 // The interactive half of the T-view: the folder tree, the selection bar and
@@ -73,6 +97,13 @@ export function FinanceTAccountWorkbench({
 	onCorrectPlanToActual,
 	onMatch,
 	onDetachMatch,
+	onDeletePlanItem,
+	onDeleteProject,
+	department = null,
+	isRequestingReallocation = false,
+	onRequestReallocation,
+	isSplitting = false,
+	onSplitAllocation,
 }: FinanceTAccountWorkbenchProps): ReactElement {
 	const [projectPreset, setProjectPreset] =
 		useState<FinanceProjectDialogPreset | null>(null);
@@ -82,6 +113,10 @@ export function FinanceTAccountWorkbench({
 		useState<FinancePlanItemDialogPreset | null>(null);
 	const [matchPreset, setMatchPreset] =
 		useState<FinanceMatchDialogPreset | null>(null);
+	const [reallocationPreset, setReallocationPreset] =
+		useState<FinanceReallocationDialogPreset | null>(null);
+	const [splitPreset, setSplitPreset] =
+		useState<FinanceSplitDialogPreset | null>(null);
 
 	const candidates = useMemo(() => collectMatchCandidates(tree), [tree]);
 
@@ -107,6 +142,15 @@ export function FinanceTAccountWorkbench({
 						postingExternalIds: [],
 						selectionSum: 0,
 					}),
+				onDeleteProject: (node) => {
+					if (node.projectId === null) return;
+					// Say what actually happens before asking: nothing is destroyed,
+					// but invoices and Planposten fall back to the department and
+					// sub-projects move up a level.
+					if (window.confirm(deleteProjectPrompt(node))) {
+						onDeleteProject?.(node.projectId);
+					}
+				},
 				onCreatePlanItem: (node) =>
 					setPlanItemPreset({
 						id: null,
@@ -160,6 +204,31 @@ export function FinanceTAccountWorkbench({
 					});
 				},
 				onDetachMatch: (matchId) => onDetachMatch?.(matchId),
+				onEditSplit: (line) => {
+					if (line.postingExternalId === null) return;
+					setSplitPreset({
+						postingExternalId: line.postingExternalId,
+						label: line.label,
+					});
+				},
+				onRequestReallocation: (line) => {
+					if (line.postingExternalId === null) return;
+					setReallocationPreset({
+						postingExternalId: line.postingExternalId,
+						label: line.label,
+					});
+				},
+				onDeletePlanItem: (planItemId, label) => {
+					// Deleting a Planposten cannot be undone from a toast the way
+					// parking can, so it asks first.
+					if (
+						window.confirm(
+							`Planposten „${label}" wirklich löschen? Zum Zurückstellen gibt es „Deaktivieren".`,
+						)
+					) {
+						onDeletePlanItem?.(planItemId);
+					}
+				},
 			}
 		: undefined;
 
@@ -227,6 +296,32 @@ export function FinanceTAccountWorkbench({
 					setPlanItemPreset(null);
 				}}
 			/>
+			<FinanceSplitAllocationDialog
+				preset={splitPreset}
+				projects={projects}
+				department={department}
+				isPending={isSplitting}
+				onClose={() => setSplitPreset(null)}
+				onAllocateToProject={async ({ postingExternalId, projectId }) => {
+					await onSplitAllocation?.({
+						postingExternalId,
+						allocations: [{ project_id: projectId, percentage: 100 }],
+					});
+				}}
+				onSplitAllocation={async (input) => {
+					await onSplitAllocation?.(input);
+				}}
+			/>
+			<FinanceReallocationRequestDialog
+				preset={reallocationPreset}
+				projects={projects}
+				department={department}
+				isPending={isRequestingReallocation}
+				onClose={() => setReallocationPreset(null)}
+				onSubmit={async (input) => {
+					await onRequestReallocation?.(input);
+				}}
+			/>
 			<FinanceMatchPlanItemDialog
 				preset={matchPreset}
 				isPending={isMatching}
@@ -238,6 +333,37 @@ export function FinanceTAccountWorkbench({
 			/>
 		</div>
 	);
+}
+
+// Everything the deletion detaches, counted from the node the user is looking
+// at, so the confirm can be specific instead of a generic "are you sure".
+function deleteProjectPrompt(node: TAccountNode): string {
+	const lines = [...node.expenseLines, ...node.incomeLines].filter(
+		(line) => !line.isProjectRollup,
+	);
+	const invoices = lines.filter((line) => line.kind === "actual").length;
+	const planItems = lines.filter((line) => line.kind === "plan").length;
+	const parts: string[] = [];
+	if (invoices > 0) {
+		parts.push(
+			`${invoices} ${invoices === 1 ? "Buchung fällt" : "Buchungen fallen"} zurück ans Department`,
+		);
+	}
+	if (planItems > 0) {
+		parts.push(
+			`${planItems} ${planItems === 1 ? "Planposten verliert" : "Planposten verlieren"} das Projekt`,
+		);
+	}
+	if (node.children.length > 0) {
+		parts.push(
+			`${node.children.length} ${node.children.length === 1 ? "Teilprojekt rückt" : "Teilprojekte rücken"} eine Ebene hoch`,
+		);
+	}
+	const consequences =
+		parts.length === 0
+			? "Das Projekt ist leer."
+			: `${parts.join(", ")} — gelöscht wird nichts davon.`;
+	return `Projekt „${node.projectName ?? "Projekt"}" löschen? ${consequences}`;
 }
 
 // An edit starts from the Planposten's own values (FR-M2). `line.amount` is the

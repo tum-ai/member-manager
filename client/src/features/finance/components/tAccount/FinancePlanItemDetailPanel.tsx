@@ -1,4 +1,11 @@
-import { Equal, Link2, PauseCircle, Pencil, PlayCircle } from "lucide-react";
+import {
+	Equal,
+	Link2,
+	PauseCircle,
+	Pencil,
+	PlayCircle,
+	Trash2,
+} from "lucide-react";
 import type { ReactElement } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -190,6 +197,22 @@ export function FinancePlanItemDetailPanel({
 						{detail.is_active ? <PauseCircle /> : <PlayCircle />}
 						{detail.is_active ? "Deaktivieren" : "Aktivieren"}
 					</Button>
+					{/* Only offered while nothing is matched: money that already
+					    arrived should be detached deliberately first (FR-M7). */}
+					{detail.matched_amount === 0 ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="ghost"
+							className="text-destructive hover:text-destructive"
+							onClick={() =>
+								interaction.onDeletePlanItem(planItemId, line.label)
+							}
+						>
+							<Trash2 />
+							Löschen
+						</Button>
+					) : null}
 				</div>
 			) : null}
 		</div>

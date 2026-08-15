@@ -434,12 +434,12 @@ export function buildFinanceTAccount(input: {
 		}
 		const matched = matchedByPlanItem.get(item.id) ?? 0;
 		const remaining = round(item.planned_amount - matched);
-		// A disabled Planposten still renders (muted, FR-M3) so it can be
-		// re-enabled from the T-view, so it is emitted even with nothing open —
-		// `groupSaldi` is what keeps it out of the totals.
-		if (remaining <= 0 && item.is_active !== false) {
-			continue;
-		}
+		// Every Planposten of the department is emitted, whatever state it is in:
+		// a disabled one so it can be re-enabled (FR-M3), a fully matched one so
+		// it can still be edited, corrected or detached from — the T-view is the
+		// only surface left that lists them. A line with nothing open contributes
+		// its zero to the plan column, so none of this double-counts money that
+		// has already arrived as an actual line.
 		addLine(
 			ensureGroup(item.project_id ?? null, null),
 			planLine(

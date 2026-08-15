@@ -1,4 +1,4 @@
-import { Link2, Target } from "lucide-react";
+import { Link2, Send, Split, Target } from "lucide-react";
 import type { ReactElement } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -162,13 +162,27 @@ export function FinancePostingDetailPanel({
 						<Link2 />
 						Planposten zuordnen
 					</Button>
+					<Button
+						type="button"
+						size="sm"
+						variant="ghost"
+						onClick={() => interaction?.onRequestReallocation(line)}
+					>
+						<Send />
+						Umverteilung beantragen
+					</Button>
 					{/* A split posting cannot take the fast path without destroying its
-					    split, so say so here rather than letting the server refuse it
-					    later (FR-L5). */}
+					    split, so it is edited here instead (FR-L5). */}
 					{line.allocations.length > 1 ? (
-						<p className="self-center text-xs text-muted-foreground">
-							Bereits aufgeteilt — im Aufteilungs-Editor bearbeiten.
-						</p>
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							onClick={() => interaction?.onEditSplit(line)}
+						>
+							<Split />
+							Aufteilung bearbeiten
+						</Button>
 					) : null}
 				</div>
 			) : null}
