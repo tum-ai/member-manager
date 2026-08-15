@@ -416,9 +416,33 @@ name on the invoice that funds it), so it cannot be edited, parked or detached f
 is survivable while the Planung tab exists; when that tab goes, these items need a home — most
 likely an "Erledigt" disclosure per column, mirroring "Deaktiviert".
 
-### Phase 4 — Netto/Brutto and planned VAT (FR-N4–N6)
+### Phase 4 — Netto/Brutto and planned VAT (FR-N4–N6) — **done**
 The toggle plus planned VAT feeding the plan-side subtotals and the forecast Zahllast.
 *Tests:* util tests for net/gross recomputation across both directions; a story per mode.
+
+Landed. Most of FR-N5 was already in place from Phase 1 (plan lines carry `vat_rate`,
+`vat_amount` and `net_amount`, and feed a "(geplant)" row in each column's VAT subtotal), so
+this phase is the toggle and the forecast:
+
+- **`buildTAccountTree(groups, { planItemLabels, amountMode })`.** The mode is applied once,
+  where a line is turned into a display line: `amount` becomes the net or the gross figure and
+  everything downstream — column subtotals, node saldi, the forecast, the rolled-up folder
+  lines — is derived from it. That is what makes one toggle switch *every* number consistently
+  rather than a dozen call sites each remembering to convert (FR-N4).
+- **No new arithmetic (FR-N6).** Both figures come from the server per line (`amount` and
+  `net_amount`), and the department header reads the server's new `actual_net` / `plan_net`
+  saldi. Nothing on the client subtracts VAT from anything.
+- **Forecast Zahllast (FR-N5).** Totals gained `vat_income_plan` / `vat_expenses_plan` and
+  `vat_payload_forecast` — what the department will owe once the still-open Planposten have
+  arrived. It is only surfaced when it actually differs from today's Zahllast, so a department
+  that plans without VAT rates sees no noise.
+- Per-row wording follows the mode: "inkl. 19,00 € Vorsteuer" in Brutto becomes "zzgl." in
+  Netto, because in Netto the VAT is not inside the number being shown.
+- The active mode is stated in the header ("· Beträge netto"), never left to be inferred from
+  the figures.
+- Tests: 4 util cases (both directions, both modes, roll-ups, and both figures staying on the
+  line), 2 server cases (net saldi, and a forecast where a planned 19 % expense cancels the
+  booked USt), a `NettoBrutto` play + a11y story, and a toggle assertion in the T-Konto E2E.
 
 ### Phase 5 — Consolidation (FR-O)
 Trim the tab set; move Kategorien/Konten/USt into Übersicht; extract the Anträge tab from

@@ -261,27 +261,50 @@ function countsTowardPlan(line: FinanceTAccountLine): boolean {
 	return line.kind === "actual" || line.plan_detail?.is_active !== false;
 }
 
+// Both saldi in both amount modes. `net` sums the lines' precomputed net
+// amounts rather than subtracting VAT again, so gross and net can never drift
+// apart by a rounding step (FR-N6).
 function groupSaldi(group: GroupAccumulator): {
 	actual: FinanceTAccountSaldo;
 	plan: FinanceTAccountSaldo;
+	actualNet: FinanceTAccountSaldo;
+	planNet: FinanceTAccountSaldo;
 } {
 	let actualIncome = 0;
 	let actualExpenses = 0;
 	let planIncome = 0;
 	let planExpenses = 0;
+	let actualIncomeNet = 0;
+	let actualExpensesNet = 0;
+	let planIncomeNet = 0;
+	let planExpensesNet = 0;
 	for (const line of group.incomeLines) {
-		if (line.kind === "actual") actualIncome += line.amount;
-		if (countsTowardPlan(line)) planIncome += line.amount;
+		if (line.kind === "actual") {
+			actualIncome += line.amount;
+			actualIncomeNet += line.net_amount;
+		}
+		if (countsTowardPlan(line)) {
+			planIncome += line.amount;
+			planIncomeNet += line.net_amount;
+		}
 	}
 	for (const line of group.expenseLines) {
-		if (line.kind === "actual") actualExpenses += line.amount;
-		if (countsTowardPlan(line)) planExpenses += line.amount;
+		if (line.kind === "actual") {
+			actualExpenses += line.amount;
+			actualExpensesNet += line.net_amount;
+		}
+		if (countsTowardPlan(line)) {
+			planExpenses += line.amount;
+			planExpensesNet += line.net_amount;
+		}
 	}
 	return {
 		// `plan` deliberately includes the actual lines: it is the projected
 		// end-state (booked + still planned), so its saldo is the Plan-Saldo.
 		actual: saldo(actualIncome, actualExpenses),
 		plan: saldo(planIncome, planExpenses),
+		actualNet: saldo(actualIncomeNet, actualExpensesNet),
+		planNet: saldo(planIncomeNet, planExpensesNet),
 	};
 }
 
@@ -432,12 +455,21 @@ export function buildFinanceTAccount(input: {
 		input.projects.map((project) => [project.id, project]),
 	);
 
+	// The net saldi are not part of a group's contract (the client recomputes
+	// per-node figures from the lines), but the department header needs them, so
+	// they are kept aside while the groups are built.
+	const netSaldi: {
+		actual: FinanceTAccountSaldo;
+		plan: FinanceTAccountSaldo;
+	}[] = [];
+
 	const built: FinanceTAccountGroup[] = [...groups.values()]
 		.map((group) => {
 			const project = group.projectId
 				? projectById.get(group.projectId)
 				: undefined;
 			const saldi = groupSaldi(group);
+			netSaldi.push({ actual: saldi.actualNet, plan: saldi.planNet });
 			const expenseLines = sortLines(group.expenseLines);
 			const incomeLines = sortLines(group.incomeLines);
 			return {
@@ -476,11 +508,25 @@ export function buildFinanceTAccount(input: {
 		{ actualIncome: 0, actualExpenses: 0, planIncome: 0, planExpenses: 0 },
 	);
 
+	const netTotals = netSaldi.reduce(
+		(sum, entry) => ({
+			actualIncome: sum.actualIncome + entry.actual.income,
+			actualExpenses: sum.actualExpenses + entry.actual.expenses,
+			planIncome: sum.planIncome + entry.plan.income,
+			planExpenses: sum.planExpenses + entry.plan.expenses,
+		}),
+		{ actualIncome: 0, actualExpenses: 0, planIncome: 0, planExpenses: 0 },
+	);
+
 	let vatIncome = 0;
 	let vatExpenses = 0;
+	let vatIncomePlan = 0;
+	let vatExpensesPlan = 0;
 	for (const group of built) {
 		vatIncome += group.umsatzsteuer.actual;
 		vatExpenses += group.vorsteuer.actual;
+		vatIncomePlan += group.umsatzsteuer.plan;
+		vatExpensesPlan += group.vorsteuer.plan;
 	}
 
 	// Every Planposten of the department, including the fully matched ones that
@@ -502,11 +548,21 @@ export function buildFinanceTAccount(input: {
 		totals: {
 			actual: saldo(totals.actualIncome, totals.actualExpenses),
 			plan: saldo(totals.planIncome, totals.planExpenses),
+			actual_net: saldo(netTotals.actualIncome, netTotals.actualExpenses),
+			plan_net: saldo(netTotals.planIncome, netTotals.planExpenses),
 			vat_income: round(vatIncome),
 			vat_expenses: round(vatExpenses),
+			vat_income_plan: round(vatIncomePlan),
+			vat_expenses_plan: round(vatExpensesPlan),
 			// What the department owes the tax office: output tax collected on
 			// income minus reclaimable input tax on expenses (FR-N3).
 			vat_payload: round(vatIncome - vatExpenses),
+			// The same once the still-open Planposten have arrived. Planned lines
+			// without a VAT rate contribute nothing, so this equals `vat_payload`
+			// until someone plans with a rate (FR-N5).
+			vat_payload_forecast: round(
+				vatIncome + vatIncomePlan - (vatExpenses + vatExpensesPlan),
+			),
 		},
 		source: input.source,
 		generated_at: input.generatedAt,

@@ -304,6 +304,75 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(totals.vat_expenses, 19);
 	});
 
+	test("carries both saldi net of VAT for the Netto mode (FR-N4)", () => {
+		const { totals } = build();
+
+		// Gross: 11.900 income − 119 expenses. Net strips the 1.900 USt and the
+		// 19 Vorsteuer, so the department's real margin is 10.000 − 100.
+		assert.deepStrictEqual(totals.actual, {
+			income: 11_900,
+			expenses: 119,
+			saldo: 11_781,
+		});
+		assert.deepStrictEqual(totals.actual_net, {
+			income: 10_000,
+			expenses: 100,
+			saldo: 9_900,
+		});
+		// The plan saldo folds in the two still-open Planposten, neither of which
+		// carries a rate — so its net differs from its gross only by the booked
+		// lines' VAT.
+		assert.strictEqual(totals.plan.saldo, 11_781 + 5_000 - 200);
+		assert.strictEqual(totals.plan_net.saldo, 9_900 + 5_000 - 200);
+	});
+
+	test("forecasts the Zahllast from planned VAT as well (FR-N5)", () => {
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-income",
+					cost_location: "120",
+					transaction_amount: 1_190,
+					vat: 19,
+				}),
+			],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [],
+			planItems: [
+				// Planned expense with a rate: 190 Vorsteuer still to come.
+				planItem({
+					id: VENUE_PLAN_ID,
+					label: "Venue",
+					planned_amount: 1_190,
+					vat_rate: 19,
+				}),
+				// No rate at all: contributes nothing to the forecast.
+				planItem({
+					id: SPONSOR_PLAN_ID,
+					label: "Merch",
+					planned_amount: 500,
+				}),
+			],
+			matches: [],
+			projects: [],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+
+		const { totals } = result;
+		assert.strictEqual(totals.vat_income, 190);
+		assert.strictEqual(totals.vat_expenses, 0);
+		assert.strictEqual(totals.vat_income_plan, 0);
+		assert.strictEqual(totals.vat_expenses_plan, 190);
+		// Owed today: 190 collected. Once the planned expense arrives, its 190
+		// Vorsteuer cancels it out.
+		assert.strictEqual(totals.vat_payload, 190);
+		assert.strictEqual(totals.vat_payload_forecast, 0);
+	});
+
 	test("a fully matched plan item drops out of the Plan-Saldo (no double count)", () => {
 		// 100 EUR booked expense + a 100 EUR plan item matched to it. The forecast
 		// must stay 100, not 200: the booked posting already covers the plan.

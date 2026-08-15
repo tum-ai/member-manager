@@ -1405,12 +1405,26 @@ export const FinanceTAccountResponseSchema = z.object({
 	totals: z.object({
 		actual: FinanceTAccountSaldoSchema,
 		plan: FinanceTAccountSaldoSchema,
+		// The same two saldi with every amount taken net of its VAT, so the
+		// Netto/Brutto toggle switches the department header without the client
+		// re-deriving money from gross figures (FR-N4/FR-N6). The per-node saldi
+		// need no counterpart: the client recomputes those from the lines, which
+		// already carry both amounts.
+		actual_net: FinanceTAccountSaldoSchema,
+		plan_net: FinanceTAccountSaldoSchema,
 		// VAT embedded in the gross income / expense magnitudes (always >= 0).
 		vat_income: z.number().nonnegative(),
 		vat_expenses: z.number().nonnegative(),
+		// The same, for the VAT expected from the still-open planned lines. A
+		// Planposten without a rate contributes nothing (FR-N5).
+		vat_income_plan: z.number().nonnegative(),
+		vat_expenses_plan: z.number().nonnegative(),
 		// Umsatzsteuer owed minus Vorsteuer reclaimable = what the department
 		// actually owes the tax office. Signed: negative means a refund (FR-N3).
 		vat_payload: z.number(),
+		// The same once everything still planned has arrived — the forecast the
+		// department should be putting aside for (FR-N5).
+		vat_payload_forecast: z.number(),
 	}),
 	source: z.enum(["mock", "real"]),
 	generated_at: DATE_TIME_SCHEMA,
