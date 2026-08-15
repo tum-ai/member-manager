@@ -204,8 +204,11 @@ export const Default: Story = {
 		await expect(canvas.getAllByText("Vorsteuer").length).toBeGreaterThan(0);
 		await expect(canvas.getAllByText("Umsatzsteuer").length).toBeGreaterThan(0);
 		await expect(canvas.getByText("Zahllast")).toBeVisible();
-		// A disabled Planposten stays on screen, flagged as parked.
-		await expect(canvas.getByText("Deaktiviert")).toBeVisible();
+		// A parked Planposten is out of the way but still reachable (FR-M3).
+		const parked = canvas.getByRole("button", { name: /Deaktiviert \(1\)/ });
+		await expect(parked).toBeVisible();
+		await userEvent.click(parked);
+		await expect(await canvas.findByText("Merch (gestrichen)")).toBeVisible();
 		// A booked invoice expands in place to its detail, without a round-trip.
 		await userEvent.click(canvas.getByRole("button", { name: /Catering/ }));
 		await expect(await canvas.findByText("RE-2026-0042")).toBeVisible();
@@ -265,6 +268,47 @@ export const Workbench: Story = {
 			expect.objectContaining({
 				name: "Sponsoring-Kampagne",
 				postingExternalIds: ["BB-1", "BB-2"],
+			}),
+		);
+	},
+};
+
+// FR-M1: a Planposten is planned on the node where the money will be spent, and
+// the dialog opens with that folder already stated.
+export const PlanFromNode: Story = {
+	args: {
+		...Default.args,
+		canWrite: true,
+		projects: [],
+		onSavePlanItem: fn(),
+	},
+	render: (args) => <SelectableSection {...args} />,
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /Makeathon/ }));
+		const projectPanel = await canvas.findByText(/Abweichung zum Ziel/);
+		await expect(projectPanel).toBeVisible();
+
+		// The project folder offers its own Planposten action.
+		const buttons = canvas.getAllByRole("button", { name: "Neuer Planposten" });
+		await userEvent.click(buttons[buttons.length - 1]);
+
+		const dialog = within(await screen.findByRole("dialog"));
+		await expect(dialog.getByText(/Wird in .Makeathon/)).toBeVisible();
+		await userEvent.type(
+			dialog.getByLabelText(/Bezeichnung/),
+			"Venue-Anzahlung",
+		);
+		await userEvent.clear(dialog.getByLabelText(/Betrag/));
+		await userEvent.type(dialog.getByLabelText(/Betrag/), "2500");
+		await userEvent.click(dialog.getByRole("button", { name: "Anlegen" }));
+
+		await expect(args.onSavePlanItem).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: null,
+				label: "Venue-Anzahlung",
+				plannedAmount: 2500,
+				projectId: MAKEATHON_ID,
 			}),
 		);
 	},

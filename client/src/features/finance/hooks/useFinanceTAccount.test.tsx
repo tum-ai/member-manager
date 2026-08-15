@@ -51,6 +51,7 @@ function tAccountResponse(department: string) {
 			vat_income: 0,
 			vat_expenses: 19,
 		},
+		plan_item_labels: {},
 		source: "mock",
 		generated_at: "2026-08-04T10:00:00.000Z",
 	};
