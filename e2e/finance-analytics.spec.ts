@@ -391,6 +391,17 @@ test.describe("Finance Analytics tool", () => {
 		page,
 		browser,
 	}) => {
+		// Four journeys in one spec, across three browser contexts (reviewer, admin
+		// and department lead, each with its own login). Consolidating the tool
+		// (FR-O) added a reload and a second Einstellungen pass to it, which pushed
+		// the run past Playwright's 30s default — it takes ~35s locally and longer
+		// on a CI runner. The steps are all genuinely needed: the approval flows
+		// only mean something after the template and budget baseline exist, and the
+		// reimbursement linkage needs the plan item those produce. Give it the
+		// budget rather than splitting shared setup across specs that would each
+		// have to rebuild it.
+		test.slow();
+
 		const unique = Date.now();
 		const projectName = `E2E Finance Project ${unique}`;
 		const templateName = `E2E Event Template ${unique}`;
