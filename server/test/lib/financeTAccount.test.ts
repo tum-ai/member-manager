@@ -431,6 +431,229 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(ungrouped?.actual.saldo, -300);
 	});
 
+	test("carries the posting detail inline on the actual line (FR-K2/FR-K3)", () => {
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-detail",
+					cost_location: "61",
+					transaction_amount: -119,
+					vat: 19,
+					postingtext: "Catering Kickoff",
+					transaction_purpose: "Verpflegung Kickoff",
+					receipts_assigned_invoice_numbers: "RE-2026-0042",
+					cost_location_two: "Verpflegung",
+				}),
+			],
+			mappings: [mapping("61", "Makeathon", "Big Makeathon")],
+			allocations: [],
+			planItems: [
+				planItem({ id: VENUE_PLAN_ID, label: "Catering", planned_amount: 300 }),
+			],
+			matches: [
+				match({
+					plan_item_id: VENUE_PLAN_ID,
+					posting_external_id: "BB-detail",
+					matched_amount: 119,
+				}),
+			],
+			projects: [],
+			accountLabels: [
+				{ account: "6840", label: "Werbe- und Reisekosten", note: null },
+			],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+
+		const line = result.groups
+			.flatMap((group) => group.expense_lines)
+			.find((candidate) => candidate.posting_external_id === "BB-detail");
+		assert.ok(line?.posting_detail);
+		const detail = line.posting_detail;
+		assert.strictEqual(detail.booking_date, "2026-02-14");
+		assert.strictEqual(detail.invoice_number, "RE-2026-0042");
+		assert.strictEqual(detail.counterparty, "Catering Kickoff");
+		assert.strictEqual(detail.purpose, "Verpflegung Kickoff");
+		assert.strictEqual(detail.posting_amount, -119);
+		assert.strictEqual(detail.account_label, "Werbe- und Reisekosten");
+		assert.strictEqual(detail.cost_location, "61");
+		// The cost location is resolved to its sub-team so the panel does not have
+		// to know the mapping table.
+		assert.strictEqual(detail.sub_team, "Big Makeathon");
+		assert.strictEqual(detail.matches.length, 1);
+		assert.strictEqual(detail.matches[0]?.matched_amount, 119);
+		// The category comes from cost_location_two.
+		assert.strictEqual(line.category, "Verpflegung");
+	});
+
+	test("expense lines expose their VAT rate and net amount (FR-N1)", () => {
+		const result = build();
+		const catering = result.groups
+			.flatMap((group) => group.expense_lines)
+			.find((line) => line.posting_external_id === "BB-1");
+		const sponsoring = result.groups
+			.flatMap((group) => group.income_lines)
+			.find((line) => line.posting_external_id === "BB-2");
+
+		// Both directions carry rate + net, not just income.
+		assert.strictEqual(catering?.vat_rate, 19);
+		assert.strictEqual(catering?.vat_amount, 19);
+		assert.strictEqual(catering?.net_amount, 100);
+		assert.strictEqual(sponsoring?.vat_rate, 19);
+		assert.strictEqual(sponsoring?.vat_amount, 1_900);
+		assert.strictEqual(sponsoring?.net_amount, 10_000);
+	});
+
+	test("splits VAT per column into Vorsteuer and Umsatzsteuer (FR-N3)", () => {
+		const result = build();
+		const ungrouped = result.groups.find((g) => g.project_id === null);
+		const hackathon = result.groups.find((g) => g.project_id === HACKATHON_ID);
+
+		// Expense column → Vorsteuer; income column → Umsatzsteuer. Each group only
+		// carries its own lines, never its children's.
+		assert.deepStrictEqual(ungrouped?.vorsteuer, { actual: 19, plan: 0 });
+		assert.deepStrictEqual(ungrouped?.umsatzsteuer, { actual: 0, plan: 0 });
+		assert.deepStrictEqual(hackathon?.umsatzsteuer, { actual: 1_900, plan: 0 });
+		assert.deepStrictEqual(hackathon?.vorsteuer, { actual: 0, plan: 0 });
+		// Zahllast: Umsatzsteuer owed minus Vorsteuer reclaimable.
+		assert.strictEqual(result.totals.vat_payload, 1_881);
+	});
+
+	test("a VAT-rated plan item feeds the planned column VAT (FR-N5)", () => {
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [],
+			planItems: [
+				planItem({
+					id: VENUE_PLAN_ID,
+					label: "Venue",
+					planned_amount: 1_190,
+					vat_rate: 19,
+				}),
+				// No rate at all → planned VAT stays unknown, never a fake 0.
+				planItem({
+					id: SPONSOR_PLAN_ID,
+					label: "Merch",
+					planned_amount: 500,
+				}),
+			],
+			matches: [],
+			projects: [],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+
+		const ungrouped = result.groups.find((g) => g.project_id === null);
+		const venue = ungrouped?.expense_lines.find((l) => l.label === "Venue");
+		const merch = ungrouped?.expense_lines.find((l) => l.label === "Merch");
+		assert.strictEqual(venue?.vat_amount, 190);
+		assert.strictEqual(venue?.net_amount, 1_000);
+		assert.strictEqual(merch?.vat_amount, null);
+		assert.strictEqual(merch?.net_amount, 500);
+		// Planned VAT is reported apart from booked VAT.
+		assert.deepStrictEqual(ungrouped?.vorsteuer, { actual: 0, plan: 190 });
+	});
+
+	test("plan lines carry Plan / Ist / Delta and lifecycle detail (FR-K4)", () => {
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-partial",
+					cost_location: "120",
+					transaction_amount: -40,
+					postingtext: "Anzahlung",
+				}),
+			],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [],
+			planItems: [
+				planItem({
+					id: VENUE_PLAN_ID,
+					label: "Venue",
+					planned_amount: 100,
+					status: "committed",
+					expected_month: "2026-05",
+					note: "Angebot liegt vor",
+					vat_rate: 19,
+				}),
+			],
+			matches: [
+				match({
+					plan_item_id: VENUE_PLAN_ID,
+					posting_external_id: "BB-partial",
+					matched_amount: 40,
+				}),
+			],
+			projects: [],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+
+		const planLine = result.groups
+			.flatMap((group) => group.expense_lines)
+			.find((line) => line.kind === "plan");
+		assert.ok(planLine?.plan_detail);
+		const detail = planLine.plan_detail;
+		assert.strictEqual(planLine.status, "committed");
+		assert.strictEqual(detail.expected_month, "2026-05");
+		assert.strictEqual(detail.note, "Angebot liegt vor");
+		// Plan is the full planned amount, Ist the matched total, Delta the gap —
+		// the line itself only carries the still-open 60 (no double count).
+		assert.strictEqual(detail.planned_amount, 100);
+		assert.strictEqual(detail.matched_amount, 40);
+		assert.strictEqual(detail.delta, -60);
+		assert.strictEqual(planLine.amount, 60);
+		assert.strictEqual(detail.is_active, true);
+		assert.strictEqual(detail.vat_rate, 19);
+		assert.strictEqual(detail.matches.length, 1);
+	});
+
+	test("a disabled plan item stays visible but out of plan totals (FR-M3)", () => {
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [],
+			planItems: [
+				planItem({
+					id: VENUE_PLAN_ID,
+					label: "Gestrichen",
+					planned_amount: 500,
+					vat_rate: 19,
+					is_active: false,
+				}),
+			],
+			matches: [],
+			projects: [],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+
+		const ungrouped = result.groups.find((g) => g.project_id === null);
+		const parked = ungrouped?.expense_lines.find(
+			(line) => line.label === "Gestrichen",
+		);
+		// It is emitted (so it can be re-enabled from the T-view)…
+		assert.ok(parked);
+		assert.strictEqual(parked.plan_detail?.is_active, false);
+		// …but moves neither the Plan-Saldo nor the planned VAT.
+		assert.strictEqual(ungrouped?.plan.saldo, 0);
+		assert.deepStrictEqual(ungrouped?.vorsteuer, { actual: 0, plan: 0 });
+		assert.strictEqual(result.totals.plan.saldo, 0);
+	});
+
 	test("actual saldo matches aggregateByDepartment net (consistency, FR-G5)", () => {
 		const transactions = [
 			tx({

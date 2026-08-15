@@ -278,20 +278,86 @@ back down on detach; a manual override to `spent` survives a later partial match
 disabled Planposten refuses matches; a Planposten cannot move to another department's
 project, or to any project once postings are matched to it.
 
-### Phase 1 — Line detail and VAT by direction (FR-K1–K4, FR-N1–N3)
+### Phase 1 — Line detail and VAT by direction (FR-K1–K4, FR-N1–N3) — **done**
 Server enriches the T-account lines. Client splits the T-view into `components/tAccount/`,
 adds the disclosure rows and the two detail panels, fixes the income-only VAT rendering,
 adds per-column Vorsteuer/USt subtotals and the department Zahllast.
 *Tests:* `financeTAccountUtils` unit tests for the new subtotals; play + a11y stories for the
 disclosure rows; server tests for the enriched payload.
 
-### Phase 2 — Selection, projects, sub-projects (FR-K5–K7, FR-L)
+Landed:
+
+- `client/src/features/finance/components/tAccount/` — `FinanceTAccountSection` and
+  `FinanceTAccountGroup` moved here (NFR-1), joined by `FinanceTAccountLineRow`,
+  `FinancePostingDetailPanel`, `FinancePlanItemDetailPanel` and the shared
+  `FinanceTAccountDetailList` primitives. Every real line is now a Radix disclosure
+  (`aria-expanded`, Enter/Space operable); a rolled-up child-project folder line has no
+  detail of its own and stays static.
+- `financeTAccountUtils` — display lines carry `vatRate`, `netAmount`, `status`, `isActive`
+  and their inline detail, plus allocation/match views with the project, Planposten and
+  posting **names resolved** from the same response (no uuids in the panel, no extra
+  request). Column summaries gained `vatIst` / `vatPlan`, and a disabled Planposten is now
+  excluded from the client plan subtotals too — it used to inflate them while the server
+  saldo already ignored it.
+- VAT rendering fixed: the old tooltip returned early for anything that was not income, so
+  Vorsteuer was invisible. It is now stated in words on every line ("inkl. 19,00 €
+  Vorsteuer"), readable on touch and by a screen reader, and the totals card names
+  Umsatzsteuer / Vorsteuer separately and adds the **Zahllast** (FR-N3).
+- The selection checkbox of FR-K1 is deliberately **not** here: a checkbox without the
+  selection state and bar of FR-K5–K7 would be dead UI. The row is structured so Phase 2
+  adds it without touching the disclosure.
+- Tests: `financeTAccountUtils.test.ts` (VAT subtotals both directions, disabled item
+  excluded, resolved names), four play + a11y stories in `FinanceTAccountLineRow.stories.tsx`,
+  an extended section story, and six server tests over the enriched payload.
+
+### Phase 2 — Selection, projects, sub-projects (FR-K5–K7, FR-L) — **done**
 Selection hook + selection bar; `POST /finance/projects/from-postings` and the bulk-allocation
 endpoint with the split-posting refusal and per-posting results; project/sub-project dialogs on
 every node; `finance_projects.sub_team` wired through the grouping.
 *Tests:* selection hook unit tests; server tests for atomicity, split refusal, period mismatch
 (FR-L8), cross-department authZ; a Playwright spec for *select two invoices → new project →
 they appear under it*.
+
+Landed:
+
+- `server/src/lib/financeBulkAllocation.ts` — the per-posting decision is a **pure** function
+  (`planBulkAllocation`): no Supabase, no BB, so every refusal path is unit-tested. AuthZ is
+  checked first, then split (FR-L5), period (FR-L8), matched-elsewhere (FR-L7). `assignPostingsToProject`
+  in the route does the IO and writes only what the planner cleared.
+- `POST /finance/projects/from-postings` and `POST /finance/posting-allocations/bulk`. Both are
+  open to **department-scoped members** via `assertCanWriteDepartment` + a per-posting
+  `canWriteDepartment` predicate — the pre-existing replace endpoint stays reviewer-only. A write
+  that the database still refuses (the plan-item-match guard) is caught per posting, so the
+  successful ones stay applied (FR-L6).
+- Client: `useFinanceTAccountSelection` (department-wide selection, cleared on department/period
+  change but **not** on a refetch), `useFinanceTAccountActions`, the selection bar (sticky on
+  mobile), the project/sub-project dialog on every node and the assign dialog from the bar or a
+  single expanded row. `TAccountInteraction` bundles the write surface into one prop so it can
+  travel to a line row without five props at every level; omitted, the view is read-only (FR-K6).
+- `buildTAccountTree` now nests a project inside the sub-team folder that owns it (FR-L4), keyed
+  by a stable `proj:`/`sub:` node key.
+- **Bug found and fixed:** `PATCH /finance/projects/:id` rebuilt its update payload without
+  `sub_team`, so *any* edit silently cleared a project's sub-team — the Phase 0 column would have
+  been wiped by the first rename.
+- Tests: 11 planner cases server-side; 6 selection-hook cases; tree-nesting and skip-summary util
+  cases; `Workbench` + `ReadOnly` play/a11y stories; a Playwright spec that selects two invoices
+  across folders, creates a project from them, and asserts the one funding another project's
+  Planposten is **refused by name** rather than moved.
+
+Notes on the E2E: the mock BB postings and the seeded cost-location mappings only overlap on
+cost location 111 (Community / Onboarding), so the spec is written against those seeded
+fixtures rather than depending on an earlier spec's mapping side effect. It also expands every
+folder before selecting, because the suite does not reset the database between local runs and a
+previous run leaves the moved invoice inside the project it created — the flow has to work from
+either starting state.
+
+**Second bug, found by that spec:** the Phase 0 seed pinned its allocation and its match to
+`BB-1010`, but the mock generator's ids shift with every posting added before them — `BB-1010`
+is *"Mitgliedsbeiträge"* (+420, cost location 182), not the intended *"Onboarding SS Catering"*
+(−840, cost location 111), which is `BB-1077`. The seed was therefore allocating an unrelated
+income posting to the Community project and matching it to an **expense** Planposten: a state
+the API validates against and would never create. Fixed in `supabase/seed.sql`, with a comment
+warning that the id has to be re-checked whenever mock postings are added ahead of it.
 
 ### Phase 3 — Planposten in the T-view (FR-M)
 `project_id` on plan-item create/update; enable/disable with plan totals excluding inactive
@@ -315,17 +381,27 @@ deleted components, keep coverage at or above the current floor.
 
 ---
 
-## Open decisions — confirm with LnF before Phase 2
+## Decisions (settled 2026-08-09)
 
-1. **Sub-team ownership of projects.** M1 introduces a second place where a sub-team is
-   recorded. The precedence rule above is my proposal; LnF should confirm that a project's
-   sub-team is set by hand and does **not** follow its postings' cost locations.
-2. **Automatic status transitions (FR-M4).** Should a fully matched Planposten really flip to
-   `spent` on its own, or should LnF confirm it? I default to automatic-with-manual-override.
-3. **Who may create projects?** Currently department-scoped members can, within their own
-   department. FR-L makes that a one-click action from the T-view, so project count will grow.
-   If LnF wants projects to stay a reviewer-only concept, that is a permission change, not a
-   UI change.
-4. **Split postings (FR-L5).** Refusing the fast path is the safe default. If splitting from
-   the T-view is wanted, the split editor from the Abgleich tab moves into the detail panel
-   instead — roughly one extra phase of work.
+The four open questions have been answered; this is what the implementation follows.
+
+1. **Sub-team ownership of projects — set by hand.** A project's `sub_team` is chosen in the
+   create dialog, prefilled from the folder the action was started in, and never derived from
+   its postings' cost locations. Precedence stands as proposed: the cost-location mapping
+   decides where an *unallocated posting* lands, `finance_projects.sub_team` decides where a
+   *project folder* hangs.
+   *Why not derived:* a project whose invoices come from several cost locations has no defined
+   home, and a folder that relocates itself when the next invoice arrives cannot be trusted.
+   *Known cost:* nothing reconciles the two, so a project can sit under one sub-team while its
+   spending is booked to another's cost locations. That divergence is deliberate and visible
+   rather than silent.
+2. **Status transitions — automatic, with manual override (FR-M4).** A match moves a Planposten
+   `planned → committed → spent`; a status set by hand is never overwritten by a later match.
+   Already implemented and verified against the local database in Phase 0.
+3. **Project creation — department members.** Whoever may write their own department may create
+   projects in it, one click from the T-view. No permission change. Consequence accepted: the
+   number of projects will grow.
+4. **Split postings — refuse and point at the split editor (FR-L5).** The fast path takes
+   postings with 0 or 1 allocation; already-split ones are skipped, named, and pointed at the
+   existing `FinanceAllocationEditor`. Moving that editor into the expanded row stays open as a
+   later, strictly additive step (~1 phase) if splits turn out to be common.

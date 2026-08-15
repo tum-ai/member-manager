@@ -11,6 +11,8 @@ import {
 } from "./useFinanceManagement";
 import { useFinancePlanItems } from "./useFinancePlanItems";
 import { useFinanceTAccount } from "./useFinanceTAccount";
+import { useFinanceTAccountActions } from "./useFinanceTAccountActions";
+import { useFinanceTAccountSelection } from "./useFinanceTAccountSelection";
 
 export type FinanceAnalyticsTab =
 	| "overview"
@@ -50,6 +52,19 @@ export function useFinanceAnalyticsPage() {
 		canManage,
 		department,
 	});
+	const tAccountSelection = useFinanceTAccountSelection({
+		groups: tAccount.groups,
+		department: tAccount.department,
+		periodType: tAccount.period.type,
+		periodKey: tAccount.period.key,
+	});
+	const tAccountActions = useFinanceTAccountActions({
+		department: tAccount.department,
+		period: tAccount.period,
+		// A bulk action consumes the selection; clearing it here means the bar
+		// disappears exactly when the work is done (FR-K7).
+		onApplied: tAccountSelection.clear,
+	});
 	const managementSection: FinanceManagementSection | null =
 		activeTab === "projects" ||
 		activeTab === "reconciliation" ||
@@ -86,6 +101,28 @@ export function useFinanceAnalyticsPage() {
 		budgets,
 		plans,
 		tAccount,
+		// Everything the T-view needs to be a working surface, in one prop bag the
+		// page can spread onto the section (FR-K5–K7, FR-L).
+		tAccountWorkbench: {
+			// The server is the authority (assertCanWriteDepartment); this only
+			// decides whether the UI offers the actions at all (FR-K6). A viewer
+			// without a department never gets a T-account to write to.
+			canWrite: canManage || department !== null,
+			projects: tAccount.projects,
+			selection: tAccountSelection,
+			isCreatingProject: tAccountActions.isCreatingProject,
+			isAssigning: tAccountActions.isAssigning,
+			onCreateProject: tAccountActions.createProject,
+			onAssignToProject: async (
+				projectId: string,
+				postingExternalIds: string[],
+			) => {
+				await tAccountActions.assignToProject({
+					projectId,
+					postingExternalIds,
+				});
+			},
+		},
 		management,
 	};
 }
