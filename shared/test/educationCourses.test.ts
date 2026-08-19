@@ -50,12 +50,16 @@ describe("educational course member identifiers", () => {
 	});
 
 	test("requires a bounded participant candidate search", () => {
-		assert.strictEqual(
+		const validSearch =
 			searchEducationalCourseParticipantCandidatesSchema.safeParse({
 				search: "Ada",
-			}).success,
-			true,
-		);
+				path: "education/participant-candidates",
+			});
+
+		assert.strictEqual(validSearch.success, true);
+		if (validSearch.success) {
+			assert.deepStrictEqual(validSearch.data, { search: "Ada" });
+		}
 		assert.strictEqual(
 			searchEducationalCourseParticipantCandidatesSchema.safeParse({
 				search: "A",

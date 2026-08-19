@@ -144,6 +144,22 @@ describe("Educational course routes", async () => {
 			headers: authHeaders(testTokens.admin),
 		});
 		assert.strictEqual(participants.statusCode, 200);
+
+		addMember(TARGET_USER_ID, "Ada", "Lovelace");
+		const candidates = await app.inject({
+			method: "GET",
+			url: "/api/education/participant-candidates?search=Ada&path=education/participant-candidates",
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(candidates.statusCode, 200);
+		assert.deepStrictEqual(JSON.parse(candidates.payload).candidates, [
+			{
+				userId: TARGET_USER_ID,
+				givenName: "Ada",
+				surname: "Lovelace",
+				email: "",
+			},
+		]);
 	});
 
 	test("lets global admins assign and remove education administrators", async () => {

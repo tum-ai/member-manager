@@ -86,11 +86,9 @@ export type EducationalCourseParticipantCandidate = z.infer<
 	typeof educationalCourseParticipantCandidateSchema
 >;
 
-export const searchEducationalCourseParticipantCandidatesSchema = z
-	.object({
-		search: z.string().trim().min(2).max(100),
-	})
-	.strict();
+export const searchEducationalCourseParticipantCandidatesSchema = z.object({
+	search: z.string().trim().min(2).max(100),
+});
 export type SearchEducationalCourseParticipantCandidatesInput = z.infer<
 	typeof searchEducationalCourseParticipantCandidatesSchema
 >;
