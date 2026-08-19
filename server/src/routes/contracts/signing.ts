@@ -7,6 +7,14 @@ import {
 import type { FastifyInstance } from "fastify";
 import { renderDocumentPages } from "../../lib/contracts/contractDocument.js";
 import {
+	dispatchContractRenderJobs,
+	downloadReadyVersionPdf,
+	enqueueContractRenderJob,
+	getReadyDocxVersion,
+	hydrateDocxSubmission,
+	insertDocxDocumentVersion,
+} from "../../lib/contracts/contractDocxPipeline.js";
+import {
 	completeSubmission,
 	maybeAutoSendAfterBoardSign,
 	prepareFinalDocument,
@@ -29,6 +37,7 @@ import {
 	fetchSubmissionComments,
 } from "../../lib/contracts/contractRepository.js";
 import {
+	generateSignatureToken,
 	isOpenSignCompletedEvent,
 	isOpenSignFailureEvent,
 	verifyOpenSignWebhookSignature,
@@ -45,6 +54,22 @@ import {
 	requireContractsAdmin,
 } from "../../middleware/auth.js";
 import type { AuthenticatedRequest } from "../../types/index.js";
+
+async function hasPendingContractRenderJob(
+	submissionId: string,
+	operation: "partner_signature" | "board_signature",
+): Promise<boolean> {
+	const { data, error } = await getSupabase()
+		.from("contract_render_jobs")
+		.select("id")
+		.eq("submission_id", submissionId)
+		.eq("operation", operation)
+		.in("status", ["queued", "processing"])
+		.limit(1)
+		.maybeSingle();
+	if (error) throw error;
+	return Boolean(data);
+}
 
 export async function contractSigningRoutes(server: FastifyInstance) {
 	server.post(
@@ -78,7 +103,9 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const nowIso = new Date().toISOString();
 			const { data: current, error: currentError } = await getSupabase()
 				.from("contract_submissions")
-				.select("id, status")
+				.select(
+					"id, status, renderer_engine, sent_document_version_id, form_data_encrypted",
+				)
 				.eq("opensign_document_id", body.objectId)
 				.maybeSingle();
 			if (currentError) {
@@ -102,17 +129,56 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 				opensign_webhook_received_at: nowIso,
 				updated_at: nowIso,
 			};
-			if (body.file) update.opensign_file_url = body.file;
+			if (body.file && current.renderer_engine !== "docx") {
+				update.opensign_file_url = body.file;
+			}
 			const certificateUrl = body.certificateUrl ?? body.certificate;
 			if (certificateUrl) update.opensign_certificate_url = certificateUrl;
 
 			const canApplyOpenSignStatus = current.status === "sent_to_partner";
 			if (canApplyOpenSignStatus && isOpenSignCompletedEvent(event)) {
-				update.status = "partner_signed";
-				update.signed_at = nowIso;
-				update.signer_name = "OpenSign";
-				update.opensign_completed_at = nowIso;
-				update.opensign_error = null;
+				if (current.renderer_engine === "docx") {
+					if (!body.file || typeof current.form_data_encrypted !== "string") {
+						return reply.status(400).send({
+							error: "OpenSign completion did not include the signed PDF",
+						});
+					}
+					const idempotencyKey = `opensign-ingest:${body.objectId}:${event}`;
+					const { data: existingJob, error: existingJobError } =
+						await getSupabase()
+							.from("contract_render_jobs")
+							.select("id")
+							.eq("idempotency_key", idempotencyKey)
+							.maybeSingle();
+					if (existingJobError) throw existingJobError;
+					if (!existingJob) {
+						const version = await insertDocxDocumentVersion({
+							submissionId: String(current.id),
+							source: "partner_signed",
+							formDataEncrypted: current.form_data_encrypted,
+							parentDocumentVersionId:
+								typeof current.sent_document_version_id === "string"
+									? current.sent_document_version_id
+									: null,
+						});
+						await enqueueContractRenderJob({
+							operation: "opensign_ingest",
+							submissionId: String(current.id),
+							documentVersionId: String(version.id),
+							payload: { kind: "opensign_ingest", fileUrl: body.file },
+							idempotencyKey,
+						});
+						dispatchContractRenderJobs(request);
+					}
+					update.signer_name = "OpenSign";
+					update.opensign_error = null;
+				} else {
+					update.status = "partner_signed";
+					update.signed_at = nowIso;
+					update.signer_name = "OpenSign";
+					update.opensign_completed_at = nowIso;
+					update.opensign_error = null;
+				}
 			} else if (canApplyOpenSignStatus && isOpenSignFailureEvent(event)) {
 				update.status = "partner_comments";
 				update.opensign_error = `OpenSign document ${event}`;
@@ -157,7 +223,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, admin_edited_text, generated_contract_text, sent_document_version_id, signature_token_expires_at, signed_at, partner_comment, partner_commented_at, form_data, submitted_at, updated_at",
+					"id, status, renderer_engine, admin_edited_text, generated_contract_text, sent_document_version_id, signature_token_expires_at, signed_at, partner_comment, partner_commented_at, form_data, form_data_encrypted, submitted_at, updated_at",
 				)
 				.eq("signature_token", request.params.token)
 				.maybeSingle();
@@ -182,17 +248,27 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const sentVersion = await fetchDocumentVersion(
 				(data as Record<string, unknown>).sent_document_version_id,
 			);
+			const hydrated = await hydrateDocxSubmission(
+				data as Record<string, unknown>,
+			);
+			const comments = await fetchSubmissionComments(String(data.id));
+			const publicComments = buildPublicCommentHistory(hydrated, comments);
+			if (data.renderer_engine === "docx") {
+				return {
+					pdf_url: `/api/contracts/sign/${encodeURIComponent(request.params.token)}/pdf`,
+					document_status:
+						typeof sentVersion?.artifact_status === "string"
+							? sentVersion.artifact_status
+							: "queued",
+					status: data.status,
+					comments: publicComments,
+				};
+			}
 			const contractText =
 				typeof sentVersion?.rendered_text === "string"
 					? sentVersion.rendered_text
 					: textFromSubmission(data as Record<string, unknown>);
 			const pages = renderDocumentPages(contractText);
-			const comments = await fetchSubmissionComments(String(data.id));
-			const publicComments = buildPublicCommentHistory(
-				data as Record<string, unknown>,
-				comments,
-			);
-
 			return {
 				contract_text: contractText,
 				html:
@@ -218,7 +294,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, admin_edited_text, generated_contract_text, active_document_version_id, sent_document_version_id, board_signature_token_expires_at, signer_name, signature_data, signed_at, admin_signed_at, form_data, submitted_at, updated_at",
+					"id, status, renderer_engine, admin_edited_text, generated_contract_text, active_document_version_id, sent_document_version_id, board_signature_token_expires_at, signer_name, signature_data, signed_at, admin_signed_at, form_data, submitted_at, updated_at",
 				)
 				.eq("board_signature_token", request.params.token)
 				.maybeSingle();
@@ -246,6 +322,19 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const version = await fetchDocumentVersion(
 				record.active_document_version_id ?? record.sent_document_version_id,
 			);
+			if (data.renderer_engine === "docx") {
+				return {
+					pdf_url: `/api/contracts/board-sign/${encodeURIComponent(request.params.token)}/pdf`,
+					document_status:
+						typeof version?.artifact_status === "string"
+							? version.artifact_status
+							: "queued",
+					status: data.status,
+					partner_signer_name: data.signer_name ?? null,
+					partner_signature_data: null,
+					partner_signed_at: data.signed_at ?? null,
+				};
+			}
 			const contractText =
 				typeof version?.rendered_text === "string"
 					? version.rendered_text
@@ -274,7 +363,9 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 
 			const { data: submission, error: fetchError } = await getSupabase()
 				.from("contract_submissions")
-				.select("id, status, board_signature_token_expires_at, admin_signed_at")
+				.select(
+					"id, status, renderer_engine, board_signature_token_expires_at, admin_signed_at, active_document_version_id, form_data_encrypted",
+				)
 				.eq("board_signature_token", request.params.token)
 				.maybeSingle();
 
@@ -302,6 +393,57 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 				return reply
 					.status(409)
 					.send({ error: "Contract is not awaiting a board signature" });
+			}
+			if (submission.renderer_engine === "docx") {
+				if (
+					await hasPendingContractRenderJob(
+						String(submission.id),
+						"board_signature",
+					)
+				) {
+					return {
+						id: submission.id,
+						status: submission.status,
+						document_status: "queued",
+					};
+				}
+				if (typeof submission.form_data_encrypted !== "string") {
+					return reply.status(409).send({ error: "Contract data is missing" });
+				}
+				const parent = await getReadyDocxVersion(
+					submission.active_document_version_id,
+				);
+				const { error: signerError } = await getSupabase()
+					.from("contract_submissions")
+					.update({
+						admin_signer_name: body.signer_name,
+						updated_at: new Date().toISOString(),
+					})
+					.eq("id", submission.id);
+				if (signerError) throw signerError;
+				const version = await insertDocxDocumentVersion({
+					submissionId: String(submission.id),
+					source: "board_signed",
+					formDataEncrypted: submission.form_data_encrypted,
+					parentDocumentVersionId: String(parent.id),
+				});
+				await enqueueContractRenderJob({
+					operation: "board_signature",
+					submissionId: String(submission.id),
+					documentVersionId: String(version.id),
+					payload: {
+						kind: "board_signature",
+						signatureData: body.signature_data,
+					},
+					idempotencyKey:
+						body.idempotency_key ?? `board-signature:${String(version.id)}`,
+				});
+				dispatchContractRenderJobs(request);
+				return {
+					id: submission.id,
+					status: submission.status,
+					document_status: "queued",
+				};
 			}
 
 			const nowIso = new Date().toISOString();
@@ -351,7 +493,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const { data: submission, error: fetchError } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, signature_token_expires_at, signed_at, sent_document_version_id, form_data",
+					"id, status, renderer_engine, signature_token_expires_at, signed_at, sent_document_version_id, form_data, form_data_encrypted, active_document_version_id",
 				)
 				.eq("signature_token", request.params.token)
 				.maybeSingle();
@@ -378,18 +520,18 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 					.send({ error: "Contract is not awaiting partner comments" });
 			}
 
+			const hydratedSubmission = await hydrateDocxSubmission(
+				submission as Record<string, unknown>,
+			);
 			const nowIso = new Date().toISOString();
 			try {
 				await createSubmissionComment({
 					submissionId: String(submission.id),
 					authorType: "partner",
 					authorName:
-						getPartnerCompanyNameFromSubmission(
-							submission as Record<string, unknown>,
-						) || "Partner",
-					authorEmail: getPartnerEmailFromSubmission(
-						submission as Record<string, unknown>,
-					),
+						getPartnerCompanyNameFromSubmission(hydratedSubmission) ||
+						"Partner",
+					authorEmail: getPartnerEmailFromSubmission(hydratedSubmission),
 					comment: body.comment,
 					documentVersionId:
 						typeof submission.sent_document_version_id === "string"
@@ -425,9 +567,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 				toStatus: "partner_comments",
 				changedBy: null,
 				changedByName:
-					getPartnerCompanyNameFromSubmission(
-						submission as Record<string, unknown>,
-					) || "Partner",
+					getPartnerCompanyNameFromSubmission(hydratedSubmission) || "Partner",
 				note: body.comment,
 			});
 			return data;
@@ -442,7 +582,9 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 
 			const { data: submission, error: fetchError } = await getSupabase()
 				.from("contract_submissions")
-				.select("id, status, signature_token_expires_at, signed_at")
+				.select(
+					"id, status, renderer_engine, signature_token_expires_at, signed_at, sent_document_version_id, form_data_encrypted",
+				)
 				.eq("signature_token", request.params.token)
 				.maybeSingle();
 
@@ -466,6 +608,57 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 				return reply
 					.status(409)
 					.send({ error: "Contract is not in a signable state" });
+			}
+			if (submission.renderer_engine === "docx") {
+				if (
+					await hasPendingContractRenderJob(
+						String(submission.id),
+						"partner_signature",
+					)
+				) {
+					return {
+						id: submission.id,
+						status: submission.status,
+						document_status: "queued",
+					};
+				}
+				if (typeof submission.form_data_encrypted !== "string") {
+					return reply.status(409).send({ error: "Contract data is missing" });
+				}
+				const parent = await getReadyDocxVersion(
+					submission.sent_document_version_id,
+				);
+				const { error: signerError } = await getSupabase()
+					.from("contract_submissions")
+					.update({
+						signer_name: body.signer_name,
+						updated_at: new Date().toISOString(),
+					})
+					.eq("id", submission.id);
+				if (signerError) throw signerError;
+				const version = await insertDocxDocumentVersion({
+					submissionId: String(submission.id),
+					source: "partner_signed",
+					formDataEncrypted: submission.form_data_encrypted,
+					parentDocumentVersionId: String(parent.id),
+				});
+				await enqueueContractRenderJob({
+					operation: "partner_signature",
+					submissionId: String(submission.id),
+					documentVersionId: String(version.id),
+					payload: {
+						kind: "partner_signature",
+						signatureData: body.signature_data,
+					},
+					idempotencyKey:
+						body.idempotency_key ?? `partner-signature:${String(version.id)}`,
+				});
+				dispatchContractRenderJobs(request);
+				return {
+					id: submission.id,
+					status: submission.status,
+					document_status: "queued",
+				};
 			}
 
 			const nowIso = new Date().toISOString();
@@ -509,7 +702,9 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 
 			const { data: current, error: currentError } = await getSupabase()
 				.from("contract_submissions")
-				.select("id, status, signed_at")
+				.select(
+					"id, status, signed_at, renderer_engine, active_document_version_id, form_data_encrypted",
+				)
 				.eq("id", request.params.id)
 				.single();
 			if (currentError || !current) {
@@ -518,6 +713,56 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			if (current.status !== "partner_signed" || !current.signed_at) {
 				return reply.status(409).send({
 					error: "Contract must be signed by the partner before board signing",
+				});
+			}
+			if (current.renderer_engine === "docx") {
+				if (
+					await hasPendingContractRenderJob(
+						String(current.id),
+						"board_signature",
+					)
+				) {
+					return hydrateDocxSubmission(current as Record<string, unknown>);
+				}
+				if (typeof current.form_data_encrypted !== "string") {
+					return reply.status(409).send({ error: "Contract data is missing" });
+				}
+				const parent = await getReadyDocxVersion(
+					current.active_document_version_id,
+				);
+				const { error: signerError } = await getSupabase()
+					.from("contract_submissions")
+					.update({
+						admin_signer_name: body.signer_name,
+						reviewed_by: user.id,
+						reviewed_at: new Date().toISOString(),
+						updated_at: new Date().toISOString(),
+					})
+					.eq("id", current.id);
+				if (signerError) throw signerError;
+				const version = await insertDocxDocumentVersion({
+					submissionId: request.params.id,
+					source: "board_signed",
+					formDataEncrypted: current.form_data_encrypted,
+					createdBy: user.id,
+					parentDocumentVersionId: String(parent.id),
+				});
+				await enqueueContractRenderJob({
+					operation: "board_signature",
+					submissionId: request.params.id,
+					documentVersionId: String(version.id),
+					payload: {
+						kind: "board_signature",
+						signatureData: body.signature_data,
+					},
+					idempotencyKey:
+						body.idempotency_key ?? `board-signature:${String(version.id)}`,
+				});
+				dispatchContractRenderJobs(request);
+				return hydrateDocxSubmission({
+					...current,
+					active_document_version_id: version.id,
+					document_status: "queued",
 				});
 			}
 
@@ -577,10 +822,27 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 
 			let data: Record<string, unknown>;
 			try {
-				await prepareFinalDocument(
-					request.params.id,
-					current as Record<string, unknown>,
-				);
+				if (current.renderer_engine === "docx") {
+					const version = await getReadyDocxVersion(
+						current.active_document_version_id,
+					);
+					const { error: finalVersionError } = await getSupabase()
+						.from("contract_submissions")
+						.update({
+							final_pdf_token:
+								current.final_pdf_token ?? generateSignatureToken(),
+							final_document_version_id: version.id,
+							active_document_version_id: version.id,
+							updated_at: new Date().toISOString(),
+						})
+						.eq("id", request.params.id);
+					if (finalVersionError) throw finalVersionError;
+				} else {
+					await prepareFinalDocument(
+						request.params.id,
+						current as Record<string, unknown>,
+					);
+				}
 				data = await completeSubmission(request.params.id);
 			} catch (error) {
 				request.log.error({ err: error }, "Failed to finalize contract");
@@ -607,7 +869,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, final_document_version_id, admin_edited_text, generated_contract_text, signer_name, signed_at, signature_data, admin_signer_name, admin_signed_at, admin_signature_data",
+					"id, status, renderer_engine, final_document_version_id, admin_edited_text, generated_contract_text, signer_name, signed_at, signature_data, admin_signer_name, admin_signed_at, admin_signature_data",
 				)
 				.eq("final_pdf_token", request.params.token)
 				.maybeSingle();
@@ -618,6 +880,14 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			}
 			if (data?.status !== "completed") {
 				return reply.status(404).send({ error: "Final PDF not found" });
+			}
+			if (data.renderer_engine === "docx") {
+				return sendPdf(
+					reply,
+					await downloadReadyVersionPdf(data.final_document_version_id),
+					`contract-${data.id}.pdf`,
+					query.download === "1" ? "attachment" : "inline",
+				);
 			}
 
 			const finalVersion = await fetchDocumentVersion(

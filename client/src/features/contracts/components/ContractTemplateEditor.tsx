@@ -20,6 +20,8 @@ import {
 } from "@/features/contracts/contractTemplateOptions";
 import type { ContractTemplateEditorViewModel } from "@/features/contracts/contractTemplatesPageTypes";
 import { ContractCopyButton } from "./ContractCopyButton";
+import { ContractTemplateDocumentPreviewPanel } from "./ContractTemplateDocumentPreviewPanel";
+import { ContractTemplateDocumentsPanel } from "./ContractTemplateDocumentsPanel";
 import { NewBlockForm, NewVariableForm } from "./ContractTemplateForms";
 import { TemplateEditorSkeleton } from "./ContractTemplateSkeletons";
 
@@ -53,6 +55,8 @@ export function TemplateEditor({
 
 	return (
 		<div className="flex flex-col gap-6">
+			<ContractTemplateDocumentsPanel model={model} />
+			<ContractTemplateDocumentPreviewPanel model={model} />
 			<GlassCard className="p-6">
 				<div className="flex flex-col gap-4">
 					<Field label="Name" htmlFor="template-name">

@@ -30,13 +30,8 @@ Template variables support the data types `TEXT`, `TEXTAREA`, `NUMBER`, `DATE`,
 format-validated in the form and again on the server before a submission is
 persisted.
 
-Besides `{{variable}}` placeholders, the reserved tokens `{{partner_signature}}`
-and `{{board_signature}}` can be placed anywhere in the contract text. They are
-never substituted from form data; instead the PDF renderer draws the matching
-signature image inline at that position once the party has signed (an
-underscore placeholder line until then). Signatures without a matching token in
-the text keep rendering on a trailing "Signaturen" page. The template editor
-lists these tokens with copy buttons.
+The reserved tokens `{{partner_signature}}` and `{{board_signature}}` belong to
+the legacy text renderer. They remain supported for existing submissions.
 
 The package and tier catalog is shared by client and server in `shared/src/contracts.ts`, so preview rendering and server rendering use the same package labels, prices, and benefit lists.
 The same shared catalog now owns the selectable a-la-carte add-ons. Templates
@@ -50,6 +45,31 @@ The current seeded template wording is converted from the real DOCX sources:
 - `AI E-Lab_Sponsoringvorlage.docx`
 - `Einzelevents_Sponsoringvorlage.docx`
 - `Makeathon_Sponsoringvorlage.docx`
+
+## Word Document Workflow
+
+Legal uploads a `.docx` version for each active template. The server accepts
+only these commands inside the Word document:
+
+- `{{variable_name}}` for a variable configured on that template
+- `{{IMAGE partner_signature_anchor}}` exactly once
+- `{{IMAGE board_signature_anchor}}` exactly once
+
+Every required template variable must appear in the Word document. Macros,
+embedded files, active Word fields, external relationships, unknown commands,
+and malformed placeholders are rejected.
+
+The server fills the document, creates the two invisible signature images,
+converts it with LibreOffice in a temporary Vercel Sandbox, and stores encrypted
+DOCX and PDF artifacts in private Supabase buckets. The stored PDF is the source
+for preview and signing. Partner and board signatures replace the matching
+invisible image positions.
+
+The first ready document version becomes active when a template has no active
+Word version yet. Replacement versions require Legal to review the stored PDF
+preview and activate them explicitly. The global DOCX cutover remains disabled
+until every active template has a ready document. Existing legacy submissions
+continue through the legacy renderer after cutover.
 
 ## Document Rendering
 

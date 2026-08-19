@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
 	CONTRACT_CONDITION_TYPES,
 	CONTRACT_DATA_TYPES,
+	CONTRACT_RENDERER_ENGINES,
 	CONTRACT_REVIEW_STATUSES,
 	CONTRACT_WORKFLOW_STATUSES,
 } from "./contracts.js";
@@ -12,6 +13,32 @@ export const TemplateBodySchema = z.object({
 	contract_text: z.string().max(200_000).default(""),
 	is_active: z.boolean().optional().default(true),
 });
+
+export const ContractTemplateParamsSchema = z.object({
+	id: z.string().uuid(),
+});
+
+export const ContractTemplateDocumentParamsSchema = z.object({
+	id: z.string().uuid(),
+	documentId: z.string().uuid(),
+});
+
+export const ContractSubmissionParamsSchema = z.object({
+	id: z.string().uuid(),
+});
+
+export const ContractDocumentRetryBodySchema = z
+	.object({
+		force: z.boolean().optional().default(false),
+	})
+	.strict();
+
+export const ContractDocxCutoverBodySchema = z
+	.object({
+		enabled: z.boolean(),
+		confirm: z.literal(true),
+	})
+	.strict();
 
 export const VariableBodySchema = z.object({
 	variable_name: z
@@ -109,8 +136,16 @@ export const SubmissionPatchSchema = z
 	);
 
 export const SignBodySchema = z.object({
-	signature_data: z.string().min(1).max(2_000_000),
+	signature_data: z
+		.string()
+		.min(1)
+		.max(2_000_000)
+		.regex(
+			/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/,
+			"Signature must be a PNG data URL",
+		),
 	signer_name: z.string().trim().min(1).max(200),
+	idempotency_key: z.string().uuid().optional(),
 });
 
 export const CommentBodySchema = z.object({
@@ -133,6 +168,11 @@ const nullableString = z.string().nullable();
 const ContractSubmissionDetailBaseSchema = z.object({
 	id: z.string(),
 	template_id: z.string(),
+	template_document_id: nullableString.optional(),
+	renderer_engine: z.enum(CONTRACT_RENDERER_ENGINES).optional(),
+	document_status: z
+		.enum(["queued", "processing", "ready", "failed"])
+		.optional(),
 	submitter_user_id: z.string(),
 	form_data: z.record(z.string(), z.unknown()),
 	generated_contract_text: nullableString,
@@ -195,6 +235,11 @@ export const ContractSubmissionDetailSchema = z.union([
 const ContractSubmissionSummaryBaseSchema = z.object({
 	id: z.string(),
 	template_id: z.string(),
+	template_document_id: nullableString.optional(),
+	renderer_engine: z.enum(CONTRACT_RENDERER_ENGINES).optional(),
+	document_status: z
+		.enum(["queued", "processing", "ready", "failed"])
+		.optional(),
 	submitter_user_id: z.string(),
 	status: z.enum(CONTRACT_WORKFLOW_STATUSES),
 	submitted_at: z.string(),
@@ -235,6 +280,12 @@ export const ContractSubmissionSummarySchema = z.union([
 ]);
 
 export type ContractTemplateInput = z.input<typeof TemplateBodySchema>;
+export type ContractDocumentRetryInput = z.input<
+	typeof ContractDocumentRetryBodySchema
+>;
+export type ContractDocxCutoverInput = z.input<
+	typeof ContractDocxCutoverBodySchema
+>;
 export type ContractTemplateVariableInput = z.input<typeof VariableBodySchema>;
 export type ContractConditionalBlockInput = z.input<
 	typeof ConditionalBlockBodySchema

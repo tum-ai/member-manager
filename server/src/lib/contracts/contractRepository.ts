@@ -29,32 +29,40 @@ export function createContractDatabaseError(error: unknown): DatabaseError {
 
 export async function fetchTemplateWithChildren(templateId: string) {
 	const supabase = getSupabase();
-	const [templateResult, variablesResult, blocksResult] = await Promise.all([
-		supabase
-			.from("contract_templates")
-			.select("*")
-			.eq("id", templateId)
-			.single(),
-		supabase
-			.from("contract_template_variables")
-			.select("*")
-			.eq("template_id", templateId)
-			.order("sort_order", { ascending: true }),
-		supabase
-			.from("contract_conditional_blocks")
-			.select("*")
-			.eq("template_id", templateId)
-			.order("sort_order", { ascending: true }),
-	]);
+	const [templateResult, variablesResult, blocksResult, documentsResult] =
+		await Promise.all([
+			supabase
+				.from("contract_templates")
+				.select("*")
+				.eq("id", templateId)
+				.single(),
+			supabase
+				.from("contract_template_variables")
+				.select("*")
+				.eq("template_id", templateId)
+				.order("sort_order", { ascending: true }),
+			supabase
+				.from("contract_conditional_blocks")
+				.select("*")
+				.eq("template_id", templateId)
+				.order("sort_order", { ascending: true }),
+			supabase
+				.from("contract_template_documents")
+				.select("*")
+				.eq("template_id", templateId)
+				.order("version", { ascending: false }),
+		]);
 
 	if (templateResult.error) throw templateResult.error;
 	if (variablesResult.error) throw variablesResult.error;
 	if (blocksResult.error) throw blocksResult.error;
+	if (documentsResult.error) throw documentsResult.error;
 
 	return {
 		template: templateResult.data,
 		variables: variablesResult.data ?? [],
 		blocks: (blocksResult.data ?? []) as ContractRenderableBlock[],
+		documents: documentsResult.data ?? [],
 	};
 }
 

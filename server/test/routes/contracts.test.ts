@@ -9,6 +9,11 @@ import {
 	enrichContractFormData,
 } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
+import { isEncryptedContractArtifact } from "../../src/lib/contracts/contractArtifactCrypto.js";
+import {
+	CONTRACT_DOCX_FIXTURE_ANCHORS,
+	createContractDocxFixture,
+} from "../fixtures/contractDocxFixture.js";
 import {
 	authHeaders,
 	closeTestApp,
@@ -17,10 +22,36 @@ import {
 	testTokens,
 	testUserIds,
 } from "../helpers.js";
-import { mockDatabase } from "../mocks/supabase.js";
+import { mockDatabase, mockStorage } from "../mocks/supabase.js";
 
 const TEMPLATE_ID = "11111111-1111-4111-8111-111111111111";
 const SUBMISSION_ID = "33333333-3333-4333-8333-333333333333";
+const SIGNATURE_DATA_URL =
+	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZsusAAAAASUVORK5CYII=";
+
+function docxMultipartPayload(docx: Buffer): {
+	boundary: string;
+	payload: Buffer;
+} {
+	const boundary = "member-manager-contract-docx-boundary";
+	const header = Buffer.from(
+		`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="contract.docx"\r\nContent-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document\r\n\r\n`,
+	);
+	const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
+	return { boundary, payload: Buffer.concat([header, docx, footer]) };
+}
+
+async function waitForContractState(
+	predicate: () => boolean,
+	description: string,
+): Promise<void> {
+	const timeoutAt = Date.now() + 20_000;
+	while (Date.now() < timeoutAt) {
+		if (predicate()) return;
+		await new Promise((resolve) => setTimeout(resolve, 20));
+	}
+	assert.fail(`Timed out waiting for ${description}`);
+}
 
 // Sending to the partner now requires an approved contract. Tests that
 // exercise the send/OpenSign paths approve the seeded submission first.
@@ -2258,5 +2289,226 @@ describe("Contract Routes", async () => {
 		assert.strictEqual(comment.author_type, "internal");
 		// The mocked admin member resolves to a name rather than an email.
 		assert.doesNotMatch(String(comment.author_name), /@/);
+	});
+
+	test("runs the private DOCX workflow from template upload through both signatures", async () => {
+		const originalMode = process.env.CONTRACT_DOCX_CONVERTER_MODE;
+		const originalFetch = globalThis.fetch;
+		const originalResendKey = process.env.RESEND_API_KEY;
+		const originalFrom = process.env.CONTRACT_EMAIL_FROM;
+		const originalBaseUrl = process.env.APP_BASE_URL;
+		process.env.CONTRACT_DOCX_CONVERTER_MODE = "fake";
+		process.env.RESEND_API_KEY = "test-resend-key";
+		process.env.CONTRACT_EMAIL_FROM = "contracts@tum-ai.com";
+		process.env.APP_BASE_URL = "https://member-manager.test";
+		globalThis.fetch = (async () =>
+			new Response(JSON.stringify({ id: "email-docx" }), {
+				status: 200,
+			})) as typeof fetch;
+		try {
+			resetDatabase();
+			moveRegularUserToPartnersAndSponsors();
+			const templateDocx = await createContractDocxFixture([
+				"{{partner_name}}",
+				...CONTRACT_DOCX_FIXTURE_ANCHORS,
+			]);
+			const multipart = docxMultipartPayload(templateDocx);
+			const uploadResponse = await app.inject({
+				method: "POST",
+				url: `/api/contracts/templates/${TEMPLATE_ID}/documents`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": `multipart/form-data; boundary=${multipart.boundary}`,
+				},
+				payload: multipart.payload,
+			});
+			assert.strictEqual(uploadResponse.statusCode, 200);
+			const uploadedDocument = JSON.parse(uploadResponse.payload);
+
+			await waitForContractState(
+				() =>
+					mockDatabase.contract_template_documents.some(
+						(row) => row.id === uploadedDocument.id && row.status === "ready",
+					),
+				"the template preview",
+			);
+			const templateDocument = mockDatabase.contract_template_documents.find(
+				(row) => row.id === uploadedDocument.id,
+			);
+			assert.ok(templateDocument);
+			assert.deepStrictEqual(
+				(templateDocument.placeholder_manifest as { variables: string[] })
+					.variables,
+				["partner_name"],
+			);
+			const encryptedTemplate = mockStorage.get(
+				`${templateDocument.source_bucket}/${templateDocument.source_path}`,
+			);
+			assert.ok(encryptedTemplate);
+			assert.equal(isEncryptedContractArtifact(encryptedTemplate), true);
+
+			const previewResponse = await app.inject({
+				method: "GET",
+				url: `/api/contracts/templates/${TEMPLATE_ID}/documents/${uploadedDocument.id}/preview.pdf`,
+				headers: authHeaders(testTokens.admin),
+			});
+			assert.strictEqual(previewResponse.statusCode, 200);
+			assert.match(
+				previewResponse.rawPayload.subarray(0, 5).toString(),
+				/^%PDF-/,
+			);
+
+			const cutoverResponse = await app.inject({
+				method: "POST",
+				url: "/api/contracts/docx-cutover",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ enabled: true, confirm: true }),
+			});
+			assert.strictEqual(cutoverResponse.statusCode, 200);
+
+			const createResponse = await app.inject({
+				method: "POST",
+				url: "/api/contracts/submissions",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					template_id: TEMPLATE_ID,
+					form_data: {
+						partner_name: "DOCX Partner GmbH",
+						partner_company_name: "DOCX Partner GmbH",
+						partner_contact_email: "partner@example.com",
+					},
+					status: "submitted",
+				}),
+			});
+			assert.strictEqual(createResponse.statusCode, 200);
+			const created = JSON.parse(createResponse.payload);
+			assert.equal(created.renderer_engine, "docx");
+			assert.equal(created.form_data.partner_name, "DOCX Partner GmbH");
+			assert.equal("form_data_encrypted" in created, false);
+
+			const storedSubmission = mockDatabase.contract_submissions.find(
+				(row) => row.id === created.id,
+			);
+			assert.ok(storedSubmission);
+			assert.deepStrictEqual(storedSubmission.form_data, {});
+			assert.match(
+				String(storedSubmission.form_data_encrypted),
+				/^enc-bin-v1:/,
+			);
+			await waitForContractState(
+				() =>
+					mockDatabase.contract_document_versions.some(
+						(row) =>
+							row.id === storedSubmission.active_document_version_id &&
+							row.artifact_status === "ready",
+					),
+				"the submission PDF",
+			);
+
+			const pdfResponse = await app.inject({
+				method: "GET",
+				url: `/api/contracts/submissions/${created.id}/pdf`,
+				headers: authHeaders(testTokens.user),
+			});
+			assert.strictEqual(pdfResponse.statusCode, 200);
+			assert.match(pdfResponse.rawPayload.subarray(0, 5).toString(), /^%PDF-/);
+
+			storedSubmission.status = "sent_to_partner";
+			storedSubmission.signature_token = "docx-partner-token";
+			storedSubmission.signature_token_expires_at = "2099-01-01T00:00:00Z";
+			storedSubmission.sent_document_version_id =
+				storedSubmission.active_document_version_id;
+			const partnerSignResponse = await app.inject({
+				method: "POST",
+				url: "/api/contracts/sign/docx-partner-token",
+				headers: { "content-type": "application/json" },
+				payload: JSON.stringify({
+					signature_data: SIGNATURE_DATA_URL,
+					signer_name: "Partner Signer",
+				}),
+			});
+			assert.strictEqual(partnerSignResponse.statusCode, 200);
+			await waitForContractState(
+				() =>
+					mockDatabase.contract_render_jobs.some(
+						(row) =>
+							row.operation === "partner_signature" &&
+							["succeeded", "failed"].includes(String(row.status)),
+					),
+				"the partner signature job",
+			);
+			const partnerJob = mockDatabase.contract_render_jobs.find(
+				(row) => row.operation === "partner_signature",
+			);
+			assert.ok(partnerJob);
+			assert.equal(
+				partnerJob.status,
+				"succeeded",
+				String(partnerJob.last_error_message),
+			);
+			const partnerSignedSubmission = mockDatabase.contract_submissions.find(
+				(row) => row.id === created.id,
+			);
+			assert.ok(partnerSignedSubmission);
+			assert.equal(partnerSignedSubmission.status, "partner_signed");
+
+			partnerSignedSubmission.board_signature_token = "docx-board-token";
+			partnerSignedSubmission.board_signature_token_expires_at =
+				"2099-01-01T00:00:00Z";
+			partnerSignedSubmission.auto_send_after_board_signed = true;
+			const boardSignResponse = await app.inject({
+				method: "POST",
+				url: "/api/contracts/board-sign/docx-board-token",
+				headers: { "content-type": "application/json" },
+				payload: JSON.stringify({
+					signature_data: SIGNATURE_DATA_URL,
+					signer_name: "Board Signer",
+				}),
+			});
+			assert.strictEqual(boardSignResponse.statusCode, 200);
+			await waitForContractState(
+				() =>
+					mockDatabase.contract_submissions.some(
+						(row) => row.id === created.id && row.status === "completed",
+					),
+				"the board signature and automatic finalization",
+			);
+			const finalized = mockDatabase.contract_submissions.find(
+				(row) => row.id === created.id,
+			);
+			assert.ok(finalized);
+			const signedVersion = mockDatabase.contract_document_versions.find(
+				(row) => row.id === finalized.active_document_version_id,
+			);
+			assert.ok(signedVersion);
+			assert.equal(signedVersion.artifact_status, "ready");
+			assert.ok(signedVersion.pdf_path);
+			assert.equal(finalized.status, "completed");
+			const finalPdfResponse = await app.inject({
+				method: "GET",
+				url: `/api/contracts/final/${finalized.final_pdf_token}/pdf`,
+			});
+			assert.strictEqual(finalPdfResponse.statusCode, 200);
+			assert.match(
+				finalPdfResponse.rawPayload.subarray(0, 5).toString(),
+				/^%PDF-/,
+			);
+		} finally {
+			globalThis.fetch = originalFetch;
+			restoreEnv("RESEND_API_KEY", originalResendKey);
+			restoreEnv("CONTRACT_EMAIL_FROM", originalFrom);
+			restoreEnv("APP_BASE_URL", originalBaseUrl);
+			if (originalMode === undefined) {
+				delete process.env.CONTRACT_DOCX_CONVERTER_MODE;
+			} else {
+				process.env.CONTRACT_DOCX_CONVERTER_MODE = originalMode;
+			}
+		}
 	});
 });

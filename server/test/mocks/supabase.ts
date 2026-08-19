@@ -55,6 +55,9 @@ interface MockData {
 	contract_templates: Array<Record<string, unknown>>;
 	contract_template_variables: Array<Record<string, unknown>>;
 	contract_conditional_blocks: Array<Record<string, unknown>>;
+	contract_template_documents: Array<Record<string, unknown>>;
+	contract_pipeline_settings: Array<Record<string, unknown>>;
+	contract_render_jobs: Array<Record<string, unknown>>;
 	contract_submissions: Array<Record<string, unknown>>;
 	contract_document_versions: Array<Record<string, unknown>>;
 	contract_partner_comments: Array<Record<string, unknown>>;
@@ -228,6 +231,15 @@ export const mockDatabase: MockData = {
 		},
 	],
 	contract_conditional_blocks: [],
+	contract_template_documents: [],
+	contract_pipeline_settings: [
+		{
+			singleton: true,
+			new_submission_engine: "legacy_text",
+			updated_by_user_id: null,
+		},
+	],
+	contract_render_jobs: [],
 	contract_document_versions: [],
 	contract_partner_comments: [],
 	contract_status_events: [],
@@ -640,6 +652,8 @@ function createQueryBuilder(table: string): QueryBuilder {
 						table === "contract_templates" ||
 						table === "contract_template_variables" ||
 						table === "contract_conditional_blocks" ||
+						table === "contract_template_documents" ||
+						table === "contract_render_jobs" ||
 						table === "contract_submissions" ||
 						table === "contract_document_versions" ||
 						table === "contract_partner_comments" ||
@@ -667,6 +681,19 @@ function createQueryBuilder(table: string): QueryBuilder {
 				}
 				if (rec.created_at === undefined) {
 					rec.created_at = new Date().toISOString();
+				}
+				if (table === "contract_render_jobs") {
+					rec.status ??= "queued";
+					rec.attempt_count ??= 0;
+					rec.max_attempts ??= 3;
+					rec.run_after ??= new Date().toISOString();
+					rec.leased_by ??= null;
+					rec.lease_token ??= null;
+					rec.lease_expires_at ??= null;
+					rec.last_error_code ??= null;
+					rec.last_error_message ??= null;
+					rec.finished_at ??= null;
+					rec.updated_at ??= rec.created_at;
 				}
 				if (
 					(table === "educational_course_periods" ||
@@ -1990,6 +2017,224 @@ export function createMockSupabaseClient(): SupabaseClient {
 				if (fnName === "apply_educational_course_period") {
 					return applyMockEducationalCoursePeriod(params);
 				}
+				if (fnName === "create_contract_template_document_version") {
+					const templateId = String(params.p_template_id);
+					const version =
+						Math.max(
+							0,
+							...mockDatabase.contract_template_documents
+								.filter((row) => row.template_id === templateId)
+								.map((row) => Number(row.version)),
+						) + 1;
+					const row: Record<string, unknown> = {
+						id: params.p_id,
+						template_id: templateId,
+						version,
+						status: "queued",
+						source_bucket: "contract-template-documents",
+						source_path: params.p_source_path,
+						source_size_bytes: params.p_source_size_bytes,
+						source_sha256: params.p_source_sha256,
+						original_filename: params.p_original_filename,
+						preview_bucket: null,
+						preview_path: null,
+						preview_size_bytes: null,
+						preview_sha256: null,
+						placeholder_manifest: params.p_placeholder_manifest,
+						validation_issues: [],
+						signature_anchors: params.p_signature_anchors,
+						converter_version: null,
+						error_code: null,
+						error_message: null,
+						uploaded_by_user_id: params.p_uploaded_by_user_id,
+						activated_at: null,
+						created_at: new Date().toISOString(),
+						updated_at: new Date().toISOString(),
+					};
+					mockDatabase.contract_template_documents.push(row);
+					return Promise.resolve({ data: row, error: null });
+				}
+				if (fnName === "activate_contract_template_document") {
+					const document = mockDatabase.contract_template_documents.find(
+						(row) =>
+							row.id === params.p_document_id &&
+							row.template_id === params.p_template_id,
+					);
+					if (document?.status !== "ready") {
+						return Promise.resolve({
+							data: null,
+							error: { message: "Template document is not ready" },
+						});
+					}
+					document.activated_at = new Date().toISOString();
+					const template = mockDatabase.contract_templates.find(
+						(row) => row.id === params.p_template_id,
+					);
+					if (template) {
+						template.active_document_id = document.id;
+						template.renderer_engine = "docx";
+					}
+					return Promise.resolve({ data: document, error: null });
+				}
+				if (fnName === "insert_contract_document_version") {
+					const submission = mockDatabase.contract_submissions.find(
+						(row) => row.id === params.p_submission_id,
+					);
+					if (!submission) {
+						return Promise.resolve({
+							data: null,
+							error: { message: "Submission not found" },
+						});
+					}
+					const version =
+						Math.max(
+							0,
+							...mockDatabase.contract_document_versions
+								.filter((row) => row.submission_id === submission.id)
+								.map((row) => Number(row.version_number)),
+						) + 1;
+					const row: Record<string, unknown> = {
+						id: params.p_id,
+						submission_id: submission.id,
+						version_number: version,
+						source: params.p_source,
+						rendered_text: "",
+						rendered_html: "",
+						form_data_snapshot: {},
+						form_data_snapshot_encrypted: params.p_form_data_snapshot_encrypted,
+						renderer_engine: "docx",
+						template_document_id: submission.template_document_id,
+						parent_document_version_id:
+							params.p_parent_document_version_id ?? null,
+						artifact_status: "queued",
+						signature_anchors: [],
+						created_by: params.p_created_by ?? null,
+						created_at: new Date().toISOString(),
+					};
+					mockDatabase.contract_document_versions.push(row);
+					submission.active_document_version_id = row.id;
+					if (params.p_reset_for_legal_review === true) {
+						submission.status = "legal_review";
+						submission.sent_document_version_id = null;
+						submission.final_document_version_id = null;
+						submission.signature_token = null;
+						submission.board_signature_token = null;
+					}
+					return Promise.resolve({ data: row, error: null });
+				}
+				if (fnName === "claim_contract_render_job") {
+					const job = mockDatabase.contract_render_jobs.find(
+						(row) =>
+							row.status === "queued" &&
+							Number(row.attempt_count) < Number(row.max_attempts),
+					);
+					if (!job) return Promise.resolve({ data: [], error: null });
+					job.status = "processing";
+					job.attempt_count = Number(job.attempt_count ?? 0) + 1;
+					job.leased_by = params.p_worker_id;
+					job.lease_token = randomUUID();
+					job.lease_expires_at = new Date(Date.now() + 300_000).toISOString();
+					if (job.operation === "template_preview") {
+						const document = mockDatabase.contract_template_documents.find(
+							(row) => row.id === job.template_document_id,
+						);
+						if (document) document.status = "processing";
+					} else {
+						const version = mockDatabase.contract_document_versions.find(
+							(row) => row.id === job.document_version_id,
+						);
+						if (version) version.artifact_status = "processing";
+					}
+					return Promise.resolve({ data: [{ ...job }], error: null });
+				}
+				if (fnName === "finalize_contract_render_job") {
+					const job = mockDatabase.contract_render_jobs.find(
+						(row) =>
+							row.id === params.p_job_id &&
+							row.lease_token === params.p_lease_token,
+					);
+					if (!job) {
+						return Promise.resolve({
+							data: null,
+							error: { message: "Render job lease not found" },
+						});
+					}
+					job.status = params.p_succeeded ? "succeeded" : "failed";
+					job.finished_at = new Date().toISOString();
+					job.last_error_code = params.p_succeeded ? null : params.p_error_code;
+					job.last_error_message = params.p_succeeded
+						? null
+						: params.p_error_message;
+					if (params.p_succeeded && job.operation === "template_preview") {
+						const document = mockDatabase.contract_template_documents.find(
+							(row) => row.id === job.template_document_id,
+						);
+						if (document) {
+							document.status = "ready";
+							document.preview_bucket = "contract-render-artifacts";
+							document.preview_path = params.p_preview_path;
+							document.preview_size_bytes = params.p_preview_size_bytes;
+							document.preview_sha256 = params.p_preview_sha256;
+							document.signature_anchors = params.p_signature_anchors;
+							document.converter_version = params.p_converter_version;
+							const template = mockDatabase.contract_templates.find(
+								(row) => row.id === document.template_id,
+							);
+							if (template) {
+								template.active_document_id = document.id;
+								template.renderer_engine = "docx";
+							}
+						}
+					}
+					if (params.p_succeeded && job.operation !== "template_preview") {
+						const version = mockDatabase.contract_document_versions.find(
+							(row) => row.id === job.document_version_id,
+						);
+						if (version) {
+							version.artifact_status = "ready";
+							version.docx_bucket = params.p_docx_path
+								? "contract-render-artifacts"
+								: null;
+							version.docx_path = params.p_docx_path;
+							version.docx_size_bytes = params.p_docx_size_bytes;
+							version.docx_sha256 = params.p_docx_sha256;
+							version.pdf_bucket = params.p_pdf_path
+								? "contract-render-artifacts"
+								: null;
+							version.pdf_path = params.p_pdf_path;
+							version.pdf_size_bytes = params.p_pdf_size_bytes;
+							version.pdf_sha256 = params.p_pdf_sha256;
+							version.page_count = params.p_page_count;
+							version.signature_anchors = params.p_signature_anchors ?? [];
+							version.converter_version = params.p_converter_version;
+						}
+						const submission = mockDatabase.contract_submissions.find(
+							(row) => row.id === job.submission_id,
+						);
+						if (submission && job.operation === "partner_signature") {
+							submission.status = "partner_signed";
+							submission.signed_at = new Date().toISOString();
+							submission.signature_token = null;
+							submission.signature_token_expires_at = null;
+						}
+						if (submission && job.operation === "board_signature") {
+							submission.status = "board_signed";
+							submission.admin_signed_at = new Date().toISOString();
+							submission.board_signature_token = null;
+							submission.board_signature_token_expires_at = null;
+						}
+						if (submission && job.operation === "opensign_ingest") {
+							submission.status = "partner_signed";
+						}
+					}
+					if (!params.p_succeeded && job.operation !== "template_preview") {
+						const version = mockDatabase.contract_document_versions.find(
+							(row) => row.id === job.document_version_id,
+						);
+						if (version) version.artifact_status = "failed";
+					}
+					return Promise.resolve({ data: job, error: null });
+				}
 				if (fnName !== "insert_member_cv_version") {
 					return Promise.resolve({
 						data: null,
@@ -2249,6 +2494,15 @@ export function resetMockDatabase(): void {
 		},
 	];
 	mockDatabase.contract_conditional_blocks = [];
+	mockDatabase.contract_template_documents = [];
+	mockDatabase.contract_pipeline_settings = [
+		{
+			singleton: true,
+			new_submission_engine: "legacy_text",
+			updated_by_user_id: null,
+		},
+	];
+	mockDatabase.contract_render_jobs = [];
 	mockDatabase.contract_document_versions = [];
 	mockDatabase.contract_partner_comments = [];
 	mockDatabase.contract_status_events = [];

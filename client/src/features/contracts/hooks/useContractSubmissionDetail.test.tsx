@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
 	finalize: vi.fn(),
 	createComment: vi.fn(),
 	downloadPdf: vi.fn(),
+	downloadDocx: vi.fn(),
+	uploadDocx: vi.fn(),
 	preview: vi.fn(),
 	submissionQuery: {
 		data: undefined as ContractSubmission | undefined,
@@ -37,10 +39,26 @@ vi.mock("@/hooks/useToolAccess", () => ({
 
 vi.mock("@/features/contracts/contractApi", () => ({
 	downloadContractSubmissionPdf: mocks.downloadPdf,
+	downloadContractSubmissionDocx: mocks.downloadDocx,
+}));
+
+vi.mock("@/contexts/ToastContext", () => ({
+	useToast: () => ({ showToast: vi.fn() }),
 }));
 
 vi.mock("./useContractSubmissions", () => ({
 	useContractSubmission: () => mocks.submissionQuery,
+	useContractSubmissionPdf: () => ({
+		data: undefined,
+		isLoading: false,
+		isFetching: false,
+		error: null,
+	}),
+	useUploadContractSubmissionDocx: () => ({
+		mutate: mocks.uploadDocx,
+		isPending: false,
+		error: null,
+	}),
 	useUpdateContractSubmission: () => ({
 		mutate: mocks.update,
 		isPending: false,
@@ -107,6 +125,39 @@ describe("useContractSubmissionDetail", () => {
 		mocks.submissionQuery.isLoading = false;
 		mocks.submissionQuery.error = null;
 		mocks.downloadPdf.mockResolvedValue(undefined);
+		mocks.downloadDocx.mockResolvedValue(undefined);
+	});
+
+	it("keeps DOCX edits out of send payloads and confirms replacements", async () => {
+		mocks.submissionQuery.data = createSubmission({
+			status: "approved",
+			...({
+				renderer_engine: "docx",
+				template_document_id: "doc-1",
+				document_status: "ready",
+			} as Partial<ContractSubmission>),
+		});
+		const file = new File(["docx"], "edited.docx", {
+			type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		});
+		const { result } = renderHook(() => useContractSubmissionDetail());
+		await waitFor(() => expect(result.current.isDocxDocument).toBe(true));
+
+		act(() => result.current.sendToPartner());
+		expect(mocks.update).toHaveBeenLastCalledWith({
+			notes: "Existing notes",
+			send_to_partner: true,
+		});
+
+		act(() => result.current.requestDocxUpload(file));
+		expect(result.current.pendingDocxFileName).toBe("edited.docx");
+		expect(mocks.uploadDocx).not.toHaveBeenCalled();
+
+		act(() => result.current.confirmDocxUpload());
+		expect(mocks.uploadDocx).toHaveBeenCalledWith(
+			file,
+			expect.objectContaining({ onSuccess: expect.any(Function) }),
+		);
 	});
 
 	it("initializes editable fields and derives workflow actions", async () => {

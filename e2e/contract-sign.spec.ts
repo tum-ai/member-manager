@@ -51,7 +51,10 @@ test("a partner can sign a contract via the public signing link", async ({
 	await canvas.dispatchEvent("pointermove", at(0.8, 0.6));
 	await canvas.dispatchEvent("pointerup", { button: 0, ...at(0.8, 0.6) });
 
-	const signButton = page.getByRole("button", { name: "Sign", exact: true });
+	const signButton = page.getByRole("button", {
+		name: "Sign contract",
+		exact: true,
+	});
 	await expect(signButton).toBeEnabled();
 	await signButton.click();
 

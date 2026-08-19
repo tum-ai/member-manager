@@ -94,9 +94,20 @@ export async function contractTemplateRoutes(server: FastifyInstance) {
 		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, _reply) => {
 			const body = TemplateBodySchema.parse(request.body);
+			const { data: setting, error: settingError } = await getSupabase()
+				.from("contract_pipeline_settings")
+				.select("new_submission_engine")
+				.eq("singleton", true)
+				.single();
+			if (settingError) throw createContractDatabaseError(settingError);
 			const { data, error } = await getSupabase()
 				.from("contract_templates")
-				.insert(body)
+				.insert({
+					...body,
+					renderer_engine: "legacy_text",
+					is_active:
+						setting.new_submission_engine === "docx" ? false : body.is_active,
+				})
 				.select("*")
 				.single();
 			if (error) {
@@ -112,6 +123,30 @@ export async function contractTemplateRoutes(server: FastifyInstance) {
 		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, reply) => {
 			const body = TemplateBodySchema.partial().parse(request.body);
+			if (body.is_active === true) {
+				const [{ data: setting, error: settingError }, { data: template }] =
+					await Promise.all([
+						getSupabase()
+							.from("contract_pipeline_settings")
+							.select("new_submission_engine")
+							.eq("singleton", true)
+							.single(),
+						getSupabase()
+							.from("contract_templates")
+							.select("active_document_id")
+							.eq("id", request.params.id)
+							.maybeSingle(),
+					]);
+				if (settingError) throw createContractDatabaseError(settingError);
+				if (
+					setting.new_submission_engine === "docx" &&
+					!template?.active_document_id
+				) {
+					return reply.status(409).send({
+						error: "Upload a valid DOCX before activating this template",
+					});
+				}
+			}
 			const { data, error } = await getSupabase()
 				.from("contract_templates")
 				.update({ ...body, updated_at: new Date().toISOString() })

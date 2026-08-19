@@ -54,14 +54,161 @@ export const CONTRACT_REVIEW_STATUSES = [
 
 export type ContractReviewStatus = (typeof CONTRACT_REVIEW_STATUSES)[number];
 
+export const CONTRACT_ARTIFACT_STATUSES = [
+	"queued",
+	"processing",
+	"ready",
+	"failed",
+] as const;
+
+export type ContractArtifactStatus =
+	(typeof CONTRACT_ARTIFACT_STATUSES)[number];
+
+export const CONTRACT_RENDER_OPERATIONS = [
+	"template_preview",
+	"submission_render",
+	"partner_signature",
+	"board_signature",
+	"opensign_ingest",
+] as const;
+
+export type ContractRenderOperation =
+	(typeof CONTRACT_RENDER_OPERATIONS)[number];
+
+export const CONTRACT_RENDERER_ENGINES = ["legacy_text", "docx"] as const;
+export const CONTRACT_DOCUMENT_MODES = CONTRACT_RENDERER_ENGINES;
+
+export type ContractRendererEngine = (typeof CONTRACT_RENDERER_ENGINES)[number];
+export type ContractDocumentMode = ContractRendererEngine;
+
+export const CONTRACT_DOCX_MIME_TYPE =
+	"application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+export const CONTRACT_TEMPLATE_DOCUMENT_BUCKET = "contract-template-documents";
+export const CONTRACT_RENDER_ARTIFACT_BUCKET = "contract-render-artifacts";
+export const MAX_CONTRACT_DOCX_BYTES = 20 * 1024 * 1024;
+
+export const CONTRACT_DERIVED_FORM_DATA_KEYS = [
+	"package_label",
+	"package_amount_eur",
+	"package_amount_label",
+	"package_amount_words",
+	"package_benefits",
+	"package_footnote",
+	"addon_terms",
+	"addon_total_amount_eur",
+	"addon_total_amount_label",
+	"total_amount_eur",
+	"total_amount_label",
+] as const;
+
+export interface ContractPdfAnchor {
+	page: number;
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
+
+export interface ContractPdfAnchorPlacement extends ContractPdfAnchor {
+	role: "partner" | "board";
+}
+
 export interface ContractTemplate {
 	id: string;
 	name: string;
 	description: string | null;
 	contract_text: string;
+	renderer_engine?: ContractRendererEngine;
+	active_document_id?: string | null;
 	is_active: boolean;
 	created_at: string;
 	updated_at: string;
+}
+
+export interface ContractTemplateDocument {
+	id: string;
+	template_id: string;
+	version: number;
+	status: ContractArtifactStatus;
+	source_bucket: string;
+	source_path: string;
+	original_filename: string;
+	source_size_bytes: number;
+	source_sha256: string;
+	preview_bucket: string | null;
+	preview_path: string | null;
+	preview_size_bytes: number | null;
+	preview_sha256: string | null;
+	placeholder_manifest: Record<string, unknown>;
+	validation_issues: unknown[];
+	signature_anchors: unknown[];
+	converter_version: string | null;
+	error_code: string | null;
+	error_message: string | null;
+	uploaded_by_user_id: string | null;
+	activated_at: string | null;
+	created_at: string;
+	updated_at: string;
+}
+
+export interface ContractDocumentVersionArtifact {
+	id: string;
+	submission_id: string;
+	version_number: number;
+	renderer_engine: ContractRendererEngine;
+	template_document_id: string | null;
+	parent_document_version_id: string | null;
+	form_data_snapshot_encrypted: string | null;
+	artifact_status: ContractArtifactStatus;
+	docx_bucket: string | null;
+	docx_path: string | null;
+	docx_size_bytes: number | null;
+	docx_sha256: string | null;
+	pdf_bucket: string | null;
+	pdf_path: string | null;
+	pdf_size_bytes: number | null;
+	pdf_sha256: string | null;
+	page_count: number | null;
+	signature_anchors: ContractPdfAnchorPlacement[];
+	converter_version: string | null;
+	artifact_error_code: string | null;
+	artifact_error_message: string | null;
+	created_at: string;
+}
+
+export interface ContractDocxReadiness {
+	enabled: boolean;
+	ready: boolean;
+	active_docx_templates: number;
+	legacy_templates: number;
+	pending_template_documents: number;
+	failed_template_documents: number;
+	pending_render_jobs: number;
+	failed_render_jobs: number;
+	legacy_submissions_without_pdf: number;
+	reasons: string[];
+}
+
+export interface ContractRenderJob {
+	id: string;
+	document_version_id: string | null;
+	template_document_id: string | null;
+	submission_id: string | null;
+	operation: ContractRenderOperation;
+	status: "queued" | "processing" | "succeeded" | "failed";
+	attempt_count: number;
+	max_attempts: number;
+	encrypted_payload: string;
+	idempotency_key: string;
+	run_after: string;
+	leased_by: string | null;
+	lease_token: string | null;
+	lease_expires_at: string | null;
+	last_error_code: string | null;
+	last_error_message: string | null;
+	created_at: string;
+	updated_at: string;
+	finished_at: string | null;
 }
 
 export interface ContractTemplateVariable {
@@ -103,6 +250,7 @@ export interface ContractTemplateDetail {
 	template: ContractTemplate;
 	variables: ContractTemplateVariable[];
 	blocks: ContractConditionalBlock[];
+	documents?: ContractTemplateDocument[];
 }
 
 export interface RenderedContractDocument {
@@ -130,17 +278,21 @@ export interface PublicContractPartnerComment {
 }
 
 export interface PublicSignPayload {
-	contract_text: string;
-	html: string;
-	pages: string[];
+	contract_text?: string;
+	html?: string;
+	pages?: string[];
+	pdf_url?: string;
+	document_status?: ContractArtifactStatus;
 	status: ContractWorkflowStatus;
 	comments: PublicContractPartnerComment[];
 }
 
 export interface PublicBoardSignPayload {
-	contract_text: string;
-	html: string;
-	pages: string[];
+	contract_text?: string;
+	html?: string;
+	pages?: string[];
+	pdf_url?: string;
+	document_status?: ContractArtifactStatus;
 	status: ContractWorkflowStatus;
 	partner_signer_name: string | null;
 	partner_signature_data: string | null;

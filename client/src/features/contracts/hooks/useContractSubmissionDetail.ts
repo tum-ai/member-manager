@@ -1,19 +1,26 @@
 import type { ContractReviewStatus } from "@member-manager/shared";
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { downloadContractSubmissionPdf } from "@/features/contracts/contractApi";
+import { useToast } from "@/contexts/ToastContext";
+import {
+	downloadContractSubmissionDocx,
+	downloadContractSubmissionPdf,
+} from "@/features/contracts/contractApi";
 import type { ContractSubmissionDetailViewModel } from "@/features/contracts/contractSubmissionDetailTypes";
 import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import { useToolAccess } from "@/hooks/useToolAccess";
+import { useBlobObjectUrl } from "./useBlobObjectUrl";
 import {
 	useBoardSignContractSubmission,
 	useContractStatusEvents,
 	useContractSubmission,
 	useContractSubmissionComments,
+	useContractSubmissionPdf,
 	useContractSubmissionPreview,
 	useCreateContractSubmissionComment,
 	useFinalizeContractSubmission,
 	useUpdateContractSubmission,
+	useUploadContractSubmissionDocx,
 } from "./useContractSubmissions";
 
 const APPROVABLE_STATUSES = [
@@ -35,13 +42,25 @@ const CLARIFICATION_CLOSED_STATUSES = [
 type PartnerSendMethod = "link" | "email" | "opensign";
 
 export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel {
+	const { showToast } = useToast();
 	const { id } = useParams<{ id: string }>();
 	const submissionQuery = useContractSubmission(id);
+	const isDocxDocument = submissionQuery.data?.renderer_engine === "docx";
+	const documentStatus = submissionQuery.data?.document_status ?? null;
+	const storedPdfQuery = useContractSubmissionPdf(
+		id,
+		isDocxDocument &&
+			documentStatus !== "queued" &&
+			documentStatus !== "processing" &&
+			documentStatus !== "failed",
+	);
+	const storedPdfUrl = useBlobObjectUrl(storedPdfQuery.data);
 	const updateMutation = useUpdateContractSubmission(id ?? "");
 	const boardSignMutation = useBoardSignContractSubmission(id ?? "");
 	const finalizeMutation = useFinalizeContractSubmission(id ?? "");
 	const commentsQuery = useContractSubmissionComments(id);
 	const createCommentMutation = useCreateContractSubmissionComment(id ?? "");
+	const uploadDocxMutation = useUploadContractSubmissionDocx(id ?? "");
 	const statusEventsQuery = useContractStatusEvents(id);
 
 	const [editedText, setEditedText] = useState("");
@@ -57,13 +76,18 @@ export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel
 	const [partnerEmailMessage, setPartnerEmailMessage] = useState("");
 	const [downloadError, setDownloadError] = useState<string | null>(null);
 	const [downloading, setDownloading] = useState(false);
+	const [docxDownloading, setDocxDownloading] = useState(false);
+	const [docxDownloadError, setDocxDownloadError] = useState<string | null>(
+		null,
+	);
+	const [pendingDocxFile, setPendingDocxFile] = useState<File | null>(null);
 	const [pendingResendMethod, setPendingResendMethod] =
 		useState<PartnerSendMethod | null>(null);
 	const { currentUserId, isAdmin } = useCurrentUserIsAdmin();
 	const { permissions, isBoardMember } = useToolAccess();
 	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
 	const previewQuery = useContractSubmissionPreview(
-		isContractsAdmin ? id : undefined,
+		isContractsAdmin && !isDocxDocument ? id : undefined,
 		editedText,
 	);
 
@@ -94,6 +118,7 @@ export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel
 		boardSignMutation.isPending ||
 		finalizeMutation.isPending ||
 		createCommentMutation.isPending;
+	const busyWithDocx = busy || uploadDocxMutation.isPending;
 	const actionError =
 		updateMutation.error ??
 		boardSignMutation.error ??
@@ -109,11 +134,13 @@ export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel
 	// Sending requires explicit approval. A sent contract can be sent through a
 	// different channel after explicit confirmation.
 	const canSendToPartner =
-		submission?.status === "approved" ||
-		submission?.status === "partner_comments" ||
-		submission?.status === "sent_to_partner";
+		(!isDocxDocument || documentStatus === "ready") &&
+		(submission?.status === "approved" ||
+			submission?.status === "partner_comments" ||
+			submission?.status === "sent_to_partner");
 	const canApprove = submission
-		? APPROVABLE_STATUSES.includes(submission.status)
+		? APPROVABLE_STATUSES.includes(submission.status) &&
+			(!isDocxDocument || documentStatus === "ready")
 		: false;
 	// Nr.7: clarification is closed once approved (or further along).
 	const canRequestClarification = submission
@@ -144,11 +171,25 @@ export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel
 		}
 	}
 
+	async function downloadDocx(): Promise<void> {
+		if (!id) return;
+		setDocxDownloadError(null);
+		setDocxDownloading(true);
+		try {
+			await downloadContractSubmissionDocx(id);
+		} catch (error) {
+			setDocxDownloadError(
+				error instanceof Error ? error.message : "DOCX download failed",
+			);
+		} finally {
+			setDocxDownloading(false);
+		}
+	}
+
 	function sendToPartner(method: PartnerSendMethod): void {
-		const common = {
-			admin_edited_text: editedText,
-			notes,
-		};
+		const common = isDocxDocument
+			? { notes }
+			: { admin_edited_text: editedText, notes };
 		if (method === "email") {
 			updateMutation.mutate({
 				...common,
@@ -196,7 +237,17 @@ export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel
 		isBoardMember,
 		previewPages: previewQuery.data?.pages,
 		previewLoading: previewQuery.isLoading || previewQuery.isFetching,
-		busy,
+		isDocxDocument,
+		documentStatus,
+		storedPdfUrl,
+		storedPdfLoading: storedPdfQuery.isLoading || storedPdfQuery.isFetching,
+		storedPdfError: storedPdfQuery.error,
+		docxDownloading,
+		docxDownloadError,
+		docxUploadPending: uploadDocxMutation.isPending,
+		docxUploadError: uploadDocxMutation.error,
+		pendingDocxFileName: pendingDocxFile?.name ?? null,
+		busy: busyWithDocx,
 		actionError,
 		comments,
 		commentsLoading: commentsQuery.isLoading,
@@ -237,11 +288,22 @@ export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel
 		},
 		cancelResend: () => setPendingResendMethod(null),
 		saveChanges: () =>
-			updateMutation.mutate({
-				admin_edited_text: editedText,
-				notes,
-			}),
+			updateMutation.mutate(
+				isDocxDocument ? { notes } : { admin_edited_text: editedText, notes },
+			),
 		downloadPdf,
+		downloadDocx,
+		requestDocxUpload: setPendingDocxFile,
+		cancelDocxUpload: () => setPendingDocxFile(null),
+		confirmDocxUpload: () => {
+			if (!pendingDocxFile) return;
+			uploadDocxMutation.mutate(pendingDocxFile, {
+				onSuccess: () => {
+					setPendingDocxFile(null);
+					showToast("Edited DOCX uploaded. PDF conversion started.", "success");
+				},
+			});
+		},
 		sendToPartner: () => requestPartnerSend("link"),
 		sendEmailToPartner: () => requestPartnerSend("email"),
 		sendWithOpenSign: () => requestPartnerSend("opensign"),

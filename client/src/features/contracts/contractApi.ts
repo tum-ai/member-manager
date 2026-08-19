@@ -22,6 +22,11 @@ async function requestPublicContract(
 	return response;
 }
 
+async function requestPublicContractBlob(endpoint: string): Promise<Blob> {
+	const response = await requestPublicContract(endpoint);
+	return response.blob();
+}
+
 function publicJsonRequest(body: unknown): RequestInit {
 	return {
 		method: "POST",
@@ -48,6 +53,13 @@ export async function downloadContractSubmissionPdf(
 	saveBlob(blob, `contract-${submissionId}.pdf`);
 }
 
+export async function downloadContractSubmissionDocx(
+	submissionId: string,
+): Promise<void> {
+	const blob = await apiBlob(`/api/contracts/submissions/${submissionId}/docx`);
+	saveBlob(blob, `contract-${submissionId}.docx`);
+}
+
 export async function fetchPublicSignPayload(
 	token: string,
 ): Promise<PublicSignPayload> {
@@ -55,6 +67,12 @@ export async function fetchPublicSignPayload(
 		`/api/contracts/sign/${encodeURIComponent(token)}`,
 	);
 	return response.json();
+}
+
+export function fetchPublicSignPdf(token: string): Promise<Blob> {
+	return requestPublicContractBlob(
+		`/api/contracts/sign/${encodeURIComponent(token)}/pdf`,
+	);
 }
 
 export async function postPublicSignature(
@@ -84,6 +102,12 @@ export async function fetchPublicBoardSignPayload(
 		`/api/contracts/board-sign/${encodeURIComponent(token)}`,
 	);
 	return response.json();
+}
+
+export function fetchPublicBoardSignPdf(token: string): Promise<Blob> {
+	return requestPublicContractBlob(
+		`/api/contracts/board-sign/${encodeURIComponent(token)}/pdf`,
+	);
 }
 
 export async function postPublicBoardSignature(

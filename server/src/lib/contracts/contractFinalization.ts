@@ -3,6 +3,7 @@ import {
 	sendContractPartnerEmail,
 } from "../contractEmails.js";
 import { getSupabase } from "../supabase.js";
+import { decryptContractJson } from "./contractArtifactCrypto.js";
 import {
 	buildSignedDocumentText,
 	getPartnerCompanyNameFromSubmission,
@@ -20,6 +21,38 @@ export async function prepareFinalDocument(
 	submissionId: string,
 	current: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
+	if (current.renderer_engine === "docx") {
+		const versionId = current.active_document_version_id;
+		if (typeof versionId !== "string") {
+			throw new Error("Ready DOCX contract version is missing");
+		}
+		const { data: version, error: versionError } = await getSupabase()
+			.from("contract_document_versions")
+			.select("id, renderer_engine, artifact_status")
+			.eq("id", versionId)
+			.maybeSingle();
+		if (versionError) throw versionError;
+		if (
+			version?.renderer_engine !== "docx" ||
+			version.artifact_status !== "ready"
+		) {
+			throw new Error("Ready DOCX contract version is missing");
+		}
+		const { data, error } = await getSupabase()
+			.from("contract_submissions")
+			.update({
+				final_pdf_token: current.final_pdf_token ?? generateSignatureToken(),
+				final_document_version_id: version.id,
+				active_document_version_id: version.id,
+				updated_at: new Date().toISOString(),
+			})
+			.eq("id", submissionId)
+			.select("*")
+			.single();
+		if (error) throw error;
+		return data as Record<string, unknown>;
+	}
+
 	let baseVersion = await fetchDocumentVersion(
 		current.active_document_version_id ?? current.sent_document_version_id,
 	);
@@ -104,7 +137,16 @@ export async function maybeAutoSendAfterBoardSign(args: {
 			return;
 		}
 
-		const partnerEmail = getPartnerEmailFromSubmission(submission);
+		const hydratedSubmission = { ...submission };
+		if (
+			hydratedSubmission.renderer_engine === "docx" &&
+			typeof hydratedSubmission.form_data_encrypted === "string"
+		) {
+			hydratedSubmission.form_data = decryptContractJson(
+				hydratedSubmission.form_data_encrypted,
+			);
+		}
+		const partnerEmail = getPartnerEmailFromSubmission(hydratedSubmission);
 		if (!isContractEmailConfigured() || !partnerEmail) {
 			args.request.log.warn(
 				{
@@ -116,9 +158,12 @@ export async function maybeAutoSendAfterBoardSign(args: {
 			return;
 		}
 
-		const prepared = await prepareFinalDocument(args.submissionId, submission);
+		const prepared = await prepareFinalDocument(
+			args.submissionId,
+			hydratedSubmission,
+		);
 		const partnerCompany =
-			getPartnerCompanyNameFromSubmission(submission) || "Partner";
+			getPartnerCompanyNameFromSubmission(hydratedSubmission) || "Partner";
 		const finalPdfUrl = `${getAppBaseUrl(args.request)}/api/contracts/final/${String(prepared.final_pdf_token)}/pdf`;
 		try {
 			await sendContractPartnerEmail({
