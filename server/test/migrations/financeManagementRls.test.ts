@@ -397,6 +397,7 @@ test("finance project scope changes reject linked records", {
 			p_target_amount: 0,
 			p_status: "active",
 			p_description: null,
+			p_sub_team: null,
 			...overrides,
 		});
 
@@ -489,6 +490,7 @@ test("finance project parent updates serialize cycle validation", {
 			p_target_amount: 0,
 			p_status: "active",
 			p_description: null,
+			p_sub_team: null,
 		});
 
 	try {
@@ -695,6 +697,9 @@ test("finance RPCs preserve scoped matches and reject stale mutations", {
 				p_expected_month: null,
 				p_status: "planned",
 				p_note: null,
+				p_project_id: null,
+				p_is_active: true,
+				p_vat_rate: null,
 			},
 		);
 		assert.match(
@@ -713,6 +718,9 @@ test("finance RPCs preserve scoped matches and reject stale mutations", {
 				p_expected_month: null,
 				p_status: "planned",
 				p_note: null,
+				p_project_id: null,
+				p_is_active: true,
+				p_vat_rate: null,
 			},
 		);
 		assert.match(

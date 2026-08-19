@@ -1,5 +1,6 @@
 import type {
 	BuchhaltungsButlerTransaction,
+	FinanceAccountLabel,
 	FinanceDepartmentMapping,
 	FinanceManagedPlanItem,
 	FinancePeriodType,
@@ -8,14 +9,19 @@ import type {
 	FinanceProject,
 	FinanceTAccountGroup,
 	FinanceTAccountLine,
+	FinanceTAccountPlanDetail,
+	FinanceTAccountPostingDetail,
 	FinanceTAccountResponse,
 	FinanceTAccountSaldo,
+	FinanceTAccountVat,
 } from "@member-manager/shared";
 import { FinanceTAccountResponseSchema } from "@member-manager/shared";
+import { accountKey, buildAccountLookup } from "./financeAccounts.js";
 import {
 	buildEffectivePostingSplits,
 	buildMappingLookup,
 	type EffectivePostingSplit,
+	type ResolvedDepartmentMapping,
 	resolveCostLocationSubTeam,
 } from "./financeDepartments.js";
 import { embeddedVat } from "./financeVat.js";
@@ -75,19 +81,83 @@ function postingLabel(posting: BuchhaltungsButlerTransaction): string {
 	return posting.external_id;
 }
 
-function actualLine(split: MergedSplit): FinanceTAccountLine {
-	const magnitude = Math.abs(split.amount);
+function blankOrNull(value: string | undefined): string | null {
+	const trimmed = (value ?? "").trim();
+	return trimmed === "" ? null : trimmed;
+}
+
+// Everything the expanded row of a booked invoice shows (FR-K2). Built inline
+// here because the postings, allocations, matches and labels are all already in
+// memory — opening a row must not cost a round-trip (FR-K3).
+function postingDetail(
+	split: MergedSplit,
+	context: LineContext,
+): FinanceTAccountPostingDetail {
+	const posting = split.posting;
+	const account = accountKey(posting);
+	return {
+		booking_date: posting.date,
+		invoice_number: blankOrNull(posting.receipts_assigned_invoice_numbers),
+		// BB has no dedicated counterparty field; the posting text is the closest
+		// thing, and the purpose carries the rest.
+		counterparty: blankOrNull(posting.postingtext),
+		purpose: blankOrNull(posting.transaction_purpose),
+		currency: posting.currency,
+		posting_amount: posting.transaction_amount,
+		debit_account: blankOrNull(posting.debit_postingaccount_number),
+		credit_account: blankOrNull(posting.credit_postingaccount_number),
+		account_label: context.accountLookup.get(account)?.label ?? null,
+		cost_location: blankOrNull(posting.cost_location),
+		sub_team: resolveCostLocationSubTeam(
+			posting.cost_location,
+			context.mappingLookup,
+			context.department,
+		),
+		allocations: context.allocationsByPosting.get(posting.external_id) ?? [],
+		matches: context.matchesByPosting.get(posting.external_id) ?? [],
+	};
+}
+
+function actualLine(
+	split: MergedSplit,
+	context: LineContext,
+): FinanceTAccountLine {
+	const magnitude = round(Math.abs(split.amount));
+	const vatRate = split.posting.vat > 0 ? split.posting.vat : null;
+	const vatAmount = round(embeddedVat(split.amount, split.posting.vat));
 	return {
 		kind: "actual",
 		direction: split.amount < 0 ? "expense" : "income",
 		label: postingLabel(split.posting),
 		category: normalizeCategory(split.posting.cost_location_two),
 		project_id: split.projectId,
-		amount: round(magnitude),
-		vat_amount: round(embeddedVat(split.amount, split.posting.vat)),
+		amount: magnitude,
+		vat_amount: vatAmount,
+		vat_rate: vatRate,
+		net_amount: round(magnitude - vatAmount),
 		status: null,
 		posting_external_id: split.posting.external_id,
 		plan_item_id: null,
+		posting_detail: postingDetail(split, context),
+		plan_detail: null,
+	};
+}
+
+function planDetail(
+	item: FinanceManagedPlanItem,
+	matchedAmount: number,
+	matches: FinancePlanItemPostingMatch[],
+): FinanceTAccountPlanDetail {
+	return {
+		expected_month: item.expected_month,
+		note: item.note,
+		planned_amount: round(item.planned_amount),
+		matched_amount: round(matchedAmount),
+		// Positive = the invoices that arrived exceed what was planned.
+		delta: round(matchedAmount - item.planned_amount),
+		is_active: item.is_active !== false,
+		vat_rate: item.vat_rate ?? null,
+		matches,
 	};
 }
 
@@ -97,19 +167,43 @@ function actualLine(split: MergedSplit): FinanceTAccountLine {
 function planLine(
 	item: FinanceManagedPlanItem,
 	plannedAmount: number,
+	matchedAmount: number,
+	matches: FinancePlanItemPostingMatch[],
 ): FinanceTAccountLine {
+	const amount = round(plannedAmount);
+	// A planned VAT rate is optional (FR-N5); without one the planned VAT stays
+	// null rather than pretending the item is zero-rated.
+	const vatRate = item.vat_rate ?? null;
+	const vatAmount =
+		vatRate !== null && vatRate > 0
+			? round(embeddedVat(amount, vatRate))
+			: null;
 	return {
 		kind: "plan",
 		direction: item.direction ?? "expense",
 		label: item.label,
 		category: item.category,
 		project_id: item.project_id ?? null,
-		amount: round(plannedAmount),
-		vat_amount: null,
+		amount,
+		vat_amount: vatAmount,
+		vat_rate: vatRate,
+		net_amount: round(amount - (vatAmount ?? 0)),
 		status: item.status,
 		posting_external_id: null,
 		plan_item_id: item.id,
+		posting_detail: null,
+		plan_detail: planDetail(item, matchedAmount, matches),
 	};
+}
+
+// The lookups a line needs to describe itself, threaded through instead of
+// rebuilt per line.
+interface LineContext {
+	department: string;
+	mappingLookup: Map<string, ResolvedDepartmentMapping>;
+	accountLookup: ReturnType<typeof buildAccountLookup>;
+	allocationsByPosting: Map<string, FinancePostingAllocation[]>;
+	matchesByPosting: Map<string, FinancePlanItemPostingMatch[]>;
 }
 
 interface GroupAccumulator {
@@ -144,6 +238,29 @@ function saldo(income: number, expenses: number): FinanceTAccountSaldo {
 	};
 }
 
+// Σ VAT for one column, split booked vs still-planned (FR-N3). Expenses carry
+// Vorsteuer, income Umsatzsteuer — the caller decides which column it is asking
+// about, so this stays direction-agnostic.
+function columnVat(lines: FinanceTAccountLine[]): FinanceTAccountVat {
+	let actual = 0;
+	let plan = 0;
+	for (const line of lines) {
+		const vat = line.vat_amount ?? 0;
+		if (line.kind === "actual") {
+			actual += vat;
+		} else if (countsTowardPlan(line)) {
+			plan += vat;
+		}
+	}
+	return { actual: round(actual), plan: round(plan) };
+}
+
+// A disabled Planposten is parked, not planned: it stays on screen but must not
+// move the Plan-Saldo or the forecast (FR-M3). Booked lines are never affected.
+function countsTowardPlan(line: FinanceTAccountLine): boolean {
+	return line.kind === "actual" || line.plan_detail?.is_active !== false;
+}
+
 function groupSaldi(group: GroupAccumulator): {
 	actual: FinanceTAccountSaldo;
 	plan: FinanceTAccountSaldo;
@@ -154,11 +271,11 @@ function groupSaldi(group: GroupAccumulator): {
 	let planExpenses = 0;
 	for (const line of group.incomeLines) {
 		if (line.kind === "actual") actualIncome += line.amount;
-		planIncome += line.amount;
+		if (countsTowardPlan(line)) planIncome += line.amount;
 	}
 	for (const line of group.expenseLines) {
 		if (line.kind === "actual") actualExpenses += line.amount;
-		planExpenses += line.amount;
+		if (countsTowardPlan(line)) planExpenses += line.amount;
 	}
 	return {
 		// `plan` deliberately includes the actual lines: it is the projected
@@ -181,6 +298,10 @@ export function buildFinanceTAccount(input: {
 	planItems: FinanceManagedPlanItem[];
 	matches: FinancePlanItemPostingMatch[];
 	projects: FinanceProject[];
+	// Human labels for the SKR accounts shown in an expanded posting. Purely
+	// cosmetic, so it is optional: without it a detail panel shows the bare
+	// account number rather than failing to build.
+	accountLabels?: FinanceAccountLabel[];
 	source: "mock" | "real";
 	generatedAt: string;
 }): FinanceTAccountResponse {
@@ -194,6 +315,33 @@ export function buildFinanceTAccount(input: {
 	);
 
 	const mappingLookup = buildMappingLookup(input.mappings);
+
+	const allocationsByPosting = new Map<string, FinancePostingAllocation[]>();
+	for (const allocation of input.allocations) {
+		const existing =
+			allocationsByPosting.get(allocation.posting_external_id) ?? [];
+		existing.push(allocation);
+		allocationsByPosting.set(allocation.posting_external_id, existing);
+	}
+
+	const matchesByPosting = new Map<string, FinancePlanItemPostingMatch[]>();
+	const matchesByPlanItem = new Map<string, FinancePlanItemPostingMatch[]>();
+	for (const match of input.matches) {
+		const byPosting = matchesByPosting.get(match.posting_external_id) ?? [];
+		byPosting.push(match);
+		matchesByPosting.set(match.posting_external_id, byPosting);
+		const byItem = matchesByPlanItem.get(match.plan_item_id) ?? [];
+		byItem.push(match);
+		matchesByPlanItem.set(match.plan_item_id, byItem);
+	}
+
+	const lineContext: LineContext = {
+		department: input.department,
+		mappingLookup,
+		accountLookup: buildAccountLookup(input.accountLabels ?? []),
+		allocationsByPosting,
+		matchesByPosting,
+	};
 
 	const groups = new Map<string, GroupAccumulator>();
 	// A group is a project, else a named sub-team, else the ungrouped bucket.
@@ -217,9 +365,16 @@ export function buildFinanceTAccount(input: {
 	// Always emit the ungrouped bucket and every department project as a folder.
 	ensureGroup(null, null);
 	for (const project of input.projects) {
-		if (project.department === input.department) {
-			ensureGroup(project.id, null);
+		if (project.department !== input.department) {
+			continue;
 		}
+		// A project that declares a sub-team needs that sub-team folder to exist
+		// even when no posting maps into it directly, or the project would have
+		// nowhere to hang (FR-L4).
+		if (project.sub_team) {
+			ensureGroup(null, project.sub_team);
+		}
+		ensureGroup(project.id, project.sub_team);
 	}
 
 	for (const split of merged) {
@@ -234,7 +389,10 @@ export function buildFinanceTAccount(input: {
 					mappingLookup,
 					input.department,
 				);
-		addLine(ensureGroup(split.projectId, subTeam), actualLine(split));
+		addLine(
+			ensureGroup(split.projectId, subTeam),
+			actualLine(split, lineContext),
+		);
 	}
 
 	// Postings matched to a plan item are already booked and appear as actual
@@ -251,15 +409,22 @@ export function buildFinanceTAccount(input: {
 		if (item.department !== input.department) {
 			continue;
 		}
-		const remaining = round(
-			item.planned_amount - (matchedByPlanItem.get(item.id) ?? 0),
-		);
-		if (remaining <= 0) {
+		const matched = matchedByPlanItem.get(item.id) ?? 0;
+		const remaining = round(item.planned_amount - matched);
+		// A disabled Planposten still renders (muted, FR-M3) so it can be
+		// re-enabled from the T-view, so it is emitted even with nothing open —
+		// `groupSaldi` is what keeps it out of the totals.
+		if (remaining <= 0 && item.is_active !== false) {
 			continue;
 		}
 		addLine(
 			ensureGroup(item.project_id ?? null, null),
-			planLine(item, remaining),
+			planLine(
+				item,
+				Math.max(remaining, 0),
+				matched,
+				matchesByPlanItem.get(item.id) ?? [],
+			),
 		);
 	}
 
@@ -273,17 +438,23 @@ export function buildFinanceTAccount(input: {
 				? projectById.get(group.projectId)
 				: undefined;
 			const saldi = groupSaldi(group);
+			const expenseLines = sortLines(group.expenseLines);
+			const incomeLines = sortLines(group.incomeLines);
 			return {
 				project_id: group.projectId,
 				// Projects show their name; sub-team groups reuse `project_name` as
 				// their folder label (project_id stays null → not a project).
 				project_name: project?.name ?? group.subTeam ?? null,
 				parent_project_id: project?.parent_project_id ?? null,
+				sub_team: group.subTeam,
+				is_sub_team: group.projectId === null && group.subTeam !== null,
 				target_amount: project?.target_amount ?? null,
-				expense_lines: sortLines(group.expenseLines),
-				income_lines: sortLines(group.incomeLines),
+				expense_lines: expenseLines,
+				income_lines: incomeLines,
 				actual: saldi.actual,
 				plan: saldi.plan,
+				vorsteuer: columnVat(expenseLines),
+				umsatzsteuer: columnVat(incomeLines),
 			};
 		})
 		// The true "Direkt zugeordnet" bucket (no project, no sub-team) first, then
@@ -308,12 +479,8 @@ export function buildFinanceTAccount(input: {
 	let vatIncome = 0;
 	let vatExpenses = 0;
 	for (const group of built) {
-		for (const line of group.income_lines) {
-			if (line.kind === "actual") vatIncome += line.vat_amount ?? 0;
-		}
-		for (const line of group.expense_lines) {
-			if (line.kind === "actual") vatExpenses += line.vat_amount ?? 0;
-		}
+		vatIncome += group.umsatzsteuer.actual;
+		vatExpenses += group.vorsteuer.actual;
 	}
 
 	return FinanceTAccountResponseSchema.parse({
@@ -326,6 +493,9 @@ export function buildFinanceTAccount(input: {
 			plan: saldo(totals.planIncome, totals.planExpenses),
 			vat_income: round(vatIncome),
 			vat_expenses: round(vatExpenses),
+			// What the department owes the tax office: output tax collected on
+			// income minus reclaimable input tax on expenses (FR-N3).
+			vat_payload: round(vatIncome - vatExpenses),
 		},
 		source: input.source,
 		generated_at: input.generatedAt,
