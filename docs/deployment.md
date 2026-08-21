@@ -53,14 +53,17 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `CORS_ORIGIN` | `https://<prod-domain>` | comma-separate if multiple; required for production, previews derive their Vercel URL automatically if unset |
 | `APP_BASE_URL` | `https://<prod-domain>` | canonical app URL for Slack actions and contract signing/final PDF links |
 | `SLACK_SIGNING_SECRET` | Slack signing secret | required for Slack approve / approve-and-sync interactions |
-| `CRON_SECRET` | strong random bearer secret | required for Vercel Cron calls to `/api/tum-ai-days/send-pending` |
+| `CRON_SECRET` | strong random bearer secret | required for Vercel Cron calls, including contract render jobs |
 | `RSVP_TARGET_EMAILS` | comma-separated target emails | required before scheduled TUM.ai Days Slack DMs are sent; `TEST_RSVP_EMAIL` can restrict to one test recipient |
 | `RESEND_API_KEY` | Resend API key | required to send partner contract signing-link emails |
 | `CONTRACT_EMAIL_FROM` | verified sender, e.g. `contracts@tum-ai.com` | required with `RESEND_API_KEY`; must be accepted by Resend |
+| `CONTRACT_DOCX_CONVERTER_MODE` | `sandbox` | required for the production DOCX workflow; `fake` is rejected in production |
+| `CONTRACT_LIBREOFFICE_SANDBOX_IMAGE` | immutable VCR image digest | required for DOCX to PDF conversion; use the pushed VCR image reference ending in `@sha256:<64 hex characters>` |
 | `OPENSIGN_API_TOKEN` | OpenSign API token | required to send reviewed contracts through hosted OpenSign |
 | `OPENSIGN_BASE_URL` | `https://eu-app.opensignlabs.com/api/v1.2` | optional override; set explicitly if the OpenSign account uses a different host |
 | `OPENSIGN_WEBHOOK_SECRET` | strong random shared secret | required for `/api/webhooks/opensign`; must match the webhook secret configured in OpenSign |
 | `OPENSIGN_WIDGETS_JSON` | JSON widget array | optional; leave unset for default signature/date placement until final template positions are verified |
+| `OPENSIGN_FILE_HOSTS` | comma separated hostnames | optional; only needed when a self hosted OpenSign stores signed PDFs outside its API hostname |
 | `PARTNER_PORTAL_JOBS_API_URL` | Partner Portal `/api/public/v1/jobs` URL, e.g. `https://partners.tum-ai.com/api/public/v1/jobs` | optional; enables Partner Portal jobs on the member job board and pending Partner Portal requests in the admin job queue |
 | `PARTNER_PORTAL_JOBS_API_TOKEN` | shared Member Manager jobs API token | optional with the URL; must match Partner Portal `MM_API_TOKEN` for both approved-job reads and pending-request review; this is separate from `PARTNER_EXPORT_TOKEN` |
 | `PARTNER_PORTAL_API_URL` | Partner Portal origin, e.g. `https://partners.tum-ai.com` | optional preferred base URL for partner management; falls back to the origin of `PARTNER_PORTAL_JOBS_API_URL` |

@@ -14,8 +14,6 @@ function adminSubmissionFixture(): Record<string, unknown> {
 		template_id: "template-1",
 		submitter_user_id: "user-1",
 		form_data: { partner_name: "Partner GmbH" },
-		generated_contract_text: "Contract",
-		admin_edited_text: null,
 		status: "legal_review",
 		notes: "Internal",
 		auto_send_after_board_signed: false,

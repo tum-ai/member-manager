@@ -27,9 +27,13 @@ export async function apiClient<T = any>(
 	} = await supabase.auth.getSession();
 	const token = session?.access_token;
 	const hasBody = options.body !== undefined && options.body !== null;
+	const hasFormDataBody =
+		typeof FormData !== "undefined" && options.body instanceof FormData;
 
 	const headers: HeadersInit = {
-		...(hasBody ? { "Content-Type": "application/json" } : {}),
+		...(hasBody && !hasFormDataBody
+			? { "Content-Type": "application/json" }
+			: {}),
 		...(token ? { Authorization: `Bearer ${token}` } : {}),
 		...options.headers,
 	};

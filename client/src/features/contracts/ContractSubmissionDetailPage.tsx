@@ -3,12 +3,12 @@ import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { ContractSubmissionActionsSection } from "./components/ContractSubmissionActionsSection";
 import { ContractSubmissionCommentsSection } from "./components/ContractSubmissionCommentsSection";
 import { ContractSubmissionDetailSkeleton } from "./components/ContractSubmissionDetailSkeleton";
+import { ContractSubmissionDocxSection } from "./components/ContractSubmissionDocxSection";
 import { ContractSubmissionSignatureSections } from "./components/ContractSubmissionSignatureSections";
 import {
 	ContractSubmissionFormDataSection,
 	ContractSubmissionStatusSection,
 } from "./components/ContractSubmissionSummarySections";
-import { ContractSubmissionTextSection } from "./components/ContractSubmissionTextSection";
 import { useContractSubmissionDetail } from "./hooks/useContractSubmissionDetail";
 
 export default function ContractSubmissionDetailPage(): JSX.Element {
@@ -35,7 +35,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	return (
 		<ToolPageShell
 			title={detail.title}
-			description="Review, edit and progress this contract through the workflow."
+			description="Review the stored PDF and progress this contract through the workflow."
 		>
 			<ContractSubmissionStatusSection
 				submission={submission}
@@ -51,16 +51,16 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 					submission={submission}
 					formEntries={detail.formEntries}
 				/>
-				<ContractSubmissionTextSection
-					submission={submission}
-					isContractsAdmin={detail.isContractsAdmin}
-					editedText={detail.editedText}
-					notes={detail.notes}
-					previewPages={detail.previewPages}
-					previewLoading={detail.previewLoading}
-					onEditedTextChange={detail.setEditedText}
-					onNotesChange={detail.setNotes}
-				/>
+				{detail.isDocxDocument ? (
+					<ContractSubmissionDocxSection detail={detail} />
+				) : (
+					<Alert>
+						<AlertDescription>
+							This historical contract uses a retired document engine and is
+							read only. New contracts use DOCX files and stored PDFs.
+						</AlertDescription>
+					</Alert>
+				)}
 				<ContractSubmissionActionsSection
 					submission={submission}
 					detail={detail}

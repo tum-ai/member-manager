@@ -21,8 +21,7 @@ function createDetail(): ContractSubmissionDetailViewModel {
 		id: "submission-123456789",
 		submitter_user_id: "submitter-1",
 		form_data: { partner_company_name: "Example GmbH" },
-		generated_contract_text: "Contract body",
-		admin_edited_text: null,
+		renderer_engine: "docx",
 		status: "submitted",
 		notes: null,
 		feedback_message: null,
@@ -40,7 +39,7 @@ function createDetail(): ContractSubmissionDetailViewModel {
 		submissionLoading: false,
 		submissionError: null,
 		title: "Submission submissio…",
-		editedText: "Contract body",
+		editedText: "",
 		notes: "",
 		clarificationMessage: "",
 		rejectReason: "",
@@ -53,8 +52,16 @@ function createDetail(): ContractSubmissionDetailViewModel {
 		downloading: false,
 		isContractsAdmin: false,
 		isBoardMember: false,
-		previewPages: undefined,
-		previewLoading: false,
+		isDocxDocument: true,
+		documentStatus: "ready",
+		storedPdfUrl: null,
+		storedPdfLoading: false,
+		storedPdfError: null,
+		docxDownloading: false,
+		docxDownloadError: null,
+		docxUploadPending: false,
+		docxUploadError: null,
+		pendingDocxFileName: null,
 		busy: false,
 		actionError: null,
 		comments: [],
@@ -87,6 +94,10 @@ function createDetail(): ContractSubmissionDetailViewModel {
 		cancelResend: noop,
 		saveChanges: noop,
 		downloadPdf: noopAsync,
+		downloadDocx: noopAsync,
+		requestDocxUpload: noop,
+		cancelDocxUpload: noop,
+		confirmDocxUpload: noop,
 		sendToPartner: noop,
 		sendEmailToPartner: noop,
 		sendWithOpenSign: noop,
@@ -114,7 +125,7 @@ describe("ContractSubmissionDetailPage", () => {
 			screen.getByRole("heading", { name: "Submission submissio…" }),
 		).toBeInTheDocument();
 		expect(screen.getByText("Example GmbH")).toBeInTheDocument();
-		expect(screen.getByText("Contract body")).toBeInTheDocument();
+		expect(screen.getByText("Editable DOCX")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "Download PDF" })).toBeEnabled();
 		expect(screen.getByText("No partner comments yet.")).toBeInTheDocument();
 	});

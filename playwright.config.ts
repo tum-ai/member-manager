@@ -91,6 +91,7 @@ export default defineConfig({
 					? "true"
 					: "false",
 				BB_USE_REAL_API: USE_REAL_BB_POSTINGS ? "1" : "0",
+				CONTRACT_DOCX_CONVERTER_MODE: "fake",
 				PORT: SERVER_PORT,
 			},
 		},

@@ -16,7 +16,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
-import { ContractDocumentPreview } from "./ContractDocumentPreview";
 import { DynamicForm, isVisible } from "./DynamicForm";
 import {
 	useContractSubmission,
@@ -24,7 +23,6 @@ import {
 	useUpdateContractDraft,
 } from "./hooks/useContractSubmissions";
 import {
-	useContractPreview,
 	useContractTemplate,
 	useContractTemplates,
 } from "./hooks/useContractTemplates";
@@ -67,8 +65,6 @@ export default function ContractFormPage(): JSX.Element {
 
 	const detailQuery = useContractTemplate(selectedId || undefined);
 	const [formData, setFormData] = useState<Record<string, unknown>>({});
-	const previewQuery = useContractPreview(selectedId || undefined, formData);
-
 	const missingRequired = useMemo(() => {
 		if (!detailQuery.data) return [];
 		return detailQuery.data.variables
@@ -253,29 +249,15 @@ export default function ContractFormPage(): JSX.Element {
 								) : null}
 							</GlassCard>
 							<GlassCard className="relative min-w-0 overflow-hidden p-0 lg:sticky lg:top-6 lg:self-start">
-								<span className="pointer-events-none absolute top-3 left-3 z-10 rounded-md border bg-background/85 px-2 py-1 text-xs font-medium text-muted-foreground backdrop-blur-sm">
-									Preview
-								</span>
-								{previewQuery.error ? (
-									<Alert variant="destructive" className="m-4 w-auto">
-										<AlertDescription>
-											{(previewQuery.error as Error).message}
-										</AlertDescription>
-									</Alert>
-								) : null}
-								<ContractDocumentPreview
-									pages={previewQuery.data?.pages}
-									loading={previewQuery.isLoading || previewQuery.isFetching}
-									// On mobile let the preview grow to its full height and
-									// scroll with the page — a fixed-height inner scroll box
-									// nested in the scrolling page traps touch gestures on iOS.
-									// Desktop keeps the constrained, sticky scroll.
-									maxHeight={{
-										xs: "none",
-										lg: "calc(100vh - 130px)",
-									}}
-									minHeight={{ xs: 420, lg: "calc(100vh - 130px)" }}
-								/>
+								<div className="grid min-h-[420px] place-items-center p-8 text-center">
+									<div className="max-w-sm space-y-2">
+										<p className="font-semibold">DOCX PDF preview</p>
+										<p className="text-sm text-muted-foreground">
+											The PDF is generated and stored after you submit this
+											form. You can review it on the submission page.
+										</p>
+									</div>
+								</div>
 							</GlassCard>
 						</div>
 					) : null}

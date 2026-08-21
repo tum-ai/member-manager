@@ -8,11 +8,16 @@ import type {
 	ContractSubmissionInput,
 	ContractSubmissionSummary,
 	ContractSubmissionUpdateInput,
-	RenderedContractDocument,
 } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { contractQueryKeys } from "@/features/contracts/contractQueryKeys";
-import { apiClient } from "@/lib/apiClient";
+import { apiBlob, apiClient } from "@/lib/apiClient";
+
+function hasPendingDocument(submission: unknown): boolean {
+	if (!submission || typeof submission !== "object") return false;
+	const status = (submission as Record<string, unknown>).document_status;
+	return status === "queued" || status === "processing";
+}
 
 function useInvalidateSubmission(submissionId: string) {
 	const queryClient = useQueryClient();
@@ -43,10 +48,38 @@ export function useContractSubmission(submissionId: string | undefined) {
 	return useQuery({
 		queryKey: contractQueryKeys.submission(submissionId),
 		enabled: Boolean(submissionId),
+		refetchInterval: (query) =>
+			hasPendingDocument(query.state.data) ? 2_000 : false,
 		queryFn: () =>
 			apiClient<ContractSubmission>(
 				`/api/contracts/submissions/${submissionId}`,
 			),
+	});
+}
+
+export function useContractSubmissionPdf(
+	submissionId: string | undefined,
+	enabled: boolean,
+) {
+	return useQuery({
+		queryKey: contractQueryKeys.submissionPdf(submissionId),
+		enabled: Boolean(submissionId) && enabled,
+		queryFn: () => apiBlob(`/api/contracts/submissions/${submissionId}/pdf`),
+	});
+}
+
+export function useUploadContractSubmissionDocx(submissionId: string) {
+	const invalidateSubmission = useInvalidateSubmission(submissionId);
+	return useMutation({
+		mutationFn: (file: File) => {
+			const body = new FormData();
+			body.append("file", file);
+			return apiClient<ContractSubmission>(
+				`/api/contracts/submissions/${submissionId}/docx`,
+				{ method: "POST", body },
+			);
+		},
+		onSuccess: () => invalidateSubmission(),
 	});
 }
 
@@ -57,25 +90,6 @@ export function useContractStatusEvents(submissionId: string | undefined) {
 		queryFn: () =>
 			apiClient<ContractStatusEvent[]>(
 				`/api/contracts/submissions/${submissionId}/status-events`,
-			),
-	});
-}
-
-export function useContractSubmissionPreview(
-	submissionId: string | undefined,
-	contractText: string,
-) {
-	return useQuery({
-		queryKey: contractQueryKeys.submissionPreview(submissionId, contractText),
-		enabled: Boolean(submissionId),
-		staleTime: 5_000,
-		queryFn: () =>
-			apiClient<RenderedContractDocument>(
-				`/api/contracts/submissions/${submissionId}/preview`,
-				{
-					method: "POST",
-					body: JSON.stringify({ contract_text: contractText }),
-				},
 			),
 	});
 }

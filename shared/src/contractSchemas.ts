@@ -3,15 +3,34 @@ import {
 	CONTRACT_CONDITION_TYPES,
 	CONTRACT_DATA_TYPES,
 	CONTRACT_REVIEW_STATUSES,
+	CONTRACT_STORED_RENDERER_ENGINES,
 	CONTRACT_WORKFLOW_STATUSES,
 } from "./contracts.js";
 
 export const TemplateBodySchema = z.object({
 	name: z.string().trim().min(1).max(200),
 	description: z.string().trim().max(2000).nullable().optional(),
-	contract_text: z.string().max(200_000).default(""),
 	is_active: z.boolean().optional().default(true),
 });
+
+export const ContractTemplateParamsSchema = z.object({
+	id: z.string().uuid(),
+});
+
+export const ContractTemplateDocumentParamsSchema = z.object({
+	id: z.string().uuid(),
+	documentId: z.string().uuid(),
+});
+
+export const ContractSubmissionParamsSchema = z.object({
+	id: z.string().uuid(),
+});
+
+export const ContractDocumentRetryBodySchema = z
+	.object({
+		force: z.boolean().optional().default(false),
+	})
+	.strict();
 
 export const VariableBodySchema = z.object({
 	variable_name: z
@@ -53,14 +72,6 @@ export const DraftSubmissionPatchSchema = z.object({
 	status: z.enum(["draft", "submitted"]).optional().default("draft"),
 });
 
-export const PreviewBodySchema = z.object({
-	form_data: z.record(z.string(), z.unknown()),
-});
-
-export const TextPreviewBodySchema = z.object({
-	contract_text: z.string().max(250_000),
-});
-
 export const PdfDownloadQuerySchema = z.object({
 	download: z.string().optional(),
 });
@@ -69,7 +80,6 @@ export const SubmissionPatchSchema = z
 	.object({
 		status: z.enum(CONTRACT_REVIEW_STATUSES).optional(),
 		manual_status_change: z.boolean().optional(),
-		admin_edited_text: z.string().max(200_000).nullable().optional(),
 		notes: z.string().max(5000).nullable().optional(),
 		feedback_message: z.string().max(5000).nullable().optional(),
 		rejection_reason: z.string().max(5000).nullable().optional(),
@@ -86,7 +96,6 @@ export const SubmissionPatchSchema = z
 	.refine(
 		(value) =>
 			value.status !== undefined ||
-			value.admin_edited_text !== undefined ||
 			value.notes !== undefined ||
 			value.feedback_message !== undefined ||
 			value.rejection_reason !== undefined ||
@@ -109,8 +118,16 @@ export const SubmissionPatchSchema = z
 	);
 
 export const SignBodySchema = z.object({
-	signature_data: z.string().min(1).max(2_000_000),
+	signature_data: z
+		.string()
+		.min(1)
+		.max(2_000_000)
+		.regex(
+			/^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/,
+			"Signature must be a PNG data URL",
+		),
 	signer_name: z.string().trim().min(1).max(200),
+	idempotency_key: z.string().uuid().optional(),
 });
 
 export const CommentBodySchema = z.object({
@@ -133,10 +150,13 @@ const nullableString = z.string().nullable();
 const ContractSubmissionDetailBaseSchema = z.object({
 	id: z.string(),
 	template_id: z.string(),
+	template_document_id: nullableString.optional(),
+	renderer_engine: z.enum(CONTRACT_STORED_RENDERER_ENGINES).optional(),
+	document_status: z
+		.enum(["queued", "processing", "ready", "failed"])
+		.optional(),
 	submitter_user_id: z.string(),
 	form_data: z.record(z.string(), z.unknown()),
-	generated_contract_text: nullableString,
-	admin_edited_text: nullableString,
 	status: z.enum(CONTRACT_WORKFLOW_STATUSES),
 	feedback_message: nullableString,
 	rejection_reason: nullableString,
@@ -195,6 +215,11 @@ export const ContractSubmissionDetailSchema = z.union([
 const ContractSubmissionSummaryBaseSchema = z.object({
 	id: z.string(),
 	template_id: z.string(),
+	template_document_id: nullableString.optional(),
+	renderer_engine: z.enum(CONTRACT_STORED_RENDERER_ENGINES).optional(),
+	document_status: z
+		.enum(["queued", "processing", "ready", "failed"])
+		.optional(),
 	submitter_user_id: z.string(),
 	status: z.enum(CONTRACT_WORKFLOW_STATUSES),
 	submitted_at: z.string(),
@@ -235,6 +260,9 @@ export const ContractSubmissionSummarySchema = z.union([
 ]);
 
 export type ContractTemplateInput = z.input<typeof TemplateBodySchema>;
+export type ContractDocumentRetryInput = z.input<
+	typeof ContractDocumentRetryBodySchema
+>;
 export type ContractTemplateVariableInput = z.input<typeof VariableBodySchema>;
 export type ContractConditionalBlockInput = z.input<
 	typeof ConditionalBlockBodySchema
