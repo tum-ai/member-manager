@@ -125,6 +125,32 @@ function isUnsafeEntryName(name: string): boolean {
 	);
 }
 
+function xmlAttribute(tag: string, name: string): string | null {
+	const match = tag.match(
+		new RegExp(`\\b${name}\\s*=\\s*["']([^"']*)["']`, "i"),
+	);
+	return match?.[1] ?? null;
+}
+
+function assertSafeRelationships(xml: string): void {
+	for (const match of xml.matchAll(/<Relationship\b[^>]*>/gi)) {
+		const tag = match[0];
+		if (!/\bTargetMode\s*=\s*["']External["']/i.test(tag)) continue;
+		const type = xmlAttribute(tag, "Type");
+		const target = xmlAttribute(tag, "Target");
+		if (
+			type?.toLowerCase().endsWith("/hyperlink") !== true ||
+			target === null ||
+			!/^(?:https?:|mailto:)/i.test(target)
+		) {
+			throw validationError(
+				"DOCX_EXTERNAL_RELATIONSHIP_FORBIDDEN",
+				"DOCX contains an unsafe external relationship",
+			);
+		}
+	}
+}
+
 async function loadAndValidatePackage(buffer: Buffer): Promise<{
 	zip: JSZip;
 	uncompressedBytes: number;
@@ -189,14 +215,9 @@ async function loadAndValidatePackage(buffer: Buffer): Promise<{
 		);
 	}
 	for (const entry of entries) {
-		if (!entry.name.toLowerCase().endsWith(".rels") || entry.dir) continue;
+		if (entry.dir || !entry.name.toLowerCase().endsWith(".rels")) continue;
 		const xml = await entry.async("string");
-		if (/\bTargetMode\s*=\s*["']External["']/i.test(xml)) {
-			throw validationError(
-				"DOCX_EXTERNAL_RELATIONSHIP_FORBIDDEN",
-				"DOCX contains an external relationship",
-			);
-		}
+		assertSafeRelationships(xml);
 	}
 	for (const entry of entries) {
 		if (
@@ -208,7 +229,7 @@ async function loadAndValidatePackage(buffer: Buffer): Promise<{
 		}
 		const xml = await entry.async("string");
 		if (
-			/<w:(?:altChunk|fldSimple)\b|<w:instrText\b|DDEAUTO|DDE\s|INCLUDEPICTURE\b|INCLUDETEXT\b|LINK\b/i.test(
+			/<w:altChunk\b|DDEAUTO|DDE\s|INCLUDEPICTURE\b|INCLUDETEXT\b|LINK\b|MACROBUTTON\b/i.test(
 				xml,
 			)
 		) {

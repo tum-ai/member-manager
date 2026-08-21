@@ -272,6 +272,9 @@ export function useContractTemplatesPage(): ContractTemplatesPageViewModel {
 				onSuccess: () => {
 					if (selectedId === targetId) setSelectedId(null);
 				},
+				onError: (error) => {
+					showToast(error.message, "error");
+				},
 			});
 		},
 		requestCutover: setCutoverTarget,

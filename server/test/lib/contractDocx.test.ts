@@ -54,7 +54,7 @@ describe("contract DOCX validation", () => {
 		const zip = await JSZip.loadAsync(buffer);
 		zip.file(
 			"word/header1.xml",
-			'<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:instrText>INCLUDEPICTURE "https://example.test/tracker"</w:instrText></w:r></w:p></w:hdr>',
+			'<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:instrText>MACROBUTTON AutoOpen</w:instrText></w:r></w:p></w:hdr>',
 		);
 		const unsafe = await zip.generateAsync({ type: "nodebuffer" });
 		await assert.rejects(
@@ -63,6 +63,64 @@ describe("contract DOCX validation", () => {
 				error instanceof ValidationError &&
 				error.details?.code === "DOCX_ACTIVE_CONTENT_FORBIDDEN",
 		);
+	});
+
+	it("allows hyperlinks and embedded media", async () => {
+		const buffer = await createContractDocxFixture();
+		const zip = await JSZip.loadAsync(buffer);
+		zip.file(
+			"word/_rels/document.xml.rels",
+			'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.test/legal" TargetMode="External"/></Relationships>',
+		);
+		zip.file("word/media/image1.png", Buffer.from("embedded image"));
+		const safe = await zip.generateAsync({ type: "nodebuffer" });
+		const manifest = await inspectContractDocx(safe);
+		assert.deepEqual(manifest.signatureAnchors, ["partner", "board"]);
+	});
+
+	it("rejects OLE objects and unsafe external relationships", async () => {
+		const buffer = await createContractDocxFixture();
+		const zip = await JSZip.loadAsync(buffer);
+		zip.file(
+			"word/_rels/document.xml.rels",
+			'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="file:///tmp/contract" TargetMode="External"/></Relationships>',
+		);
+		zip.file("word/embeddings/oleObject1.bin", Buffer.from("OLE object"));
+		const unsafe = await zip.generateAsync({ type: "nodebuffer" });
+		await assert.rejects(
+			() => inspectContractDocx(unsafe),
+			(error: unknown) =>
+				error instanceof ValidationError &&
+				error.details?.code === "DOCX_ACTIVE_CONTENT_FORBIDDEN",
+		);
+
+		const relationshipOnly = await createContractDocxFixture();
+		const relationshipZip = await JSZip.loadAsync(relationshipOnly);
+		relationshipZip.file(
+			"word/_rels/document.xml.rels",
+			'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package" Target="file:///tmp/contract" TargetMode="External"/></Relationships>',
+		);
+		const unsafeRelationship = await relationshipZip.generateAsync({
+			type: "nodebuffer",
+		});
+		await assert.rejects(
+			() => inspectContractDocx(unsafeRelationship),
+			(error: unknown) =>
+				error instanceof ValidationError &&
+				error.details?.code === "DOCX_EXTERNAL_RELATIONSHIP_FORBIDDEN",
+		);
+	});
+
+	it("allows harmless Word fields such as page numbers", async () => {
+		const buffer = await createContractDocxFixture();
+		const zip = await JSZip.loadAsync(buffer);
+		zip.file(
+			"word/header1.xml",
+			'<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:r><w:fldChar w:fldCharType="begin"/><w:instrText> PAGE </w:instrText><w:fldChar w:fldCharType="end"/></w:r></w:p></w:hdr>',
+		);
+		const safe = await zip.generateAsync({ type: "nodebuffer" });
+		const manifest = await inspectContractDocx(safe);
+		assert.deepEqual(manifest.signatureAnchors, ["partner", "board"]);
 	});
 
 	it("rejects required variables missing from the DOCX", async () => {
