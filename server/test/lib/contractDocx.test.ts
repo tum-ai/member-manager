@@ -123,6 +123,30 @@ describe("contract DOCX validation", () => {
 		assert.deepEqual(manifest.signatureAnchors, ["partner", "board"]);
 	});
 
+	it("does not mistake Word style links for active fields", async () => {
+		const buffer = await createContractDocxFixture();
+		const zip = await JSZip.loadAsync(buffer);
+		zip.file(
+			"word/styles.xml",
+			'<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:style w:type="paragraph"><w:link w:val="HeaderChar"/></w:style></w:styles>',
+		);
+		const safe = await zip.generateAsync({ type: "nodebuffer" });
+		const manifest = await inspectContractDocx(safe);
+		assert.deepEqual(manifest.signatureAnchors, ["partner", "board"]);
+
+		zip.file(
+			"word/header1.xml",
+			'<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:p><w:fldSimple w:instr=" INCLUDEPICTURE &quot;https://example.test/tracker&quot; "/></w:p></w:hdr>',
+		);
+		const unsafe = await zip.generateAsync({ type: "nodebuffer" });
+		await assert.rejects(
+			() => inspectContractDocx(unsafe),
+			(error: unknown) =>
+				error instanceof ValidationError &&
+				error.details?.code === "DOCX_ACTIVE_CONTENT_FORBIDDEN",
+		);
+	});
+
 	it("rejects required variables missing from the DOCX", async () => {
 		const docx = await createContractDocxFixture(anchors);
 		await assert.rejects(

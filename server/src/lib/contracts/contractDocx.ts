@@ -151,6 +151,30 @@ function assertSafeRelationships(xml: string): void {
 	}
 }
 
+function hasUnsafeFieldInstruction(xml: string): boolean {
+	const instructions = [
+		...Array.from(
+			xml.matchAll(/<w:instrText\b[^>]*>([\s\S]*?)<\/w:instrText>/gi),
+		).map((match) => match[1] ?? ""),
+		...Array.from(
+			xml.matchAll(
+				/<w:fldSimple\b[^>]*\bw:instr\s*=\s*["']([^"']*)["'][^>]*>/gi,
+			),
+		).map((match) => match[1] ?? ""),
+	].map((value) => decodeXmlText(value));
+
+	return instructions.some((instruction) => {
+		const normalized = instruction.replace(/\s+/g, " ").trim();
+		const compact = normalized.replace(/\s+/g, "");
+		return (
+			/\b(?:INCLUDEPICTURE|INCLUDETEXT|LINK|MACROBUTTON|DDEAUTO|DDE)\b/i.test(
+				normalized,
+			) ||
+			/(?:INCLUDEPICTURE|INCLUDETEXT|MACROBUTTON|DDEAUTO|DDE)/i.test(compact)
+		);
+	});
+}
+
 async function loadAndValidatePackage(buffer: Buffer): Promise<{
 	zip: JSZip;
 	uncompressedBytes: number;
@@ -228,11 +252,7 @@ async function loadAndValidatePackage(buffer: Buffer): Promise<{
 			continue;
 		}
 		const xml = await entry.async("string");
-		if (
-			/<w:altChunk\b|DDEAUTO|DDE\s|INCLUDEPICTURE\b|INCLUDETEXT\b|LINK\b|MACROBUTTON\b/i.test(
-				xml,
-			)
-		) {
+		if (hasUnsafeFieldInstruction(xml)) {
 			throw validationError(
 				"DOCX_ACTIVE_CONTENT_FORBIDDEN",
 				"DOCX contains active document content",
