@@ -43,7 +43,7 @@ docker buildx imagetools inspect "$CONTRACT_VCR_IMAGE"
 Set this Vercel server environment variable for Production and Preview:
 
 ```text
-CONTRACT_LIBREOFFICE_SANDBOX_IMAGE=vcr.vercel.com/team-slug/project-slug/contract-libreoffice:libreoffice-7.4.7-deb12u14-20260818@sha256:<64-hex-character-digest>
+CONTRACT_LIBREOFFICE_SANDBOX_IMAGE=vcr.vercel.com/team-slug/project-slug/contract-libreoffice@sha256:<64-hex-character-digest>
 ```
 
 The digest is required. A tag by itself is rejected so a later image push

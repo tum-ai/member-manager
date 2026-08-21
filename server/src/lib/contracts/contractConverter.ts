@@ -11,6 +11,18 @@ const PDF_MAGIC = Buffer.from("%PDF-", "ascii");
 const MAX_PDF_BYTES = 30 * 1024 * 1024;
 const SANDBOX_TIMEOUT_MS = 90_000;
 
+function isImmutableSandboxImage(value: string): boolean {
+	const digestIndex = value.lastIndexOf("@sha256:");
+	if (
+		digestIndex <= 0 ||
+		!/^@sha256:[a-f0-9]{64}$/i.test(value.slice(digestIndex))
+	) {
+		return false;
+	}
+	const imageName = value.slice(value.lastIndexOf("/") + 1, digestIndex);
+	return imageName.length > 0 && !imageName.includes(":");
+}
+
 interface SandboxCommandResult {
 	exitCode: number;
 }
@@ -76,9 +88,9 @@ async function createVercelSandbox(): Promise<ContractConverterSandbox> {
 			"Contract LibreOffice Sandbox image is not configured",
 		);
 	}
-	if (image && !/@sha256:[a-f0-9]{64}$/i.test(image)) {
+	if (image && !isImmutableSandboxImage(image)) {
 		throw new ServiceUnavailableError(
-			"Contract LibreOffice Sandbox image must use an immutable digest",
+			"Contract LibreOffice Sandbox image must use an immutable digest without a tag",
 		);
 	}
 	const common = {
@@ -109,7 +121,12 @@ export function getContractConverterVersion(): string {
 		process.env.CONTRACT_LIBREOFFICE_SANDBOX_SNAPSHOT_ID?.trim();
 	if (snapshotId) return `vercel-snapshot:${snapshotId}`;
 	const image = process.env.CONTRACT_LIBREOFFICE_SANDBOX_IMAGE?.trim();
-	if (image && /@sha256:[a-f0-9]{64}$/i.test(image)) return image;
+	if (image) {
+		if (isImmutableSandboxImage(image)) return image;
+		throw new ServiceUnavailableError(
+			"Contract LibreOffice Sandbox image must use an immutable digest without a tag",
+		);
+	}
 	throw new ServiceUnavailableError(
 		"Contract LibreOffice Sandbox image is not configured",
 	);
