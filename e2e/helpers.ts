@@ -9,10 +9,11 @@ export const SEED_LEGAL_FINANCE_MEMBER_EMAIL =
 	"legal-finance-member@example.com";
 export const SEED_MAKEATHON_LEAD_EMAIL = "makeathon-lead@example.com";
 
-// A seeded contract submission in `sent_to_partner` state exposes this signing
-// token with a far-future expiry and no `signed_at`, so the public signing page
-// (/contracts/sign/:token) renders the document and accepts a signature.
-export const SEED_CONTRACT_SIGN_TOKEN = "seed-signature-token-soylent-0004";
+// This seeded submission is intentionally a historical text contract. The
+// DOCX-only cutover must reject its old public signing link instead of trying
+// to render it through the retired engine.
+export const SEED_RETIRED_CONTRACT_SIGN_TOKEN =
+	"seed-signature-token-soylent-0004";
 
 // The login screen exposes "Continue as local admin" / "Continue as regular
 // user" only when the client runs in dev mode against a local Supabase project

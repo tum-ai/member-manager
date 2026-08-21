@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { FullConfig } from "@playwright/test";
-import { SEED_CONTRACT_SIGN_TOKEN } from "./helpers";
+import { SEED_RETIRED_CONTRACT_SIGN_TOKEN } from "./helpers";
 
 const SERVER_URL = process.env.E2E_SERVER_URL ?? "http://127.0.0.1:8787";
 const CLIENT_URL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
@@ -93,17 +93,13 @@ function assertLocalStack(): void {
 }
 
 // Deterministic-seed guard. The local Supabase stack loads supabase/seed.sql on
-// `supabase start` / `db reset` (see [db.seed] in supabase/config.toml), so by
-// the time Playwright runs, the fixtures the specs rely on must already exist.
-// Rather than re-seed here (which would race the shared stack the specs share),
-// we assert one representative seeded fixture is reachable through the API and
-// fail fast with an actionable message if it is not — turning a confusing mid-
-// run failure into a clear "the seed did not load" signal.
+// `supabase start` / `db reset` (see [db.seed] in supabase/config.toml), so the
+// retired contract fixture must exist before Playwright runs.
 async function globalSetup(_config: FullConfig): Promise<void> {
 	// Safety first: never run the mutating E2E suite against a non-local database.
 	assertLocalStack();
 
-	const url = `${SERVER_URL}/api/contracts/sign/${SEED_CONTRACT_SIGN_TOKEN}`;
+	const url = `${SERVER_URL}/api/contracts/sign/${SEED_RETIRED_CONTRACT_SIGN_TOKEN}`;
 
 	let response: Response;
 	try {
@@ -125,11 +121,25 @@ async function globalSetup(_config: FullConfig): Promise<void> {
 		);
 	}
 
-	if (response.status === 409 || response.status === 410) {
+	if (response.status === 410) {
+		const payload = (await response.json().catch(() => null)) as {
+			error?: unknown;
+		} | null;
+		if (
+			payload?.error ===
+			"This historical contract uses a retired document engine"
+		) {
+			return;
+		}
 		throw new Error(
-			`E2E global setup: the seeded signing token (${SEED_CONTRACT_SIGN_TOKEN}) ` +
-				`was already consumed (${response.status}) — the database is not fresh. ` +
-				`Run \`supabase db reset\` (or a fresh \`supabase start\`) before the suite.`,
+			`E2E global setup: the seeded contract signing fixture returned an unexpected 410.`,
+		);
+	}
+
+	if (response.status === 409) {
+		throw new Error(
+			`E2E global setup: the seeded contract signing fixture is in an unexpected signed state. ` +
+				`Run \`supabase db reset\` before the suite.`,
 		);
 	}
 
@@ -141,4 +151,6 @@ async function globalSetup(_config: FullConfig): Promise<void> {
 	}
 }
 
+// Playwright loads global setup through the module default export.
+// biome-ignore lint/style/noDefaultExport: Playwright global setup requires a default export.
 export default globalSetup;
