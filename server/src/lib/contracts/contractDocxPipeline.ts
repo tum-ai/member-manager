@@ -44,6 +44,8 @@ type ContractSignatureAnchors = {
 
 export const CONTRACT_RENDER_JOBS_PER_INVOCATION = 2;
 
+let localRetryTimer: ReturnType<typeof setTimeout> | null = null;
+
 type RenderPayload =
 	| {
 			kind: "submission_render";
@@ -424,12 +426,29 @@ export function dispatchContractRenderJobs(
 	const task = runContractRenderJobs(
 		CONTRACT_RENDER_JOBS_PER_INVOCATION,
 		request,
-	).catch((error) => {
-		request.log.error({ err: error }, "Background contract rendering failed");
-	});
+	)
+		.then((result) => {
+			if (process.env.VERCEL !== "1" && result.failed > 0) {
+				scheduleLocalContractRenderRetry(request);
+			}
+		})
+		.catch((error) => {
+			request.log.error({ err: error }, "Background contract rendering failed");
+		});
 	if (process.env.VERCEL === "1") {
 		waitUntil(task);
 	}
+}
+
+function scheduleLocalContractRenderRetry(
+	request: ContractRenderRequestContext,
+): void {
+	if (localRetryTimer) return;
+	localRetryTimer = setTimeout(() => {
+		localRetryTimer = null;
+		dispatchContractRenderJobs(request);
+	}, 6_000);
+	localRetryTimer.unref?.();
 }
 
 export async function enqueueContractRenderJob(args: {

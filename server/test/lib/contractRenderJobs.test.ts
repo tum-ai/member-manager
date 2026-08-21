@@ -80,6 +80,31 @@ describe("contract render job processor", () => {
 		assert.equal(finalized?.errorCode, "DOCX_INVALID");
 	});
 
+	it("keeps an actionable message for unexpected failures", async () => {
+		const queue = [job()];
+		let finalized: Parameters<ContractRenderJobStore["finalize"]>[0] | null =
+			null;
+		const store: ContractRenderJobStore = {
+			async claim() {
+				return queue.shift() ?? null;
+			},
+			async finalize(args) {
+				finalized = args;
+			},
+		};
+		await processContractRenderJobs({
+			workerId: "worker-1",
+			store,
+			handlers: {
+				submission_render: async () => {
+					throw new Error("Vercel OIDC token is missing");
+				},
+			},
+		});
+		assert.equal(finalized?.errorCode, "CONTRACT_RENDER_FAILED");
+		assert.equal(finalized?.errorMessage, "Vercel OIDC token is missing");
+	});
+
 	it("fails a claimed job when its operation has no handler", async () => {
 		const queue = [job({ operation: "opensign_ingest" })];
 		let errorCode: string | null | undefined;

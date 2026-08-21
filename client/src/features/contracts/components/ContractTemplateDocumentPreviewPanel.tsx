@@ -16,6 +16,10 @@ export function ContractTemplateDocumentPreviewPanel({
 	);
 	const waiting =
 		document?.status === "queued" || document?.status === "processing";
+	const documentError =
+		document?.status === "failed"
+			? (document.error_message ?? "The stored PDF could not be prepared.")
+			: null;
 
 	return (
 		<GlassCard className="overflow-hidden">
@@ -69,6 +73,10 @@ export function ContractTemplateDocumentPreviewPanel({
 				<div className="p-4" aria-busy="true">
 					<Skeleton className="h-[65vh] min-h-96 w-full" />
 				</div>
+			) : documentError ? (
+				<Alert variant="destructive" className="m-4">
+					<AlertDescription>{documentError}</AlertDescription>
+				</Alert>
 			) : model.previewError ? (
 				<Alert variant="destructive" className="m-4">
 					<AlertDescription>{model.previewError.message}</AlertDescription>

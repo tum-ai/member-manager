@@ -188,6 +188,12 @@ function safeJobFailure(error: unknown): { code: string; message: string } {
 	if (error instanceof DatabaseError) {
 		return { code: "CONTRACT_STORAGE_FAILED", message: error.message };
 	}
+	if (error instanceof Error && error.message.trim()) {
+		return {
+			code: "CONTRACT_RENDER_FAILED",
+			message: error.message.slice(0, 500),
+		};
+	}
 	return {
 		code: "CONTRACT_RENDER_FAILED",
 		message: "Contract render job failed",
