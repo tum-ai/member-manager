@@ -24,7 +24,7 @@ export function extractSeedConstants(source) {
 	return {
 		adminEmail: grab("SEED_ADMIN_EMAIL"),
 		regularEmail: grab("SEED_REGULAR_MEMBER_EMAIL"),
-		signToken: grab("SEED_CONTRACT_SIGN_TOKEN"),
+		signToken: grab("SEED_RETIRED_CONTRACT_SIGN_TOKEN"),
 	};
 }
 
@@ -36,7 +36,7 @@ test("extractSeedConstants parses exported string constants", () => {
 	const sample = [
 		'export const SEED_ADMIN_EMAIL = "admin@example.com";',
 		"export const SEED_REGULAR_MEMBER_EMAIL = 'regular@example.com';",
-		'export const SEED_CONTRACT_SIGN_TOKEN = "tok-123";',
+		'export const SEED_RETIRED_CONTRACT_SIGN_TOKEN = "tok-123";',
 	].join("\n");
 	assert.deepEqual(extractSeedConstants(sample), {
 		adminEmail: "admin@example.com",
