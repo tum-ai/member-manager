@@ -47,7 +47,6 @@ export default function ContractSignPage(): JSX.Element {
 						pdfLoading={signing.pdfLoading}
 						pdfError={signing.pdfError}
 						documentStatus={signing.documentStatus}
-						legacyPages={signing.payload.pages}
 					/>
 					<PublicContractCommentsSection comments={signing.payload.comments} />
 					<PublicSignatureForm

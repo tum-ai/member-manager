@@ -3,20 +3,17 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ContractDocumentPreview } from "@/features/contracts/ContractDocumentPreview";
 
 export function StoredContractPdfSection({
 	pdfUrl,
 	pdfLoading,
 	pdfError,
 	documentStatus,
-	legacyPages,
 }: {
 	pdfUrl: string | null;
 	pdfLoading: boolean;
 	pdfError: Error | null;
 	documentStatus: string | null;
-	legacyPages?: string[];
 }): JSX.Element {
 	if (pdfLoading) {
 		return (
@@ -109,8 +106,10 @@ export function StoredContractPdfSection({
 	}
 
 	return (
-		<Card className="p-2 sm:p-4">
-			<ContractDocumentPreview pages={legacyPages} />
-		</Card>
+		<Alert>
+			<AlertDescription>
+				No stored PDF is available for this contract.
+			</AlertDescription>
+		</Alert>
 	);
 }

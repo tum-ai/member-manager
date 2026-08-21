@@ -22,7 +22,6 @@ import {
 	useDeleteBlock,
 	useDeleteContractTemplate,
 	useDeleteVariable,
-	useEnableContractDocxCutover,
 	useRetryContractTemplateDocument,
 	useUpdateContractTemplate,
 	useUploadContractTemplateDocument,
@@ -38,7 +37,6 @@ function draftFromDetail(
 	return {
 		name: detail.template.name,
 		description: detail.template.description ?? "",
-		contract_text: detail.template.contract_text,
 		is_active: detail.template.is_active,
 	};
 }
@@ -51,7 +49,6 @@ function draftDiffersFromDetail(
 	return (
 		detail.template.name !== draft.name ||
 		(detail.template.description ?? "") !== draft.description ||
-		detail.template.contract_text !== draft.contract_text ||
 		detail.template.is_active !== draft.is_active
 	);
 }
@@ -75,7 +72,6 @@ export function useContractTemplatesPage(): ContractTemplatesPageViewModel {
 	const [autoActivateDocumentId, setAutoActivateDocumentId] = useState<
 		string | null
 	>(null);
-	const [cutoverTarget, setCutoverTarget] = useState<boolean | null>(null);
 
 	const createTemplateMutation = useCreateContractTemplate();
 	const deleteTemplateMutation = useDeleteContractTemplate();
@@ -102,7 +98,6 @@ export function useContractTemplatesPage(): ContractTemplatesPageViewModel {
 	const activateDocumentMutation = useActivateContractTemplateDocument(
 		selectedId ?? "",
 	);
-	const cutoverMutation = useEnableContractDocxCutover();
 	const previewDocumentQuery = useContractTemplateDocumentPdf(
 		selectedId ?? undefined,
 		previewDocumentReady ? (previewDocumentId ?? undefined) : undefined,
@@ -163,10 +158,6 @@ export function useContractTemplatesPage(): ContractTemplatesPageViewModel {
 		readiness: readinessQuery.data,
 		readinessLoading: readinessQuery.isLoading,
 		readinessError: readinessQuery.error,
-		cutoverPending: cutoverMutation.isPending,
-		cutoverError: cutoverMutation.error,
-		cutoverEnabled: readinessQuery.data?.enabled ?? false,
-		cutoverTarget,
 		editor: {
 			detail,
 			loading: detailQuery.isLoading || !detail || !draft,
@@ -204,7 +195,6 @@ export function useContractTemplatesPage(): ContractTemplatesPageViewModel {
 				updateTemplateMutation.mutate({
 					name: draft.name,
 					description: draft.description || null,
-					contract_text: draft.contract_text,
 					is_active: draft.is_active,
 				});
 			},
@@ -257,7 +247,7 @@ export function useContractTemplatesPage(): ContractTemplatesPageViewModel {
 		},
 		createTemplate: (name) =>
 			createTemplateMutation.mutate(
-				{ name, contract_text: "", is_active: true },
+				{ name, is_active: false },
 				{
 					onSuccess: (template) => {
 						setSelectedId(template.id);
@@ -274,22 +264,6 @@ export function useContractTemplatesPage(): ContractTemplatesPageViewModel {
 				},
 				onError: (error) => {
 					showToast(error.message, "error");
-				},
-			});
-		},
-		requestCutover: setCutoverTarget,
-		cancelCutover: () => setCutoverTarget(null),
-		confirmCutover: () => {
-			if (cutoverTarget === null) return;
-			cutoverMutation.mutate(cutoverTarget, {
-				onSuccess: () => {
-					setCutoverTarget(null);
-					showToast(
-						cutoverTarget
-							? "DOCX cutover enabled"
-							: "DOCX cutover paused for future submissions",
-						"success",
-					);
 				},
 			});
 		},

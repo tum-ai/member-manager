@@ -5,15 +5,9 @@ import {
 import { getSupabase } from "../supabase.js";
 import { decryptContractJson } from "./contractArtifactCrypto.js";
 import {
-	buildSignedDocumentText,
 	getPartnerCompanyNameFromSubmission,
 	getPartnerEmailFromSubmission,
-	textFromSubmission,
 } from "./contractRecords.js";
-import {
-	createDocumentVersion,
-	fetchDocumentVersion,
-} from "./contractRepository.js";
 import { generateSignatureToken, getAppBaseUrl } from "./contractSecurity.js";
 import { recordAndNotifyTransition } from "./contractWorkflow.js";
 
@@ -21,73 +15,28 @@ export async function prepareFinalDocument(
 	submissionId: string,
 	current: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-	if (current.renderer_engine === "docx") {
-		const versionId = current.active_document_version_id;
-		if (typeof versionId !== "string") {
-			throw new Error("Ready DOCX contract version is missing");
-		}
-		const { data: version, error: versionError } = await getSupabase()
-			.from("contract_document_versions")
-			.select("id, renderer_engine, artifact_status")
-			.eq("id", versionId)
-			.maybeSingle();
-		if (versionError) throw versionError;
-		if (
-			version?.renderer_engine !== "docx" ||
-			version.artifact_status !== "ready"
-		) {
-			throw new Error("Ready DOCX contract version is missing");
-		}
-		const { data, error } = await getSupabase()
-			.from("contract_submissions")
-			.update({
-				final_pdf_token: current.final_pdf_token ?? generateSignatureToken(),
-				final_document_version_id: version.id,
-				active_document_version_id: version.id,
-				updated_at: new Date().toISOString(),
-			})
-			.eq("id", submissionId)
-			.select("*")
-			.single();
-		if (error) throw error;
-		return data as Record<string, unknown>;
+	const versionId = current.active_document_version_id;
+	if (typeof versionId !== "string") {
+		throw new Error("Ready DOCX contract version is missing");
 	}
-
-	let baseVersion = await fetchDocumentVersion(
-		current.active_document_version_id ?? current.sent_document_version_id,
-	);
-	if (baseVersion?.source === "final") {
-		const { data, error } = await getSupabase()
-			.from("contract_document_versions")
-			.select("*")
-			.eq("submission_id", submissionId)
-			.neq("source", "final")
-			.order("version_number", { ascending: false })
-			.limit(1)
-			.maybeSingle();
-		if (error) throw error;
-		baseVersion = (data as Record<string, unknown> | null) ?? null;
+	const { data: version, error: versionError } = await getSupabase()
+		.from("contract_document_versions")
+		.select("id, renderer_engine, artifact_status")
+		.eq("id", versionId)
+		.maybeSingle();
+	if (versionError) throw versionError;
+	if (
+		version?.renderer_engine !== "docx" ||
+		version.artifact_status !== "ready"
+	) {
+		throw new Error("Ready DOCX contract version is missing");
 	}
-
-	const baseText =
-		typeof baseVersion?.rendered_text === "string"
-			? baseVersion.rendered_text
-			: textFromSubmission(current);
-	const finalVersion = await createDocumentVersion({
-		submissionId,
-		source: "final",
-		text: buildSignedDocumentText(baseText, current),
-		formData:
-			typeof current.form_data === "object" && current.form_data !== null
-				? (current.form_data as Record<string, unknown>)
-				: {},
-	});
 	const { data, error } = await getSupabase()
 		.from("contract_submissions")
 		.update({
-			final_pdf_token: generateSignatureToken(),
-			final_document_version_id: finalVersion.id,
-			active_document_version_id: finalVersion.id,
+			final_pdf_token: current.final_pdf_token ?? generateSignatureToken(),
+			final_document_version_id: version.id,
+			active_document_version_id: version.id,
 			updated_at: new Date().toISOString(),
 		})
 		.eq("id", submissionId)

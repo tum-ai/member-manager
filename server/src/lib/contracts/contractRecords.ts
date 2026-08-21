@@ -40,59 +40,6 @@ export function getPartnerCompanyNameFromSubmission(
 	return getSubmissionFormString(submission, "partner_company_name");
 }
 
-export function textFromSubmission(
-	submission: Record<string, unknown>,
-): string {
-	if (
-		typeof submission.admin_edited_text === "string" &&
-		submission.admin_edited_text.trim()
-	) {
-		return submission.admin_edited_text;
-	}
-	return typeof submission.generated_contract_text === "string"
-		? submission.generated_contract_text
-		: "";
-}
-
-function signatureSummary(
-	submission: Record<string, unknown>,
-): [string, string, string] {
-	const partnerName =
-		typeof submission.signer_name === "string" ? submission.signer_name : "";
-	const partnerSignedAt =
-		typeof submission.signed_at === "string" ? submission.signed_at : "";
-	const boardName =
-		typeof submission.admin_signer_name === "string"
-			? submission.admin_signer_name
-			: "";
-	const boardSignedAt =
-		typeof submission.admin_signed_at === "string"
-			? submission.admin_signed_at
-			: "";
-
-	return [
-		"Signaturen",
-		`Partner: ${partnerName || "-"}${partnerSignedAt ? ` (${partnerSignedAt})` : ""}`,
-		`TUM.ai / Board: ${boardName || "-"}${boardSignedAt ? ` (${boardSignedAt})` : ""}`,
-	];
-}
-
-export function buildFinalPdfText(submission: Record<string, unknown>): string {
-	return [
-		textFromSubmission(submission),
-		"",
-		"---",
-		...signatureSummary(submission),
-	].join("\n");
-}
-
-export function buildSignedDocumentText(
-	documentText: string,
-	submission: Record<string, unknown>,
-): string {
-	return [documentText, "", ...signatureSummary(submission)].join("\n");
-}
-
 function sanitizePublicComment(
 	comment: Record<string, unknown>,
 ): PublicContractPartnerComment {

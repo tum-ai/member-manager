@@ -1,12 +1,9 @@
 import {
 	ConditionalBlockBodySchema,
-	enrichContractFormData,
-	PreviewBodySchema,
 	TemplateBodySchema,
 	VariableBodySchema,
 } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
-import { renderContractDocument } from "../../lib/contracts/contractDocument.js";
 import {
 	createContractDatabaseError,
 	fetchTemplateWithChildren,
@@ -30,7 +27,9 @@ export async function contractTemplateRoutes(server: FastifyInstance) {
 		async (request, _reply) => {
 			const { data, error } = await getSupabase()
 				.from("contract_templates")
-				.select("*")
+				.select(
+					"id, name, description, renderer_engine, active_document_id, is_active, created_at, updated_at",
+				)
 				.order("name", { ascending: true });
 
 			if (error) {
@@ -60,55 +59,21 @@ export async function contractTemplateRoutes(server: FastifyInstance) {
 		},
 	);
 
-	server.post<{ Params: { id: string } }>(
-		"/contracts/templates/:id/preview",
-		{ preHandler: [authenticate, requireContractsCreate] },
-		async (request, reply) => {
-			const body = PreviewBodySchema.parse(request.body);
-			const formData = enrichContractFormData(body.form_data);
-			try {
-				const { template, blocks } = await fetchTemplateWithChildren(
-					request.params.id,
-				);
-				if (!template) {
-					return reply.status(404).send({ error: "Template not found" });
-				}
-				return renderContractDocument(
-					(template as { contract_text: string }).contract_text,
-					formData,
-					blocks,
-				);
-			} catch (error) {
-				const code = (error as { code?: string } | null)?.code;
-				if (code === "PGRST116") {
-					return reply.status(404).send({ error: "Template not found" });
-				}
-				request.log.error({ err: error }, "Failed to render contract preview");
-				throw createContractDatabaseError(error);
-			}
-		},
-	);
-
 	server.post(
 		"/contracts/templates",
 		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request, _reply) => {
 			const body = TemplateBodySchema.parse(request.body);
-			const { data: setting, error: settingError } = await getSupabase()
-				.from("contract_pipeline_settings")
-				.select("new_submission_engine")
-				.eq("singleton", true)
-				.single();
-			if (settingError) throw createContractDatabaseError(settingError);
 			const { data, error } = await getSupabase()
 				.from("contract_templates")
 				.insert({
 					...body,
-					renderer_engine: "legacy_text",
-					is_active:
-						setting.new_submission_engine === "docx" ? false : body.is_active,
+					renderer_engine: "docx",
+					is_active: false,
 				})
-				.select("*")
+				.select(
+					"id, name, description, renderer_engine, active_document_id, is_active, created_at, updated_at",
+				)
 				.single();
 			if (error) {
 				request.log.error({ err: error }, "Failed to create template");
@@ -124,24 +89,13 @@ export async function contractTemplateRoutes(server: FastifyInstance) {
 		async (request, reply) => {
 			const body = TemplateBodySchema.partial().parse(request.body);
 			if (body.is_active === true) {
-				const [{ data: setting, error: settingError }, { data: template }] =
-					await Promise.all([
-						getSupabase()
-							.from("contract_pipeline_settings")
-							.select("new_submission_engine")
-							.eq("singleton", true)
-							.single(),
-						getSupabase()
-							.from("contract_templates")
-							.select("active_document_id")
-							.eq("id", request.params.id)
-							.maybeSingle(),
-					]);
-				if (settingError) throw createContractDatabaseError(settingError);
-				if (
-					setting.new_submission_engine === "docx" &&
-					!template?.active_document_id
-				) {
+				const { data: template, error: templateError } = await getSupabase()
+					.from("contract_templates")
+					.select("active_document_id")
+					.eq("id", request.params.id)
+					.maybeSingle();
+				if (templateError) throw createContractDatabaseError(templateError);
+				if (!template?.active_document_id) {
 					return reply.status(409).send({
 						error: "Upload a valid DOCX before activating this template",
 					});
@@ -151,7 +105,9 @@ export async function contractTemplateRoutes(server: FastifyInstance) {
 				.from("contract_templates")
 				.update({ ...body, updated_at: new Date().toISOString() })
 				.eq("id", request.params.id)
-				.select("*")
+				.select(
+					"id, name, description, renderer_engine, active_document_id, is_active, created_at, updated_at",
+				)
 				.single();
 			if (error) {
 				if ((error as { code?: string }).code === "PGRST116") {

@@ -75,11 +75,17 @@ export const CONTRACT_RENDER_OPERATIONS = [
 export type ContractRenderOperation =
 	(typeof CONTRACT_RENDER_OPERATIONS)[number];
 
-export const CONTRACT_RENDERER_ENGINES = ["legacy_text", "docx"] as const;
-export const CONTRACT_DOCUMENT_MODES = CONTRACT_RENDERER_ENGINES;
+/** The only engine allowed for new templates and submissions. */
+export const CONTRACT_RENDERER_ENGINES = ["docx"] as const;
+/** Database history may still contain records created by the retired engine. */
+export const CONTRACT_STORED_RENDERER_ENGINES = [
+	"legacy_text",
+	"docx",
+] as const;
 
 export type ContractRendererEngine = (typeof CONTRACT_RENDERER_ENGINES)[number];
-export type ContractDocumentMode = ContractRendererEngine;
+export type StoredContractRendererEngine =
+	(typeof CONTRACT_STORED_RENDERER_ENGINES)[number];
 
 export const CONTRACT_DOCX_MIME_TYPE =
 	"application/vnd.openxmlformats-officedocument.wordprocessingml.document";
@@ -117,8 +123,7 @@ export interface ContractTemplate {
 	id: string;
 	name: string;
 	description: string | null;
-	contract_text: string;
-	renderer_engine?: ContractRendererEngine;
+	renderer_engine?: StoredContractRendererEngine;
 	active_document_id?: string | null;
 	is_active: boolean;
 	created_at: string;
@@ -155,7 +160,7 @@ export interface ContractDocumentVersionArtifact {
 	id: string;
 	submission_id: string;
 	version_number: number;
-	renderer_engine: ContractRendererEngine;
+	renderer_engine: StoredContractRendererEngine;
 	template_document_id: string | null;
 	parent_document_version_id: string | null;
 	form_data_snapshot_encrypted: string | null;
@@ -177,15 +182,13 @@ export interface ContractDocumentVersionArtifact {
 }
 
 export interface ContractDocxReadiness {
-	enabled: boolean;
 	ready: boolean;
 	active_docx_templates: number;
-	legacy_templates: number;
+	templates_without_ready_docx: number;
 	pending_template_documents: number;
 	failed_template_documents: number;
 	pending_render_jobs: number;
 	failed_render_jobs: number;
-	legacy_submissions_without_pdf: number;
 	reasons: string[];
 }
 
@@ -253,12 +256,6 @@ export interface ContractTemplateDetail {
 	documents?: ContractTemplateDocument[];
 }
 
-export interface RenderedContractDocument {
-	text: string;
-	html: string;
-	pages: string[];
-}
-
 export interface ContractPartnerComment {
 	id: string;
 	submission_id: string;
@@ -278,9 +275,6 @@ export interface PublicContractPartnerComment {
 }
 
 export interface PublicSignPayload {
-	contract_text?: string;
-	html?: string;
-	pages?: string[];
 	pdf_url?: string;
 	document_status?: ContractArtifactStatus;
 	status: ContractWorkflowStatus;
@@ -288,9 +282,6 @@ export interface PublicSignPayload {
 }
 
 export interface PublicBoardSignPayload {
-	contract_text?: string;
-	html?: string;
-	pages?: string[];
 	pdf_url?: string;
 	document_status?: ContractArtifactStatus;
 	status: ContractWorkflowStatus;

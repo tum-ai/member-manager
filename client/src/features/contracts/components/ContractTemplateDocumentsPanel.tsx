@@ -130,7 +130,7 @@ export function ContractTemplateDocumentsPanel({
 					<FileText className="mx-auto size-8 text-brand" />
 					<p className="mt-2 font-medium">No DOCX version uploaded</p>
 					<p className="mt-1 text-sm text-muted-foreground">
-						This template continues to use the legacy text renderer.
+						Upload a DOCX version before activating this template.
 					</p>
 				</div>
 			) : (

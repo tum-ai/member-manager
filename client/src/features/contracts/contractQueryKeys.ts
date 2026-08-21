@@ -7,17 +7,11 @@ export const contractQueryKeys = {
 		documentId: string | undefined,
 	) => ["contract-template-document-pdf", templateId, documentId] as const,
 	docxReadiness: ["contract-docx-readiness"] as const,
-	preview: (
-		templateId: string | undefined,
-		formData: Record<string, unknown>,
-	) => ["contract-preview", templateId, formData] as const,
 	submissions: ["contract-submissions"] as const,
 	submission: (submissionId: string | undefined) =>
 		["contract-submission", submissionId] as const,
 	statusEvents: (submissionId: string | undefined) =>
 		["contract-status-events", submissionId] as const,
-	submissionPreview: (submissionId: string | undefined, contractText: string) =>
-		["contract-submission-preview", submissionId, contractText] as const,
 	submissionPdf: (submissionId: string | undefined) =>
 		["contract-submission-pdf", submissionId] as const,
 	comments: (submissionId: string | undefined) =>

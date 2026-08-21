@@ -5,7 +5,6 @@ import {
 	SignBodySchema,
 } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
-import { renderDocumentPages } from "../../lib/contracts/contractDocument.js";
 import {
 	dispatchContractRenderJobs,
 	downloadReadyVersionPdf,
@@ -17,18 +16,12 @@ import {
 import {
 	completeSubmission,
 	maybeAutoSendAfterBoardSign,
-	prepareFinalDocument,
 } from "../../lib/contracts/contractFinalization.js";
+import { sendPdf } from "../../lib/contracts/contractPdf.js";
 import {
-	buildSignatureImages,
-	sendPdf,
-} from "../../lib/contracts/contractPdf.js";
-import {
-	buildFinalPdfText,
 	buildPublicCommentHistory,
 	getPartnerCompanyNameFromSubmission,
 	getPartnerEmailFromSubmission,
-	textFromSubmission,
 } from "../../lib/contracts/contractRecords.js";
 import {
 	createContractDatabaseError,
@@ -46,7 +39,6 @@ import {
 	getMemberDisplayName,
 	recordAndNotifyTransition,
 } from "../../lib/contracts/contractWorkflow.js";
-import { createTextPdf } from "../../lib/simplePdf.js";
 import { getSupabase } from "../../lib/supabase.js";
 import {
 	authenticate,
@@ -120,6 +112,9 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 					{ openSignDocumentId: body.objectId, event },
 					"OpenSign webhook did not match a contract submission",
 				);
+				return { ok: true };
+			}
+			if (current.renderer_engine !== "docx") {
 				return { ok: true };
 			}
 
@@ -223,7 +218,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, renderer_engine, admin_edited_text, generated_contract_text, sent_document_version_id, signature_token_expires_at, signed_at, partner_comment, partner_commented_at, form_data, form_data_encrypted, submitted_at, updated_at",
+					"id, status, renderer_engine, sent_document_version_id, signature_token_expires_at, signed_at, partner_comment, partner_commented_at, form_data, form_data_encrypted, submitted_at, updated_at",
 				)
 				.eq("signature_token", request.params.token)
 				.maybeSingle();
@@ -234,6 +229,11 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			}
 			if (!data) {
 				return reply.status(404).send({ error: "Invalid signing link" });
+			}
+			if (data.renderer_engine !== "docx") {
+				return reply.status(410).send({
+					error: "This historical contract uses a retired document engine",
+				});
 			}
 			if (
 				data.signature_token_expires_at &&
@@ -253,29 +253,12 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			);
 			const comments = await fetchSubmissionComments(String(data.id));
 			const publicComments = buildPublicCommentHistory(hydrated, comments);
-			if (data.renderer_engine === "docx") {
-				return {
-					pdf_url: `/api/contracts/sign/${encodeURIComponent(request.params.token)}/pdf`,
-					document_status:
-						typeof sentVersion?.artifact_status === "string"
-							? sentVersion.artifact_status
-							: "queued",
-					status: data.status,
-					comments: publicComments,
-				};
-			}
-			const contractText =
-				typeof sentVersion?.rendered_text === "string"
-					? sentVersion.rendered_text
-					: textFromSubmission(data as Record<string, unknown>);
-			const pages = renderDocumentPages(contractText);
 			return {
-				contract_text: contractText,
-				html:
-					typeof sentVersion?.rendered_html === "string"
-						? sentVersion.rendered_html
-						: pages.map((page) => `<section>${page}</section>`).join(""),
-				pages,
+				pdf_url: `/api/contracts/sign/${encodeURIComponent(request.params.token)}/pdf`,
+				document_status:
+					typeof sentVersion?.artifact_status === "string"
+						? sentVersion.artifact_status
+						: "queued",
 				status: data.status,
 				comments: publicComments,
 			};
@@ -294,7 +277,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, renderer_engine, admin_edited_text, generated_contract_text, active_document_version_id, sent_document_version_id, board_signature_token_expires_at, signer_name, signature_data, signed_at, admin_signed_at, form_data, submitted_at, updated_at",
+					"id, status, renderer_engine, active_document_version_id, sent_document_version_id, board_signature_token_expires_at, signer_name, signature_data, signed_at, admin_signed_at, form_data, submitted_at, updated_at",
 				)
 				.eq("board_signature_token", request.params.token)
 				.maybeSingle();
@@ -305,6 +288,11 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			}
 			if (!data) {
 				return reply.status(404).send({ error: "Invalid board signing link" });
+			}
+			if (data.renderer_engine !== "docx") {
+				return reply.status(410).send({
+					error: "This historical contract uses a retired document engine",
+				});
 			}
 			if (
 				data.board_signature_token_expires_at &&
@@ -322,32 +310,12 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const version = await fetchDocumentVersion(
 				record.active_document_version_id ?? record.sent_document_version_id,
 			);
-			if (data.renderer_engine === "docx") {
-				return {
-					pdf_url: `/api/contracts/board-sign/${encodeURIComponent(request.params.token)}/pdf`,
-					document_status:
-						typeof version?.artifact_status === "string"
-							? version.artifact_status
-							: "queued",
-					status: data.status,
-					partner_signer_name: data.signer_name ?? null,
-					partner_signature_data: null,
-					partner_signed_at: data.signed_at ?? null,
-				};
-			}
-			const contractText =
-				typeof version?.rendered_text === "string"
-					? version.rendered_text
-					: textFromSubmission(record);
-			const pages = renderDocumentPages(contractText);
-
 			return {
-				contract_text: contractText,
-				html:
-					typeof version?.rendered_html === "string"
-						? version.rendered_html
-						: pages.map((page) => `<section>${page}</section>`).join(""),
-				pages,
+				pdf_url: `/api/contracts/board-sign/${encodeURIComponent(request.params.token)}/pdf`,
+				document_status:
+					typeof version?.artifact_status === "string"
+						? version.artifact_status
+						: "queued",
 				status: data.status,
 				partner_signer_name: data.signer_name ?? null,
 				partner_signature_data: data.signature_data ?? null,
@@ -393,6 +361,11 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 				return reply
 					.status(409)
 					.send({ error: "Contract is not awaiting a board signature" });
+			}
+			if (submission.renderer_engine !== "docx") {
+				return reply.status(410).send({
+					error: "This historical contract uses a retired document engine",
+				});
 			}
 			if (submission.renderer_engine === "docx") {
 				if (
@@ -609,6 +582,11 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 					.status(409)
 					.send({ error: "Contract is not in a signable state" });
 			}
+			if (submission.renderer_engine !== "docx") {
+				return reply.status(410).send({
+					error: "This historical contract uses a retired document engine",
+				});
+			}
 			if (submission.renderer_engine === "docx") {
 				if (
 					await hasPendingContractRenderJob(
@@ -715,6 +693,11 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 					error: "Contract must be signed by the partner before board signing",
 				});
 			}
+			if (current.renderer_engine !== "docx") {
+				return reply.status(410).send({
+					error: "This historical contract uses a retired document engine",
+				});
+			}
 			if (current.renderer_engine === "docx") {
 				if (
 					await hasPendingContractRenderJob(
@@ -819,30 +802,28 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 					error: "Contract must be board-signed before finalization",
 				});
 			}
+			if (current.renderer_engine !== "docx") {
+				return reply.status(410).send({
+					error: "This historical contract uses a retired document engine",
+				});
+			}
 
 			let data: Record<string, unknown>;
 			try {
-				if (current.renderer_engine === "docx") {
-					const version = await getReadyDocxVersion(
-						current.active_document_version_id,
-					);
-					const { error: finalVersionError } = await getSupabase()
-						.from("contract_submissions")
-						.update({
-							final_pdf_token:
-								current.final_pdf_token ?? generateSignatureToken(),
-							final_document_version_id: version.id,
-							active_document_version_id: version.id,
-							updated_at: new Date().toISOString(),
-						})
-						.eq("id", request.params.id);
-					if (finalVersionError) throw finalVersionError;
-				} else {
-					await prepareFinalDocument(
-						request.params.id,
-						current as Record<string, unknown>,
-					);
-				}
+				const version = await getReadyDocxVersion(
+					current.active_document_version_id,
+				);
+				const { error: finalVersionError } = await getSupabase()
+					.from("contract_submissions")
+					.update({
+						final_pdf_token:
+							current.final_pdf_token ?? generateSignatureToken(),
+						final_document_version_id: version.id,
+						active_document_version_id: version.id,
+						updated_at: new Date().toISOString(),
+					})
+					.eq("id", request.params.id);
+				if (finalVersionError) throw finalVersionError;
 				data = await completeSubmission(request.params.id);
 			} catch (error) {
 				request.log.error({ err: error }, "Failed to finalize contract");
@@ -869,7 +850,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, renderer_engine, final_document_version_id, admin_edited_text, generated_contract_text, signer_name, signed_at, signature_data, admin_signer_name, admin_signed_at, admin_signature_data",
+					"id, status, renderer_engine, final_document_version_id, signer_name, signed_at, signature_data, admin_signer_name, admin_signed_at, admin_signature_data",
 				)
 				.eq("final_pdf_token", request.params.token)
 				.maybeSingle();
@@ -881,29 +862,14 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			if (data?.status !== "completed") {
 				return reply.status(404).send({ error: "Final PDF not found" });
 			}
-			if (data.renderer_engine === "docx") {
-				return sendPdf(
-					reply,
-					await downloadReadyVersionPdf(data.final_document_version_id),
-					`contract-${data.id}.pdf`,
-					query.download === "1" ? "attachment" : "inline",
-				);
+			if (data.renderer_engine !== "docx") {
+				return reply.status(410).send({
+					error: "This historical contract uses a retired document engine",
+				});
 			}
-
-			const finalVersion = await fetchDocumentVersion(
-				(data as Record<string, unknown>).final_document_version_id,
-			);
-			const finalText =
-				typeof finalVersion?.rendered_text === "string"
-					? finalVersion.rendered_text
-					: buildFinalPdfText(data);
-			const pdf = createTextPdf(
-				finalText,
-				buildSignatureImages(data as Record<string, unknown>),
-			);
 			return sendPdf(
 				reply,
-				pdf,
+				await downloadReadyVersionPdf(data.final_document_version_id),
 				`contract-${data.id}.pdf`,
 				query.download === "1" ? "attachment" : "inline",
 			);

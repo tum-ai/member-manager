@@ -10,7 +10,6 @@ import type {
 export interface ContractTemplateDraft {
 	name: string;
 	description: string;
-	contract_text: string;
 	is_active: boolean;
 }
 
@@ -74,10 +73,6 @@ export interface ContractTemplatesPageViewModel {
 	readiness: ContractDocxReadiness | undefined;
 	readinessLoading: boolean;
 	readinessError: Error | null;
-	cutoverPending: boolean;
-	cutoverError: Error | null;
-	cutoverEnabled: boolean;
-	cutoverTarget: boolean | null;
 	editor: ContractTemplateEditorViewModel;
 	setListOpen: (open: boolean) => void;
 	setNewTemplateOpen: (open: boolean) => void;
@@ -85,7 +80,4 @@ export interface ContractTemplatesPageViewModel {
 	selectTemplate: (id: string) => void;
 	createTemplate: (name: string) => void;
 	deleteTemplate: () => void;
-	requestCutover: (enabled: boolean) => void;
-	cancelCutover: () => void;
-	confirmCutover: () => void;
 }

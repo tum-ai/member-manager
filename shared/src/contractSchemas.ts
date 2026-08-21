@@ -2,15 +2,14 @@ import { z } from "zod";
 import {
 	CONTRACT_CONDITION_TYPES,
 	CONTRACT_DATA_TYPES,
-	CONTRACT_RENDERER_ENGINES,
 	CONTRACT_REVIEW_STATUSES,
+	CONTRACT_STORED_RENDERER_ENGINES,
 	CONTRACT_WORKFLOW_STATUSES,
 } from "./contracts.js";
 
 export const TemplateBodySchema = z.object({
 	name: z.string().trim().min(1).max(200),
 	description: z.string().trim().max(2000).nullable().optional(),
-	contract_text: z.string().max(200_000).default(""),
 	is_active: z.boolean().optional().default(true),
 });
 
@@ -30,13 +29,6 @@ export const ContractSubmissionParamsSchema = z.object({
 export const ContractDocumentRetryBodySchema = z
 	.object({
 		force: z.boolean().optional().default(false),
-	})
-	.strict();
-
-export const ContractDocxCutoverBodySchema = z
-	.object({
-		enabled: z.boolean(),
-		confirm: z.literal(true),
 	})
 	.strict();
 
@@ -80,14 +72,6 @@ export const DraftSubmissionPatchSchema = z.object({
 	status: z.enum(["draft", "submitted"]).optional().default("draft"),
 });
 
-export const PreviewBodySchema = z.object({
-	form_data: z.record(z.string(), z.unknown()),
-});
-
-export const TextPreviewBodySchema = z.object({
-	contract_text: z.string().max(250_000),
-});
-
 export const PdfDownloadQuerySchema = z.object({
 	download: z.string().optional(),
 });
@@ -96,7 +80,6 @@ export const SubmissionPatchSchema = z
 	.object({
 		status: z.enum(CONTRACT_REVIEW_STATUSES).optional(),
 		manual_status_change: z.boolean().optional(),
-		admin_edited_text: z.string().max(200_000).nullable().optional(),
 		notes: z.string().max(5000).nullable().optional(),
 		feedback_message: z.string().max(5000).nullable().optional(),
 		rejection_reason: z.string().max(5000).nullable().optional(),
@@ -113,7 +96,6 @@ export const SubmissionPatchSchema = z
 	.refine(
 		(value) =>
 			value.status !== undefined ||
-			value.admin_edited_text !== undefined ||
 			value.notes !== undefined ||
 			value.feedback_message !== undefined ||
 			value.rejection_reason !== undefined ||
@@ -169,14 +151,12 @@ const ContractSubmissionDetailBaseSchema = z.object({
 	id: z.string(),
 	template_id: z.string(),
 	template_document_id: nullableString.optional(),
-	renderer_engine: z.enum(CONTRACT_RENDERER_ENGINES).optional(),
+	renderer_engine: z.enum(CONTRACT_STORED_RENDERER_ENGINES).optional(),
 	document_status: z
 		.enum(["queued", "processing", "ready", "failed"])
 		.optional(),
 	submitter_user_id: z.string(),
 	form_data: z.record(z.string(), z.unknown()),
-	generated_contract_text: nullableString,
-	admin_edited_text: nullableString,
 	status: z.enum(CONTRACT_WORKFLOW_STATUSES),
 	feedback_message: nullableString,
 	rejection_reason: nullableString,
@@ -236,7 +216,7 @@ const ContractSubmissionSummaryBaseSchema = z.object({
 	id: z.string(),
 	template_id: z.string(),
 	template_document_id: nullableString.optional(),
-	renderer_engine: z.enum(CONTRACT_RENDERER_ENGINES).optional(),
+	renderer_engine: z.enum(CONTRACT_STORED_RENDERER_ENGINES).optional(),
 	document_status: z
 		.enum(["queued", "processing", "ready", "failed"])
 		.optional(),
@@ -282,9 +262,6 @@ export const ContractSubmissionSummarySchema = z.union([
 export type ContractTemplateInput = z.input<typeof TemplateBodySchema>;
 export type ContractDocumentRetryInput = z.input<
 	typeof ContractDocumentRetryBodySchema
->;
-export type ContractDocxCutoverInput = z.input<
-	typeof ContractDocxCutoverBodySchema
 >;
 export type ContractTemplateVariableInput = z.input<typeof VariableBodySchema>;
 export type ContractConditionalBlockInput = z.input<

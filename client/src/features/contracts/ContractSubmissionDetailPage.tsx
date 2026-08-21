@@ -9,7 +9,6 @@ import {
 	ContractSubmissionFormDataSection,
 	ContractSubmissionStatusSection,
 } from "./components/ContractSubmissionSummarySections";
-import { ContractSubmissionTextSection } from "./components/ContractSubmissionTextSection";
 import { useContractSubmissionDetail } from "./hooks/useContractSubmissionDetail";
 
 export default function ContractSubmissionDetailPage(): JSX.Element {
@@ -36,7 +35,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	return (
 		<ToolPageShell
 			title={detail.title}
-			description="Review, edit and progress this contract through the workflow."
+			description="Review the stored PDF and progress this contract through the workflow."
 		>
 			<ContractSubmissionStatusSection
 				submission={submission}
@@ -55,16 +54,12 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 				{detail.isDocxDocument ? (
 					<ContractSubmissionDocxSection detail={detail} />
 				) : (
-					<ContractSubmissionTextSection
-						submission={submission}
-						isContractsAdmin={detail.isContractsAdmin}
-						editedText={detail.editedText}
-						notes={detail.notes}
-						previewPages={detail.previewPages}
-						previewLoading={detail.previewLoading}
-						onEditedTextChange={detail.setEditedText}
-						onNotesChange={detail.setNotes}
-					/>
+					<Alert>
+						<AlertDescription>
+							This historical contract uses a retired document engine and is
+							read only. New contracts use DOCX files and stored PDFs.
+						</AlertDescription>
+					</Alert>
 				)}
 				<ContractSubmissionActionsSection
 					submission={submission}

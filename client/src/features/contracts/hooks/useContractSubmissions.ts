@@ -8,7 +8,6 @@ import type {
 	ContractSubmissionInput,
 	ContractSubmissionSummary,
 	ContractSubmissionUpdateInput,
-	RenderedContractDocument,
 } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { contractQueryKeys } from "@/features/contracts/contractQueryKeys";
@@ -91,25 +90,6 @@ export function useContractStatusEvents(submissionId: string | undefined) {
 		queryFn: () =>
 			apiClient<ContractStatusEvent[]>(
 				`/api/contracts/submissions/${submissionId}/status-events`,
-			),
-	});
-}
-
-export function useContractSubmissionPreview(
-	submissionId: string | undefined,
-	contractText: string,
-) {
-	return useQuery({
-		queryKey: contractQueryKeys.submissionPreview(submissionId, contractText),
-		enabled: Boolean(submissionId),
-		staleTime: 5_000,
-		queryFn: () =>
-			apiClient<RenderedContractDocument>(
-				`/api/contracts/submissions/${submissionId}/preview`,
-				{
-					method: "POST",
-					body: JSON.stringify({ contract_text: contractText }),
-				},
 			),
 	});
 }

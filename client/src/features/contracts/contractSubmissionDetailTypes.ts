@@ -24,8 +24,6 @@ export interface ContractSubmissionDetailViewModel {
 	downloading: boolean;
 	isContractsAdmin: boolean;
 	isBoardMember: boolean;
-	previewPages: string[] | undefined;
-	previewLoading: boolean;
 	isDocxDocument: boolean;
 	documentStatus: string | null;
 	storedPdfUrl: string | null;

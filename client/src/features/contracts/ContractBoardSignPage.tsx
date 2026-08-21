@@ -42,7 +42,6 @@ export default function ContractBoardSignPage(): JSX.Element {
 						pdfLoading={signing.pdfLoading}
 						pdfError={signing.pdfError}
 						documentStatus={signing.documentStatus}
-						legacyPages={signing.payload.pages}
 					/>
 					{signing.payload.partner_signature_data ? (
 						<PartnerSignatureSummary

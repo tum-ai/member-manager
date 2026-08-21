@@ -1,18 +1,10 @@
-import type {
-	ContractRenderableBlock,
-	ContractWorkflowStatus,
-	RenderedContractDocument,
-} from "@member-manager/shared";
+import type { ContractWorkflowStatus } from "@member-manager/shared";
 import {
 	CommentBodySchema,
-	contractBlockMatches,
 	DraftSubmissionPatchSchema,
 	enrichContractFormData,
-	evaluateContractCondition,
 	SubmissionBodySchema,
 	SubmissionPatchSchema,
-	stringifyContractVariable,
-	TextPreviewBodySchema,
 } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { PDFDocument } from "pdf-lib";
@@ -21,11 +13,6 @@ import {
 	isContractEmailConfigured,
 	sendContractPartnerEmail,
 } from "../lib/contractEmails.js";
-import {
-	renderContractDocument,
-	renderContractText,
-	renderDocumentPages,
-} from "../lib/contracts/contractDocument.js";
 import {
 	anchorsForOpenSign,
 	dispatchContractRenderJobs,
@@ -37,21 +24,15 @@ import {
 	insertDocxDocumentVersion,
 	parseStoredContractSignatureAnchors,
 } from "../lib/contracts/contractDocxPipeline.js";
-import {
-	buildSignatureImages,
-	getPdfTextForSubmission,
-	sendPdf,
-} from "../lib/contracts/contractPdf.js";
+import { sendPdf } from "../lib/contracts/contractPdf.js";
 import {
 	getPartnerCompanyNameFromSubmission,
 	getPartnerEmailFromSubmission,
-	textFromSubmission,
 	toCreatorSubmissionDetail,
 	toCreatorSubmissionSummary,
 } from "../lib/contracts/contractRecords.js";
 import {
 	createContractDatabaseError,
-	createDocumentVersion,
 	createSubmissionComment,
 	fetchSubmissionComments,
 	fetchTemplateWithChildren,
@@ -68,7 +49,6 @@ import {
 	recordStatusEvent,
 } from "../lib/contracts/contractWorkflow.js";
 import { isOpenSignConfigured, sendOpenSignDocument } from "../lib/openSign.js";
-import { createTextPdf } from "../lib/simplePdf.js";
 import { getSupabase } from "../lib/supabase.js";
 import {
 	authenticate,
@@ -182,20 +162,6 @@ export async function contractRoutes(server: FastifyInstance) {
 		},
 	);
 
-	server.post<{ Params: { id: string } }>(
-		"/contracts/submissions/:id/preview",
-		{ preHandler: [authenticate, requireContractsAdmin] },
-		async (request, _reply) => {
-			const body = TextPreviewBodySchema.parse(request.body);
-			const pages = renderDocumentPages(body.contract_text);
-			return {
-				text: body.contract_text,
-				html: pages.map((page) => `<section>${page}</section>`).join(""),
-				pages,
-			};
-		},
-	);
-
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id/comments",
 		{ preHandler: [authenticate, requireContractsCreate] },
@@ -283,26 +249,19 @@ export async function contractRoutes(server: FastifyInstance) {
 			if (!isAdmin && data.submitter_user_id !== user.id) {
 				return reply.status(403).send({ error: "Forbidden" });
 			}
-			if (data.renderer_engine === "docx") {
-				return sendPdf(
-					reply,
-					await downloadReadyVersionPdf(
-						data.status === "completed"
-							? data.final_document_version_id
-							: (data.active_document_version_id ??
-									data.sent_document_version_id),
-					),
-					`contract-${request.params.id}.pdf`,
-					"attachment",
-				);
+			if (data.renderer_engine !== "docx") {
+				return reply.status(410).send({
+					error: "This historical contract uses a retired document engine",
+				});
 			}
-			const text = await getPdfTextForSubmission(
-				data as Record<string, unknown>,
-			);
-			const signatures = buildSignatureImages(data as Record<string, unknown>);
 			return sendPdf(
 				reply,
-				createTextPdf(text, signatures),
+				await downloadReadyVersionPdf(
+					data.status === "completed"
+						? data.final_document_version_id
+						: (data.active_document_version_id ??
+								data.sent_document_version_id),
+				),
 				`contract-${request.params.id}.pdf`,
 				"attachment",
 			);
@@ -359,7 +318,6 @@ export async function contractRoutes(server: FastifyInstance) {
 			const body = SubmissionBodySchema.parse(request.body);
 			const formData = enrichContractFormData(body.form_data);
 
-			let rendered: RenderedContractDocument | null = null;
 			let template: Record<string, unknown> | null = null;
 			try {
 				const templateDetail = await fetchTemplateWithChildren(
@@ -378,67 +336,53 @@ export async function contractRoutes(server: FastifyInstance) {
 						error: `Invalid email address in: ${invalidEmails.join(", ")}`,
 					});
 				}
-				const { data: setting, error: settingError } = await getSupabase()
-					.from("contract_pipeline_settings")
-					.select("new_submission_engine")
-					.eq("singleton", true)
-					.single();
-				if (settingError) throw settingError;
-				if (setting.new_submission_engine !== "docx") {
-					rendered = renderContractDocument(
-						String(template.contract_text ?? ""),
-						formData,
-						templateDetail.blocks,
-					);
-				}
 			} catch (error) {
-				request.log.error({ err: error }, "Failed to render contract text");
+				request.log.error({ err: error }, "Failed to load contract template");
 				throw createContractDatabaseError(error);
 			}
 
 			const now = new Date().toISOString();
-			const usesDocx = rendered === null;
 			let templateDocumentId: string | null = null;
-			if (usesDocx) {
-				if (!template) {
-					return reply.status(404).send({ error: "Template not found" });
-				}
-				templateDocumentId =
-					typeof template.active_document_id === "string"
-						? template.active_document_id
-						: null;
-				if (!templateDocumentId) {
-					return reply.status(409).send({
-						error: "Template does not have an active DOCX version",
-					});
-				}
-				const { data: activeDocument, error: activeDocumentError } =
-					await getSupabase()
-						.from("contract_template_documents")
-						.select("status")
-						.eq("id", templateDocumentId)
-						.eq("template_id", body.template_id)
-						.maybeSingle();
-				if (activeDocumentError) throw activeDocumentError;
-				if (activeDocument?.status !== "ready") {
-					return reply.status(409).send({
-						error: "Template DOCX is not ready",
-					});
-				}
+			if (!template) {
+				return reply.status(404).send({ error: "Template not found" });
 			}
-			const encryptedFormData = usesDocx
-				? encryptedContractFormData(formData)
-				: null;
+			if (template.renderer_engine !== "docx") {
+				return reply.status(409).send({
+					error: "This template uses a retired document engine",
+				});
+			}
+			templateDocumentId =
+				typeof template.active_document_id === "string"
+					? template.active_document_id
+					: null;
+			if (!templateDocumentId) {
+				return reply.status(409).send({
+					error: "Template does not have an active DOCX version",
+				});
+			}
+			const { data: activeDocument, error: activeDocumentError } =
+				await getSupabase()
+					.from("contract_template_documents")
+					.select("status")
+					.eq("id", templateDocumentId)
+					.eq("template_id", body.template_id)
+					.maybeSingle();
+			if (activeDocumentError) throw activeDocumentError;
+			if (activeDocument?.status !== "ready") {
+				return reply.status(409).send({
+					error: "Template DOCX is not ready",
+				});
+			}
+			const encryptedFormData = encryptedContractFormData(formData);
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.insert({
 					template_id: body.template_id,
 					template_document_id: templateDocumentId,
-					renderer_engine: usesDocx ? "docx" : "legacy_text",
+					renderer_engine: "docx",
 					submitter_user_id: user.id,
-					form_data: usesDocx ? {} : formData,
+					form_data: {},
 					form_data_encrypted: encryptedFormData,
-					generated_contract_text: rendered?.text ?? "",
 					status: body.status === "draft" ? "draft" : "legal_review",
 					submitted_at: now,
 				})
@@ -451,46 +395,24 @@ export async function contractRoutes(server: FastifyInstance) {
 
 			try {
 				let updated: Record<string, unknown>;
-				if (usesDocx && encryptedFormData) {
-					const version = await insertDocxDocumentVersion({
-						submissionId: String(data.id),
-						source: body.status === "draft" ? "draft" : "generated",
-						formDataEncrypted: encryptedFormData,
-						createdBy: user.id,
-					});
-					await enqueueContractRenderJob({
-						operation: "submission_render",
-						submissionId: String(data.id),
-						documentVersionId: String(version.id),
-						payload: { kind: "submission_render" },
-						idempotencyKey: `submission-render:${String(version.id)}`,
-					});
-					dispatchContractRenderJobs(request);
-					updated = await hydrateDocxSubmission({
-						...data,
-						active_document_version_id: version.id,
-					});
-				} else {
-					const version = await createDocumentVersion({
-						submissionId: String(data.id),
-						source: body.status === "draft" ? "draft" : "generated",
-						text: rendered?.text ?? "",
-						formData,
-						createdBy: user.id,
-					});
-					const { data: legacyUpdated, error: updateError } =
-						await getSupabase()
-							.from("contract_submissions")
-							.update({
-								active_document_version_id: version.id,
-								updated_at: new Date().toISOString(),
-							})
-							.eq("id", data.id)
-							.select("*")
-							.single();
-					if (updateError) throw updateError;
-					updated = legacyUpdated as Record<string, unknown>;
-				}
+				const version = await insertDocxDocumentVersion({
+					submissionId: String(data.id),
+					source: body.status === "draft" ? "draft" : "generated",
+					formDataEncrypted: encryptedFormData,
+					createdBy: user.id,
+				});
+				await enqueueContractRenderJob({
+					operation: "submission_render",
+					submissionId: String(data.id),
+					documentVersionId: String(version.id),
+					payload: { kind: "submission_render" },
+					idempotencyKey: `submission-render:${String(version.id)}`,
+				});
+				dispatchContractRenderJobs(request);
+				updated = await hydrateDocxSubmission({
+					...data,
+					active_document_version_id: version.id,
+				});
 				try {
 					await recordStatusEvent({
 						submissionId: String(data.id),
@@ -545,11 +467,15 @@ export async function contractRoutes(server: FastifyInstance) {
 					.status(403)
 					.send({ error: "Only the draft creator can edit this draft" });
 			}
+			if (current.renderer_engine !== "docx") {
+				return reply.status(410).send({
+					error: "This historical contract uses a retired document engine",
+				});
+			}
 
 			const formData = enrichContractFormData(body.form_data);
-			let rendered: RenderedContractDocument | null = null;
 			try {
-				const { template, variables, blocks } = await fetchTemplateWithChildren(
+				const { template, variables } = await fetchTemplateWithChildren(
 					String(current.template_id),
 				);
 				if (!template) {
@@ -564,49 +490,29 @@ export async function contractRoutes(server: FastifyInstance) {
 						error: `Invalid email address in: ${invalidEmails.join(", ")}`,
 					});
 				}
-				if (current.renderer_engine !== "docx") {
-					rendered = renderContractDocument(
-						(template as { contract_text: string }).contract_text,
-						formData,
-						blocks,
-					);
-				}
 			} catch (error) {
-				request.log.error({ err: error }, "Failed to render draft contract");
+				request.log.error({ err: error }, "Failed to load draft template");
 				throw createContractDatabaseError(error);
 			}
 
 			const nowIso = new Date().toISOString();
 			const nextStatus = body.status === "submitted" ? "legal_review" : "draft";
-			const encryptedFormData =
-				current.renderer_engine === "docx"
-					? encryptedContractFormData(formData)
-					: null;
-			const version = encryptedFormData
-				? await insertDocxDocumentVersion({
-						submissionId: request.params.id,
-						source: nextStatus === "draft" ? "draft" : "generated",
-						formDataEncrypted: encryptedFormData,
-						createdBy: user.id,
-						parentDocumentVersionId:
-							typeof current.active_document_version_id === "string"
-								? current.active_document_version_id
-								: null,
-					})
-				: await createDocumentVersion({
-						submissionId: request.params.id,
-						source: nextStatus === "draft" ? "draft" : "generated",
-						text: rendered?.text ?? "",
-						formData,
-						createdBy: user.id,
-					});
+			const encryptedFormData = encryptedContractFormData(formData);
+			const version = await insertDocxDocumentVersion({
+				submissionId: request.params.id,
+				source: nextStatus === "draft" ? "draft" : "generated",
+				formDataEncrypted: encryptedFormData,
+				createdBy: user.id,
+				parentDocumentVersionId:
+					typeof current.active_document_version_id === "string"
+						? current.active_document_version_id
+						: null,
+			});
 			const { data, error } = await getSupabase()
 				.from("contract_submissions")
 				.update({
-					form_data: encryptedFormData ? {} : formData,
+					form_data: {},
 					form_data_encrypted: encryptedFormData,
-					generated_contract_text: rendered?.text ?? "",
-					admin_edited_text: null,
 					status: nextStatus,
 					active_document_version_id: version.id,
 					submitted_at:
@@ -672,7 +578,6 @@ export async function contractRoutes(server: FastifyInstance) {
 				body.send_partner_email === true || body.send_opensign === true;
 			const needsCurrent = true;
 			let current: Record<string, unknown> | null = null;
-			let sentTextForExternalDelivery: string | null = null;
 			let sentToPartnerUpdate: Record<string, unknown> | null = null;
 
 			if (needsCurrent) {
@@ -689,13 +594,12 @@ export async function contractRoutes(server: FastifyInstance) {
 
 			const fromStatus =
 				current && typeof current.status === "string" ? current.status : null;
-			const isDocx = current?.renderer_engine === "docx";
-			if (isDocx && body.admin_edited_text !== undefined) {
-				return reply.status(400).send({
-					error: "Edit DOCX submissions by uploading the edited Word file",
+			if (current?.renderer_engine !== "docx") {
+				return reply.status(409).send({
+					error: "This historical contract uses a retired document engine",
 				});
 			}
-			if (isDocx && body.status === "approved") {
+			if (body.status === "approved") {
 				await getReadyDocxVersion(current?.active_document_version_id);
 			}
 			const submissionUrl = `${getAppBaseUrl(request)}/contracts/submissions/${request.params.id}`;
@@ -750,8 +654,6 @@ export async function contractRoutes(server: FastifyInstance) {
 			};
 			if (body.status !== undefined)
 				update.status = body.status satisfies ContractWorkflowStatus;
-			if (body.admin_edited_text !== undefined)
-				update.admin_edited_text = body.admin_edited_text;
 			if (body.notes !== undefined) update.notes = body.notes;
 			if (body.feedback_message !== undefined)
 				update.feedback_message = body.feedback_message;
@@ -867,42 +769,11 @@ export async function contractRoutes(server: FastifyInstance) {
 				).toISOString();
 			}
 
-			if (
-				current &&
-				(body.admin_edited_text !== undefined || shouldSendToPartner)
-			) {
-				if (isDocx) {
-					const readyVersion = await getReadyDocxVersion(
-						current.active_document_version_id,
-					);
-					if (shouldSendToPartner) {
-						update.sent_document_version_id = readyVersion.id;
-					}
-				} else {
-					const versionText =
-						body.admin_edited_text !== undefined &&
-						body.admin_edited_text !== null
-							? body.admin_edited_text
-							: textFromSubmission({ ...current, ...update });
-					if (shouldSendToPartner) {
-						sentTextForExternalDelivery = versionText;
-					}
-					const version = await createDocumentVersion({
-						submissionId: request.params.id,
-						source: shouldSendToPartner ? "sent_to_partner" : "legal_review",
-						text: versionText,
-						formData:
-							typeof current.form_data === "object" &&
-							current.form_data !== null
-								? (current.form_data as Record<string, unknown>)
-								: {},
-						createdBy: user.id,
-					});
-					update.active_document_version_id = version.id;
-					if (shouldSendToPartner) {
-						update.sent_document_version_id = version.id;
-					}
-				}
+			if (current && shouldSendToPartner) {
+				const readyVersion = await getReadyDocxVersion(
+					current.active_document_version_id,
+				);
+				update.sent_document_version_id = readyVersion.id;
 			}
 
 			const { data, error } = await getSupabase()
@@ -975,28 +846,22 @@ export async function contractRoutes(server: FastifyInstance) {
 				const recipient = getPartnerEmailFromSubmission(submission);
 				const partnerCompany =
 					getPartnerCompanyNameFromSubmission(submission) || "Partner";
-				const documentText =
-					sentTextForExternalDelivery ?? textFromSubmission(submission);
 				try {
-					let pdf = createTextPdf(documentText);
-					let widgets: unknown[] | undefined;
-					if (isDocx) {
-						const sentVersion = await getReadyDocxVersion(
-							submission.sent_document_version_id,
-						);
-						pdf = await downloadReadyVersionPdf(sentVersion.id);
-						const anchors = parseStoredContractSignatureAnchors(
-							sentVersion.signature_anchors,
-						);
-						const document = await PDFDocument.load(pdf);
-						const page = document.getPage(anchors.partner.page - 1);
-						if (!page) {
-							return reply.status(409).send({
-								error: "Stored partner signature anchor is invalid",
-							});
-						}
-						widgets = anchorsForOpenSign(anchors, page.getHeight());
+					const sentVersion = await getReadyDocxVersion(
+						submission.sent_document_version_id,
+					);
+					const pdf = await downloadReadyVersionPdf(sentVersion.id);
+					const anchors = parseStoredContractSignatureAnchors(
+						sentVersion.signature_anchors,
+					);
+					const document = await PDFDocument.load(pdf);
+					const page = document.getPage(anchors.partner.page - 1);
+					if (!page) {
+						return reply.status(409).send({
+							error: "Stored partner signature anchor is invalid",
+						});
 					}
+					const widgets = anchorsForOpenSign(anchors, page.getHeight());
 					const openSignDocument = await sendOpenSignDocument({
 						name: `TUM.ai Contract - ${partnerCompany}`,
 						pdf,
@@ -1016,7 +881,7 @@ export async function contractRoutes(server: FastifyInstance) {
 								opensign_document_id: openSignDocument.documentId,
 								opensign_status: openSignDocument.status ?? "sent",
 								opensign_sent_at: new Date().toISOString(),
-								opensign_file_url: isDocx ? null : openSignDocument.fileUrl,
+								opensign_file_url: null,
 								opensign_error: null,
 								updated_at: new Date().toISOString(),
 							})
@@ -1105,18 +970,3 @@ export async function contractRoutes(server: FastifyInstance) {
 
 	await contractSigningRoutes(server);
 }
-
-// Re-export for tests
-export const __testing = {
-	renderContractText,
-	stringifyVariable: (value: unknown) =>
-		stringifyContractVariable(value, { formatDates: true }),
-	evaluateCondition: (rawValue: unknown, operator: string, expected: string) =>
-		evaluateContractCondition(rawValue, operator, expected, {
-			formatDates: true,
-		}),
-	blockMatches: (
-		block: ContractRenderableBlock,
-		formData: Record<string, unknown>,
-	) => contractBlockMatches(block, formData, { formatDates: true }),
-};

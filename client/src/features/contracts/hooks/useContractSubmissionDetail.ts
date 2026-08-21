@@ -16,7 +16,6 @@ import {
 	useContractSubmission,
 	useContractSubmissionComments,
 	useContractSubmissionPdf,
-	useContractSubmissionPreview,
 	useCreateContractSubmissionComment,
 	useFinalizeContractSubmission,
 	useUpdateContractSubmission,
@@ -86,17 +85,11 @@ export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel
 	const { currentUserId, isAdmin } = useCurrentUserIsAdmin();
 	const { permissions, isBoardMember } = useToolAccess();
 	const isContractsAdmin = isAdmin || permissions.includes("contracts.admin");
-	const previewQuery = useContractSubmissionPreview(
-		isContractsAdmin && !isDocxDocument ? id : undefined,
-		editedText,
-	);
 
 	useEffect(() => {
 		const data = submissionQuery.data;
 		if (data) {
-			setEditedText(
-				data.admin_edited_text ?? data.generated_contract_text ?? "",
-			);
+			setEditedText("");
 			setNotes(data.notes ?? "");
 			setClarificationMessage(data.feedback_message ?? "");
 			const partnerCompany =
@@ -187,9 +180,7 @@ export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel
 	}
 
 	function sendToPartner(method: PartnerSendMethod): void {
-		const common = isDocxDocument
-			? { notes }
-			: { admin_edited_text: editedText, notes };
+		const common = { notes };
 		if (method === "email") {
 			updateMutation.mutate({
 				...common,
@@ -235,8 +226,6 @@ export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel
 		downloading,
 		isContractsAdmin,
 		isBoardMember,
-		previewPages: previewQuery.data?.pages,
-		previewLoading: previewQuery.isLoading || previewQuery.isFetching,
 		isDocxDocument,
 		documentStatus,
 		storedPdfUrl,
@@ -287,10 +276,7 @@ export function useContractSubmissionDetail(): ContractSubmissionDetailViewModel
 			setPendingResendMethod(null);
 		},
 		cancelResend: () => setPendingResendMethod(null),
-		saveChanges: () =>
-			updateMutation.mutate(
-				isDocxDocument ? { notes } : { admin_edited_text: editedText, notes },
-			),
+		saveChanges: () => updateMutation.mutate({ notes }),
 		downloadPdf,
 		downloadDocx,
 		requestDocxUpload: setPendingDocxFile,

@@ -510,31 +510,15 @@ export async function insertDocxDocumentVersion(args: {
 
 export async function getDocxReadiness() {
 	const supabase = getSupabase();
-	const [settings, templates, documents, jobs, legacySubmissions] =
-		await Promise.all([
-			supabase
-				.from("contract_pipeline_settings")
-				.select("new_submission_engine")
-				.eq("singleton", true)
-				.single(),
-			supabase
-				.from("contract_templates")
-				.select("id, is_active, renderer_engine, active_document_id")
-				.eq("is_active", true),
-			supabase.from("contract_template_documents").select("id, status"),
-			supabase.from("contract_render_jobs").select("status"),
-			supabase
-				.from("contract_submissions")
-				.select("id", { count: "exact", head: true })
-				.eq("renderer_engine", "legacy_text"),
-		]);
-	for (const result of [
-		settings,
-		templates,
-		documents,
-		jobs,
-		legacySubmissions,
-	]) {
+	const [templates, documents, jobs] = await Promise.all([
+		supabase
+			.from("contract_templates")
+			.select("id, is_active, renderer_engine, active_document_id")
+			.eq("is_active", true),
+		supabase.from("contract_template_documents").select("id, status"),
+		supabase.from("contract_render_jobs").select("status"),
+	]);
+	for (const result of [templates, documents, jobs]) {
 		if (result.error) throw result.error;
 	}
 	const templateRows = templates.data ?? [];
@@ -549,10 +533,9 @@ export async function getDocxReadiness() {
 	);
 	const jobRows = jobs.data ?? [];
 	return {
-		enabled: settings.data?.new_submission_engine === "docx",
 		ready: missing.length === 0,
 		active_docx_templates: templateRows.length - missing.length,
-		legacy_templates: missing.length,
+		templates_without_ready_docx: missing.length,
 		pending_template_documents: documentRows.filter((row) =>
 			["queued", "processing"].includes(row.status),
 		).length,
@@ -563,7 +546,6 @@ export async function getDocxReadiness() {
 			["queued", "processing"].includes(row.status),
 		).length,
 		failed_render_jobs: jobRows.filter((row) => row.status === "failed").length,
-		legacy_submissions_without_pdf: legacySubmissions.count ?? 0,
 		reasons: [...new Set(reasons)],
 	};
 }

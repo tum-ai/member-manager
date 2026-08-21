@@ -8,7 +8,6 @@ import type {
 	ContractTemplateInput,
 	ContractTemplateVariable,
 	ContractTemplateVariableInput,
-	RenderedContractDocument,
 } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { contractQueryKeys } from "@/features/contracts/contractQueryKeys";
@@ -132,40 +131,6 @@ export function useActivateContractTemplateDocument(templateId: string) {
 				queryKey: contractQueryKeys.docxReadiness,
 			});
 		},
-	});
-}
-
-export function useEnableContractDocxCutover() {
-	const queryClient = useQueryClient();
-	return useMutation({
-		mutationFn: (enabled: boolean) =>
-			apiClient<{ enabled: boolean }>("/api/contracts/docx-cutover", {
-				method: "POST",
-				body: JSON.stringify({ enabled, confirm: true }),
-			}),
-		onSuccess: () =>
-			queryClient.invalidateQueries({
-				queryKey: contractQueryKeys.docxReadiness,
-			}),
-	});
-}
-
-export function useContractPreview(
-	templateId: string | undefined,
-	formData: Record<string, unknown>,
-) {
-	return useQuery({
-		queryKey: contractQueryKeys.preview(templateId, formData),
-		enabled: Boolean(templateId),
-		staleTime: 5_000,
-		queryFn: () =>
-			apiClient<RenderedContractDocument>(
-				`/api/contracts/templates/${templateId}/preview`,
-				{
-					method: "POST",
-					body: JSON.stringify({ form_data: formData }),
-				},
-			),
 	});
 }
 

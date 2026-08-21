@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import {
 	CONTRACT_DERIVED_FORM_DATA_KEYS,
 	ContractDocumentRetryBodySchema,
-	ContractDocxCutoverBodySchema,
 	ContractSubmissionParamsSchema,
 	ContractTemplateDocumentParamsSchema,
 	ContractTemplateParamsSchema,
@@ -256,7 +255,9 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 			if (error) throw error;
 			const { data: template, error: templateError } = await getSupabase()
 				.from("contract_templates")
-				.select("*")
+				.select(
+					"id, name, description, renderer_engine, active_document_id, is_active, created_at, updated_at",
+				)
 				.eq("id", params.id)
 				.single();
 			if (templateError) throw templateError;
@@ -270,32 +271,6 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 		async () => getDocxReadiness(),
 	);
 
-	server.post(
-		"/contracts/docx-cutover",
-		{ preHandler: [authenticate, requireContractsAdmin] },
-		async (request) => {
-			const body = ContractDocxCutoverBodySchema.parse(request.body);
-			if (body.enabled) {
-				const readiness = await getDocxReadiness();
-				if (!readiness.ready) {
-					throw new ConflictError(
-						"Every active contract template needs a ready DOCX version",
-					);
-				}
-			}
-			const { error } = await getSupabase()
-				.from("contract_pipeline_settings")
-				.update({
-					new_submission_engine: body.enabled ? "docx" : "legacy_text",
-					updated_by_user_id: (request as AuthenticatedRequest).user.id,
-					updated_at: new Date().toISOString(),
-				})
-				.eq("singleton", true);
-			if (error) throw error;
-			return { enabled: body.enabled };
-		},
-	);
-
 	server.get<{ Params: { id: string } }>(
 		"/contracts/submissions/:id/docx",
 		{ preHandler: [authenticate, requireContractsAdmin] },
@@ -304,7 +279,7 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 			const submission = await fetchSubmission(id);
 			if (submission.renderer_engine !== "docx") {
 				throw new ConflictError(
-					"This submission uses the legacy document format",
+					"This submission uses a retired document format",
 				);
 			}
 			return sendDocx(
@@ -323,7 +298,7 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 			const submission = await fetchSubmission(id);
 			if (submission.renderer_engine !== "docx") {
 				throw new ConflictError(
-					"This submission uses the legacy document format",
+					"This submission uses a retired document format",
 				);
 			}
 			if (NON_EDITABLE_STATUSES.has(String(submission.status))) {

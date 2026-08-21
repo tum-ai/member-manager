@@ -19,22 +19,10 @@ import {
 	CONTRACT_DATA_TYPE_LABELS,
 } from "@/features/contracts/contractTemplateOptions";
 import type { ContractTemplateEditorViewModel } from "@/features/contracts/contractTemplatesPageTypes";
-import { ContractCopyButton } from "./ContractCopyButton";
 import { ContractTemplateDocumentPreviewPanel } from "./ContractTemplateDocumentPreviewPanel";
 import { ContractTemplateDocumentsPanel } from "./ContractTemplateDocumentsPanel";
 import { NewBlockForm, NewVariableForm } from "./ContractTemplateForms";
 import { TemplateEditorSkeleton } from "./ContractTemplateSkeletons";
-
-const RESERVED_SIGNATURE_TOKENS = [
-	{
-		token: "{{partner_signature}}",
-		description: "Partner's signature, once they've signed.",
-	},
-	{
-		token: "{{board_signature}}",
-		description: "Board member's signature, once they've signed.",
-	},
-] as const;
 
 export function TemplateEditor({
 	model,
@@ -78,26 +66,6 @@ export function TemplateEditor({
 							rows={2}
 						/>
 					</Field>
-					<Field
-						label="Contract text"
-						htmlFor="template-contract-text"
-						description={
-							'Use {{variable}} to insert values and [IF {{var}} = "x" THEN {...} ELSE {...}] for conditional text. Reserved signature tokens are listed below.'
-						}
-					>
-						<Textarea
-							id="template-contract-text"
-							className="max-h-[480px] min-h-48 font-mono"
-							value={draft.contract_text}
-							onChange={(event) =>
-								model.setDraft({
-									...draft,
-									contract_text: event.target.value,
-								})
-							}
-							rows={8}
-						/>
-					</Field>
 					<Label className="gap-2">
 						<Checkbox
 							checked={draft.is_active}
@@ -127,30 +95,6 @@ export function TemplateEditor({
 							<AlertDescription>{model.updateError.message}</AlertDescription>
 						</Alert>
 					) : null}
-				</div>
-			</GlassCard>
-
-			<GlassCard className="p-6">
-				<h2 className="mb-2 text-lg font-semibold">
-					Reserved signature tokens
-				</h2>
-				<Separator className="mb-4" />
-				<p className="mb-3 text-sm text-muted-foreground">
-					Place these in the contract text to draw signatures inline once
-					signed. Without them, signatures render on a trailing page.
-				</p>
-				<div className="flex flex-col gap-2">
-					{RESERVED_SIGNATURE_TOKENS.map(({ token, description }) => (
-						<div key={token} className="flex items-center gap-2">
-							<p className="flex-1">
-								<code>{token}</code> -{" "}
-								<span className="text-xs text-muted-foreground">
-									{description}
-								</span>
-							</p>
-							<ContractCopyButton value={token} ariaLabel={`Copy ${token}`} />
-						</div>
-					))}
 				</div>
 			</GlassCard>
 
