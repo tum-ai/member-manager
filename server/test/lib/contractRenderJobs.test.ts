@@ -1,11 +1,18 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import {
-	type ClaimedContractRenderJob,
-	type ContractRenderJobStore,
-	processContractRenderJobs,
-} from "../../src/lib/contracts/contractRenderJobs.js";
 import { ValidationError } from "../../src/lib/errors.js";
+
+process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+
+const { processContractRenderJobs } = await import(
+	"../../src/lib/contracts/contractRenderJobs.js"
+);
+
+import type {
+	ClaimedContractRenderJob,
+	ContractRenderJobStore,
+} from "../../src/lib/contracts/contractRenderJobs.js";
 
 function job(
 	overrides: Partial<ClaimedContractRenderJob> = {},

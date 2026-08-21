@@ -2,9 +2,17 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encryptContractArtifact } from "../../src/lib/contracts/contractArtifactCrypto.js";
-import { uploadContractArtifact } from "../../src/lib/contracts/contractArtifactStorage.js";
 import { ConflictError } from "../../src/lib/errors.js";
-import { getSupabase, setSupabaseClient } from "../../src/lib/supabase.js";
+
+process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
+process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
+
+const { uploadContractArtifact } = await import(
+	"../../src/lib/contracts/contractArtifactStorage.js"
+);
+const { getSupabase, setSupabaseClient } = await import(
+	"../../src/lib/supabase.js"
+);
 
 const originalClient = getSupabase();
 const originalKey = process.env.FIELD_ENCRYPTION_KEY;
