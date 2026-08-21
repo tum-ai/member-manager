@@ -25,7 +25,6 @@ const template = {
 	id: "tmpl-1",
 	name: "Sponsorship",
 	description: null,
-	contract_text: "Hello {{name}}",
 	is_active: true,
 	created_at: "2026-07-01T00:00:00Z",
 	updated_at: "2026-07-01T00:00:00Z",
@@ -39,12 +38,11 @@ describe("useContractTemplatesPage", () => {
 				HttpResponse.json({
 					ready: false,
 					active_docx_templates: 0,
-					legacy_templates: 1,
+					templates_without_ready_docx: 1,
 					pending_template_documents: 0,
 					failed_template_documents: 0,
 					pending_render_jobs: 0,
 					failed_render_jobs: 0,
-					legacy_submissions_without_pdf: 0,
 					reasons: ["Upload a DOCX"],
 				}),
 			),
@@ -78,7 +76,6 @@ describe("useContractTemplatesPage", () => {
 		await waitFor(() =>
 			expect(updateBody).toMatchObject({
 				name: "Updated",
-				contract_text: "Hello {{name}}",
 				is_active: true,
 			}),
 		);
@@ -117,12 +114,11 @@ describe("useContractTemplatesPage", () => {
 				HttpResponse.json({
 					ready: false,
 					active_docx_templates: 0,
-					legacy_templates: 1,
+					templates_without_ready_docx: 1,
 					pending_template_documents: 0,
 					failed_template_documents: 0,
 					pending_render_jobs: 0,
 					failed_render_jobs: 0,
-					legacy_submissions_without_pdf: 0,
 					reasons: [],
 				}),
 			),

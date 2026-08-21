@@ -206,7 +206,6 @@ export const mockDatabase: MockData = {
 			id: "11111111-1111-4111-8111-111111111111",
 			name: "Test Contract",
 			description: null,
-			contract_text: "Hello {{partner_name}}",
 			is_active: true,
 			created_at: "2026-05-27T12:00:00Z",
 			updated_at: "2026-05-27T12:00:00Z",
@@ -235,7 +234,7 @@ export const mockDatabase: MockData = {
 	contract_pipeline_settings: [
 		{
 			singleton: true,
-			new_submission_engine: "legacy_text",
+			new_submission_engine: "docx",
 			updated_by_user_id: null,
 		},
 	],
@@ -249,8 +248,6 @@ export const mockDatabase: MockData = {
 			template_id: "11111111-1111-4111-8111-111111111111",
 			submitter_user_id: MOCK_USER_ID,
 			form_data: { partner_name: "Acme" },
-			generated_contract_text: "Hello Acme",
-			admin_edited_text: null,
 			status: "legal_review",
 			notes: null,
 			feedback_message: null,
@@ -2469,7 +2466,6 @@ export function resetMockDatabase(): void {
 			id: "11111111-1111-4111-8111-111111111111",
 			name: "Test Contract",
 			description: null,
-			contract_text: "Hello {{partner_name}}",
 			is_active: true,
 			created_at: "2026-05-27T12:00:00Z",
 			updated_at: "2026-05-27T12:00:00Z",
@@ -2498,7 +2494,7 @@ export function resetMockDatabase(): void {
 	mockDatabase.contract_pipeline_settings = [
 		{
 			singleton: true,
-			new_submission_engine: "legacy_text",
+			new_submission_engine: "docx",
 			updated_by_user_id: null,
 		},
 	];
@@ -2512,8 +2508,6 @@ export function resetMockDatabase(): void {
 			template_id: "11111111-1111-4111-8111-111111111111",
 			submitter_user_id: MOCK_USER_ID,
 			form_data: { partner_name: "Acme" },
-			generated_contract_text: "Hello Acme",
-			admin_edited_text: null,
 			status: "legal_review",
 			notes: null,
 			feedback_message: null,

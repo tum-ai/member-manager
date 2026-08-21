@@ -9,6 +9,13 @@ const migration = readFileSync(
 	),
 	"utf8",
 );
+const docxOnlyMigration = readFileSync(
+	new URL(
+		"../../../supabase/migrations/20260821160000_contract_docx_only.sql",
+		import.meta.url,
+	),
+	"utf8",
+);
 
 describe("contract DOCX pipeline migration", () => {
 	test("creates only private encrypted artifact buckets", () => {
@@ -79,7 +86,7 @@ describe("contract DOCX pipeline migration", () => {
 		);
 	});
 
-	test("keeps new submissions on the legacy engine until Legal cuts over", () => {
+	test("preserves the historical migration's legacy default", () => {
 		assert.match(
 			migration,
 			/insert into "public"\."contract_pipeline_settings"[\s\S]*?values \(true, 'legacy_text'\)/i,
@@ -87,6 +94,21 @@ describe("contract DOCX pipeline migration", () => {
 		assert.match(
 			migration,
 			/Global cutover for new submissions only\. Existing submissions retain their pinned renderer\./i,
+		);
+	});
+
+	test("forces new templates onto the DOCX workflow", () => {
+		assert.match(
+			docxOnlyMigration,
+			/alter column new_submission_engine set default 'docx'/i,
+		);
+		assert.match(
+			docxOnlyMigration,
+			/update public\.contract_pipeline_settings[\s\S]*?new_submission_engine = 'docx'/i,
+		);
+		assert.match(
+			docxOnlyMigration,
+			/update public\.contract_templates[\s\S]*?set is_active = false/i,
 		);
 	});
 

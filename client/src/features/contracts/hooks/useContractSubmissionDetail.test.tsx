@@ -11,7 +11,6 @@ const mocks = vi.hoisted(() => ({
 	downloadPdf: vi.fn(),
 	downloadDocx: vi.fn(),
 	uploadDocx: vi.fn(),
-	preview: vi.fn(),
 	submissionQuery: {
 		data: undefined as ContractSubmission | undefined,
 		isLoading: false,
@@ -88,14 +87,6 @@ vi.mock("./useContractSubmissions", () => ({
 		data: [],
 		isLoading: false,
 	}),
-	useContractSubmissionPreview: (...args: unknown[]) => {
-		mocks.preview(...args);
-		return {
-			data: { pages: ["<p>Preview</p>"] },
-			isLoading: false,
-			isFetching: false,
-		};
-	},
 }));
 
 function createSubmission(
@@ -105,9 +96,9 @@ function createSubmission(
 		id: "submission-123456789",
 		submitter_user_id: "submitter-1",
 		form_data: { partner_company_name: "Example GmbH" },
-		generated_contract_text: "Generated text",
-		admin_edited_text: "Edited text",
 		status: "approved",
+		renderer_engine: "docx",
+		document_status: "ready",
 		notes: "Existing notes",
 		feedback_message: "Existing feedback",
 		signature_token: "partner-token",
@@ -160,10 +151,10 @@ describe("useContractSubmissionDetail", () => {
 		);
 	});
 
-	it("initializes editable fields and derives workflow actions", async () => {
+	it("initializes DOCX workflow fields and derives workflow actions", async () => {
 		const { result } = renderHook(() => useContractSubmissionDetail());
 
-		await waitFor(() => expect(result.current.editedText).toBe("Edited text"));
+		await waitFor(() => expect(result.current.editedText).toBe(""));
 
 		expect(result.current.notes).toBe("Existing notes");
 		expect(result.current.clarificationMessage).toBe("Existing feedback");
@@ -185,10 +176,6 @@ describe("useContractSubmissionDetail", () => {
 		expect(result.current.finalPdfUrl).toBe(
 			`${window.location.origin}/api/contracts/final/pdf-token/pdf`,
 		);
-		expect(mocks.preview).toHaveBeenLastCalledWith(
-			"submission-123456789",
-			"Edited text",
-		);
 	});
 
 	it("keeps action payload construction and state transitions in the hook", async () => {
@@ -198,7 +185,7 @@ describe("useContractSubmissionDetail", () => {
 				options.onSuccess(),
 		);
 		const { result } = renderHook(() => useContractSubmissionDetail());
-		await waitFor(() => expect(result.current.editedText).toBe("Edited text"));
+		await waitFor(() => expect(result.current.editedText).toBe(""));
 
 		act(() => {
 			result.current.setNotes("Updated notes");

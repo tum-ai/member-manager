@@ -11,9 +11,8 @@ describe("public contract API", () => {
 		server.use(
 			http.get("/api/contracts/board-sign/board-token", () =>
 				HttpResponse.json({
-					contract_text: "Body",
-					html: "<section>Body</section>",
-					pages: ["Body"],
+					pdf_url: "/api/contracts/board-sign/board-token/pdf",
+					document_status: "ready",
 					status: "partner_signed",
 					partner_signer_name: "Jane",
 					partner_signature_data: "data:image/png;base64,AAAA",
