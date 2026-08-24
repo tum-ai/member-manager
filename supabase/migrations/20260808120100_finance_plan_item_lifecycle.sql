@@ -452,6 +452,143 @@ on function "public"."create_finance_plan_item_posting_match"(
 )
 to service_role;
 
+-- Creation has to validate the project exactly the way the update RPC does.
+-- The route only authorises the caller against `p_department`; without this a
+-- department-scoped member could hand in any project id and plant a row that
+-- references another department's or period's project — a cross-scope state the
+-- update RPC would then refuse to touch.
+--
+-- The check lives here rather than in the server because `update_finance_project`
+-- takes `share row exclusive` on finance_plan_items before it re-scopes a
+-- project: validating in the same transaction as the insert is what makes the
+-- two serialise instead of racing.
+create or replace function "public"."create_finance_plan_item"(
+    "p_id" uuid,
+    "p_department" text,
+    "p_period_type" text,
+    "p_period_key" text,
+    "p_label" text,
+    "p_category" text,
+    "p_direction" text,
+    "p_planned_amount" numeric,
+    "p_expected_month" text,
+    "p_status" text,
+    "p_note" text,
+    "p_project_id" uuid,
+    "p_is_active" boolean,
+    "p_vat_rate" numeric,
+    "p_created_by" uuid
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+    v_project public.finance_projects%rowtype;
+    v_plan_item public.finance_plan_items%rowtype;
+begin
+    if p_project_id is not null then
+        select *
+        into v_project
+        from public.finance_projects
+        where id = p_project_id
+        for share;
+
+        if not found then
+            raise exception 'Finance project not found';
+        end if;
+
+        if v_project.department is distinct from p_department
+            or v_project.period_type is distinct from p_period_type
+            or v_project.period_key is distinct from p_period_key
+        then
+            raise exception
+                'Plan item project must use the same department and period';
+        end if;
+    end if;
+
+    insert into public.finance_plan_items (
+        id,
+        department,
+        period_type,
+        period_key,
+        label,
+        category,
+        direction,
+        planned_amount,
+        expected_month,
+        status,
+        note,
+        project_id,
+        is_active,
+        vat_rate,
+        created_by,
+        updated_at
+    )
+    values (
+        p_id,
+        p_department,
+        p_period_type,
+        p_period_key,
+        p_label,
+        p_category,
+        coalesce(p_direction, 'expense'),
+        p_planned_amount,
+        p_expected_month,
+        coalesce(p_status, 'planned'),
+        p_note,
+        p_project_id,
+        coalesce(p_is_active, true),
+        p_vat_rate,
+        p_created_by,
+        now()
+    )
+    returning * into v_plan_item;
+
+    return to_jsonb(v_plan_item);
+end;
+$$;
+
+revoke all
+on function "public"."create_finance_plan_item"(
+    uuid,
+    text,
+    text,
+    text,
+    text,
+    text,
+    text,
+    numeric,
+    text,
+    text,
+    text,
+    uuid,
+    boolean,
+    numeric,
+    uuid
+)
+from public, anon, authenticated, service_role;
+grant execute
+on function "public"."create_finance_plan_item"(
+    uuid,
+    text,
+    text,
+    text,
+    text,
+    text,
+    text,
+    numeric,
+    text,
+    text,
+    text,
+    uuid,
+    boolean,
+    numeric,
+    uuid
+)
+to service_role;
+
 -- FR-M7: detaching the last match walks the Planposten back to 'planned', and a
 -- partial detach back to 'committed'. Mirrors the forward automation above so
 -- the status always reflects the matches that actually exist.

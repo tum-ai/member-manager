@@ -22,6 +22,9 @@ const { aggregateByDepartment } = await import(
 
 const HACKATHON_ID = "11111111-1111-4111-8111-111111111111";
 const EMPTY_ID = "33333333-3333-4333-8333-333333333333";
+// A project owned by another department — never allowed to surface in this
+// department's T-account payload.
+const OTHER_DEPARTMENT_PROJECT_ID = "22222222-2222-4222-8222-222222222222";
 // Plan item ids are real uuids: a match record embedded in a plan line carries
 // its plan_item_id through the shared match schema, which enforces uuid format.
 const VENUE_PLAN_ID = "44444444-4444-4444-8444-444444444444";
@@ -429,6 +432,111 @@ describe("buildFinanceTAccount", () => {
 			(g) => g.project_id === null && g.project_name === null,
 		);
 		assert.strictEqual(ungrouped?.actual.saldo, -300);
+	});
+
+	test("a split posting exposes only the viewing department's allocations", () => {
+		// One invoice split 60/40 between Makeathon and Community. Expanding the
+		// row as Makeathon must never surface Community's project, amount, tax
+		// area, note or creator id.
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-split",
+					cost_location: "120",
+					transaction_amount: -1_000,
+					postingtext: "Shared venue",
+				}),
+			],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [
+				allocation({
+					id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+					posting_external_id: "BB-split",
+					department: "Makeathon",
+					project_id: HACKATHON_ID,
+					allocated_amount: -600,
+					allocated_percentage: 60,
+					note: "Makeathon share",
+				}),
+				allocation({
+					id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+					posting_external_id: "BB-split",
+					department: "Community",
+					project_id: OTHER_DEPARTMENT_PROJECT_ID,
+					tax_area: "wirtschaftlich",
+					allocated_amount: -400,
+					allocated_percentage: 40,
+					note: "Community share",
+					created_by: "community-lead",
+				}),
+			],
+			planItems: [],
+			matches: [],
+			projects: [project({ id: HACKATHON_ID, name: "Hackathon" })],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+
+		const lines = result.groups.flatMap((group) => group.expense_lines);
+		const detailAllocations = lines.flatMap(
+			(line) => line.posting_detail?.allocations ?? [],
+		);
+		assert.deepStrictEqual(
+			detailAllocations.map((entry) => entry.department),
+			["Makeathon"],
+		);
+		assert.strictEqual(
+			detailAllocations.some(
+				(entry) => entry.project_id === OTHER_DEPARTMENT_PROJECT_ID,
+			),
+			false,
+		);
+		// The split maths itself still uses every allocation: Makeathon carries
+		// its 600 share, not the whole 1000.
+		assert.strictEqual(result.totals.actual.expenses, 600);
+	});
+
+	test("an allocation without a department stays with its cost location", () => {
+		// A whole-posting allocation that only pins a project leaves the department
+		// null; it belongs to the cost location's department and must stay visible.
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-pinned",
+					cost_location: "120",
+					transaction_amount: -250,
+					postingtext: "Pinned to a project",
+				}),
+			],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [
+				allocation({
+					posting_external_id: "BB-pinned",
+					project_id: HACKATHON_ID,
+					allocated_amount: -250,
+					allocated_percentage: 100,
+				}),
+			],
+			planItems: [],
+			matches: [],
+			projects: [project({ id: HACKATHON_ID, name: "Hackathon" })],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+
+		const hackathon = result.groups.find((g) => g.project_id === HACKATHON_ID);
+		const line = hackathon?.expense_lines.find((l) => l.kind === "actual");
+		assert.strictEqual(line?.posting_detail?.allocations.length, 1);
+		assert.strictEqual(
+			line?.posting_detail?.allocations[0]?.project_id,
+			HACKATHON_ID,
+		);
 	});
 
 	test("actual saldo matches aggregateByDepartment net (consistency, FR-G5)", () => {

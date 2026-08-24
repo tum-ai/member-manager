@@ -300,6 +300,52 @@ describe("Finance management routes", async () => {
 		assert.strictEqual(updated.target_amount, -15_000);
 	});
 
+	test("keeps a project's sub-team folder across unrelated edits", async () => {
+		mockDatabase.finance_projects.push({
+			id: PROJECT_ID,
+			parent_project_id: null,
+			name: "Makeathon 2026",
+			department: "Makeathon",
+			period_type: "year",
+			period_key: "2026",
+			tax_area: "wirtschaftlich",
+			target_amount: -20_000,
+			status: "active",
+			description: null,
+			sub_team: "Big Makeathon",
+			created_at: "2026-01-01T00:00:00.000Z",
+			updated_at: "2026-01-01T00:00:00.000Z",
+		});
+
+		const renamed = await app.inject({
+			method: "PATCH",
+			url: `/api/finance/projects/${PROJECT_ID}`,
+			headers: authHeaders(testTokens.admin),
+			payload: { name: "Makeathon 2026 revised" },
+		});
+		assert.strictEqual(renamed.statusCode, 200, renamed.payload);
+		assert.strictEqual(JSON.parse(renamed.payload).sub_team, "Big Makeathon");
+
+		const moved = await app.inject({
+			method: "PATCH",
+			url: `/api/finance/projects/${PROJECT_ID}`,
+			headers: authHeaders(testTokens.admin),
+			payload: { sub_team: "Small Makeathon" },
+		});
+		assert.strictEqual(moved.statusCode, 200, moved.payload);
+		assert.strictEqual(JSON.parse(moved.payload).sub_team, "Small Makeathon");
+
+		// An explicit null still moves the project out of its folder.
+		const cleared = await app.inject({
+			method: "PATCH",
+			url: `/api/finance/projects/${PROJECT_ID}`,
+			headers: authHeaders(testTokens.admin),
+			payload: { sub_team: null },
+		});
+		assert.strictEqual(cleared.statusCode, 200, cleared.payload);
+		assert.strictEqual(JSON.parse(cleared.payload).sub_team, null);
+	});
+
 	test("allows project scope changes before dependent finance rows exist", async () => {
 		mockDatabase.finance_projects.push({
 			id: PROJECT_ID,

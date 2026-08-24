@@ -30,6 +30,20 @@ const projectProtectionMigration = readFileSync(
 	),
 	"utf8",
 );
+const projectSubTeamMigration = readFileSync(
+	new URL(
+		"../../../supabase/migrations/20260808120000_finance_project_sub_team.sql",
+		import.meta.url,
+	),
+	"utf8",
+);
+const planItemLifecycleMigration = readFileSync(
+	new URL(
+		"../../../supabase/migrations/20260808120100_finance_plan_item_lifecycle.sql",
+		import.meta.url,
+	),
+	"utf8",
+);
 
 describe("finance management migrations", () => {
 	test("creates all managed finance tables with RLS", () => {
@@ -334,6 +348,72 @@ describe("finance management migrations", () => {
 		assert.match(
 			projectProtectionMigration,
 			/revoke all[\s\S]*?update_finance_project"[\s\S]*?from public, anon, authenticated, service_role[\s\S]*?grant execute[\s\S]*?update_finance_project"[\s\S]*?to service_role/i,
+		);
+	});
+
+	test("gives projects a sub-team and keeps update_finance_project single-arity", () => {
+		assert.match(
+			projectSubTeamMigration,
+			/alter table "public"\."finance_projects"[\s\S]*?add column if not exists "sub_team" text/i,
+		);
+		assert.match(
+			projectSubTeamMigration,
+			/update_finance_project"[\s\S]*?"p_sub_team" text[\s\S]*?sub_team = p_sub_team/i,
+		);
+		// The pre-existing 10-argument overload has to go, or a caller that omits
+		// p_sub_team resolves to it and silently drops the folder.
+		assert.match(
+			projectSubTeamMigration,
+			/drop function if exists "public"\."update_finance_project"\(\s*uuid,(?:\s*(?:uuid|text|numeric),){8}\s*text\s*\)/i,
+		);
+	});
+
+	test("validates the plan item project scope inside the creating transaction", () => {
+		const createFunction = planItemLifecycleMigration.slice(
+			planItemLifecycleMigration.indexOf(
+				'create or replace function "public"."create_finance_plan_item"',
+			),
+			planItemLifecycleMigration.indexOf(
+				'create or replace function "public"."delete_finance_plan_item_posting_match"',
+			),
+		);
+		assert.ok(createFunction.length > 0);
+		assert.match(
+			createFunction,
+			/security definer[\s\S]*?set search_path = ''/i,
+		);
+		// The route only authorises p_department, so the project reference has to
+		// be checked against the item's own department and period before insert.
+		assert.match(
+			createFunction,
+			/from public\.finance_projects[\s\S]*?where id = p_project_id[\s\S]*?for share[\s\S]*?Finance project not found[\s\S]*?v_project\.department is distinct from p_department[\s\S]*?v_project\.period_type is distinct from p_period_type[\s\S]*?v_project\.period_key is distinct from p_period_key[\s\S]*?Plan item project must use the same department and period/i,
+		);
+		assert.match(
+			createFunction,
+			/insert into public\.finance_plan_items[\s\S]*?returning \* into v_plan_item/i,
+		);
+		assert.match(
+			planItemLifecycleMigration,
+			/revoke all[\s\S]*?create_finance_plan_item"[\s\S]*?from public, anon, authenticated, service_role[\s\S]*?grant execute[\s\S]*?create_finance_plan_item"[\s\S]*?to service_role/i,
+		);
+	});
+
+	test("keeps disabled Planposten out of new matches and single-arity updates", () => {
+		assert.match(
+			planItemLifecycleMigration,
+			/add column if not exists "is_active" boolean not null default true/i,
+		);
+		assert.match(
+			planItemLifecycleMigration,
+			/add column if not exists "vat_rate" numeric\(5, 2\)[\s\S]*?>= 0 and "vat_rate" <= 100/i,
+		);
+		assert.match(
+			planItemLifecycleMigration,
+			/update_finance_plan_item"[\s\S]*?"p_project_id" uuid[\s\S]*?"p_is_active" boolean[\s\S]*?"p_vat_rate" numeric/i,
+		);
+		assert.match(
+			planItemLifecycleMigration,
+			/drop function if exists "public"\."update_finance_plan_item"\(\s*uuid,(?:\s*(?:text|numeric),){6}\s*text\s*\)/i,
 		);
 	});
 });

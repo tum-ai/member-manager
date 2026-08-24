@@ -81,46 +81,60 @@ export async function getPlanItem(id: string): Promise<FinancePlanItem | null> {
 	return data ? mapRow(data) : null;
 }
 
+// Goes through the RPC rather than a plain insert so the project reference is
+// validated against the item's own department and period inside the writing
+// transaction. The route only authorises `input.department`, so a plain insert
+// would let a department-scoped member attach any project id they can guess —
+// including another department's — and leave behind a cross-scope row that the
+// update RPC then refuses to touch.
 export async function createPlanItem(
 	input: FinancePlanItemCreate,
 	createdBy: string,
 ): Promise<FinancePlanItem> {
-	const id = randomUUID();
-	const { data, error } = await getSupabase()
-		.from(PLAN_ITEMS_TABLE)
-		.insert({
-			id,
-			department: input.department,
-			period_type: input.period_type,
-			period_key: input.period_key,
-			label: input.label,
-			category: input.category ?? null,
-			direction: input.direction ?? "expense",
-			planned_amount: input.planned_amount,
-			expected_month: input.expected_month ?? null,
-			status: input.status ?? "planned",
-			note: input.note ?? null,
-			// FR-M1: a Planposten created on a T-view node lands in that node's
-			// project straight away. Previously dropped here, so only template
-			// assignment could ever set it.
-			project_id: input.project_id ?? null,
-			is_active: input.is_active ?? true,
-			vat_rate: input.vat_rate ?? null,
-			created_by: createdBy,
-			updated_at: new Date().toISOString(),
-		})
-		.select(PLAN_COLUMNS)
-		.single();
+	const { data, error } = await getSupabase().rpc("create_finance_plan_item", {
+		p_id: randomUUID(),
+		p_department: input.department,
+		p_period_type: input.period_type,
+		p_period_key: input.period_key,
+		p_label: input.label,
+		p_category: input.category ?? null,
+		p_direction: input.direction ?? "expense",
+		p_planned_amount: input.planned_amount,
+		p_expected_month: input.expected_month ?? null,
+		p_status: input.status ?? "planned",
+		p_note: input.note ?? null,
+		// FR-M1: a Planposten created on a T-view node lands in that node's
+		// project straight away. Previously dropped here, so only template
+		// assignment could ever set it.
+		p_project_id: input.project_id ?? null,
+		p_is_active: input.is_active ?? true,
+		p_vat_rate: input.vat_rate ?? null,
+		p_created_by: createdBy,
+	});
 
 	if (error) {
-		throw error;
+		const message = error.message;
+		if (message.includes("Finance project not found")) {
+			throw new NotFoundError("Finance project not found");
+		}
+		if (message.includes("must use the same department and period")) {
+			throw new ValidationError(message);
+		}
+		throw new DatabaseError("Failed to create finance plan item");
 	}
 	return mapRow(data);
 }
 
+// `existing` is the row the caller already authorised against. Both nullable
+// optionals below are write-through: the RPC replaces whatever it is handed, so
+// an omitted `project_id`/`vat_rate` has to be resolved to the stored value
+// before it travels. Without that, the planning client — which sends neither —
+// would silently detach every unmatched item from its project and erase its VAT
+// rate on an ordinary edit. An explicit `null` still clears.
 export async function updatePlanItem(
 	id: string,
 	input: FinancePlanItemUpdate,
+	existing: Pick<FinancePlanItem, "project_id" | "vat_rate">,
 ): Promise<FinancePlanItem> {
 	const { data, error } = await getSupabase().rpc("update_finance_plan_item", {
 		p_id: id,
@@ -131,9 +145,15 @@ export async function updatePlanItem(
 		p_expected_month: input.expected_month ?? null,
 		p_status: input.status,
 		p_note: input.note ?? null,
-		p_project_id: input.project_id ?? null,
+		p_project_id:
+			input.project_id === undefined
+				? (existing.project_id ?? null)
+				: input.project_id,
 		p_is_active: input.is_active ?? null,
-		p_vat_rate: input.vat_rate ?? null,
+		p_vat_rate:
+			input.vat_rate === undefined
+				? (existing.vat_rate ?? null)
+				: input.vat_rate,
 	});
 
 	if (error) {

@@ -281,6 +281,10 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 						body.description === undefined
 							? existing.description
 							: body.description,
+					// Nullable, so `undefined` has to mean "leave the folder alone"
+					// and an explicit `null` has to mean "move it out of one".
+					sub_team:
+						body.sub_team === undefined ? existing.sub_team : body.sub_team,
 				},
 				"Invalid finance project",
 			);

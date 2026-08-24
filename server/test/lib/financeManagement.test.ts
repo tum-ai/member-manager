@@ -370,6 +370,48 @@ describe("finance management calculations", () => {
 		assert.strictEqual(report.totals.planned_net, 2000);
 	});
 
+	test("leaves a disabled Planposten out of the period report and tax areas", () => {
+		const report = buildFinancePeriodReport({
+			periodType: "year",
+			periodKey: "2026",
+			transactions: [],
+			mappings: MAPPINGS,
+			allocations: [],
+			budgets: [BUDGET],
+			planItems: [
+				{ ...PLAN_ITEM, direction: "expense", planned_amount: 5000 },
+				{
+					...PLAN_ITEM,
+					id: "20000000-0000-4000-8000-000000000003",
+					direction: "expense",
+					planned_amount: 9000,
+					is_active: false,
+				},
+				{
+					...PLAN_ITEM,
+					id: "20000000-0000-4000-8000-000000000004",
+					direction: "income",
+					planned_amount: 2000,
+					is_active: false,
+				},
+			],
+			projects: [PROJECT],
+			department: "Makeathon",
+			source: "mock",
+			now: new Date("2026-07-02T00:00:00.000Z"),
+		});
+
+		// Only the active 5.000 counts — parking an item is how a department takes
+		// it off the plan, so it must not keep eating the budget ceiling.
+		assert.strictEqual(report.totals.plan, 5000);
+		assert.strictEqual(report.totals.planned_income, 0);
+		assert.strictEqual(report.departments[0].plan, 5000);
+		assert.strictEqual(
+			report.tax_area_totals.reduce((sum, row) => sum + row.plan, 0),
+			5000,
+		);
+	});
+
 	test("exposes partially matched and unplanned postings separately", () => {
 		const allocation: FinancePostingAllocation = {
 			id: "30000000-0000-4000-8000-000000000001",

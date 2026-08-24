@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	tAccountGroup as group,
 	tAccountLine as line,
+	tAccountPlanDetail as planDetail,
 } from "@/features/finance/financeTAccountFixtures";
 import { buildTAccountTree } from "./financeTAccountUtils";
 
@@ -119,6 +120,60 @@ describe("buildTAccountTree", () => {
 		expect(subTeam?.projectId).toBeNull();
 		expect(subTeam?.actualSaldo).toBe(-500);
 		expect(ungrouped?.actualSaldo).toBe(-120);
+	});
+
+	it("keeps a disabled Planposten visible but out of every subtotal", () => {
+		const tree = buildTAccountTree([
+			group({
+				project_id: MAKEATHON,
+				project_name: "Makeathon",
+				expense_lines: [
+					line({ kind: "actual", amount: 400, label: "Tooling" }),
+					line({ kind: "plan", amount: 800, label: "Recruiting" }),
+					line({
+						kind: "plan",
+						amount: 5000,
+						label: "Abgesagt",
+						plan_detail: planDetail({ planned_amount: 5000, is_active: false }),
+					}),
+				],
+			}),
+		]);
+
+		const [node] = tree;
+		// The parked row still renders, so it can be re-enabled from the T-view…
+		expect(node.expenseLines.map((l) => l.label)).toEqual([
+			"Tooling",
+			"Recruiting",
+			"Abgesagt",
+		]);
+		// …but the 5.000 never reaches the Plan column or the forecast.
+		expect(node.expenseSummary).toEqual({ ist: 400, plan: 800 });
+		expect(node.planSaldo).toBe(-1200);
+	});
+
+	it("excludes a child's disabled Planposten from the parent roll-up", () => {
+		const tree = buildTAccountTree([
+			group({ project_id: MAKEATHON, project_name: "Makeathon" }),
+			group({
+				project_id: HACKATHON,
+				project_name: "Hackathon",
+				parent_project_id: MAKEATHON,
+				expense_lines: [
+					line({
+						kind: "plan",
+						amount: 900,
+						label: "Abgesagt",
+						plan_detail: planDetail({ planned_amount: 900, is_active: false }),
+					}),
+				],
+			}),
+		]);
+
+		const makeathon = tree[0];
+		// The child contributes nothing, so no folder line is injected at all.
+		expect(makeathon.expenseLines).toHaveLength(0);
+		expect(makeathon.planSaldo).toBe(0);
 	});
 
 	it("keeps a child top-level when its parent is absent for the department", () => {

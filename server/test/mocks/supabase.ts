@@ -1484,6 +1484,7 @@ function updateMockFinanceProject(params: Record<string, unknown>) {
 		target_amount: params.p_target_amount,
 		status: params.p_status,
 		description: params.p_description ?? null,
+		sub_team: params.p_sub_team ?? null,
 		updated_at: new Date().toISOString(),
 	});
 	return Promise.resolve({ data: { ...project }, error: null });
@@ -1609,6 +1610,70 @@ async function reviewMockFinanceReallocationRequest(
 	return { data: { ...request, allocations: items }, error: null };
 }
 
+// Mirrors the project-scope guard both plan-item RPCs run: the project has to
+// exist and live in the same department and period as the item pointing at it.
+// Returns the RPC's error message, or null when the reference is acceptable.
+function mockPlanItemProjectScopeError(
+	projectId: unknown,
+	department: unknown,
+	periodType: unknown,
+	periodKey: unknown,
+): string | null {
+	if (projectId === null || projectId === undefined) {
+		return null;
+	}
+	const project = mockDatabase.finance_projects.find(
+		(row) => row.id === projectId,
+	);
+	if (!project) {
+		return "Finance project not found";
+	}
+	if (
+		project.department !== department ||
+		project.period_type !== periodType ||
+		project.period_key !== periodKey
+	) {
+		return "Plan item project must use the same department and period";
+	}
+	return null;
+}
+
+function createMockFinancePlanItem(params: Record<string, unknown>) {
+	const scopeError = mockPlanItemProjectScopeError(
+		params.p_project_id ?? null,
+		params.p_department,
+		params.p_period_type,
+		params.p_period_key,
+	);
+	if (scopeError) {
+		return Promise.resolve({ data: null, error: { message: scopeError } });
+	}
+
+	const now = new Date().toISOString();
+	const planItem: Record<string, unknown> = {
+		id: params.p_id,
+		department: params.p_department,
+		period_type: params.p_period_type,
+		period_key: params.p_period_key,
+		label: params.p_label,
+		category: params.p_category ?? null,
+		direction: params.p_direction ?? "expense",
+		planned_amount: params.p_planned_amount,
+		expected_month: params.p_expected_month ?? null,
+		status: params.p_status ?? "planned",
+		note: params.p_note ?? null,
+		project_id: params.p_project_id ?? null,
+		template_item_id: null,
+		is_active: params.p_is_active ?? true,
+		vat_rate: params.p_vat_rate ?? null,
+		created_by: params.p_created_by ?? null,
+		created_at: now,
+		updated_at: now,
+	};
+	mockDatabase.finance_plan_items.push(planItem);
+	return Promise.resolve({ data: { ...planItem }, error: null });
+}
+
 function updateMockFinancePlanItem(params: Record<string, unknown>) {
 	const planItem = mockDatabase.finance_plan_items.find(
 		(row) => row.id === params.p_id,
@@ -1642,6 +1707,26 @@ function updateMockFinancePlanItem(params: Record<string, unknown>) {
 			},
 		});
 	}
+	if (
+		matchedAmount > 0 &&
+		(planItem.project_id ?? null) !== (params.p_project_id ?? null)
+	) {
+		return Promise.resolve({
+			data: null,
+			error: {
+				message: "Plan item project cannot change while postings are matched",
+			},
+		});
+	}
+	const scopeError = mockPlanItemProjectScopeError(
+		params.p_project_id ?? null,
+		planItem.department,
+		planItem.period_type,
+		planItem.period_key,
+	);
+	if (scopeError) {
+		return Promise.resolve({ data: null, error: { message: scopeError } });
+	}
 	Object.assign(planItem, {
 		label: params.p_label,
 		category: params.p_category ?? null,
@@ -1650,6 +1735,9 @@ function updateMockFinancePlanItem(params: Record<string, unknown>) {
 		expected_month: params.p_expected_month ?? null,
 		status: params.p_status,
 		note: params.p_note ?? null,
+		project_id: params.p_project_id ?? null,
+		is_active: params.p_is_active ?? planItem.is_active ?? true,
+		vat_rate: params.p_vat_rate ?? null,
 		updated_at: new Date().toISOString(),
 	});
 	return Promise.resolve({ data: { ...planItem }, error: null });
@@ -1981,6 +2069,9 @@ export function createMockSupabaseClient(): SupabaseClient {
 				}
 				if (fnName === "review_finance_reallocation_request") {
 					return reviewMockFinanceReallocationRequest(params);
+				}
+				if (fnName === "create_finance_plan_item") {
+					return createMockFinancePlanItem(params);
 				}
 				if (fnName === "update_finance_plan_item") {
 					return updateMockFinancePlanItem(params);

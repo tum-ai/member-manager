@@ -545,6 +545,11 @@ export async function financeRoutes(server: FastifyInstance) {
 				const item = await createPlanItem(parsed.data, userId);
 				return reply.status(201).send(item);
 			} catch (error) {
+				// A rejected project reference is the caller's mistake, not a
+				// database failure — let the typed error keep its status.
+				if (error instanceof AppError) {
+					throw error;
+				}
 				request.log.error(
 					{ err: error, department: parsed.data.department },
 					"Failed to create finance plan item",
@@ -579,7 +584,7 @@ export async function financeRoutes(server: FastifyInstance) {
 			await assertCanWriteDepartment(userId, existing.department);
 
 			try {
-				return await updatePlanItem(id, parsed.data);
+				return await updatePlanItem(id, parsed.data, existing);
 			} catch (error) {
 				if (error instanceof AppError) {
 					throw error;

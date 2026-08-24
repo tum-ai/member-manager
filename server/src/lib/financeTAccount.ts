@@ -23,6 +23,7 @@ import {
 	type EffectivePostingSplit,
 	type ResolvedDepartmentMapping,
 	resolveCostLocationSubTeam,
+	resolveTransactionDepartment,
 } from "./financeDepartments.js";
 import { embeddedVat } from "./financeVat.js";
 
@@ -113,6 +114,7 @@ function postingDetail(
 			context.mappingLookup,
 			context.department,
 		),
+		// Only this department's slice of the split — see `allocationsByPosting`.
 		allocations: context.allocationsByPosting.get(posting.external_id) ?? [],
 		matches: context.matchesByPosting.get(posting.external_id) ?? [],
 	};
@@ -316,8 +318,31 @@ export function buildFinanceTAccount(input: {
 
 	const mappingLookup = buildMappingLookup(input.mappings);
 
+	// The full allocation set drives the split maths above, but only the rows
+	// belonging to this department may travel back in a detail payload: on a
+	// posting split across departments the others' project ids, amounts, tax
+	// areas, notes and creator ids are none of this viewer's business. Mirrors
+	// the scoping the dedicated posting-allocation endpoint already applies.
+	//
+	// A row without a department inherits the posting's cost-location department
+	// — the same fallback `buildEffectivePostingCandidates` uses — so it belongs
+	// to this department exactly when the posting does.
+	const fallbackDepartmentByPosting = new Map<string, string | null>();
+	for (const transaction of input.transactions) {
+		fallbackDepartmentByPosting.set(
+			transaction.external_id,
+			resolveTransactionDepartment(transaction, mappingLookup).department,
+		);
+	}
 	const allocationsByPosting = new Map<string, FinancePostingAllocation[]>();
 	for (const allocation of input.allocations) {
+		const owner =
+			allocation.department ??
+			fallbackDepartmentByPosting.get(allocation.posting_external_id) ??
+			null;
+		if (owner !== input.department) {
+			continue;
+		}
 		const existing =
 			allocationsByPosting.get(allocation.posting_external_id) ?? [];
 		existing.push(allocation);

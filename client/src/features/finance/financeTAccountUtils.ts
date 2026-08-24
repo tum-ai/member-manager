@@ -19,6 +19,10 @@ export interface TAccountDisplayLine {
 	vatAmount: number | null;
 	// True when the line summarises a nested project rolled into its parent.
 	isProjectRollup: boolean;
+	// False for a disabled Planposten: it still renders (muted, so it can be
+	// re-enabled from the T-view) but must not move any subtotal or forecast.
+	// Booked lines are always true.
+	countsTowardPlan: boolean;
 }
 
 // Ist (booked) vs Plan (planned-only) subtotal for one column. `plan` is the
@@ -57,6 +61,8 @@ function toDisplayLine(line: FinanceTAccountLine): TAccountDisplayLine {
 		amount: line.amount,
 		vatAmount: line.vat_amount,
 		isProjectRollup: false,
+		countsTowardPlan:
+			line.kind === "actual" || line.plan_detail?.is_active !== false,
 	};
 }
 
@@ -65,7 +71,7 @@ function summarise(lines: TAccountDisplayLine[]): TAccountColumnSummary {
 	let plan = 0;
 	for (const line of lines) {
 		if (line.kind === "actual") ist += line.amount;
-		else plan += line.amount;
+		else if (line.countsTowardPlan) plan += line.amount;
 	}
 	return { ist: round(ist), plan: round(plan) };
 }
@@ -87,6 +93,9 @@ function rollupLine(
 		amount: round(Math.abs(net)),
 		vatAmount: null,
 		isProjectRollup: true,
+		// The child's saldi already dropped its disabled Planposten, so whatever
+		// remains to roll up is planned money.
+		countsTowardPlan: true,
 	};
 }
 
