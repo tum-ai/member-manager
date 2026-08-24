@@ -48,6 +48,10 @@ export async function uploadContractArtifact(args: {
 	path: string;
 	plaintext: Buffer;
 	contentType: string;
+	// LibreOffice stamps a /CreationDate into every PDF, so a re-render after an
+	// interrupted job produces different bytes at an immutable path. Set this for
+	// such outputs to adopt the object already stored instead of failing forever.
+	adoptExisting?: boolean;
 }): Promise<StoredContractArtifact> {
 	assertContractArtifactLocation(args.bucket, args.path);
 	const plaintextSha256 = contractArtifactSha256(args.plaintext);
@@ -68,12 +72,21 @@ export async function uploadContractArtifact(args: {
 				const plaintext = decryptContractArtifact(
 					Buffer.from(await existing.data.arrayBuffer()),
 				);
-				if (contractArtifactSha256(plaintext) === plaintextSha256) {
+				const existingSha256 = contractArtifactSha256(plaintext);
+				if (existingSha256 === plaintextSha256) {
 					return {
 						bucket: args.bucket,
 						path: args.path,
 						sha256: plaintextSha256,
 						sizeBytes: args.plaintext.length,
+					};
+				}
+				if (args.adoptExisting) {
+					return {
+						bucket: args.bucket,
+						path: args.path,
+						sha256: existingSha256,
+						sizeBytes: plaintext.length,
 					};
 				}
 			} catch {

@@ -16,6 +16,13 @@ const docxOnlyMigration = readFileSync(
 	),
 	"utf8",
 );
+const terminalFailureMigration = readFileSync(
+	new URL(
+		"../../../supabase/migrations/20260823120000_contract_render_terminal_failures.sql",
+		import.meta.url,
+	),
+	"utf8",
+);
 
 describe("contract DOCX pipeline migration", () => {
 	test("creates only private encrypted artifact buckets", () => {
@@ -152,5 +159,31 @@ describe("contract DOCX pipeline migration", () => {
 				),
 			);
 		}
+	});
+
+	test("lets the worker mark a render failure terminal", () => {
+		// Replacing the function changes its argument list, so the old signature
+		// must be dropped or Postgres keeps an ambiguous overload.
+		assert.match(
+			terminalFailureMigration,
+			/drop function if exists "public"\."finalize_contract_render_job"/i,
+		);
+		assert.match(terminalFailureMigration, /p_terminal boolean default false/i);
+		// A terminal failure must skip the requeue branch entirely.
+		assert.match(
+			terminalFailureMigration,
+			/if not p_terminal and v_job\.attempt_count < v_job\.max_attempts then/i,
+		);
+	});
+
+	test("re-grants the replaced finalize function to service_role only", () => {
+		assert.match(
+			terminalFailureMigration,
+			/revoke all on function "public"\."finalize_contract_render_job"[\s\S]*?from "public", "anon", "authenticated"/i,
+		);
+		assert.match(
+			terminalFailureMigration,
+			/grant execute on function "public"\."finalize_contract_render_job"[\s\S]*?to "service_role"/i,
+		);
 	});
 });

@@ -5,6 +5,7 @@ import {
 } from "@member-manager/shared";
 import {
 	BadGatewayError,
+	ConflictError,
 	DatabaseError,
 	ServiceUnavailableError,
 	ValidationError,
@@ -59,6 +60,7 @@ export interface ContractRenderJobStore {
 		output?: ContractRenderJobOutput;
 		errorCode?: string | null;
 		errorMessage?: string | null;
+		terminal?: boolean;
 	}): Promise<void>;
 }
 
@@ -158,6 +160,7 @@ export const supabaseContractRenderJobStore: ContractRenderJobStore = {
 			p_validation_issues: output?.validationIssues ?? [],
 			p_error_code: args.errorCode ?? null,
 			p_error_message: args.errorMessage ?? null,
+			p_terminal: args.terminal ?? false,
 		});
 		if (error) {
 			throw new DatabaseError(
@@ -167,7 +170,20 @@ export const supabaseContractRenderJobStore: ContractRenderJobStore = {
 	},
 };
 
-function safeJobFailure(error: unknown): { code: string; message: string } {
+function safeJobFailure(error: unknown): {
+	code: string;
+	message: string;
+	terminal: boolean;
+} {
+	// A rejected document and an occupied artifact path both fail identically on
+	// every retry; only transient converter/storage faults are worth repeating.
+	if (error instanceof ConflictError) {
+		return {
+			code: "CONTRACT_ARTIFACT_CONFLICT",
+			message: error.message.slice(0, 500),
+			terminal: true,
+		};
+	}
 	if (error instanceof ValidationError) {
 		const details = error.details;
 		const code =
@@ -177,26 +193,40 @@ function safeJobFailure(error: unknown): { code: string; message: string } {
 			typeof details.code === "string"
 				? details.code
 				: "CONTRACT_VALIDATION_FAILED";
-		return { code, message: error.message.slice(0, 500) };
+		return { code, message: error.message.slice(0, 500), terminal: true };
 	}
 	if (error instanceof ServiceUnavailableError) {
-		return { code: "CONTRACT_CONVERTER_UNAVAILABLE", message: error.message };
+		return {
+			code: "CONTRACT_CONVERTER_UNAVAILABLE",
+			message: error.message,
+			terminal: false,
+		};
 	}
 	if (error instanceof BadGatewayError) {
-		return { code: "CONTRACT_CONVERSION_FAILED", message: error.message };
+		return {
+			code: "CONTRACT_CONVERSION_FAILED",
+			message: error.message,
+			terminal: false,
+		};
 	}
 	if (error instanceof DatabaseError) {
-		return { code: "CONTRACT_STORAGE_FAILED", message: error.message };
+		return {
+			code: "CONTRACT_STORAGE_FAILED",
+			message: error.message,
+			terminal: false,
+		};
 	}
 	if (error instanceof Error && error.message.trim()) {
 		return {
 			code: "CONTRACT_RENDER_FAILED",
 			message: error.message.slice(0, 500),
+			terminal: false,
 		};
 	}
 	return {
 		code: "CONTRACT_RENDER_FAILED",
 		message: "Contract render job failed",
+		terminal: false,
 	};
 }
 
@@ -210,6 +240,7 @@ export async function processContractRenderJobs(args: {
 	maxJobs?: number;
 	leaseSeconds?: number;
 	store?: ContractRenderJobStore;
+	log?: { warn: (value: unknown, message: string) => void };
 }): Promise<ContractRenderJobProcessResult> {
 	const maxJobs = Math.max(1, Math.min(args.maxJobs ?? 3, 10));
 	const leaseSeconds = Math.max(30, Math.min(args.leaseSeconds ?? 300, 900));
@@ -225,12 +256,19 @@ export async function processContractRenderJobs(args: {
 		result.claimed++;
 		const handler = args.handlers[job.operation];
 		if (!handler) {
-			await store.finalize({
-				job,
-				succeeded: false,
-				errorCode: "CONTRACT_RENDER_HANDLER_MISSING",
-				errorMessage: "No handler is configured for this render operation",
-			});
+			try {
+				await store.finalize({
+					job,
+					succeeded: false,
+					errorCode: "CONTRACT_RENDER_HANDLER_MISSING",
+					errorMessage: "No handler is configured for this render operation",
+				});
+			} catch (finalizeError) {
+				args.log?.warn?.(
+					{ err: finalizeError, jobId: job.id },
+					"Failed to finalize contract render job",
+				);
+			}
 			result.failed++;
 			continue;
 		}
@@ -245,12 +283,22 @@ export async function processContractRenderJobs(args: {
 			result.succeeded++;
 		} catch (error) {
 			const failure = safeJobFailure(error);
-			await store.finalize({
-				job,
-				succeeded: false,
-				errorCode: failure.code,
-				errorMessage: failure.message,
-			});
+			try {
+				await store.finalize({
+					job,
+					succeeded: false,
+					errorCode: failure.code,
+					errorMessage: failure.message,
+					terminal: failure.terminal,
+				});
+			} catch (finalizeError) {
+				// An expired or stolen lease makes finalize raise. Swallowing it keeps
+				// one job from aborting the batch; the lease lapses and it is reclaimed.
+				args.log?.warn?.(
+					{ err: finalizeError, jobId: job.id },
+					"Failed to finalize contract render job",
+				);
+			}
 			result.failed++;
 		}
 	}

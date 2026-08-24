@@ -3,6 +3,22 @@ import {
 	ContractSubmissionCreatorSummarySchema,
 	type PublicContractPartnerComment,
 } from "@member-manager/shared";
+import { decryptContractJson } from "./contractArtifactCrypto.js";
+
+// DOCX rows keep `form_data` empty (contract_submissions_docx_provenance_check)
+// and hold the real values in `form_data_encrypted`. Anything reading a form
+// value off a raw row must go through this first.
+export function hydrateSubmissionFormData(
+	row: Record<string, unknown>,
+): Record<string, unknown> {
+	if (row.renderer_engine !== "docx") return row;
+	const hydrated = { ...row };
+	if (typeof hydrated.form_data_encrypted === "string") {
+		hydrated.form_data = decryptContractJson(hydrated.form_data_encrypted);
+	}
+	delete hydrated.form_data_encrypted;
+	return hydrated;
+}
 
 export function toCreatorSubmissionSummary(
 	submission: Record<string, unknown>,

@@ -13,10 +13,7 @@ import {
 	hydrateDocxSubmission,
 	insertDocxDocumentVersion,
 } from "../../lib/contracts/contractDocxPipeline.js";
-import {
-	completeSubmission,
-	maybeAutoSendAfterBoardSign,
-} from "../../lib/contracts/contractFinalization.js";
+import { completeSubmission } from "../../lib/contracts/contractFinalization.js";
 import { sendPdf } from "../../lib/contracts/contractPdf.js";
 import {
 	buildPublicCommentHistory,
@@ -124,7 +121,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 				opensign_webhook_received_at: nowIso,
 				updated_at: nowIso,
 			};
-			if (body.file && current.renderer_engine !== "docx") {
+			if (body.file) {
 				update.opensign_file_url = body.file;
 			}
 			const certificateUrl = body.certificateUrl ?? body.certificate;
@@ -132,48 +129,40 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 
 			const canApplyOpenSignStatus = current.status === "sent_to_partner";
 			if (canApplyOpenSignStatus && isOpenSignCompletedEvent(event)) {
-				if (current.renderer_engine === "docx") {
-					if (!body.file || typeof current.form_data_encrypted !== "string") {
-						return reply.status(400).send({
-							error: "OpenSign completion did not include the signed PDF",
-						});
-					}
-					const idempotencyKey = `opensign-ingest:${body.objectId}:${event}`;
-					const { data: existingJob, error: existingJobError } =
-						await getSupabase()
-							.from("contract_render_jobs")
-							.select("id")
-							.eq("idempotency_key", idempotencyKey)
-							.maybeSingle();
-					if (existingJobError) throw existingJobError;
-					if (!existingJob) {
-						const version = await insertDocxDocumentVersion({
-							submissionId: String(current.id),
-							source: "partner_signed",
-							formDataEncrypted: current.form_data_encrypted,
-							parentDocumentVersionId:
-								typeof current.sent_document_version_id === "string"
-									? current.sent_document_version_id
-									: null,
-						});
-						await enqueueContractRenderJob({
-							operation: "opensign_ingest",
-							submissionId: String(current.id),
-							documentVersionId: String(version.id),
-							payload: { kind: "opensign_ingest", fileUrl: body.file },
-							idempotencyKey,
-						});
-						dispatchContractRenderJobs(request);
-					}
-					update.signer_name = "OpenSign";
-					update.opensign_error = null;
-				} else {
-					update.status = "partner_signed";
-					update.signed_at = nowIso;
-					update.signer_name = "OpenSign";
-					update.opensign_completed_at = nowIso;
-					update.opensign_error = null;
+				if (!body.file || typeof current.form_data_encrypted !== "string") {
+					return reply.status(400).send({
+						error: "OpenSign completion did not include the signed PDF",
+					});
 				}
+				const idempotencyKey = `opensign-ingest:${body.objectId}:${event}`;
+				const { data: existingJob, error: existingJobError } =
+					await getSupabase()
+						.from("contract_render_jobs")
+						.select("id")
+						.eq("idempotency_key", idempotencyKey)
+						.maybeSingle();
+				if (existingJobError) throw existingJobError;
+				if (!existingJob) {
+					const version = await insertDocxDocumentVersion({
+						submissionId: String(current.id),
+						source: "partner_signed",
+						formDataEncrypted: current.form_data_encrypted,
+						parentDocumentVersionId:
+							typeof current.sent_document_version_id === "string"
+								? current.sent_document_version_id
+								: null,
+					});
+					await enqueueContractRenderJob({
+						operation: "opensign_ingest",
+						submissionId: String(current.id),
+						documentVersionId: String(version.id),
+						payload: { kind: "opensign_ingest", fileUrl: body.file },
+						idempotencyKey,
+					});
+					dispatchContractRenderJobs(request);
+				}
+				update.signer_name = "OpenSign";
+				update.opensign_error = null;
 			} else if (canApplyOpenSignStatus && isOpenSignFailureEvent(event)) {
 				update.status = "partner_comments";
 				update.opensign_error = `OpenSign document ${event}`;
@@ -367,94 +356,55 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 					error: "This historical contract uses a retired document engine",
 				});
 			}
-			if (submission.renderer_engine === "docx") {
-				if (
-					await hasPendingContractRenderJob(
-						String(submission.id),
-						"board_signature",
-					)
-				) {
-					return {
-						id: submission.id,
-						status: submission.status,
-						document_status: "queued",
-					};
-				}
-				if (typeof submission.form_data_encrypted !== "string") {
-					return reply.status(409).send({ error: "Contract data is missing" });
-				}
-				const parent = await getReadyDocxVersion(
-					submission.active_document_version_id,
-				);
-				const { error: signerError } = await getSupabase()
-					.from("contract_submissions")
-					.update({
-						admin_signer_name: body.signer_name,
-						updated_at: new Date().toISOString(),
-					})
-					.eq("id", submission.id);
-				if (signerError) throw signerError;
-				const version = await insertDocxDocumentVersion({
-					submissionId: String(submission.id),
-					source: "board_signed",
-					formDataEncrypted: submission.form_data_encrypted,
-					parentDocumentVersionId: String(parent.id),
-				});
-				await enqueueContractRenderJob({
-					operation: "board_signature",
-					submissionId: String(submission.id),
-					documentVersionId: String(version.id),
-					payload: {
-						kind: "board_signature",
-						signatureData: body.signature_data,
-					},
-					idempotencyKey:
-						body.idempotency_key ?? `board-signature:${String(version.id)}`,
-				});
-				dispatchContractRenderJobs(request);
+			if (
+				await hasPendingContractRenderJob(
+					String(submission.id),
+					"board_signature",
+				)
+			) {
 				return {
 					id: submission.id,
 					status: submission.status,
 					document_status: "queued",
 				};
 			}
-
-			const nowIso = new Date().toISOString();
-			const { data, error } = await getSupabase()
+			if (typeof submission.form_data_encrypted !== "string") {
+				return reply.status(409).send({ error: "Contract data is missing" });
+			}
+			const parent = await getReadyDocxVersion(
+				submission.active_document_version_id,
+			);
+			const { error: signerError } = await getSupabase()
 				.from("contract_submissions")
 				.update({
-					admin_signature_data: body.signature_data,
 					admin_signer_name: body.signer_name,
-					admin_signed_at: nowIso,
-					status: "board_signed",
-					board_signature_token: null,
-					board_signature_token_expires_at: null,
-					updated_at: nowIso,
+					updated_at: new Date().toISOString(),
 				})
-				.eq("id", submission.id)
-				.select("id, status, admin_signed_at")
-				.single();
-			if (error) {
-				request.log.error(
-					{ err: error },
-					"Failed to record board signature via link",
-				);
-				throw createContractDatabaseError(error);
-			}
-
-			await recordAndNotifyTransition({
-				request,
+				.eq("id", submission.id);
+			if (signerError) throw signerError;
+			const version = await insertDocxDocumentVersion({
 				submissionId: String(submission.id),
-				fromStatus: "partner_signed",
-				toStatus: "board_signed",
-				changedBy: null,
-				changedByName: body.signer_name,
+				source: "board_signed",
+				formDataEncrypted: submission.form_data_encrypted,
+				parentDocumentVersionId: String(parent.id),
 			});
-			await maybeAutoSendAfterBoardSign({
-				request,
+			await enqueueContractRenderJob({
+				operation: "board_signature",
 				submissionId: String(submission.id),
+				documentVersionId: String(version.id),
+				payload: {
+					kind: "board_signature",
+					signatureData: body.signature_data,
+				},
+				idempotencyKey:
+					body.idempotency_key ?? `board-signature:${String(version.id)}`,
 			});
-			return data;
+			dispatchContractRenderJobs(request);
+			return {
+				id: submission.id,
+				status: submission.status,
+				document_status: "queued",
+			};
 		},
 	);
 
@@ -587,87 +537,55 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 					error: "This historical contract uses a retired document engine",
 				});
 			}
-			if (submission.renderer_engine === "docx") {
-				if (
-					await hasPendingContractRenderJob(
-						String(submission.id),
-						"partner_signature",
-					)
-				) {
-					return {
-						id: submission.id,
-						status: submission.status,
-						document_status: "queued",
-					};
-				}
-				if (typeof submission.form_data_encrypted !== "string") {
-					return reply.status(409).send({ error: "Contract data is missing" });
-				}
-				const parent = await getReadyDocxVersion(
-					submission.sent_document_version_id,
-				);
-				const { error: signerError } = await getSupabase()
-					.from("contract_submissions")
-					.update({
-						signer_name: body.signer_name,
-						updated_at: new Date().toISOString(),
-					})
-					.eq("id", submission.id);
-				if (signerError) throw signerError;
-				const version = await insertDocxDocumentVersion({
-					submissionId: String(submission.id),
-					source: "partner_signed",
-					formDataEncrypted: submission.form_data_encrypted,
-					parentDocumentVersionId: String(parent.id),
-				});
-				await enqueueContractRenderJob({
-					operation: "partner_signature",
-					submissionId: String(submission.id),
-					documentVersionId: String(version.id),
-					payload: {
-						kind: "partner_signature",
-						signatureData: body.signature_data,
-					},
-					idempotencyKey:
-						body.idempotency_key ?? `partner-signature:${String(version.id)}`,
-				});
-				dispatchContractRenderJobs(request);
+			if (
+				await hasPendingContractRenderJob(
+					String(submission.id),
+					"partner_signature",
+				)
+			) {
 				return {
 					id: submission.id,
 					status: submission.status,
 					document_status: "queued",
 				};
 			}
-
-			const nowIso = new Date().toISOString();
-			const { data, error } = await getSupabase()
+			if (typeof submission.form_data_encrypted !== "string") {
+				return reply.status(409).send({ error: "Contract data is missing" });
+			}
+			const parent = await getReadyDocxVersion(
+				submission.sent_document_version_id,
+			);
+			const { error: signerError } = await getSupabase()
 				.from("contract_submissions")
 				.update({
-					signature_data: body.signature_data,
 					signer_name: body.signer_name,
-					signed_at: nowIso,
-					status: "partner_signed",
-					signature_token: null,
-					signature_token_expires_at: null,
-					updated_at: nowIso,
+					updated_at: new Date().toISOString(),
 				})
-				.eq("id", submission.id)
-				.select("id, status, signed_at")
-				.single();
-			if (error) {
-				request.log.error({ err: error }, "Failed to record signature");
-				throw createContractDatabaseError(error);
-			}
-
-			await recordAndNotifyTransition({
-				request,
+				.eq("id", submission.id);
+			if (signerError) throw signerError;
+			const version = await insertDocxDocumentVersion({
 				submissionId: String(submission.id),
-				fromStatus: "sent_to_partner",
-				toStatus: "partner_signed",
-				changedBy: null,
-				changedByName: body.signer_name,
+				source: "partner_signed",
+				formDataEncrypted: submission.form_data_encrypted,
+				parentDocumentVersionId: String(parent.id),
 			});
-			return data;
+			await enqueueContractRenderJob({
+				operation: "partner_signature",
+				submissionId: String(submission.id),
+				documentVersionId: String(version.id),
+				payload: {
+					kind: "partner_signature",
+					signatureData: body.signature_data,
+				},
+				idempotencyKey:
+					body.idempotency_key ?? `partner-signature:${String(version.id)}`,
+			});
+			dispatchContractRenderJobs(request);
+			return {
+				id: submission.id,
+				status: submission.status,
+				document_status: "queued",
+			};
 		},
 	);
 
@@ -698,90 +616,51 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 					error: "This historical contract uses a retired document engine",
 				});
 			}
-			if (current.renderer_engine === "docx") {
-				if (
-					await hasPendingContractRenderJob(
-						String(current.id),
-						"board_signature",
-					)
-				) {
-					return hydrateDocxSubmission(current as Record<string, unknown>);
-				}
-				if (typeof current.form_data_encrypted !== "string") {
-					return reply.status(409).send({ error: "Contract data is missing" });
-				}
-				const parent = await getReadyDocxVersion(
-					current.active_document_version_id,
-				);
-				const { error: signerError } = await getSupabase()
-					.from("contract_submissions")
-					.update({
-						admin_signer_name: body.signer_name,
-						reviewed_by: user.id,
-						reviewed_at: new Date().toISOString(),
-						updated_at: new Date().toISOString(),
-					})
-					.eq("id", current.id);
-				if (signerError) throw signerError;
-				const version = await insertDocxDocumentVersion({
-					submissionId: request.params.id,
-					source: "board_signed",
-					formDataEncrypted: current.form_data_encrypted,
-					createdBy: user.id,
-					parentDocumentVersionId: String(parent.id),
-				});
-				await enqueueContractRenderJob({
-					operation: "board_signature",
-					submissionId: request.params.id,
-					documentVersionId: String(version.id),
-					payload: {
-						kind: "board_signature",
-						signatureData: body.signature_data,
-					},
-					idempotencyKey:
-						body.idempotency_key ?? `board-signature:${String(version.id)}`,
-				});
-				dispatchContractRenderJobs(request);
-				return hydrateDocxSubmission({
-					...current,
-					active_document_version_id: version.id,
-					document_status: "queued",
-				});
+			if (
+				await hasPendingContractRenderJob(String(current.id), "board_signature")
+			) {
+				return hydrateDocxSubmission(current as Record<string, unknown>);
 			}
-
-			const nowIso = new Date().toISOString();
-			const { data, error } = await getSupabase()
+			if (typeof current.form_data_encrypted !== "string") {
+				return reply.status(409).send({ error: "Contract data is missing" });
+			}
+			const parent = await getReadyDocxVersion(
+				current.active_document_version_id,
+			);
+			const { error: signerError } = await getSupabase()
 				.from("contract_submissions")
 				.update({
-					admin_signature_data: body.signature_data,
 					admin_signer_name: body.signer_name,
-					admin_signed_at: nowIso,
 					reviewed_by: user.id,
-					reviewed_at: nowIso,
-					status: "board_signed",
-					updated_at: nowIso,
+					reviewed_at: new Date().toISOString(),
+					updated_at: new Date().toISOString(),
 				})
-				.eq("id", request.params.id)
-				.select("*")
-				.single();
-			if (error) {
-				request.log.error({ err: error }, "Failed to record board signature");
-				throw createContractDatabaseError(error);
-			}
-
-			await recordAndNotifyTransition({
-				request,
+				.eq("id", current.id);
+			if (signerError) throw signerError;
+			const version = await insertDocxDocumentVersion({
 				submissionId: request.params.id,
-				fromStatus: "partner_signed",
-				toStatus: "board_signed",
-				changedBy: user.id,
-				changedByName: body.signer_name,
+				source: "board_signed",
+				formDataEncrypted: current.form_data_encrypted,
+				createdBy: user.id,
+				parentDocumentVersionId: String(parent.id),
 			});
-			await maybeAutoSendAfterBoardSign({
-				request,
+			await enqueueContractRenderJob({
+				operation: "board_signature",
 				submissionId: request.params.id,
+				documentVersionId: String(version.id),
+				payload: {
+					kind: "board_signature",
+					signatureData: body.signature_data,
+				},
+				idempotencyKey:
+					body.idempotency_key ?? `board-signature:${String(version.id)}`,
 			});
-			return data;
+			dispatchContractRenderJobs(request);
+			return hydrateDocxSubmission({
+				...current,
+				active_document_version_id: version.id,
+				document_status: "queued",
+			});
 		},
 	);
 

@@ -3,7 +3,10 @@ import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
 import { enrichContractFormData } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
-import { isEncryptedContractArtifact } from "../../src/lib/contracts/contractArtifactCrypto.js";
+import {
+	encryptContractJson,
+	isEncryptedContractArtifact,
+} from "../../src/lib/contracts/contractArtifactCrypto.js";
 import {
 	CONTRACT_DOCX_FIXTURE_ANCHORS,
 	createContractDocxFixture,
@@ -159,6 +162,44 @@ describe("Contract Routes", async () => {
 			headers: authHeaders(testTokens.admin),
 		});
 		assert.equal(submissionPreview.statusCode, 404);
+	});
+
+	test("sends to the partner using the encrypted form data", async () => {
+		// DOCX rows keep form_data empty and hold the real values in
+		// form_data_encrypted. Reading the raw row made every send fail with
+		// "Partner contact email is required" before the partner was ever emailed.
+		resetDatabase();
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.renderer_engine = "docx";
+		submission.status = "approved";
+		submission.form_data = {};
+		submission.form_data_encrypted = encryptContractJson({
+			partner_company_name: "Encrypted Partner GmbH",
+			partner_contact_email: "encrypted-partner@example.com",
+		});
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: `/api/contracts/submissions/${SUBMISSION_ID}`,
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ send_partner_email: true }),
+		});
+
+		// Email is deliberately unconfigured in tests, so reaching the 503 proves
+		// the recipient was resolved from the encrypted payload.
+		assert.notEqual(
+			response.statusCode,
+			400,
+			`unexpected 400: ${response.payload}`,
+		);
+		assert.equal(response.statusCode, 503);
+		assert.match(JSON.parse(response.payload).error, /not configured/);
 	});
 
 	test("returns a clear retired response for historical text PDFs", async () => {

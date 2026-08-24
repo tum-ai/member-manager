@@ -6,7 +6,10 @@ import {
 	sendContractStatusChangeEmail,
 } from "../contractEmails.js";
 import { getSupabase } from "../supabase.js";
-import { getPartnerCompanyNameFromSubmission } from "./contractRecords.js";
+import {
+	getPartnerCompanyNameFromSubmission,
+	hydrateSubmissionFormData,
+} from "./contractRecords.js";
 import { createContractDatabaseError } from "./contractRepository.js";
 import { getAppBaseUrl } from "./contractSecurity.js";
 
@@ -41,7 +44,9 @@ export async function notifySubmitterOfClarification(args: {
 
 	await sendContractClarificationEmail({
 		to: submitterEmail,
-		partnerCompanyName: getPartnerCompanyNameFromSubmission(args.submission),
+		partnerCompanyName: getPartnerCompanyNameFromSubmission(
+			hydrateSubmissionFormData(args.submission),
+		),
 		message: args.message,
 		submissionUrl: args.submissionUrl,
 	});
@@ -108,7 +113,7 @@ export async function notifyContractStatusChange(args: {
 	}
 
 	const partnerCompanyName = getPartnerCompanyNameFromSubmission(
-		args.submission,
+		hydrateSubmissionFormData(args.submission),
 	);
 	const recipients: Array<{ to: string; audience: "legal" | "creator" }> = [];
 	const legalEmail = getContractLegalEmail();
@@ -181,11 +186,15 @@ export async function recordAndNotifyTransition(args: {
 	try {
 		const { data } = await getSupabase()
 			.from("contract_submissions")
-			.select("submitter_user_id, form_data")
+			.select(
+				"submitter_user_id, renderer_engine, form_data, form_data_encrypted",
+			)
 			.eq("id", args.submissionId)
 			.maybeSingle();
 		await notifyContractStatusChange({
-			submission: (data as Record<string, unknown>) ?? {},
+			submission: hydrateSubmissionFormData(
+				(data as Record<string, unknown>) ?? {},
+			),
 			fromStatus: args.fromStatus,
 			toStatus: args.toStatus,
 			submissionUrl: `${getAppBaseUrl(args.request)}/contracts/submissions/${args.submissionId}`,

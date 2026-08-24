@@ -30,12 +30,16 @@ import {
 	getContractPdfPageCount,
 	stampContractPdfSignature,
 } from "./contractPdfAnchors.js";
+import { hydrateSubmissionFormData } from "./contractRecords.js";
 import {
 	type ClaimedContractRenderJob,
 	type ContractRenderJobHandler,
 	processContractRenderJobs,
 } from "./contractRenderJobs.js";
-import { recordStatusEvent } from "./contractWorkflow.js";
+import {
+	recordAndNotifyTransition,
+	recordStatusEvent,
+} from "./contractWorkflow.js";
 
 type ContractSignatureAnchors = {
 	partner: ContractPdfAnchor;
@@ -196,6 +200,7 @@ async function renderTemplatePreview(job: ClaimedContractRenderJob) {
 		path: `${templateId}/${job.template_document_id}/preview.pdf`,
 		plaintext: pdf,
 		contentType: "application/pdf",
+		adoptExisting: true,
 	});
 	return {
 		converterVersion: getContractConverterVersion(),
@@ -257,12 +262,14 @@ async function renderSubmission(job: ClaimedContractRenderJob) {
 			path: `${basePath}/document.docx`,
 			plaintext: docx,
 			contentType: CONTRACT_DOCX_MIME_TYPE,
+			adoptExisting: true,
 		}),
 		uploadContractArtifact({
 			bucket: CONTRACT_RENDER_ARTIFACT_BUCKET,
 			path: `${basePath}/document.pdf`,
 			plaintext: pdf,
 			contentType: "application/pdf",
+			adoptExisting: true,
 		}),
 	]);
 	return {
@@ -311,6 +318,7 @@ async function renderSignature(
 		path,
 		plaintext: stamped.pdf,
 		contentType: "application/pdf",
+		adoptExisting: true,
 	});
 	return {
 		converterVersion: "pdf-lib-signature-v1",
@@ -347,6 +355,7 @@ async function ingestOpenSignPdf(job: ClaimedContractRenderJob) {
 		path: `${String(version.submission_id)}/${job.document_version_id}/document.pdf`,
 		plaintext: pdf,
 		contentType: "application/pdf",
+		adoptExisting: true,
 	});
 	return {
 		converterVersion: "opensign-ingest-v1",
@@ -383,6 +392,7 @@ export async function runContractRenderJobs(
 		workerId: `contract-worker-${randomUUID()}`,
 		handlers: contractRenderJobHandlers,
 		maxJobs,
+		log: request?.log,
 		onSucceeded: async (job) => {
 			const transition =
 				job.operation === "partner_signature" ||
@@ -400,7 +410,7 @@ export async function runContractRenderJobs(
 				"contract_submissions",
 				String(version.submission_id),
 			);
-			await recordStatusEvent({
+			const event = {
 				submissionId: String(version.submission_id),
 				fromStatus: transition.from,
 				toStatus: transition.to,
@@ -409,7 +419,14 @@ export async function runContractRenderJobs(
 					job.operation === "board_signature"
 						? String(submission.admin_signer_name ?? "Board")
 						: String(submission.signer_name ?? "Partner"),
-			});
+			};
+			// Signing now completes asynchronously here, so this is the only place
+			// left that can notify legal and the creator that a contract was signed.
+			if (request) {
+				await recordAndNotifyTransition({ request, ...event });
+			} else {
+				await recordStatusEvent(event);
+			}
 			if (job.operation === "board_signature" && request) {
 				await maybeAutoSendAfterBoardSign({
 					request,
@@ -569,15 +586,49 @@ export async function hydrateDocxSubmission(
 	row: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
 	if (row.renderer_engine !== "docx") return row;
-	const hydrated = { ...row };
-	if (typeof hydrated.form_data_encrypted === "string") {
-		hydrated.form_data = decryptContractJson(hydrated.form_data_encrypted);
-	}
-	delete hydrated.form_data_encrypted;
+	const hydrated = hydrateSubmissionFormData(row);
 	hydrated.document_status = await getDocumentStatus(
 		hydrated.active_document_version_id,
 	);
 	return hydrated;
+}
+
+// One status lookup for the whole page instead of one per row.
+export async function hydrateDocxSubmissions(
+	rows: Record<string, unknown>[],
+): Promise<Record<string, unknown>[]> {
+	const versionIds = [
+		...new Set(
+			rows
+				.filter((row) => row.renderer_engine === "docx")
+				.map((row) => row.active_document_version_id)
+				.filter((id): id is string => typeof id === "string"),
+		),
+	];
+	const statuses = new Map<string, string>();
+	if (versionIds.length > 0) {
+		const { data, error } = await getSupabase()
+			.from("contract_document_versions")
+			.select("id, artifact_status")
+			.in("id", versionIds);
+		if (error) throw error;
+		for (const version of data ?? []) {
+			if (
+				typeof version.id === "string" &&
+				typeof version.artifact_status === "string"
+			) {
+				statuses.set(version.id, version.artifact_status);
+			}
+		}
+	}
+	return rows.map((row) => {
+		if (row.renderer_engine !== "docx") return row;
+		const hydrated = hydrateSubmissionFormData(row);
+		const versionId = hydrated.active_document_version_id;
+		hydrated.document_status =
+			typeof versionId === "string" ? (statuses.get(versionId) ?? null) : null;
+		return hydrated;
+	});
 }
 
 export async function getReadyDocxVersion(

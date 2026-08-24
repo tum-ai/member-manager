@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { encryptContractArtifact } from "../../src/lib/contracts/contractArtifactCrypto.js";
@@ -70,6 +71,26 @@ describe("contract artifact storage", () => {
 					contentType: "application/pdf",
 				}),
 			(error: unknown) => error instanceof ConflictError,
+		);
+	});
+
+	it("adopts the stored artifact when a re-render is not byte-identical", async () => {
+		// LibreOffice stamps a /CreationDate, so a job killed after upload but
+		// before finalize re-converts to different bytes. Without adoption the
+		// retry conflicts forever and the version is stuck as failed.
+		const stored = Buffer.from("pdf rendered on the first attempt");
+		setSupabaseClient(storageClient(stored));
+		const result = await uploadContractArtifact({
+			bucket: "contract-render-artifacts",
+			path: "submissions/id/version/document.pdf",
+			plaintext: Buffer.from("pdf rendered on the second attempt"),
+			contentType: "application/pdf",
+			adoptExisting: true,
+		});
+		assert.equal(result.sizeBytes, stored.length);
+		assert.equal(
+			result.sha256,
+			createHash("sha256").update(stored).digest("hex"),
 		);
 	});
 });

@@ -21,6 +21,7 @@ import {
 	enqueueContractRenderJob,
 	getReadyDocxVersion,
 	hydrateDocxSubmission,
+	hydrateDocxSubmissions,
 	insertDocxDocumentVersion,
 	parseStoredContractSignatureAnchors,
 } from "../lib/contracts/contractDocxPipeline.js";
@@ -28,6 +29,7 @@ import { sendPdf } from "../lib/contracts/contractPdf.js";
 import {
 	getPartnerCompanyNameFromSubmission,
 	getPartnerEmailFromSubmission,
+	hydrateSubmissionFormData,
 	toCreatorSubmissionDetail,
 	toCreatorSubmissionSummary,
 } from "../lib/contracts/contractRecords.js";
@@ -116,10 +118,8 @@ export async function contractRoutes(server: FastifyInstance) {
 				);
 				throw createContractDatabaseError(error);
 			}
-			const rows = await Promise.all(
-				(data ?? []).map((row) =>
-					hydrateDocxSubmission(row as Record<string, unknown>),
-				),
+			const rows = await hydrateDocxSubmissions(
+				(data ?? []) as Record<string, unknown>[],
 			);
 			if (isAdmin) {
 				return rows;
@@ -429,10 +429,30 @@ export async function contractRoutes(server: FastifyInstance) {
 				}
 				return updated;
 			} catch (error) {
-				await getSupabase()
-					.from("contract_submissions")
-					.delete()
-					.eq("id", data.id);
+				// contract_render_jobs and contract_document_versions both reference
+				// the submission with `on delete restrict`, so the rows have to be
+				// unwound in reverse dependency order or the delete silently fails
+				// and leaves an orphaned submission behind.
+				const submissionId = String(data.id);
+				for (const table of [
+					"contract_render_jobs",
+					"contract_document_versions",
+					"contract_submissions",
+				] as const) {
+					const column =
+						table === "contract_submissions" ? "id" : "submission_id";
+					const { error: cleanupError } = await getSupabase()
+						.from(table)
+						.delete()
+						.eq(column, submissionId);
+					if (cleanupError) {
+						request.log.error(
+							{ err: cleanupError, submissionId, table },
+							"Failed to clean up partially created contract submission",
+						);
+						break;
+					}
+				}
 				request.log.error(
 					{ err: error },
 					"Failed to create initial contract document version",
@@ -589,7 +609,9 @@ export async function contractRoutes(server: FastifyInstance) {
 				if (error || !data) {
 					return reply.status(404).send({ error: "Submission not found" });
 				}
-				current = data as Record<string, unknown>;
+				// Partner email and company name live only in form_data_encrypted
+				// for DOCX rows; every read below depends on this hydration.
+				current = hydrateSubmissionFormData(data as Record<string, unknown>);
 			}
 
 			const fromStatus =
@@ -790,7 +812,9 @@ export async function contractRoutes(server: FastifyInstance) {
 				throw createContractDatabaseError(error);
 			}
 			if (body.send_partner_email === true) {
-				const submission = data as Record<string, unknown>;
+				const submission = hydrateSubmissionFormData(
+					data as Record<string, unknown>,
+				);
 				const recipient = getPartnerEmailFromSubmission(submission);
 				const signingToken =
 					typeof submission.signature_token === "string"
@@ -842,7 +866,9 @@ export async function contractRoutes(server: FastifyInstance) {
 				}
 			}
 			if (body.send_opensign === true) {
-				const submission = data as Record<string, unknown>;
+				const submission = hydrateSubmissionFormData(
+					data as Record<string, unknown>,
+				);
 				const recipient = getPartnerEmailFromSubmission(submission);
 				const partnerCompany =
 					getPartnerCompanyNameFromSubmission(submission) || "Partner";

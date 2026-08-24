@@ -61,14 +61,37 @@ export const ConditionalBlockBodySchema = z.object({
 	sort_order: z.number().int().min(0).max(10_000).optional().default(0),
 });
 
+// `{{` and `}}` are the DOCX template command delimiters. A value carrying them
+// is inserted literally into the filled document and then re-detected as an
+// unresolved command, failing the render with an error the submitter cannot act
+// on. Reject it here, where the offending field can still be pointed at.
+const CONTRACT_TEMPLATE_DELIMITER = /\{\{|\}\}/;
+
+export const ContractFormDataSchema = z
+	.record(z.string(), z.unknown())
+	.superRefine((formData, ctx) => {
+		for (const [key, value] of Object.entries(formData)) {
+			if (
+				typeof value === "string" &&
+				CONTRACT_TEMPLATE_DELIMITER.test(value)
+			) {
+				ctx.addIssue({
+					code: "custom",
+					path: [key],
+					message: "Remove the {{ and }} characters from this field.",
+				});
+			}
+		}
+	});
+
 export const SubmissionBodySchema = z.object({
 	template_id: z.string().uuid(),
-	form_data: z.record(z.string(), z.unknown()),
+	form_data: ContractFormDataSchema,
 	status: z.enum(["draft", "submitted"]).optional().default("submitted"),
 });
 
 export const DraftSubmissionPatchSchema = z.object({
-	form_data: z.record(z.string(), z.unknown()),
+	form_data: ContractFormDataSchema,
 	status: z.enum(["draft", "submitted"]).optional().default("draft"),
 });
 
