@@ -7,14 +7,13 @@ import {
 import type { FastifyInstance } from "fastify";
 import {
 	dispatchContractRenderJobs,
-	downloadReadyVersionPdf,
 	enqueueContractRenderJob,
 	getReadyDocxVersion,
 	hydrateDocxSubmission,
 	insertDocxDocumentVersion,
+	readyVersionPdfUrl,
 } from "../../lib/contracts/contractDocxPipeline.js";
 import { completeSubmission } from "../../lib/contracts/contractFinalization.js";
-import { sendPdf } from "../../lib/contracts/contractPdf.js";
 import {
 	buildPublicCommentHistory,
 	getPartnerCompanyNameFromSubmission,
@@ -746,11 +745,11 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 					error: "This historical contract uses a retired document engine",
 				});
 			}
-			return sendPdf(
-				reply,
-				await downloadReadyVersionPdf(data.final_document_version_id),
-				`contract-${data.id}.pdf`,
-				query.download === "1" ? "attachment" : "inline",
+			return reply.redirect(
+				await readyVersionPdfUrl(
+					data.final_document_version_id,
+					query.download === "1" ? `contract-${data.id}.pdf` : undefined,
+				),
 			);
 		},
 	);

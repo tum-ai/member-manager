@@ -1,34 +1,43 @@
 import { randomUUID } from "node:crypto";
 import {
 	CONTRACT_DERIVED_FORM_DATA_KEYS,
+	CONTRACT_RENDER_ARTIFACT_BUCKET,
+	CONTRACT_TEMPLATE_DOCUMENT_BUCKET,
 	ContractDocumentRetryBodySchema,
+	ContractDocxUploadBodySchema,
 	ContractSubmissionParamsSchema,
 	ContractTemplateDocumentParamsSchema,
 	ContractTemplateParamsSchema,
+	ContractUploadUrlBodySchema,
 } from "@member-manager/shared";
-import type { FastifyInstance, FastifyReply } from "fastify";
-import { removeContractArtifact } from "../../lib/contracts/contractArtifactStorage.js";
+import type { FastifyInstance } from "fastify";
+import { contractArtifactSha256 } from "../../lib/contracts/contractArtifactStorage.js";
 import {
-	assertContractDocxMimeType,
 	inspectContractDocx,
 	inspectFilledContractDocx,
 } from "../../lib/contracts/contractDocx.js";
 import {
 	CONTRACT_RENDER_JOBS_PER_INVOCATION,
+	contractSubmissionDocxPath,
+	contractTemplateSourcePath,
 	createTemplateDocumentRecord,
 	dispatchContractRenderJobs,
-	downloadReadyVersionDocx,
-	downloadReadyVersionPdf,
-	downloadTemplatePreviewPdf,
 	enqueueContractRenderJob,
 	getDocxReadiness,
 	hydrateDocxSubmission,
 	insertDocxDocumentVersion,
+	readyVersionDocxUrl,
+	readyVersionPdfUrl,
 	runContractRenderJobs,
-	storeSubmissionDocxSource,
-	storeTemplateSource,
+	templatePreviewPdfUrl,
 } from "../../lib/contracts/contractDocxPipeline.js";
 import { fetchTemplateWithChildren } from "../../lib/contracts/contractRepository.js";
+import {
+	assertUploadBelongsTo,
+	createContractUploadUrl,
+	downloadUploadedDocx,
+	removeUploadedDocx,
+} from "../../lib/contracts/contractUploads.js";
 import {
 	ConflictError,
 	NotFoundError,
@@ -59,42 +68,6 @@ function fileName(value: string): string {
 	return normalized;
 }
 
-async function receiveDocx(request: {
-	file: () => Promise<
-		| {
-				filename: string;
-				mimetype: string;
-				toBuffer: () => Promise<Buffer>;
-		  }
-		| undefined
-	>;
-}): Promise<{ buffer: Buffer; filename: string }> {
-	const part = await request.file();
-	if (!part) throw new ValidationError("A DOCX file is required");
-	assertContractDocxMimeType(part.mimetype);
-	return {
-		buffer: await part.toBuffer(),
-		filename: fileName(part.filename),
-	};
-}
-
-function sendDocx(reply: FastifyReply, docx: Buffer, filename: string) {
-	return reply
-		.header(
-			"Content-Type",
-			"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-		)
-		.header("Content-Disposition", `attachment; filename="${filename}"`)
-		.send(docx);
-}
-
-function sendPdf(reply: FastifyReply, pdf: Buffer, filename: string) {
-	return reply
-		.header("Content-Type", "application/pdf")
-		.header("Content-Disposition", `inline; filename="${filename}"`)
-		.send(pdf);
-}
-
 async function fetchSubmission(id: string): Promise<Record<string, unknown>> {
 	const { data, error } = await getSupabase()
 		.from("contract_submissions")
@@ -113,13 +86,70 @@ function requireCronSecret(authorization: string | undefined): void {
 	}
 }
 
+/**
+ * Both upload paths are `{recordId}/{documentId}/{name}.docx`, minted server-side
+ * when the ticket was issued. Reading the id back out keeps the row and the
+ * object in agreement without trusting anything the client sent.
+ */
+function contractDocumentIdFromPath(path: string): string {
+	const id = path.split("/")[1];
+	if (!id || !UUID.test(id)) {
+		throw new ValidationError("Upload path is not recognised");
+	}
+	return id;
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function contractDocxRoutes(server: FastifyInstance) {
+	server.post<{ Params: { id: string } }>(
+		"/contracts/templates/:id/documents/upload-url",
+		{ preHandler: [authenticate, requireContractsAdmin] },
+		async (request) => {
+			const { id } = ContractTemplateParamsSchema.parse(request.params);
+			const body = ContractUploadUrlBodySchema.parse(request.body);
+			return createContractUploadUrl({
+				bucket: CONTRACT_TEMPLATE_DOCUMENT_BUCKET,
+				path: contractTemplateSourcePath(id, randomUUID()),
+				mimeType: body.mime_type,
+				sizeBytes: body.size_bytes,
+			});
+		},
+	);
+
+	server.post<{ Params: { id: string } }>(
+		"/contracts/submissions/:id/docx/upload-url",
+		{ preHandler: [authenticate, requireContractsAdmin] },
+		async (request) => {
+			const { id } = ContractSubmissionParamsSchema.parse(request.params);
+			const body = ContractUploadUrlBodySchema.parse(request.body);
+			return createContractUploadUrl({
+				bucket: CONTRACT_RENDER_ARTIFACT_BUCKET,
+				path: contractSubmissionDocxPath(id, randomUUID()),
+				mimeType: body.mime_type,
+				sizeBytes: body.size_bytes,
+			});
+		},
+	);
+
 	server.post<{ Params: { id: string } }>(
 		"/contracts/templates/:id/documents",
 		{ preHandler: [authenticate, requireContractsAdmin] },
 		async (request) => {
 			const { id } = ContractTemplateParamsSchema.parse(request.params);
-			const upload = await receiveDocx(request);
+			const body = ContractDocxUploadBodySchema.parse(request.body);
+			// The ticket was minted for this template, so the object has to sit
+			// under its prefix; that is what stops one template's upload being
+			// claimed against another.
+			assertUploadBelongsTo(id, body.storage_path);
+			const source = {
+				bucket: CONTRACT_TEMPLATE_DOCUMENT_BUCKET,
+				path: body.storage_path,
+			};
+			const upload = {
+				buffer: await downloadUploadedDocx(source),
+				filename: fileName(body.filename),
+			};
 			const { variables } = await fetchTemplateWithChildren(id);
 			const variableNames = variables
 				.map((variable) => variable.variable_name)
@@ -134,34 +164,32 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 					.map((variable) => variable.variable_name)
 					.filter((value): value is string => typeof value === "string"),
 			);
-			const manifest = await inspectContractDocx(
-				upload.buffer,
-				allowed,
-				required,
-			);
-			const documentId = randomUUID();
-			const stored = await storeTemplateSource({
-				templateId: id,
-				documentId,
-				docx: upload.buffer,
-			});
+			let manifest: Awaited<ReturnType<typeof inspectContractDocx>>;
+			try {
+				manifest = await inspectContractDocx(upload.buffer, allowed, required);
+			} catch (error) {
+				// Nothing references the object yet, so a rejected upload has to be
+				// cleared here or it lingers unreferenced.
+				await removeUploadedDocx(source);
+				throw error;
+			}
+			// The id is embedded in the path the ticket was minted for, so the row
+			// and the object cannot disagree about where the source lives.
+			const documentId = contractDocumentIdFromPath(body.storage_path);
 			let document: Record<string, unknown>;
 			try {
 				document = await createTemplateDocumentRecord({
 					templateId: id,
 					documentId,
-					sourcePath: stored.path,
-					sourceSizeBytes: stored.sizeBytes,
-					sourceSha256: stored.sha256,
+					sourcePath: source.path,
+					sourceSizeBytes: upload.buffer.length,
+					sourceSha256: contractArtifactSha256(upload.buffer),
 					originalFilename: upload.filename,
 					placeholderManifest: { ...manifest },
 					uploadedByUserId: (request as AuthenticatedRequest).user.id,
 				});
 			} catch (error) {
-				await removeContractArtifact({
-					bucket: stored.bucket,
-					path: stored.path,
-				}).catch(() => undefined);
+				await removeUploadedDocx(source);
 				throw error;
 			}
 			await enqueueContractRenderJob({
@@ -232,11 +260,7 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 				.maybeSingle();
 			if (error) throw error;
 			if (!data) throw new NotFoundError("Template document not found");
-			return sendPdf(
-				reply,
-				await downloadTemplatePreviewPdf(params.documentId),
-				`contract-template-${params.documentId}.pdf`,
-			);
+			return reply.redirect(await templatePreviewPdfUrl(params.documentId));
 		},
 	);
 
@@ -282,10 +306,11 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 					"This submission uses a retired document format",
 				);
 			}
-			return sendDocx(
-				reply,
-				await downloadReadyVersionDocx(submission.active_document_version_id),
-				`contract-${id}.docx`,
+			return reply.redirect(
+				await readyVersionDocxUrl(
+					submission.active_document_version_id,
+					`contract-${id}.docx`,
+				),
 			);
 		},
 	);
@@ -304,17 +329,31 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 			if (NON_EDITABLE_STATUSES.has(String(submission.status))) {
 				throw new ConflictError("A signed contract cannot be replaced");
 			}
-			const upload = await receiveDocx(request);
-			await inspectFilledContractDocx(upload.buffer);
+			const body = ContractDocxUploadBodySchema.parse(request.body);
+			assertUploadBelongsTo(id, body.storage_path);
+			const source = {
+				bucket: CONTRACT_RENDER_ARTIFACT_BUCKET,
+				path: body.storage_path,
+			};
+			const upload = {
+				buffer: await downloadUploadedDocx(source),
+				filename: fileName(body.filename),
+			};
+			try {
+				await inspectFilledContractDocx(upload.buffer);
+			} catch (error) {
+				await removeUploadedDocx(source);
+				throw error;
+			}
 			if (typeof submission.opensign_document_id === "string") {
 				await revokeOpenSignDocument(submission.opensign_document_id);
 			}
-			const versionId = randomUUID();
-			const stored = await storeSubmissionDocxSource({
-				submissionId: id,
-				versionId,
-				docx: upload.buffer,
-			});
+			const versionId = contractDocumentIdFromPath(body.storage_path);
+			const stored = {
+				...source,
+				sha256: contractArtifactSha256(upload.buffer),
+				sizeBytes: upload.buffer.length,
+			};
 			try {
 				await insertDocxDocumentVersion({
 					submissionId: id,
@@ -329,10 +368,7 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 					id: versionId,
 				});
 			} catch (error) {
-				await removeContractArtifact({
-					bucket: stored.bucket,
-					path: stored.path,
-				}).catch(() => undefined);
+				await removeUploadedDocx(source);
 				throw error;
 			}
 			await enqueueContractRenderJob({
@@ -371,10 +407,8 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 			) {
 				throw new ConflictError("Signing link expired");
 			}
-			return sendPdf(
-				reply,
-				await downloadReadyVersionPdf(data.sent_document_version_id),
-				`contract-${data.id}.pdf`,
+			return reply.redirect(
+				await readyVersionPdfUrl(data.sent_document_version_id),
 			);
 		},
 	);
@@ -400,10 +434,8 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 			) {
 				throw new ConflictError("Board signing link expired");
 			}
-			return sendPdf(
-				reply,
-				await downloadReadyVersionPdf(data.active_document_version_id),
-				`contract-${data.id}.pdf`,
+			return reply.redirect(
+				await readyVersionPdfUrl(data.active_document_version_id),
 			);
 		},
 	);

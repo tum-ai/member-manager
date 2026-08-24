@@ -69,7 +69,11 @@ export function ContractTemplateDocumentsPanel({
 			return;
 		}
 		if (file.size > MAX_CONTRACT_DOCX_BYTES) {
-			setFileError("The DOCX file must be 10 MB or smaller.");
+			// Derived from the shared constant so the copy cannot drift from the
+			// limit the server and the storage bucket actually enforce.
+			setFileError(
+				`The DOCX file must be ${Math.floor(MAX_CONTRACT_DOCX_BYTES / (1024 * 1024))} MB or smaller.`,
+			);
 			return;
 		}
 		setFileError(null);

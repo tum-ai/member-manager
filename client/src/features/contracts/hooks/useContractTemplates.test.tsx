@@ -15,6 +15,11 @@ vi.mock("@/lib/supabaseClient", () => ({
 			}),
 			signOut: vi.fn(),
 		},
+		storage: {
+			from: vi.fn(() => ({
+				uploadToSignedUrl: vi.fn().mockResolvedValue({ data: {}, error: null }),
+			})),
+		},
 	},
 }));
 

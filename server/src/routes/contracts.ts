@@ -24,8 +24,8 @@ import {
 	hydrateDocxSubmissions,
 	insertDocxDocumentVersion,
 	parseStoredContractSignatureAnchors,
+	readyVersionPdfUrl,
 } from "../lib/contracts/contractDocxPipeline.js";
-import { sendPdf } from "../lib/contracts/contractPdf.js";
 import {
 	getPartnerCompanyNameFromSubmission,
 	getPartnerEmailFromSubmission,
@@ -254,16 +254,14 @@ export async function contractRoutes(server: FastifyInstance) {
 					error: "This historical contract uses a retired document engine",
 				});
 			}
-			return sendPdf(
-				reply,
-				await downloadReadyVersionPdf(
+			return reply.redirect(
+				await readyVersionPdfUrl(
 					data.status === "completed"
 						? data.final_document_version_id
 						: (data.active_document_version_id ??
 								data.sent_document_version_id),
+					`contract-${request.params.id}.pdf`,
 				),
-				`contract-${request.params.id}.pdf`,
-				"attachment",
 			);
 		},
 	);

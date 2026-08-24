@@ -84,6 +84,19 @@ export const ContractFormDataSchema = z
 		}
 	});
 
+// The browser PUTs the DOCX straight to Supabase Storage with a signed URL, so
+// only this metadata ever crosses /api/*. Bytes never enter a function body.
+export const ContractUploadUrlBodySchema = z.object({
+	filename: z.string().trim().min(1).max(255),
+	mime_type: z.string().trim().min(1).max(200),
+	size_bytes: z.number().int().positive(),
+});
+
+export const ContractDocxUploadBodySchema = z.object({
+	storage_path: z.string().trim().min(1).max(900),
+	filename: z.string().trim().min(1).max(255),
+});
+
 export const SubmissionBodySchema = z.object({
 	template_id: z.string().uuid(),
 	form_data: ContractFormDataSchema,

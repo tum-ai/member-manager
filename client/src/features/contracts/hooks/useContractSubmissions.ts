@@ -11,6 +11,7 @@ import type {
 } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { contractQueryKeys } from "@/features/contracts/contractQueryKeys";
+import { uploadContractDocx } from "@/features/contracts/lib/uploadContractDocx";
 import { apiBlob, apiClient } from "@/lib/apiClient";
 
 function hasPendingDocument(submission: unknown): boolean {
@@ -71,12 +72,14 @@ export function useContractSubmissionPdf(
 export function useUploadContractSubmissionDocx(submissionId: string) {
 	const invalidateSubmission = useInvalidateSubmission(submissionId);
 	return useMutation({
-		mutationFn: (file: File) => {
-			const body = new FormData();
-			body.append("file", file);
+		mutationFn: async (file: File) => {
+			const uploaded = await uploadContractDocx(
+				`/api/contracts/submissions/${submissionId}/docx/upload-url`,
+				file,
+			);
 			return apiClient<ContractSubmission>(
 				`/api/contracts/submissions/${submissionId}/docx`,
-				{ method: "POST", body },
+				{ method: "POST", body: JSON.stringify(uploaded) },
 			);
 		},
 		onSuccess: () => invalidateSubmission(),

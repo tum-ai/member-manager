@@ -7,7 +7,7 @@ import { ConflictError, DatabaseError, ValidationError } from "../errors.js";
 import { getSupabase } from "../supabase.js";
 import {
 	decryptContractArtifact,
-	encryptContractArtifact,
+	isEncryptedContractArtifact,
 } from "./contractArtifactCrypto.js";
 
 const ALLOWED_BUCKETS = new Set([
@@ -25,6 +25,15 @@ export interface StoredContractArtifact {
 
 export function contractArtifactSha256(value: Buffer): string {
 	return createHash("sha256").update(value).digest("hex");
+}
+
+// Contract artifacts are stored as-is in private buckets and reach the browser
+// through short-lived signed URLs, so nothing is written encrypted any more.
+// Objects written by earlier builds still are, so reads decide by content.
+function readStoredArtifact(stored: Buffer): Buffer {
+	return isEncryptedContractArtifact(stored)
+		? decryptContractArtifact(stored)
+		: stored;
 }
 
 export function assertContractArtifactLocation(
@@ -55,10 +64,9 @@ export async function uploadContractArtifact(args: {
 }): Promise<StoredContractArtifact> {
 	assertContractArtifactLocation(args.bucket, args.path);
 	const plaintextSha256 = contractArtifactSha256(args.plaintext);
-	const encrypted = encryptContractArtifact(args.plaintext);
 	const storage = getSupabase().storage.from(args.bucket);
-	const { error } = await storage.upload(args.path, encrypted, {
-		contentType: "application/octet-stream",
+	const { error } = await storage.upload(args.path, args.plaintext, {
+		contentType: args.contentType,
 		upsert: false,
 		metadata: {
 			plaintext_content_type: args.contentType,
@@ -69,7 +77,7 @@ export async function uploadContractArtifact(args: {
 		const existing = await storage.download(args.path);
 		if (existing.data) {
 			try {
-				const plaintext = decryptContractArtifact(
+				const plaintext = readStoredArtifact(
 					Buffer.from(await existing.data.arrayBuffer()),
 				);
 				const existingSha256 = contractArtifactSha256(plaintext);
@@ -124,7 +132,7 @@ export async function downloadContractArtifact(args: {
 	}
 	let plaintext: Buffer;
 	try {
-		plaintext = decryptContractArtifact(Buffer.from(await data.arrayBuffer()));
+		plaintext = readStoredArtifact(Buffer.from(await data.arrayBuffer()));
 	} catch {
 		throw new DatabaseError("Stored contract artifact could not be decrypted");
 	}
@@ -152,4 +160,29 @@ export async function removeContractArtifact(args: {
 			`Failed to remove contract artifact: ${error.message}`,
 		);
 	}
+}
+
+// Rendered artifacts leave through a short-lived signed URL rather than the
+// function response body, which is capped at 4.5 MB per invocation. The bucket
+// stays private; the URL is the only way in and it expires.
+const SIGNED_URL_TTL_SECONDS = 60 * 10;
+
+export async function createContractArtifactSignedUrl(args: {
+	bucket: string;
+	path: string;
+	/** Filename to force a download; omit to let the browser display it. */
+	download?: string;
+}): Promise<string> {
+	assertContractArtifactLocation(args.bucket, args.path);
+	const { data, error } = await getSupabase()
+		.storage.from(args.bucket)
+		.createSignedUrl(args.path, SIGNED_URL_TTL_SECONDS, {
+			download: args.download,
+		});
+	if (error || !data?.signedUrl) {
+		throw new DatabaseError(
+			`Failed to create contract artifact URL: ${error?.message ?? "no url"}`,
+		);
+	}
+	return data.signedUrl;
 }
