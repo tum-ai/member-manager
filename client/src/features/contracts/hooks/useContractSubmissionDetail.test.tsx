@@ -9,7 +9,8 @@ const mocks = vi.hoisted(() => ({
 	finalize: vi.fn(),
 	createComment: vi.fn(),
 	downloadPdf: vi.fn(),
-	preview: vi.fn(),
+	downloadDocx: vi.fn(),
+	uploadDocx: vi.fn(),
 	submissionQuery: {
 		data: undefined as ContractSubmission | undefined,
 		isLoading: false,
@@ -37,10 +38,26 @@ vi.mock("@/hooks/useToolAccess", () => ({
 
 vi.mock("@/features/contracts/contractApi", () => ({
 	downloadContractSubmissionPdf: mocks.downloadPdf,
+	downloadContractSubmissionDocx: mocks.downloadDocx,
+}));
+
+vi.mock("@/contexts/ToastContext", () => ({
+	useToast: () => ({ showToast: vi.fn() }),
 }));
 
 vi.mock("./useContractSubmissions", () => ({
 	useContractSubmission: () => mocks.submissionQuery,
+	useContractSubmissionPdf: () => ({
+		data: undefined,
+		isLoading: false,
+		isFetching: false,
+		error: null,
+	}),
+	useUploadContractSubmissionDocx: () => ({
+		mutate: mocks.uploadDocx,
+		isPending: false,
+		error: null,
+	}),
 	useUpdateContractSubmission: () => ({
 		mutate: mocks.update,
 		isPending: false,
@@ -70,14 +87,6 @@ vi.mock("./useContractSubmissions", () => ({
 		data: [],
 		isLoading: false,
 	}),
-	useContractSubmissionPreview: (...args: unknown[]) => {
-		mocks.preview(...args);
-		return {
-			data: { pages: ["<p>Preview</p>"] },
-			isLoading: false,
-			isFetching: false,
-		};
-	},
 }));
 
 function createSubmission(
@@ -87,9 +96,9 @@ function createSubmission(
 		id: "submission-123456789",
 		submitter_user_id: "submitter-1",
 		form_data: { partner_company_name: "Example GmbH" },
-		generated_contract_text: "Generated text",
-		admin_edited_text: "Edited text",
 		status: "approved",
+		renderer_engine: "docx",
+		document_status: "ready",
 		notes: "Existing notes",
 		feedback_message: "Existing feedback",
 		signature_token: "partner-token",
@@ -107,12 +116,45 @@ describe("useContractSubmissionDetail", () => {
 		mocks.submissionQuery.isLoading = false;
 		mocks.submissionQuery.error = null;
 		mocks.downloadPdf.mockResolvedValue(undefined);
+		mocks.downloadDocx.mockResolvedValue(undefined);
 	});
 
-	it("initializes editable fields and derives workflow actions", async () => {
+	it("keeps DOCX edits out of send payloads and confirms replacements", async () => {
+		mocks.submissionQuery.data = createSubmission({
+			status: "approved",
+			...({
+				renderer_engine: "docx",
+				template_document_id: "doc-1",
+				document_status: "ready",
+			} as Partial<ContractSubmission>),
+		});
+		const file = new File(["docx"], "edited.docx", {
+			type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+		});
+		const { result } = renderHook(() => useContractSubmissionDetail());
+		await waitFor(() => expect(result.current.isDocxDocument).toBe(true));
+
+		act(() => result.current.sendToPartner());
+		expect(mocks.update).toHaveBeenLastCalledWith({
+			notes: "Existing notes",
+			send_to_partner: true,
+		});
+
+		act(() => result.current.requestDocxUpload(file));
+		expect(result.current.pendingDocxFileName).toBe("edited.docx");
+		expect(mocks.uploadDocx).not.toHaveBeenCalled();
+
+		act(() => result.current.confirmDocxUpload());
+		expect(mocks.uploadDocx).toHaveBeenCalledWith(
+			file,
+			expect.objectContaining({ onSuccess: expect.any(Function) }),
+		);
+	});
+
+	it("initializes DOCX workflow fields and derives workflow actions", async () => {
 		const { result } = renderHook(() => useContractSubmissionDetail());
 
-		await waitFor(() => expect(result.current.editedText).toBe("Edited text"));
+		await waitFor(() => expect(result.current.editedText).toBe(""));
 
 		expect(result.current.notes).toBe("Existing notes");
 		expect(result.current.clarificationMessage).toBe("Existing feedback");
@@ -134,10 +176,6 @@ describe("useContractSubmissionDetail", () => {
 		expect(result.current.finalPdfUrl).toBe(
 			`${window.location.origin}/api/contracts/final/pdf-token/pdf`,
 		);
-		expect(mocks.preview).toHaveBeenLastCalledWith(
-			"submission-123456789",
-			"Edited text",
-		);
 	});
 
 	it("keeps action payload construction and state transitions in the hook", async () => {
@@ -147,7 +185,7 @@ describe("useContractSubmissionDetail", () => {
 				options.onSuccess(),
 		);
 		const { result } = renderHook(() => useContractSubmissionDetail());
-		await waitFor(() => expect(result.current.editedText).toBe("Edited text"));
+		await waitFor(() => expect(result.current.editedText).toBe(""));
 
 		act(() => {
 			result.current.setNotes("Updated notes");

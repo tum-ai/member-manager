@@ -11,6 +11,7 @@ import {
 	SheetTrigger,
 } from "@/components/ui/sheet";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { ContractDocxReadinessPanel } from "./components/ContractDocxReadinessPanel";
 import {
 	NewTemplateDialog,
 	TemplateListItem,
@@ -24,6 +25,11 @@ export default function ContractTemplatesPage(): JSX.Element {
 
 	return (
 		<ToolPageShell title="Manage Templates">
+			<ContractDocxReadinessPanel
+				readiness={templates.readiness}
+				loading={templates.readinessLoading}
+				error={templates.readinessError}
+			/>
 			<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
 				<div className="flex min-w-0 items-center gap-3">
 					<Sheet open={templates.listOpen} onOpenChange={templates.setListOpen}>

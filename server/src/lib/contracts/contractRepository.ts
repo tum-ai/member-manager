@@ -1,7 +1,6 @@
 import type { ContractRenderableBlock } from "@member-manager/shared";
 import { DatabaseError } from "../errors.js";
 import { getSupabase } from "../supabase.js";
-import { renderDocumentPages } from "./contractDocument.js";
 
 function isMissingContractsTable(error: unknown): boolean {
 	if (typeof error !== "object" || error === null) return false;
@@ -29,73 +28,43 @@ export function createContractDatabaseError(error: unknown): DatabaseError {
 
 export async function fetchTemplateWithChildren(templateId: string) {
 	const supabase = getSupabase();
-	const [templateResult, variablesResult, blocksResult] = await Promise.all([
-		supabase
-			.from("contract_templates")
-			.select("*")
-			.eq("id", templateId)
-			.single(),
-		supabase
-			.from("contract_template_variables")
-			.select("*")
-			.eq("template_id", templateId)
-			.order("sort_order", { ascending: true }),
-		supabase
-			.from("contract_conditional_blocks")
-			.select("*")
-			.eq("template_id", templateId)
-			.order("sort_order", { ascending: true }),
-	]);
+	const [templateResult, variablesResult, blocksResult, documentsResult] =
+		await Promise.all([
+			supabase
+				.from("contract_templates")
+				.select(
+					"id, name, description, renderer_engine, active_document_id, is_active, created_at, updated_at",
+				)
+				.eq("id", templateId)
+				.single(),
+			supabase
+				.from("contract_template_variables")
+				.select("*")
+				.eq("template_id", templateId)
+				.order("sort_order", { ascending: true }),
+			supabase
+				.from("contract_conditional_blocks")
+				.select("*")
+				.eq("template_id", templateId)
+				.order("sort_order", { ascending: true }),
+			supabase
+				.from("contract_template_documents")
+				.select("*")
+				.eq("template_id", templateId)
+				.order("version", { ascending: false }),
+		]);
 
 	if (templateResult.error) throw templateResult.error;
 	if (variablesResult.error) throw variablesResult.error;
 	if (blocksResult.error) throw blocksResult.error;
+	if (documentsResult.error) throw documentsResult.error;
 
 	return {
 		template: templateResult.data,
 		variables: variablesResult.data ?? [],
 		blocks: (blocksResult.data ?? []) as ContractRenderableBlock[],
+		documents: documentsResult.data ?? [],
 	};
-}
-
-export async function createDocumentVersion(args: {
-	submissionId: string;
-	source: string;
-	text: string;
-	formData: Record<string, unknown>;
-	createdBy?: string | null;
-}): Promise<Record<string, unknown>> {
-	const supabase = getSupabase();
-	const { data: latest, error: latestError } = await supabase
-		.from("contract_document_versions")
-		.select("version_number")
-		.eq("submission_id", args.submissionId)
-		.order("version_number", { ascending: false })
-		.limit(1);
-	if (latestError) throw latestError;
-
-	const latestVersion = Array.isArray(latest)
-		? Number(
-				(latest[0] as { version_number?: unknown } | undefined)
-					?.version_number ?? 0,
-			)
-		: 0;
-	const pages = renderDocumentPages(args.text);
-	const { data, error } = await supabase
-		.from("contract_document_versions")
-		.insert({
-			submission_id: args.submissionId,
-			version_number: latestVersion + 1,
-			source: args.source,
-			rendered_text: args.text,
-			rendered_html: pages.map((page) => `<section>${page}</section>`).join(""),
-			form_data_snapshot: args.formData,
-			created_by: args.createdBy ?? null,
-		})
-		.select("*")
-		.single();
-	if (error) throw error;
-	return data as Record<string, unknown>;
 }
 
 export async function fetchDocumentVersion(

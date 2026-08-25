@@ -51,4 +51,26 @@ describe("apiClient", () => {
 		const headers = init.headers as Record<string, string>;
 		expect(headers["Content-Type"]).toBe("application/json");
 	});
+
+	it("lets fetch set the multipart boundary for FormData", async () => {
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ ok: true }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const body = new FormData();
+		body.append("file", new Blob(["docx"]), "contract.docx");
+
+		await apiClient("/api/contracts/templates/template-1/documents", {
+			method: "POST",
+			body,
+		});
+
+		const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+		const headers = init.headers as Record<string, string>;
+		expect(headers["Content-Type"]).toBeUndefined();
+		expect(headers.Authorization).toBe("Bearer test-token");
+	});
 });

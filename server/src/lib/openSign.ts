@@ -7,6 +7,7 @@ export interface OpenSignDocumentRequest {
 	name: string;
 	pdf: Buffer;
 	signer: OpenSignSigner;
+	widgets?: unknown[];
 	note?: string | null;
 	description?: string | null;
 	redirectUrl?: string | null;
@@ -28,6 +29,67 @@ function getOpenSignBaseUrl(): string {
 
 function getOpenSignApiToken(): string {
 	return process.env.OPENSIGN_API_TOKEN?.trim() ?? "";
+}
+
+const MAX_OPENSIGN_PDF_BYTES = 30 * 1024 * 1024;
+const DEFAULT_OPENSIGN_FILE_HOSTS = ["legadratw3d.ams3.digitaloceanspaces.com"];
+
+function getAllowedOpenSignFileHosts(): Set<string> {
+	const hosts = new Set(DEFAULT_OPENSIGN_FILE_HOSTS);
+	try {
+		hosts.add(new URL(getOpenSignBaseUrl()).hostname.toLowerCase());
+	} catch {
+		// The normal API request reports an invalid base URL separately.
+	}
+	for (const host of process.env.OPENSIGN_FILE_HOSTS?.split(",") ?? []) {
+		const normalized = host.trim().toLowerCase();
+		if (normalized) hosts.add(normalized);
+	}
+	return hosts;
+}
+
+function assertAllowedOpenSignFileUrl(value: string): URL {
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		throw new Error("OpenSign returned an invalid PDF URL");
+	}
+	if (
+		(process.env.NODE_ENV === "production" && url.protocol !== "https:") ||
+		!getAllowedOpenSignFileHosts().has(url.hostname.toLowerCase()) ||
+		url.username ||
+		url.password
+	) {
+		throw new Error("OpenSign returned an untrusted PDF URL");
+	}
+	return url;
+}
+
+async function readLimitedResponse(
+	response: Response,
+	maximumBytes: number,
+): Promise<Buffer> {
+	const declaredLength = Number(response.headers.get("content-length"));
+	if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) {
+		throw new Error("OpenSign PDF exceeds the safe size limit");
+	}
+	if (!response.body) throw new Error("OpenSign PDF response is empty");
+
+	const chunks: Buffer[] = [];
+	let size = 0;
+	const reader = response.body.getReader();
+	for (;;) {
+		const { done, value } = await reader.read();
+		if (done) break;
+		size += value.byteLength;
+		if (size > maximumBytes) {
+			await reader.cancel();
+			throw new Error("OpenSign PDF exceeds the safe size limit");
+		}
+		chunks.push(Buffer.from(value));
+	}
+	return Buffer.concat(chunks);
 }
 
 export function isOpenSignConfigured(): boolean {
@@ -126,7 +188,7 @@ export async function sendOpenSignDocument(
 			{
 				name: request.signer.name,
 				email: request.signer.email,
-				widgets: parseWidgetsOverride() ?? defaultWidgets(),
+				widgets: request.widgets ?? parseWidgetsOverride() ?? defaultWidgets(),
 			},
 		],
 		send_email: true,
@@ -156,4 +218,41 @@ export async function sendOpenSignDocument(
 		fileUrl: extractString(raw, ["file", "fileUrl", "url"]),
 		raw,
 	};
+}
+
+export async function revokeOpenSignDocument(
+	documentId: string,
+): Promise<void> {
+	const apiToken = getOpenSignApiToken();
+	if (!apiToken) throw new Error("OpenSign is not configured");
+	const response = await fetch(
+		`${getOpenSignBaseUrl()}/document/${encodeURIComponent(documentId)}`,
+		{
+			method: "DELETE",
+			headers: { "x-api-token": apiToken },
+		},
+	);
+	if (response.ok || response.status === 404) return;
+	const raw = await response.json().catch(() => null);
+	throw new Error(
+		extractString(raw, ["message", "error"]) ??
+			`OpenSign revoke failed with ${response.status}`,
+	);
+}
+
+export async function downloadOpenSignPdf(fileUrl: string): Promise<Buffer> {
+	const url = assertAllowedOpenSignFileUrl(fileUrl);
+	const response = await fetch(url, {
+		method: "GET",
+		signal: AbortSignal.timeout(20_000),
+		redirect: "error",
+	});
+	if (!response.ok) {
+		throw new Error(`OpenSign PDF download failed with ${response.status}`);
+	}
+	const pdf = await readLimitedResponse(response, MAX_OPENSIGN_PDF_BYTES);
+	if (pdf.length < 5 || pdf.subarray(0, 5).toString("ascii") !== "%PDF-") {
+		throw new Error("OpenSign returned an invalid PDF");
+	}
+	return pdf;
 }

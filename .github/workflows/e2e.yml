@@ -45,6 +45,13 @@ jobs:
         if: steps.filter.outputs.code == 'true'
         run: supabase start
 
+      # The E2E suite mutates one-shot seeded rows, including the signing token.
+      # Reset after startup so a reused runner volume cannot make the suite fail
+      # because a previous run already consumed its fixtures.
+      - name: Reset database and seed fresh fixtures
+        if: steps.filter.outputs.code == 'true'
+        run: supabase db reset
+
       - name: Setup toolchain
         if: steps.filter.outputs.code == 'true'
         uses: ./.github/actions/setup

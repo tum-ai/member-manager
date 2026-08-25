@@ -2,8 +2,8 @@
 
 The contract generator turns Legal & Finance contract templates into a guided workflow:
 
-1. PnS creates a contract draft from an active template.
-2. Legal & Finance reviews and edits the generated contract text.
+1. PnS creates a contract draft from an active DOCX template.
+2. Legal & Finance reviews the generated DOCX and stored PDF.
 3. Legal & Finance sends the contract to the partner through a one-time signing link or configured email.
 4. The partner either signs or sends comments.
 5. Comments return the submission to Legal & Finance for revision and resend.
@@ -30,15 +30,10 @@ Template variables support the data types `TEXT`, `TEXTAREA`, `NUMBER`, `DATE`,
 format-validated in the form and again on the server before a submission is
 persisted.
 
-Besides `{{variable}}` placeholders, the reserved tokens `{{partner_signature}}`
-and `{{board_signature}}` can be placed anywhere in the contract text. They are
-never substituted from form data; instead the PDF renderer draws the matching
-signature image inline at that position once the party has signed (an
-underscore placeholder line until then). Signatures without a matching token in
-the text keep rendering on a trailing "Signaturen" page. The template editor
-lists these tokens with copy buttons.
+Signature anchors are invisible images placed in the Word source document. The
+server requires exactly one partner anchor and one board anchor.
 
-The package and tier catalog is shared by client and server in `shared/src/contracts.ts`, so preview rendering and server rendering use the same package labels, prices, and benefit lists.
+The package and tier catalog is shared by client and server in `shared/src/contracts.ts`, so DOCX form data uses the same package labels, prices, and benefit lists.
 The same shared catalog now owns the selectable a-la-carte add-ons. Templates
 use the `selected_addons` multi-select field; rendering expands it into
 `addon_terms`, fixed add-on totals, and an overall `total_amount_label`.
@@ -51,29 +46,50 @@ The current seeded template wording is converted from the real DOCX sources:
 - `Einzelevents_Sponsoringvorlage.docx`
 - `Makeathon_Sponsoringvorlage.docx`
 
+## Word Document Workflow
+
+Legal uploads a `.docx` version for each active template. The server accepts
+only these commands inside the Word document:
+
+- `{{variable_name}}` for a variable configured on that template
+- `{{IMAGE partner_signature_anchor}}` exactly once
+- `{{IMAGE board_signature_anchor}}` exactly once
+
+Every required template variable must appear in the Word document. Macros,
+embedded files, active Word fields, external relationships, unknown commands,
+and malformed placeholders are rejected.
+
+The server fills the document, creates the two invisible signature images,
+converts it with LibreOffice in a temporary Vercel Sandbox, and stores encrypted
+DOCX and PDF artifacts in private Supabase buckets. The stored PDF is the source
+for preview and signing. Partner and board signatures replace the matching
+invisible image positions.
+
+The first ready document version becomes active when a template has no active
+Word version yet. Replacement versions require Legal to review the stored PDF
+preview and activate them explicitly. New submissions always use the active
+DOCX version.
+
 ## Document Rendering
 
-Preview rendering now happens on the server via `POST /api/contracts/templates/:id/preview`. The response contains canonical text plus escaped, page-oriented HTML used by the client for an A4/PDF-like preview.
-
-Legal review uses the same page renderer for edited text via `POST /api/contracts/submissions/:id/preview`.
-
-The document renderer mirrors the source Word templates' baseline page style:
-A4 pages, approximately 2.5 cm side/top margins, 11 pt Arial-like body text,
-1.5 line spacing, justified paragraphs, and centered contract titles.
+The server fills the uploaded Word document, starts a temporary Vercel Sandbox,
+runs LibreOffice, and stores encrypted DOCX and PDF artifacts in private
+Supabase buckets. The stored PDF is used for preview and signing.
 
 Submissions keep immutable rendered snapshots in `contract_document_versions`:
 
 - draft/generated version when the submission is created
-- legal-review version when Legal saves edited text
+- legal-review version when Legal uploads an edited Word file
 - sent version when Legal sends the one-time partner link
 - final version when Legal finalizes after board signature
 
-The legacy `generated_contract_text` and `admin_edited_text` columns are retained for compatibility, but public signing and final PDF generation prefer the relevant immutable document version.
+Historical text columns remain in the database so old records can still be
+read, but the application no longer creates or edits text-engine documents.
 
 ## Partner Comments
 
 Partner comments submitted from the public signing link are stored in
-`contract_partner_comments` and mirrored into the legacy `partner_comment`
+`contract_partner_comments` and mirrored into the historical `partner_comment`
 column so older views keep working. Legal & Finance can add internal replies
 from the submission detail page. When a contract is sent again, the public
 signing page includes the full ordered thread.

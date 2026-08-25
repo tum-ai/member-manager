@@ -3,6 +3,22 @@ import {
 	ContractSubmissionCreatorSummarySchema,
 	type PublicContractPartnerComment,
 } from "@member-manager/shared";
+import { decryptContractJson } from "./contractArtifactCrypto.js";
+
+// DOCX rows keep `form_data` empty (contract_submissions_docx_provenance_check)
+// and hold the real values in `form_data_encrypted`. Anything reading a form
+// value off a raw row must go through this first.
+export function hydrateSubmissionFormData(
+	row: Record<string, unknown>,
+): Record<string, unknown> {
+	if (row.renderer_engine !== "docx") return row;
+	const hydrated = { ...row };
+	if (typeof hydrated.form_data_encrypted === "string") {
+		hydrated.form_data = decryptContractJson(hydrated.form_data_encrypted);
+	}
+	delete hydrated.form_data_encrypted;
+	return hydrated;
+}
 
 export function toCreatorSubmissionSummary(
 	submission: Record<string, unknown>,
@@ -38,59 +54,6 @@ export function getPartnerCompanyNameFromSubmission(
 	submission: Record<string, unknown>,
 ): string {
 	return getSubmissionFormString(submission, "partner_company_name");
-}
-
-export function textFromSubmission(
-	submission: Record<string, unknown>,
-): string {
-	if (
-		typeof submission.admin_edited_text === "string" &&
-		submission.admin_edited_text.trim()
-	) {
-		return submission.admin_edited_text;
-	}
-	return typeof submission.generated_contract_text === "string"
-		? submission.generated_contract_text
-		: "";
-}
-
-function signatureSummary(
-	submission: Record<string, unknown>,
-): [string, string, string] {
-	const partnerName =
-		typeof submission.signer_name === "string" ? submission.signer_name : "";
-	const partnerSignedAt =
-		typeof submission.signed_at === "string" ? submission.signed_at : "";
-	const boardName =
-		typeof submission.admin_signer_name === "string"
-			? submission.admin_signer_name
-			: "";
-	const boardSignedAt =
-		typeof submission.admin_signed_at === "string"
-			? submission.admin_signed_at
-			: "";
-
-	return [
-		"Signaturen",
-		`Partner: ${partnerName || "-"}${partnerSignedAt ? ` (${partnerSignedAt})` : ""}`,
-		`TUM.ai / Board: ${boardName || "-"}${boardSignedAt ? ` (${boardSignedAt})` : ""}`,
-	];
-}
-
-export function buildFinalPdfText(submission: Record<string, unknown>): string {
-	return [
-		textFromSubmission(submission),
-		"",
-		"---",
-		...signatureSummary(submission),
-	].join("\n");
-}
-
-export function buildSignedDocumentText(
-	documentText: string,
-	submission: Record<string, unknown>,
-): string {
-	return [documentText, "", ...signatureSummary(submission)].join("\n");
 }
 
 function sanitizePublicComment(

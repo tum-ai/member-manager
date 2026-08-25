@@ -1,5 +1,6 @@
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import { installLocalBugReportStub } from "./lib/githubIssues.js";
@@ -28,6 +29,7 @@ import { slackInteractionRoutes } from "./routes/slackInteractions.js";
 import { tumaiDaysRoutes } from "./routes/tumaiDays.js";
 
 const API_BODY_LIMIT_BYTES = 20 * 1024 * 1024;
+const CONTRACT_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
 
 function getVercelPreviewOrigin(): string | null {
 	if (process.env.VERCEL_ENV !== "preview") {
@@ -52,6 +54,13 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 
 	// Plugins
 	await server.register(helmet);
+	await server.register(multipart, {
+		limits: {
+			fileSize: CONTRACT_UPLOAD_LIMIT_BYTES,
+			files: 1,
+			fields: 2,
+		},
+	});
 	await server.register(rateLimit, {
 		max: 100,
 		timeWindow: "1 minute",

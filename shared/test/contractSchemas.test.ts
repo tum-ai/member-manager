@@ -14,8 +14,6 @@ function adminSubmissionFixture(): Record<string, unknown> {
 		template_id: "template-1",
 		submitter_user_id: "user-1",
 		form_data: { partner_name: "Partner GmbH" },
-		generated_contract_text: "Contract",
-		admin_edited_text: null,
 		status: "legal_review",
 		notes: "Internal",
 		auto_send_after_board_signed: false,
@@ -121,5 +119,36 @@ describe("contract schemas", () => {
 			ContractSubmissionAdminDetailSchema.safeParse(creator).success,
 			false,
 		);
+	});
+
+	test("rejects template delimiters in submitted form values", () => {
+		// `{{` survives into the filled DOCX and is then re-detected as an
+		// unresolved template command, failing the render five times over with an
+		// error the submitter cannot act on. Catch it while the field is nameable.
+		const result = SubmissionBodySchema.safeParse({
+			template_id: "11111111-1111-4111-8111-111111111111",
+			form_data: {
+				partner_company_name: "Partner GmbH",
+				custom_terms: "See clause {{example}} for details",
+			},
+		});
+		assert.equal(result.success, false);
+		assert.equal(result.error?.issues[0]?.path.at(-1), "custom_terms");
+	});
+
+	test("rejects an unbalanced opening delimiter too", () => {
+		const result = SubmissionBodySchema.safeParse({
+			template_id: "11111111-1111-4111-8111-111111111111",
+			form_data: { partner_description: "Opens with {{ and never closes" },
+		});
+		assert.equal(result.success, false);
+	});
+
+	test("accepts ordinary single braces", () => {
+		const result = SubmissionBodySchema.safeParse({
+			template_id: "11111111-1111-4111-8111-111111111111",
+			form_data: { custom_terms: "Set { and } are fine on their own" },
+		});
+		assert.equal(result.success, true);
 	});
 });

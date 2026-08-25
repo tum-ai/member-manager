@@ -1,14 +1,15 @@
 import type {
 	ContractConditionalBlockInput,
+	ContractDocxReadiness,
 	ContractTemplate,
 	ContractTemplateDetail,
+	ContractTemplateDocument,
 	ContractTemplateVariableInput,
 } from "@member-manager/shared";
 
 export interface ContractTemplateDraft {
 	name: string;
 	description: string;
-	contract_text: string;
 	is_active: boolean;
 }
 
@@ -30,6 +31,18 @@ export interface ContractTemplateEditorViewModel {
 	createVariableError: Error | null;
 	createBlockPending: boolean;
 	createBlockError: Error | null;
+	documents: ContractTemplateDocument[];
+	activeDocumentId: string | null;
+	previewDocumentId: string | null;
+	previewPdfUrl: string | null;
+	previewLoading: boolean;
+	previewError: Error | null;
+	uploadPending: boolean;
+	uploadError: Error | null;
+	retryingDocumentId: string | null;
+	retryError: Error | null;
+	activatingDocumentId: string | null;
+	activateError: Error | null;
 	setDraft: (draft: ContractTemplateDraft) => void;
 	save: () => void;
 	discard: () => void;
@@ -39,6 +52,10 @@ export interface ContractTemplateEditorViewModel {
 	setDeleteBlockId: (id: string | null) => void;
 	deleteVariable: () => void;
 	deleteBlock: () => void;
+	uploadDocument: (file: File) => void;
+	retryDocument: (documentId: string) => void;
+	activateDocument: (documentId: string) => void;
+	previewDocument: (documentId: string | null) => void;
 }
 
 export interface ContractTemplatesPageViewModel {
@@ -53,6 +70,9 @@ export interface ContractTemplatesPageViewModel {
 	createTemplatePending: boolean;
 	createTemplateError: Error | null;
 	deleteTemplateError: Error | null;
+	readiness: ContractDocxReadiness | undefined;
+	readinessLoading: boolean;
+	readinessError: Error | null;
 	editor: ContractTemplateEditorViewModel;
 	setListOpen: (open: boolean) => void;
 	setNewTemplateOpen: (open: boolean) => void;

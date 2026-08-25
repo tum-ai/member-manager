@@ -51,7 +51,7 @@ function parseOptions(raw: unknown): string[] {
 			const parsed: unknown = JSON.parse(raw);
 			return Array.isArray(parsed) ? parsed.map((entry) => String(entry)) : [];
 		} catch {
-			// Fallback: comma-separated string from the legacy editor.
+			// Fallback for older stored option values.
 			return raw
 				.split(",")
 				.map((entry) => entry.trim())
