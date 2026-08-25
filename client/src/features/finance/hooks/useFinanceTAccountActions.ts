@@ -59,6 +59,14 @@ export function useFinanceTAccountActions({
 		showToast(error instanceof Error ? error.message : fallback, "error");
 	}
 
+	// Every business refusal comes back as a successful HTTP response, so "the
+	// request worked" is not the same as "the selection was consumed". Only a
+	// write that applied at least one posting may clear it (FR-K7); a partial
+	// success still clears, because those postings are now filed.
+	function consumedSelection(results: FinanceAllocationResult[]): boolean {
+		return results.some((result) => result.applied);
+	}
+
 	// A partial success is still a success: the applied postings stay applied and
 	// the skips are named rather than swallowed (FR-L6).
 	function reportResults(
@@ -112,7 +120,12 @@ export function useFinanceTAccountActions({
 			} else {
 				reportResults(data.results, `Projekt „${data.project.name}" angelegt.`);
 			}
-			onApplied?.();
+			// The project exists either way, but the selection is only consumed by
+			// the postings that actually landed: an all-skipped attempt leaves the
+			// ticks in place so the user can fix the cause and retry (FR-K7).
+			if (consumedSelection(data.results)) {
+				onApplied?.();
+			}
 			invalidate();
 		},
 		onError: (error) =>
@@ -133,7 +146,9 @@ export function useFinanceTAccountActions({
 			),
 		onSuccess: (data) => {
 			reportResults(data.results);
-			onApplied?.();
+			if (consumedSelection(data.results)) {
+				onApplied?.();
+			}
 			invalidate();
 		},
 		onError: (error) =>

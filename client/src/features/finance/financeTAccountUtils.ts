@@ -29,6 +29,8 @@ const SKIP_REASON_LABELS: Record<FinanceAllocationSkipReason, string> = {
 	matched_elsewhere: "mit einem Planposten eines anderen Projekts verknüpft",
 	forbidden: "keine Berechtigung",
 	not_found: "nicht gefunden",
+	zero_amount: "Buchung ohne Betrag",
+	rejected: "vom Server abgelehnt",
 };
 
 export function describeAllocationSkip(
@@ -162,6 +164,26 @@ export interface TAccountNode {
 function subTeamNameOf(group: FinanceTAccountGroup): string | null {
 	if (group.project_id !== null) return null;
 	return group.sub_team ?? group.project_name;
+}
+
+// Every sub-team folder this department already uses — its own folders plus the
+// sub-teams its projects hang under. Backs the project dialog's sub-team picker
+// so a project lands in an existing folder by exact name instead of a typo'd
+// near-match (FR-L4).
+export function collectSubTeamOptions(
+	groups: FinanceTAccountGroup[],
+	projects: ReadonlyArray<{ sub_team: string | null }>,
+): string[] {
+	const names = new Set<string>();
+	for (const group of groups) {
+		const own = subTeamNameOf(group);
+		if (own !== null) names.add(own);
+		if (group.sub_team !== null) names.add(group.sub_team);
+	}
+	for (const project of projects) {
+		if (project.sub_team !== null) names.add(project.sub_team);
+	}
+	return [...names].sort((left, right) => left.localeCompare(right, "de"));
 }
 
 // Stable identity of a group across the flat response and the nested tree.

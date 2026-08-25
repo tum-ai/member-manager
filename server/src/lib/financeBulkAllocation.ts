@@ -120,6 +120,15 @@ export function planBulkAllocation(
 			continue;
 		}
 
+		// A 0,00 € posting is a valid BB row and renders as a selectable line, but
+		// it cannot carry an allocation: `normalizePostingAllocations` and the RPC
+		// both refuse it. Preflighting it here keeps that refusal inside the
+		// per-posting result list instead of failing the whole request mid-loop.
+		if (posting.transaction_amount === 0) {
+			results.push(skip(externalId, "zero_amount"));
+			continue;
+		}
+
 		// The assign endpoint replaces *all* allocations of a posting, so taking the
 		// fast path on a split posting would silently destroy the split (FR-L5).
 		if ((allocationsByPosting.get(externalId) ?? []).length > 1) {
@@ -137,7 +146,9 @@ export function planBulkAllocation(
 
 		// Moving an invoice that funds another project's Planposten would leave that
 		// plan item matched to money it no longer has (FR-L7). A department-level
-		// Planposten (no project) is unaffected and stays matched.
+		// Planposten (no project) is unaffected and stays matched — the RPC's
+		// capacity guard agrees since migration 20260825120000, which funds a
+		// department-scoped match from any project of that department.
 		const matchedElsewhere = (matchesByPosting.get(externalId) ?? []).some(
 			(match) => {
 				const planItemProject = input.planItemProjectById.get(

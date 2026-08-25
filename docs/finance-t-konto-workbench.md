@@ -339,10 +339,36 @@ Landed:
 - **Bug found and fixed:** `PATCH /finance/projects/:id` rebuilt its update payload without
   `sub_team`, so *any* edit silently cleared a project's sub-team — the Phase 0 column would have
   been wiped by the first rename.
-- Tests: 11 planner cases server-side; 6 selection-hook cases; tree-nesting and skip-summary util
-  cases; `Workbench` + `ReadOnly` play/a11y stories; a Playwright spec that selects two invoices
-  across folders, creates a project from them, and asserts the one funding another project's
-  Planposten is **refused by name** rather than moved.
+- Tests: 12 planner cases server-side; 6 selection-hook cases; tree-nesting, sub-team-option and
+  skip-summary util cases; the action-hook's all-applied / partial / all-skipped cases;
+  `Workbench` + `ReadOnly` + `EmptyWritableDepartment` play/a11y stories; a Playwright spec that
+  selects two invoices across folders, creates a project from them, and asserts the one funding
+  another project's Planposten is **refused by name** rather than moved.
+
+Fixed after review (same phase):
+
+- **Create-and-assign could orphan a project.** Every read the assignment needs (BB postings,
+  mappings, saved allocations, matches, plan items) now happens **before** `createFinanceProject`,
+  and no write failure throws afterwards: each one is reported against its own posting. So the
+  call either creates nothing, or creates the project and returns one outcome per posting.
+- **Zero-value postings** are valid BB rows and reach the endpoint, but `normalizePostingAllocations`
+  refuses them. The planner now preflights them as a `zero_amount` skip, and the write loop turns a
+  late refusal into a `rejected` skip instead of aborting the request after earlier postings were
+  already written (FR-L6). Two new skip reasons, both sayable in the toast.
+- **Department-level Planposten vs. the RPC guard.** `replace_finance_posting_allocations`
+  compared a match against allocations at the *exact* `(department, project_id)` scope, so filing a
+  matched invoice into a project of the same department dropped the capacity to zero and the route
+  reported `matched_elsewhere` with no other project involved. Migration
+  `20260825120000_finance_department_match_capacity.sql` funds a department-scoped match from any
+  project of that department — the money never leaves the department (FR-L7).
+  `create_finance_plan_item_posting_match` stays strict, so a *new* department-level claim on
+  project-allocated money is still refused and nothing gets claimed at two levels at once.
+- **Placement is chosen, not inherited.** The project dialog's parent and sub-team are editable
+  Selects prefilled from the node (FR-L1); a selection spanning folders has no node to inherit from.
+- **An empty writable department** now offers *Neues Projekt* in its empty state, instead of the
+  static text replacing the node's actions (FR-L3).
+- **The selection survives an all-skipped write.** `onApplied` only fires when at least one posting
+  applied, so nothing is cleared that no write consumed (FR-K7).
 
 Notes on the E2E: the mock BB postings and the seeded cost-location mappings only overlap on
 cost location 111 (Community / Onboarding), so the spec is written against those seeded

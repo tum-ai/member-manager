@@ -926,6 +926,14 @@ export const FINANCE_ALLOCATION_SKIP_REASONS = [
 	// The caller may not write the posting's department.
 	"forbidden",
 	"not_found",
+	// A 0,00 € posting has nothing to allocate — a percentage split of zero is
+	// meaningless and both the normalizer and the RPC refuse it.
+	"zero_amount",
+	// The write was refused after planning for a reason the planner cannot see
+	// (a late validation refusal, a database error). Reported per posting so the
+	// postings that did land still count (FR-L6) instead of vanishing behind a
+	// 500.
+	"rejected",
 ] as const;
 export const FinanceAllocationSkipReasonSchema = z.enum(
 	FINANCE_ALLOCATION_SKIP_REASONS,

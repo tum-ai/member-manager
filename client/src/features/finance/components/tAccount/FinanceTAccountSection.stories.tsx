@@ -8,7 +8,10 @@ import {
 	tAccountPostingDetail,
 	tAccountTotals,
 } from "@/features/finance/financeTAccountFixtures";
-import type { FinanceTAccountGroup } from "@/features/finance/financeTypes";
+import type {
+	FinanceProject,
+	FinanceTAccountGroup,
+} from "@/features/finance/financeTypes";
 import type { FinancePeriod } from "@/features/finance/financeUtils";
 import { useFinanceTAccountSelection } from "@/features/finance/hooks/useFinanceTAccountSelection";
 import { FinanceTAccountSection } from "./FinanceTAccountSection";
@@ -222,11 +225,27 @@ export const Default: Story = {
 
 // The workbench half (FR-K5–K7, FR-L1): tick two invoices from two different
 // folders, and turn the selection into a project in one call.
+const makeathonProject: FinanceProject = {
+	id: MAKEATHON_ID,
+	parent_project_id: null,
+	name: "Makeathon",
+	department: "Makeathon",
+	period_type: "year",
+	period_key: "2026",
+	tax_area: null,
+	target_amount: 50_000,
+	status: "active",
+	description: null,
+	sub_team: "Big Makeathon",
+	created_at: "2026-01-01T00:00:00.000Z",
+	updated_at: "2026-01-01T00:00:00.000Z",
+};
+
 export const Workbench: Story = {
 	args: {
 		...Default.args,
 		canWrite: true,
-		projects: [],
+		projects: [makeathonProject],
 		isCreatingProject: false,
 		isAssigning: false,
 		onCreateProject: fn(),
@@ -259,12 +278,76 @@ export const Workbench: Story = {
 			dialog.getByText(/2 Buchungen über .* werden dem neuen Projekt/),
 		).toBeVisible();
 		await userEvent.type(dialog.getByLabelText(/Name/), "Sponsoring-Kampagne");
+
+		// A selection spans folders, so it starts unplaced — placement is chosen
+		// here, not inherited (FR-L1). Both pickers are real controls.
+		const body = within(canvasElement.ownerDocument.body);
+		await userEvent.click(dialog.getByRole("combobox", { name: "Sub-Team" }));
+		await userEvent.click(
+			await body.findByRole("option", { name: "Big Makeathon" }),
+		);
+		await userEvent.click(
+			dialog.getByRole("combobox", { name: "Übergeordnetes Projekt" }),
+		);
+		await userEvent.click(
+			await body.findByRole("option", { name: "Makeathon" }),
+		);
+		// Picking a parent turns it into a sub-project.
+		await expect(dialog.getByText("Neues Teilprojekt")).toBeVisible();
+
 		await userEvent.click(dialog.getByRole("button", { name: "Anlegen" }));
 
 		await expect(args.onCreateProject).toHaveBeenCalledWith(
 			expect.objectContaining({
 				name: "Sponsoring-Kampagne",
+				parentProjectId: MAKEATHON_ID,
+				// Inherited from the chosen parent, which lives in that sub-team.
+				subTeam: "Big Makeathon",
 				postingExternalIds: ["BB-1", "BB-2"],
+			}),
+		);
+	},
+};
+
+// FR-L3: a department that may be written must be able to open its first
+// project even when it has no bookings and no Planposten at all.
+export const EmptyWritableDepartment: Story = {
+	args: {
+		period,
+		canChooseDepartment: true,
+		department: "Makeathon",
+		groups: [],
+		totals: tAccountTotals(),
+		isLoading: false,
+		error: null,
+		onPeriodTypeChange: noop,
+		onPeriodKeyChange: noop,
+		onDepartmentChange: noop,
+		canWrite: true,
+		projects: [],
+		onCreateProject: fn(),
+		onAssignToProject: fn(),
+	},
+	render: (args) => <SelectableSection {...args} />,
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(
+			canvas.getByText(/Keine Buchungen oder Planposten/),
+		).toBeVisible();
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Neues Projekt/ }),
+		);
+		const dialog = within(await screen.findByRole("dialog"));
+		await userEvent.type(dialog.getByLabelText(/Name/), "Erstes Projekt");
+		await userEvent.click(dialog.getByRole("button", { name: "Anlegen" }));
+
+		await expect(args.onCreateProject).toHaveBeenCalledWith(
+			expect.objectContaining({
+				name: "Erstes Projekt",
+				parentProjectId: null,
+				subTeam: null,
+				postingExternalIds: [],
 			}),
 		);
 	},

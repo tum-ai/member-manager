@@ -1,7 +1,9 @@
 import { TUMAI_DEPARTMENTS } from "@member-manager/shared";
+import { FolderPlus } from "lucide-react";
 import { type ReactElement, useMemo, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
 	Select,
@@ -12,21 +14,19 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FinanceManagementPeriodControls } from "@/features/finance/components/FinanceManagementPeriodControls";
-import { buildTAccountTree } from "@/features/finance/financeTAccountUtils";
+import {
+	buildTAccountTree,
+	collectSubTeamOptions,
+} from "@/features/finance/financeTAccountUtils";
 import type {
 	FinancePeriodType,
 	FinanceProject,
 	FinanceTAccountGroup as FinanceTAccountGroupData,
 	FinanceTAccountResponse,
 } from "@/features/finance/financeTypes";
-import {
-	type FinancePeriod,
-	formatFinanceAmount,
-	formatFinancePeriodLabel,
-} from "@/features/finance/financeUtils";
+import type { FinancePeriod } from "@/features/finance/financeUtils";
 import type { TAccountProjectInput } from "@/features/finance/hooks/useFinanceTAccountActions";
 import type { FinanceTAccountSelection } from "@/features/finance/hooks/useFinanceTAccountSelection";
-import { cn } from "@/lib/utils";
 import {
 	type FinanceAssignDialogPreset,
 	FinanceAssignToProjectDialog,
@@ -37,6 +37,7 @@ import {
 } from "./FinanceProjectDialog";
 import { FinanceTAccountGroup } from "./FinanceTAccountGroup";
 import { FinanceTAccountSelectionBar } from "./FinanceTAccountSelectionBar";
+import { TotalsSummary } from "./FinanceTAccountTotals";
 import type { TAccountInteraction } from "./tAccountInteraction";
 
 const OTHER_DEPARTMENT = "Other";
@@ -65,12 +66,6 @@ interface FinanceTAccountSectionProps {
 		projectId: string,
 		postingExternalIds: string[],
 	) => Promise<void>;
-}
-
-function saldoClass(value: number): string {
-	if (value > 0) return "text-emerald-600 dark:text-emerald-400";
-	if (value < 0) return "text-destructive";
-	return "text-foreground";
 }
 
 export function FinanceTAccountSection({
@@ -189,6 +184,11 @@ function TAccountBody({
 	// Build the nested display tree (per-column subtotals + child roll-ups) once
 	// per data change, before any early return so the hook order stays stable.
 	const tree = useMemo(() => buildTAccountTree(groups), [groups]);
+	// The sub-team folders the dialog may drop a new project into (FR-L4).
+	const subTeamOptions = useMemo(
+		() => collectSubTeamOptions(groups, projects),
+		[groups, projects],
+	);
 	// Which dialog is open is pure view state — it never outlives the section and
 	// nothing else needs it, so it stays here rather than in the page hook.
 	const [projectPreset, setProjectPreset] =
@@ -205,10 +205,9 @@ function TAccountBody({
 				onCreateProject: (node) =>
 					setProjectPreset({
 						// A project node becomes the parent of a sub-project; a sub-team
-						// folder passes its sub-team on (FR-L3/FR-L4).
+						// folder passes its sub-team on (FR-L3/FR-L4). Both are only the
+						// dialog's starting point — the user can still place it elsewhere.
 						parentProjectId: node.projectId,
-						parentProjectName:
-							node.projectId !== null ? node.projectName : null,
 						subTeam: node.subTeam,
 						postingExternalIds: [],
 						selectionSum: 0,
@@ -259,9 +258,11 @@ function TAccountBody({
 							count={selection.count}
 							grossSum={selection.grossSum}
 							onCreateProject={() =>
+								// A selection spans folders, so it starts unplaced: the
+								// dialog's parent and sub-team pickers decide where it lands
+								// (FR-L1).
 								setProjectPreset({
 									parentProjectId: null,
-									parentProjectName: null,
 									subTeam: null,
 									postingExternalIds: selection.selectedIds,
 									selectionSum: selection.grossSum,
@@ -279,14 +280,39 @@ function TAccountBody({
 				</div>
 			) : (
 				<Card>
-					<CardContent className="py-10 text-center text-muted-foreground">
-						Keine Buchungen oder Planposten für {department} im Zeitraum.
+					<CardContent className="flex flex-col items-center gap-4 py-10 text-center">
+						<p className="text-muted-foreground">
+							Keine Buchungen oder Planposten für {department} im Zeitraum.
+						</p>
+						{/* A department that may be written must be able to open its first
+						    project here too — otherwise an empty department has no way in
+						    at all (FR-L3). */}
+						{interaction ? (
+							<Button
+								type="button"
+								size="sm"
+								variant="outline"
+								onClick={() =>
+									setProjectPreset({
+										parentProjectId: null,
+										subTeam: null,
+										postingExternalIds: [],
+										selectionSum: 0,
+									})
+								}
+							>
+								<FolderPlus />
+								Neues Projekt
+							</Button>
+						) : null}
 					</CardContent>
 				</Card>
 			)}
 
 			<FinanceProjectDialog
 				preset={projectPreset}
+				projects={projects}
+				subTeamOptions={subTeamOptions}
 				isPending={isCreatingProject}
 				onClose={() => setProjectPreset(null)}
 				onSubmit={async (input) => {
@@ -304,94 +330,6 @@ function TAccountBody({
 					setAssignPreset(null);
 				}}
 			/>
-		</div>
-	);
-}
-
-function TotalsSummary({
-	department,
-	period,
-	totals,
-}: {
-	department: string;
-	period: FinancePeriod;
-	totals?: FinanceTAccountResponse["totals"];
-}): ReactElement {
-	const actualSaldo = totals?.actual.saldo ?? 0;
-	const planSaldo = totals?.plan.saldo ?? 0;
-	const vatPayload = totals?.vat_payload ?? 0;
-	return (
-		<Card>
-			<CardHeader className="pb-2">
-				<CardTitle className="text-base">
-					{department} — {formatFinancePeriodLabel(period)}
-				</CardTitle>
-			</CardHeader>
-			<CardContent>
-				<dl className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-					<Metric
-						label="Ist-Saldo"
-						value={formatFinanceAmount(actualSaldo)}
-						className={saldoClass(actualSaldo)}
-					/>
-					<Metric
-						label="Plan-Saldo"
-						value={formatFinanceAmount(planSaldo)}
-						className={saldoClass(planSaldo)}
-					/>
-					<Metric
-						label="Umsatzsteuer"
-						value={formatFinanceAmount(totals?.vat_income ?? 0)}
-						hint="in den Einnahmen"
-					/>
-					<Metric
-						label="Vorsteuer"
-						value={formatFinanceAmount(totals?.vat_expenses ?? 0)}
-						hint="in den Ausgaben"
-					/>
-					<Metric
-						label="Zahllast"
-						value={formatFinanceAmount(vatPayload)}
-						// Signed on purpose: a negative Zahllast is a refund, not a debt.
-						hint={
-							vatPayload < 0
-								? "Erstattung (USt − Vorsteuer)"
-								: "USt − Vorsteuer"
-						}
-					/>
-				</dl>
-			</CardContent>
-		</Card>
-	);
-}
-
-function Metric({
-	label,
-	value,
-	className,
-	hint,
-}: {
-	label: string;
-	value: string;
-	className?: string;
-	hint?: string;
-}): ReactElement {
-	return (
-		<div>
-			<dt className="text-sm text-muted-foreground">{label}</dt>
-			<dd
-				className={cn(
-					"text-xl font-semibold tabular-nums",
-					className ?? "text-foreground",
-				)}
-			>
-				{value}
-				{hint ? (
-					<span className="block text-xs font-normal text-muted-foreground">
-						{hint}
-					</span>
-				) : null}
-			</dd>
 		</div>
 	);
 }

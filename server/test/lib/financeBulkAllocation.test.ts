@@ -199,6 +199,25 @@ describe("planBulkAllocation", () => {
 		assert.deepStrictEqual(reasons(result.results), ["already_split"]);
 	});
 
+	// A 0,00 € posting is a valid BB row and a selectable line, but nothing can be
+	// allocated from it: preflighting it keeps the refusal inside the result list
+	// instead of throwing halfway through the write loop.
+	test("refuses a zero-value posting before it reaches the writer", () => {
+		const result = plan({
+			postingExternalIds: ["BB-zero", "BB-1"],
+			transactions: [
+				tx({ external_id: "BB-zero", amount: 0, transaction_amount: 0 }),
+				tx({ external_id: "BB-1" }),
+			],
+		});
+
+		assert.deepStrictEqual(
+			result.applicable.map((posting) => posting.external_id),
+			["BB-1"],
+		);
+		assert.deepStrictEqual(reasons(result.results), ["zero_amount", null]);
+	});
+
 	test("refuses a posting booked outside the project's period (FR-L8)", () => {
 		const result = plan({
 			postingExternalIds: ["BB-early", "BB-late", "BB-edge"],

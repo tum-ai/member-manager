@@ -9,6 +9,7 @@ import {
 } from "@/features/finance/financeTAccountFixtures";
 import {
 	buildTAccountTree,
+	collectSubTeamOptions,
 	summarizeAllocationResults,
 	vatLabel,
 } from "./financeTAccountUtils";
@@ -51,6 +52,48 @@ describe("summarizeAllocationResults", () => {
 		]);
 
 		expect(summary.message).toBe("1 Buchung zugeordnet.");
+	});
+
+	// Every refusal the server can send must be sayable — including the two the
+	// planner and the write loop added.
+	it("names a zero-value posting and a late server refusal", () => {
+		const summary = summarizeAllocationResults([
+			{ posting_external_id: "BB-1", applied: false, reason: "zero_amount" },
+			{ posting_external_id: "BB-2", applied: false, reason: "rejected" },
+		]);
+
+		expect(summary.message).toBe(
+			"0 von 2 Buchungen zugeordnet. 2 übersprungen: 1× Buchung ohne Betrag, 1× vom Server abgelehnt.",
+		);
+	});
+});
+
+describe("collectSubTeamOptions", () => {
+	it("offers every sub-team folder the department already uses (FR-L4)", () => {
+		const options = collectSubTeamOptions(
+			[
+				group({ project_id: null, project_name: null }),
+				group({
+					project_id: null,
+					project_name: "Big Makeathon",
+					sub_team: "Big Makeathon",
+					is_sub_team: true,
+				}),
+				group({
+					project_id: MAKEATHON,
+					project_name: "Makeathon 2026",
+					sub_team: "Big Makeathon",
+				}),
+			],
+			[{ sub_team: "Community Events" }, { sub_team: null }],
+		);
+
+		// De-duplicated across folders and projects, sorted for a stable picker.
+		expect(options).toEqual(["Big Makeathon", "Community Events"]);
+	});
+
+	it("returns nothing when the department has no sub-teams", () => {
+		expect(collectSubTeamOptions([group({})], [])).toEqual([]);
 	});
 });
 

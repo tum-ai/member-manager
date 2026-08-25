@@ -1,5 +1,5 @@
 import { Loader2 } from "lucide-react";
-import { type ReactElement, useId, useState } from "react";
+import { type ReactElement, useEffect, useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import type {
 	FinanceBereich,
+	FinanceProject,
 	FinanceProjectStatus,
 } from "@/features/finance/financeTypes";
 import {
@@ -40,11 +41,13 @@ const STATUS_OPTIONS: ReadonlyArray<{
 	{ value: "cancelled", label: "Storniert" },
 ];
 
-// What the node the action was triggered on already decides: a sub-team folder
-// presets its sub-team, a project presets itself as the parent (FR-L3).
+// Where the node the action was triggered on *suggests* the project should go: a
+// sub-team folder presets its sub-team, a project presets itself as the parent
+// (FR-L3). Both stay editable in the dialog — a selection collected across
+// folders has no node to inherit from, so it must be able to say where it lands
+// (FR-L1).
 export interface FinanceProjectDialogPreset {
 	parentProjectId: string | null;
-	parentProjectName: string | null;
 	subTeam: string | null;
 	// Invoices to file into the new project (FR-L1); empty = create an empty
 	// folder.
@@ -54,6 +57,12 @@ export interface FinanceProjectDialogPreset {
 
 interface FinanceProjectDialogProps {
 	preset: FinanceProjectDialogPreset | null;
+	// Candidate parents: the department's projects for this period, already
+	// fetched for the "add to project" dialog.
+	projects: FinanceProject[];
+	// Sub-team folders that exist in this department's T-account, so a project
+	// lands in one by exact name instead of a typo'd near-match.
+	subTeamOptions: string[];
 	isPending: boolean;
 	onClose: () => void;
 	onSubmit: (input: TAccountProjectInput) => Promise<void>;
@@ -61,6 +70,8 @@ interface FinanceProjectDialogProps {
 
 export function FinanceProjectDialog({
 	preset,
+	projects,
+	subTeamOptions,
 	isPending,
 	onClose,
 	onSubmit,
@@ -70,17 +81,49 @@ export function FinanceProjectDialog({
 	const [targetAmount, setTargetAmount] = useState("");
 	const [status, setStatus] = useState<FinanceProjectStatus>("active");
 	const [taxArea, setTaxArea] = useState<string>(NO_VALUE);
+	const [parentProjectId, setParentProjectId] = useState<string>(NO_VALUE);
+	const [subTeam, setSubTeam] = useState<string>(NO_VALUE);
 	const [error, setError] = useState<string | null>(null);
 
-	const isSubProject = preset?.parentProjectId != null;
+	// Adopt the node's placement every time the dialog opens: the preset is the
+	// starting point, not the verdict.
+	useEffect(() => {
+		if (preset === null) return;
+		setParentProjectId(preset.parentProjectId ?? NO_VALUE);
+		setSubTeam(preset.subTeam ?? NO_VALUE);
+	}, [preset]);
+
+	const isSubProject = parentProjectId !== NO_VALUE;
 	const selectionCount = preset?.postingExternalIds.length ?? 0;
+	// A sub-team the data still carries but that has no folder of its own yet
+	// (e.g. the preset's) must stay selectable.
+	const subTeamChoices = [
+		...new Set(
+			[...subTeamOptions, preset?.subTeam, subTeam]
+				.filter((option): option is string => Boolean(option))
+				.filter((option) => option !== NO_VALUE),
+		),
+	].sort((left, right) => left.localeCompare(right, "de"));
 
 	function reset(): void {
 		setName("");
 		setTargetAmount("");
 		setStatus("active");
 		setTaxArea(NO_VALUE);
+		setParentProjectId(NO_VALUE);
+		setSubTeam(NO_VALUE);
 		setError(null);
+	}
+
+	// A sub-project lives inside its parent's folder, so it inherits the parent's
+	// sub-team by default — still editable, since only the server's cycle/scope
+	// guards are authoritative.
+	function handleParentChange(value: string): void {
+		setParentProjectId(value);
+		const parent = projects.find((project) => project.id === value);
+		if (parent) {
+			setSubTeam(parent.sub_team ?? NO_VALUE);
+		}
 	}
 
 	function handleOpenChange(open: boolean): void {
@@ -104,8 +147,8 @@ export function FinanceProjectDialog({
 		setError(null);
 		await onSubmit({
 			name: trimmed,
-			parentProjectId: preset?.parentProjectId ?? null,
-			subTeam: preset?.subTeam ?? null,
+			parentProjectId: parentProjectId === NO_VALUE ? null : parentProjectId,
+			subTeam: subTeam === NO_VALUE ? null : subTeam,
 			taxArea: taxArea === NO_VALUE ? null : (taxArea as FinanceBereich),
 			targetAmount: parsedTarget,
 			status,
@@ -138,24 +181,57 @@ export function FinanceProjectDialog({
 						/>
 					</Field>
 
-					{/* Parent and sub-team come from the folder the action was started
-					    in and are shown as facts, not as editable fields — moving a
-					    project is a different operation. */}
-					{isSubProject ? (
-						<Field label="Übergeordnetes Projekt">
-							<p className="text-sm text-foreground">
-								{preset?.parentProjectName ?? "Projekt"}
-							</p>
+					{/* Placement (FR-L1/FR-L3/FR-L4): prefilled from the folder the
+					    action was started in, editable because a selection spanning
+					    folders has no folder to inherit from. */}
+					<div className="grid gap-4 sm:grid-cols-2">
+						<Field
+							label="Übergeordnetes Projekt"
+							htmlFor={`${fieldId}-parent`}
+							description="Leer = eigenständiges Projekt."
+						>
+							<Select
+								value={parentProjectId}
+								onValueChange={handleParentChange}
+							>
+								<SelectTrigger
+									id={`${fieldId}-parent`}
+									aria-label="Übergeordnetes Projekt"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={NO_VALUE}>
+										Ohne übergeordnetes Projekt
+									</SelectItem>
+									{projects.map((project) => (
+										<SelectItem key={project.id} value={project.id}>
+											{project.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</Field>
-					) : null}
-					{preset?.subTeam ? (
 						<Field
 							label="Sub-Team"
-							description="Aus dem Ordner übernommen, in dem das Projekt angelegt wird."
+							htmlFor={`${fieldId}-sub-team`}
+							description="Bestimmt, in welchem Ordner das Projekt hängt."
 						>
-							<p className="text-sm text-foreground">{preset.subTeam}</p>
+							<Select value={subTeam} onValueChange={setSubTeam}>
+								<SelectTrigger id={`${fieldId}-sub-team`} aria-label="Sub-Team">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value={NO_VALUE}>Ohne Sub-Team</SelectItem>
+									{subTeamChoices.map((option) => (
+										<SelectItem key={option} value={option}>
+											{option}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 						</Field>
-					) : null}
+					</div>
 
 					<div className="grid gap-4 sm:grid-cols-2">
 						<Field label="Zielsaldo (€)" htmlFor={`${fieldId}-target`}>
