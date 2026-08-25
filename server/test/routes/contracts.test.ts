@@ -1,7 +1,10 @@
 import "../setup.js";
 import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
-import { enrichContractFormData } from "@member-manager/shared";
+import {
+	CONTRACT_DOCX_MIME_TYPE,
+	enrichContractFormData,
+} from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import {
 	encryptContractJson,
@@ -26,16 +29,47 @@ const SUBMISSION_ID = "33333333-3333-4333-8333-333333333333";
 const SIGNATURE_DATA_URL =
 	"data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZsusAAAAASUVORK5CYII=";
 
-function docxMultipartPayload(docx: Buffer): {
-	boundary: string;
-	payload: Buffer;
-} {
-	const boundary = "member-manager-contract-docx-boundary";
-	const header = Buffer.from(
-		`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="contract.docx"\r\nContent-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document\r\n\r\n`,
-	);
-	const footer = Buffer.from(`\r\n--${boundary}--\r\n`);
-	return { boundary, payload: Buffer.concat([header, docx, footer]) };
+/**
+ * Mirrors the browser: ask for a signed upload ticket, PUT the bytes straight to
+ * storage, then hand the API only the reference. No DOCX crosses `/api/*`.
+ */
+/** Asserts a download route redirects to a signed URL holding a readable PDF. */
+function assertRedirectsToStoredPdf(response: {
+	statusCode: number;
+	headers: Record<string, unknown>;
+}): void {
+	assert.equal(response.statusCode, 302);
+	const location = String(response.headers.location);
+	assert.match(location, /^https:\/\/mock-storage\.local\//);
+	const key = decodeURIComponent(new URL(location).pathname.replace(/^\//, ""));
+	const stored = mockStorage.get(key);
+	assert.ok(stored, `no stored object at ${key}`);
+	// Rendered artifacts are plaintext so the browser can open the signed URL.
+	assert.match(stored.subarray(0, 5).toString(), /^%PDF-/);
+}
+
+async function stageContractDocx(
+	app: FastifyInstance,
+	ticketUrl: string,
+	docx: Buffer,
+): Promise<{ storage_path: string; filename: string }> {
+	const ticket = await app.inject({
+		method: "POST",
+		url: ticketUrl,
+		headers: {
+			...authHeaders(testTokens.admin),
+			"content-type": "application/json",
+		},
+		payload: JSON.stringify({
+			filename: "contract.docx",
+			mime_type: CONTRACT_DOCX_MIME_TYPE,
+			size_bytes: docx.length,
+		}),
+	});
+	assert.equal(ticket.statusCode, 200);
+	const { bucket, path } = JSON.parse(ticket.payload);
+	mockStorage.set(`${bucket}/${path}`, docx);
+	return { storage_path: path, filename: "contract.docx" };
 }
 
 async function waitForContractState(
@@ -309,15 +343,19 @@ describe("Contract Routes", async () => {
 				"{{partner_name}}",
 				...CONTRACT_DOCX_FIXTURE_ANCHORS,
 			]);
-			const multipart = docxMultipartPayload(templateDocx);
+			const staged = await stageContractDocx(
+				app,
+				`/api/contracts/templates/${TEMPLATE_ID}/documents/upload-url`,
+				templateDocx,
+			);
 			const uploadResponse = await app.inject({
 				method: "POST",
 				url: `/api/contracts/templates/${TEMPLATE_ID}/documents`,
 				headers: {
 					...authHeaders(testTokens.admin),
-					"content-type": `multipart/form-data; boundary=${multipart.boundary}`,
+					"content-type": "application/json",
 				},
-				payload: multipart.payload,
+				payload: JSON.stringify(staged),
 			});
 			assert.equal(uploadResponse.statusCode, 200);
 			const uploadedDocument = JSON.parse(uploadResponse.payload);
@@ -338,22 +376,22 @@ describe("Contract Routes", async () => {
 					.variables,
 				["partner_name"],
 			);
-			const encryptedTemplate = mockStorage.get(
+			// The browser uploaded straight to this path, so the object is the DOCX
+			// itself rather than an encrypted blob, and the row points at it.
+			const storedTemplate = mockStorage.get(
 				`${templateDocument.source_bucket}/${templateDocument.source_path}`,
 			);
-			assert.ok(encryptedTemplate);
-			assert.equal(isEncryptedContractArtifact(encryptedTemplate), true);
+			assert.ok(storedTemplate);
+			assert.equal(isEncryptedContractArtifact(storedTemplate), false);
+			assert.equal(storedTemplate.subarray(0, 2).toString(), "PK");
+			assert.deepEqual(storedTemplate, templateDocx);
 
 			const previewResponse = await app.inject({
 				method: "GET",
 				url: `/api/contracts/templates/${TEMPLATE_ID}/documents/${uploadedDocument.id}/preview.pdf`,
 				headers: authHeaders(testTokens.admin),
 			});
-			assert.equal(previewResponse.statusCode, 200);
-			assert.match(
-				previewResponse.rawPayload.subarray(0, 5).toString(),
-				/^%PDF-/,
-			);
+			assertRedirectsToStoredPdf(previewResponse);
 
 			const activateResponse = await app.inject({
 				method: "POST",
@@ -409,8 +447,9 @@ describe("Contract Routes", async () => {
 				url: `/api/contracts/submissions/${created.id}/pdf`,
 				headers: authHeaders(testTokens.user),
 			});
-			assert.equal(pdfResponse.statusCode, 200);
-			assert.match(pdfResponse.rawPayload.subarray(0, 5).toString(), /^%PDF-/);
+			// The PDF leaves through a short-lived signed URL rather than the
+			// function response body, so the route redirects instead of sending bytes.
+			assertRedirectsToStoredPdf(pdfResponse);
 
 			storedSubmission.status = "sent_to_partner";
 			storedSubmission.signature_token = "docx-partner-token";
@@ -481,11 +520,9 @@ describe("Contract Routes", async () => {
 				method: "GET",
 				url: `/api/contracts/final/${finalized.final_pdf_token}/pdf`,
 			});
-			assert.equal(finalPdfResponse.statusCode, 200);
-			assert.match(
-				finalPdfResponse.rawPayload.subarray(0, 5).toString(),
-				/^%PDF-/,
-			);
+			// Public link: the token is validated first, then the caller is sent to a
+			// signed URL. The bucket itself stays private.
+			assertRedirectsToStoredPdf(finalPdfResponse);
 		} finally {
 			globalThis.fetch = originalFetch;
 			restoreEnv("RESEND_API_KEY", originalResendKey);

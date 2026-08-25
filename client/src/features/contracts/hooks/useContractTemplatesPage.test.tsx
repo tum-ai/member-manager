@@ -18,6 +18,11 @@ vi.mock("@/lib/supabaseClient", () => ({
 			}),
 			signOut: vi.fn(),
 		},
+		storage: {
+			from: vi.fn(() => ({
+				uploadToSignedUrl: vi.fn().mockResolvedValue({ data: {}, error: null }),
+			})),
+		},
 	},
 }));
 
@@ -131,13 +136,20 @@ describe("useContractTemplatesPage", () => {
 					documents: uploaded ? [document] : [],
 				}),
 			),
+			http.post("/api/contracts/templates/tmpl-1/documents/upload-url", () =>
+				HttpResponse.json({
+					bucket: "contract-uploads",
+					path: "user-1/staged.docx",
+					token: "upload-token",
+					signed_url: "https://storage.test/user-1/staged.docx",
+				}),
+			),
 			http.post(
 				"/api/contracts/templates/tmpl-1/documents",
 				async ({ request }) => {
-					expect(request.headers.get("content-type")).toContain(
-						"multipart/form-data",
-					);
-					await request.arrayBuffer();
+					// The DOCX goes straight to storage; only its reference is posted.
+					const body = (await request.json()) as { storage_path: string };
+					expect(body.storage_path).toBe("user-1/staged.docx");
 					uploaded = true;
 					return HttpResponse.json(document);
 				},

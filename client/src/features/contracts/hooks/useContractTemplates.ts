@@ -11,6 +11,7 @@ import type {
 } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { contractQueryKeys } from "@/features/contracts/contractQueryKeys";
+import { uploadContractDocx } from "@/features/contracts/lib/uploadContractDocx";
 import { apiBlob, apiClient } from "@/lib/apiClient";
 
 type ContractTemplateDetailWithDocuments = ContractTemplateDetail & {
@@ -74,12 +75,14 @@ export function useContractTemplateDocumentPdf(
 export function useUploadContractTemplateDocument(templateId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: (file: File) => {
-			const body = new FormData();
-			body.append("file", file);
+		mutationFn: async (file: File) => {
+			const uploaded = await uploadContractDocx(
+				`/api/contracts/templates/${templateId}/documents/upload-url`,
+				file,
+			);
 			return apiClient<ContractTemplateDocument>(
 				`/api/contracts/templates/${templateId}/documents`,
-				{ method: "POST", body },
+				{ method: "POST", body: JSON.stringify(uploaded) },
 			);
 		},
 		onSuccess: () => {

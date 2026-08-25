@@ -1,6 +1,5 @@
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
-import multipart from "@fastify/multipart";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import { installLocalBugReportStub } from "./lib/githubIssues.js";
@@ -28,8 +27,10 @@ import { sepaRoutes } from "./routes/sepa.js";
 import { slackInteractionRoutes } from "./routes/slackInteractions.js";
 import { tumaiDaysRoutes } from "./routes/tumaiDays.js";
 
+// Files no longer travel through a request body: DOCX uploads go straight to
+// Supabase Storage with a signed URL. This only has to cover JSON payloads,
+// including the legacy base64 reimbursement receipt fallback.
 const API_BODY_LIMIT_BYTES = 20 * 1024 * 1024;
-const CONTRACT_UPLOAD_LIMIT_BYTES = 20 * 1024 * 1024;
 
 function getVercelPreviewOrigin(): string | null {
 	if (process.env.VERCEL_ENV !== "preview") {
@@ -54,13 +55,6 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 
 	// Plugins
 	await server.register(helmet);
-	await server.register(multipart, {
-		limits: {
-			fileSize: CONTRACT_UPLOAD_LIMIT_BYTES,
-			files: 1,
-			fields: 2,
-		},
-	});
 	await server.register(rateLimit, {
 		max: 100,
 		timeWindow: "1 minute",

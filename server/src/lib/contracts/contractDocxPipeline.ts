@@ -2,7 +2,6 @@ import { randomUUID } from "node:crypto";
 import {
 	CONTRACT_DOCX_MIME_TYPE,
 	CONTRACT_RENDER_ARTIFACT_BUCKET,
-	CONTRACT_TEMPLATE_DOCUMENT_BUCKET,
 	type ContractPdfAnchor,
 	type ContractRenderOperation,
 } from "@member-manager/shared";
@@ -15,6 +14,7 @@ import {
 	encryptContractJson,
 } from "./contractArtifactCrypto.js";
 import {
+	createContractArtifactSignedUrl,
 	downloadContractArtifact,
 	uploadContractArtifact,
 } from "./contractArtifactStorage.js";
@@ -647,6 +647,57 @@ export async function getReadyDocxVersion(
 	return version;
 }
 
+// The signed-URL counterparts of the download* helpers below. Artifacts leave
+// through Storage rather than the function response body, which is capped at
+// 4.5 MB per invocation and cannot carry a real contract PDF.
+async function signedUrlFromRow(
+	row: Record<string, unknown>,
+	prefix: "docx" | "pdf" | "preview",
+	download?: string,
+): Promise<string> {
+	const bucket = row[`${prefix}_bucket`];
+	const path = row[`${prefix}_path`];
+	if (typeof bucket !== "string" || typeof path !== "string") {
+		throw new ValidationError(`Stored contract ${prefix} is not ready`);
+	}
+	return createContractArtifactSignedUrl({ bucket, path, download });
+}
+
+export async function readyVersionPdfUrl(
+	versionId: unknown,
+	download?: string,
+): Promise<string> {
+	return signedUrlFromRow(
+		await getReadyDocxVersion(versionId),
+		"pdf",
+		download,
+	);
+}
+
+export async function readyVersionDocxUrl(
+	versionId: unknown,
+	download?: string,
+): Promise<string> {
+	return signedUrlFromRow(
+		await getReadyDocxVersion(versionId),
+		"docx",
+		download,
+	);
+}
+
+export async function templatePreviewPdfUrl(
+	templateDocumentId: string,
+): Promise<string> {
+	const document = await fetchSingle(
+		"contract_template_documents",
+		templateDocumentId,
+	);
+	if (document.status !== "ready") {
+		throw new ValidationError("Template preview is not ready");
+	}
+	return signedUrlFromRow(document, "preview");
+}
+
 export async function downloadReadyVersionPdf(
 	versionId: unknown,
 ): Promise<Buffer> {
@@ -700,30 +751,20 @@ export async function createTemplateDocumentRecord(args: {
 	return data as Record<string, unknown>;
 }
 
-export async function storeTemplateSource(args: {
-	templateId: string;
-	documentId: string;
-	docx: Buffer;
-}) {
-	return uploadContractArtifact({
-		bucket: CONTRACT_TEMPLATE_DOCUMENT_BUCKET,
-		path: `${args.templateId}/${args.documentId}/source.docx`,
-		plaintext: args.docx,
-		contentType: CONTRACT_DOCX_MIME_TYPE,
-	});
+// The browser uploads straight to these locations with a signed URL, so the
+// path has to be known before the bytes exist.
+export function contractTemplateSourcePath(
+	templateId: string,
+	documentId: string,
+): string {
+	return `${templateId}/${documentId}/source.docx`;
 }
 
-export async function storeSubmissionDocxSource(args: {
-	submissionId: string;
-	versionId: string;
-	docx: Buffer;
-}) {
-	return uploadContractArtifact({
-		bucket: CONTRACT_RENDER_ARTIFACT_BUCKET,
-		path: `${args.submissionId}/${args.versionId}/document.docx`,
-		plaintext: args.docx,
-		contentType: CONTRACT_DOCX_MIME_TYPE,
-	});
+export function contractSubmissionDocxPath(
+	submissionId: string,
+	versionId: string,
+): string {
+	return `${submissionId}/${versionId}/document.docx`;
 }
 
 export function encryptedContractFormData(value: Record<string, unknown>) {
