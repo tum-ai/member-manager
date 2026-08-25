@@ -12,6 +12,10 @@ import {
 } from "../helpers.js";
 import { MOCK_OTHER_USER_ID, mockDatabase } from "../mocks/supabase.js";
 
+const OWN_PROJECT_ID = "10000000-0000-4000-8000-000000000011";
+const FOREIGN_PROJECT_ID = "10000000-0000-4000-8000-000000000012";
+const OTHER_PERIOD_PROJECT_ID = "10000000-0000-4000-8000-000000000013";
+
 // Register the "other" test user as a department-scoped finance viewer: an
 // active member of Makeathon, whose department grants only `finance.department`.
 function seedDepartmentFinanceMember(department = "Makeathon"): void {
@@ -914,6 +918,146 @@ describe("Finance Routes", async () => {
 		test("a user with no finance permission cannot create a plan item", async () => {
 			const response = await createItem(testTokens.user);
 			assert.strictEqual(response.statusCode, 403);
+		});
+
+		test("refuses to create a plan item inside another department's project", async () => {
+			seedDepartmentFinanceMember();
+			// A Makeathon member is authorised for their own department, but the
+			// project they point at belongs to Partnerships.
+			mockDatabase.finance_projects.push({
+				id: FOREIGN_PROJECT_ID,
+				parent_project_id: null,
+				name: "Partnerships 2026",
+				department: "Partnerships",
+				period_type: "year",
+				period_key: "2026",
+				tax_area: null,
+				target_amount: 0,
+				status: "active",
+				description: null,
+				sub_team: null,
+				created_at: "2026-01-01T00:00:00.000Z",
+				updated_at: "2026-01-01T00:00:00.000Z",
+			});
+
+			const response = await createItem(testTokens.otherUser, {
+				project_id: FOREIGN_PROJECT_ID,
+			});
+
+			assert.strictEqual(response.statusCode, 400, response.payload);
+			assert.match(
+				JSON.parse(response.payload).error,
+				/same department and period/i,
+			);
+			assert.deepStrictEqual(mockDatabase.finance_plan_items, []);
+		});
+
+		test("refuses to create a plan item inside a project from another period", async () => {
+			mockDatabase.finance_projects.push({
+				id: OTHER_PERIOD_PROJECT_ID,
+				parent_project_id: null,
+				name: "Makeathon 2025",
+				department: "Makeathon",
+				period_type: "year",
+				period_key: "2025",
+				tax_area: null,
+				target_amount: 0,
+				status: "active",
+				description: null,
+				sub_team: null,
+				created_at: "2025-01-01T00:00:00.000Z",
+				updated_at: "2025-01-01T00:00:00.000Z",
+			});
+
+			const response = await createItem(testTokens.admin, {
+				project_id: OTHER_PERIOD_PROJECT_ID,
+			});
+
+			assert.strictEqual(response.statusCode, 400, response.payload);
+			assert.deepStrictEqual(mockDatabase.finance_plan_items, []);
+		});
+
+		test("refuses to create a plan item inside a project that does not exist", async () => {
+			const response = await createItem(testTokens.admin, {
+				project_id: FOREIGN_PROJECT_ID,
+			});
+
+			assert.strictEqual(response.statusCode, 404, response.payload);
+			assert.deepStrictEqual(mockDatabase.finance_plan_items, []);
+		});
+
+		test("creates a plan item inside a project in the same department and period", async () => {
+			mockDatabase.finance_projects.push({
+				id: OWN_PROJECT_ID,
+				parent_project_id: null,
+				name: "Makeathon 2026",
+				department: "Makeathon",
+				period_type: "year",
+				period_key: "2026",
+				tax_area: null,
+				target_amount: 0,
+				status: "active",
+				description: null,
+				sub_team: null,
+				created_at: "2026-01-01T00:00:00.000Z",
+				updated_at: "2026-01-01T00:00:00.000Z",
+			});
+
+			const response = await createItem(testTokens.admin, {
+				project_id: OWN_PROJECT_ID,
+				vat_rate: 19,
+			});
+
+			assert.strictEqual(response.statusCode, 201, response.payload);
+			const item = JSON.parse(response.payload);
+			assert.strictEqual(item.project_id, OWN_PROJECT_ID);
+			assert.strictEqual(item.vat_rate, 19);
+			assert.strictEqual(item.is_active, true);
+		});
+
+		test("an edit that omits project and VAT leaves both intact", async () => {
+			mockDatabase.finance_projects.push({
+				id: OWN_PROJECT_ID,
+				parent_project_id: null,
+				name: "Makeathon 2026",
+				department: "Makeathon",
+				period_type: "year",
+				period_key: "2026",
+				tax_area: null,
+				target_amount: 0,
+				status: "active",
+				description: null,
+				sub_team: null,
+				created_at: "2026-01-01T00:00:00.000Z",
+				updated_at: "2026-01-01T00:00:00.000Z",
+			});
+			const created = await createItem(testTokens.admin, {
+				project_id: OWN_PROJECT_ID,
+				vat_rate: 19,
+			});
+			assert.strictEqual(created.statusCode, 201, created.payload);
+			const item = JSON.parse(created.payload);
+
+			// Exactly the body the planning client sends: no project, no VAT rate.
+			const updated = await app.inject({
+				method: "PUT",
+				url: `/api/finance/plan-items/${item.id}`,
+				headers: authHeaders(testTokens.admin),
+				payload: {
+					label: "Venue deposit",
+					category: null,
+					direction: "expense",
+					planned_amount: 4200,
+					expected_month: null,
+					status: "committed",
+					note: null,
+				},
+			});
+
+			assert.strictEqual(updated.statusCode, 200, updated.payload);
+			const payload = JSON.parse(updated.payload);
+			assert.strictEqual(payload.project_id, OWN_PROJECT_ID);
+			assert.strictEqual(payload.vat_rate, 19);
 		});
 
 		test("rejects an invalid plan item and a missing one", async () => {

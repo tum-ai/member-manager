@@ -1424,3 +1424,65 @@ on conflict (cost_location) do update set
     bereich = excluded.bereich,
     sub_team = excluded.sub_team,
     updated_at = now();
+
+-- Finance: T-Konto workbench fixtures. Every state the T-view has to render
+-- must be reachable locally and in E2E, so the seed carries one of each:
+-- a sub-team-owned project (FR-L4), an active Planposten with a planned VAT
+-- rate (FR-N5), a partially matched Planposten (FR-M4 → 'committed'), and a
+-- disabled one (FR-M3). BB-1010 is a mock BuchhaltungsButler posting
+-- (cost location 111 → Community / Onboarding, -840 EUR).
+--
+-- The match is paired with its allocation on purpose: a match is only legal
+-- while the posting is allocated to the plan item's project, so seeding one
+-- without the other would encode a state the API refuses to create.
+insert into public.finance_projects
+    (id, parent_project_id, name, department, period_type, period_key,
+     tax_area, target_amount, status, description, sub_team)
+values
+    ('c0000000-0000-4000-8000-000000000001', null, 'Onboarding SS26',
+     'Community', 'year', '2026', 'ideell', -2000, 'active',
+     'Onboarding-Woche Sommersemester 2026', 'Onboarding')
+on conflict (id) do update set
+    sub_team = excluded.sub_team,
+    target_amount = excluded.target_amount,
+    updated_at = now();
+
+insert into public.finance_posting_allocations
+    (id, posting_external_id, department, project_id, tax_area,
+     allocated_amount, allocated_percentage)
+values
+    ('c0000000-0000-4000-8000-000000000011', 'BB-1010', 'Community',
+     'c0000000-0000-4000-8000-000000000001', null, -840, 100)
+on conflict (id) do nothing;
+
+insert into public.finance_plan_items
+    (id, department, period_type, period_key, label, category, direction,
+     planned_amount, expected_month, status, note, project_id, is_active,
+     vat_rate)
+values
+    -- Partially matched by BB-1010 (840 of 1000) → status 'committed'.
+    ('c0000000-0000-4000-8000-000000000021', 'Community', 'year', '2026',
+     'Onboarding Catering', 'Verpflegung', 'expense', 1000, '2026-04',
+     'committed', null, 'c0000000-0000-4000-8000-000000000001', true, 19),
+    -- Still fully open, carries a planned VAT rate.
+    ('c0000000-0000-4000-8000-000000000022', 'Community', 'year', '2026',
+     'Onboarding Location', null, 'expense', 800, '2026-04', 'planned', null,
+     'c0000000-0000-4000-8000-000000000001', true, 19),
+    -- Parked: excluded from every plan total, still visible so it can be
+    -- re-enabled from the T-view.
+    ('c0000000-0000-4000-8000-000000000023', 'Community', 'year', '2026',
+     'Merch-Nachdruck (zurückgestellt)', null, 'expense', 2500, null,
+     'planned', 'Auf Eis gelegt, Budget knapp', null, false, null)
+on conflict (id) do update set
+    is_active = excluded.is_active,
+    vat_rate = excluded.vat_rate,
+    project_id = excluded.project_id,
+    status = excluded.status,
+    updated_at = now();
+
+insert into public.finance_plan_item_posting_matches
+    (id, plan_item_id, posting_external_id, matched_amount, match_type)
+values
+    ('c0000000-0000-4000-8000-000000000031',
+     'c0000000-0000-4000-8000-000000000021', 'BB-1010', 840, 'manual')
+on conflict (id) do nothing;

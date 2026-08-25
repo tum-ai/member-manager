@@ -1,44 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type {
-	FinanceTAccountGroup,
-	FinanceTAccountLine,
-} from "@/features/finance/financeTypes";
+import {
+	tAccountGroup as group,
+	tAccountLine as line,
+	tAccountPlanDetail as planDetail,
+} from "@/features/finance/financeTAccountFixtures";
 import { buildTAccountTree } from "./financeTAccountUtils";
 
 const MAKEATHON = "11111111-1111-4111-8111-111111111111";
 const HACKATHON = "22222222-2222-4222-8222-222222222222";
-
-function line(overrides: Partial<FinanceTAccountLine>): FinanceTAccountLine {
-	return {
-		kind: "actual",
-		direction: "expense",
-		label: "Line",
-		category: null,
-		project_id: null,
-		amount: 0,
-		vat_amount: null,
-		status: null,
-		posting_external_id: null,
-		plan_item_id: null,
-		...overrides,
-	};
-}
-
-function group(
-	overrides: Partial<FinanceTAccountGroup> = {},
-): FinanceTAccountGroup {
-	return {
-		project_id: null,
-		project_name: null,
-		parent_project_id: null,
-		target_amount: null,
-		expense_lines: [],
-		income_lines: [],
-		actual: { income: 0, expenses: 0, saldo: 0 },
-		plan: { income: 0, expenses: 0, saldo: 0 },
-		...overrides,
-	};
-}
 
 describe("buildTAccountTree", () => {
 	it("derives per-column Ist and planned-only Plan subtotals", () => {
@@ -151,6 +120,60 @@ describe("buildTAccountTree", () => {
 		expect(subTeam?.projectId).toBeNull();
 		expect(subTeam?.actualSaldo).toBe(-500);
 		expect(ungrouped?.actualSaldo).toBe(-120);
+	});
+
+	it("keeps a disabled Planposten visible but out of every subtotal", () => {
+		const tree = buildTAccountTree([
+			group({
+				project_id: MAKEATHON,
+				project_name: "Makeathon",
+				expense_lines: [
+					line({ kind: "actual", amount: 400, label: "Tooling" }),
+					line({ kind: "plan", amount: 800, label: "Recruiting" }),
+					line({
+						kind: "plan",
+						amount: 5000,
+						label: "Abgesagt",
+						plan_detail: planDetail({ planned_amount: 5000, is_active: false }),
+					}),
+				],
+			}),
+		]);
+
+		const [node] = tree;
+		// The parked row still renders, so it can be re-enabled from the T-view…
+		expect(node.expenseLines.map((l) => l.label)).toEqual([
+			"Tooling",
+			"Recruiting",
+			"Abgesagt",
+		]);
+		// …but the 5.000 never reaches the Plan column or the forecast.
+		expect(node.expenseSummary).toEqual({ ist: 400, plan: 800 });
+		expect(node.planSaldo).toBe(-1200);
+	});
+
+	it("excludes a child's disabled Planposten from the parent roll-up", () => {
+		const tree = buildTAccountTree([
+			group({ project_id: MAKEATHON, project_name: "Makeathon" }),
+			group({
+				project_id: HACKATHON,
+				project_name: "Hackathon",
+				parent_project_id: MAKEATHON,
+				expense_lines: [
+					line({
+						kind: "plan",
+						amount: 900,
+						label: "Abgesagt",
+						plan_detail: planDetail({ planned_amount: 900, is_active: false }),
+					}),
+				],
+			}),
+		]);
+
+		const makeathon = tree[0];
+		// The child contributes nothing, so no folder line is injected at all.
+		expect(makeathon.expenseLines).toHaveLength(0);
+		expect(makeathon.planSaldo).toBe(0);
 	});
 
 	it("keeps a child top-level when its parent is absent for the department", () => {

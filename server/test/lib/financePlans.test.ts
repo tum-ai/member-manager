@@ -82,43 +82,95 @@ describe("computePlanTotals", () => {
 	});
 });
 
+const PLAN_ITEM_ID = "20000000-0000-4000-8000-000000000001";
+const PROJECT_ID = "10000000-0000-4000-8000-000000000001";
+
+// Captures what reached the RPC and echoes a row back, so a test can assert on
+// the parameters the write path built rather than on the database.
+function captureRpc(row: Record<string, unknown> = {}): {
+	params: Record<string, unknown>;
+} {
+	const captured = { params: {} as Record<string, unknown> };
+	setSupabaseClient({
+		rpc: async (_name: string, params: Record<string, unknown>) => {
+			captured.params = params;
+			return {
+				data: {
+					id: PLAN_ITEM_ID,
+					department: "Makeathon",
+					period_type: "year",
+					period_key: "2026",
+					label: "Sponsoring income",
+					category: null,
+					direction: "income",
+					planned_amount: 15_000,
+					expected_month: null,
+					status: "committed",
+					note: null,
+					project_id: null,
+					template_item_id: null,
+					...row,
+				},
+				error: null,
+			};
+		},
+	} as unknown as SupabaseClient);
+	return captured;
+}
+
 describe("updatePlanItem", () => {
 	test("preserves an income direction when the update omits direction", async () => {
-		let rpcParams: Record<string, unknown> = {};
-		setSupabaseClient({
-			rpc: async (_name: string, params: Record<string, unknown>) => {
-				rpcParams = params;
-				return {
-					data: {
-						id: "20000000-0000-4000-8000-000000000001",
-						department: "Makeathon",
-						period_type: "year",
-						period_key: "2026",
-						label: "Sponsoring income",
-						category: null,
-						direction: "income",
-						planned_amount: 15_000,
-						expected_month: null,
-						status: "committed",
-						note: null,
-						project_id: null,
-						template_item_id: null,
-					},
-					error: null,
-				};
-			},
-		} as unknown as SupabaseClient);
+		const captured = captureRpc();
 
 		const updated = await updatePlanItem(
-			"20000000-0000-4000-8000-000000000001",
+			PLAN_ITEM_ID,
 			{
 				label: "Sponsoring income",
 				planned_amount: 15_000,
 				status: "committed",
 			},
+			{ project_id: null, vat_rate: null },
 		);
 
-		assert.strictEqual(rpcParams.p_direction, null);
+		assert.strictEqual(captured.params.p_direction, null);
 		assert.strictEqual(updated.direction, "income");
+	});
+
+	test("keeps the project and VAT rate an update omits", async () => {
+		// The planning client sends neither field; omitting them must not detach
+		// the Planposten from its project or wipe its planned VAT.
+		const captured = captureRpc();
+
+		await updatePlanItem(
+			PLAN_ITEM_ID,
+			{
+				label: "Sponsoring income",
+				planned_amount: 15_000,
+				status: "committed",
+			},
+			{ project_id: PROJECT_ID, vat_rate: 19 },
+		);
+
+		assert.strictEqual(captured.params.p_project_id, PROJECT_ID);
+		assert.strictEqual(captured.params.p_vat_rate, 19);
+	});
+
+	test("an explicit null still detaches the project and clears the VAT rate", async () => {
+		const captured = captureRpc();
+
+		await updatePlanItem(
+			PLAN_ITEM_ID,
+			{
+				label: "Sponsoring income",
+				planned_amount: 15_000,
+				status: "committed",
+				project_id: null,
+				vat_rate: null,
+			},
+			{ project_id: PROJECT_ID, vat_rate: 19 },
+		);
+
+		assert.strictEqual(captured.params.p_project_id, null);
+		assert.strictEqual(captured.params.p_vat_rate, null);
 	});
 });

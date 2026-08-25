@@ -21,6 +21,7 @@ const project = {
 	target_amount: 12000,
 	status: "active",
 	description: null,
+	sub_team: null,
 	created_at: "2026-01-01T00:00:00.000Z",
 	updated_at: "2026-01-01T00:00:00.000Z",
 } satisfies FinanceProject;

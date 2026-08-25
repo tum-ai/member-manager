@@ -43,6 +43,7 @@ import {
 	ServiceUnavailableError,
 	ValidationError,
 } from "../lib/errors.js";
+import { loadAccountLabels } from "../lib/financeAccounts.js";
 import {
 	calculatePostingScopeCapacity,
 	createFinanceReallocationRequest,
@@ -280,6 +281,10 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 						body.description === undefined
 							? existing.description
 							: body.description,
+					// Nullable, so `undefined` has to mean "leave the folder alone"
+					// and an explicit `null` has to mean "move it out of one".
+					sub_team:
+						body.sub_team === undefined ? existing.sub_team : body.sub_team,
 				},
 				"Invalid finance project",
 			);
@@ -962,22 +967,28 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 				query.period_type,
 				query.period_key,
 			);
-			const [{ transactions, source }, mappings, planItems, projects] =
-				await Promise.all([
-					loadTransactions({
-						date_from: range.dateFrom,
-						date_to: range.dateTo,
-					}),
-					loadDepartmentMappings(),
-					loadManagedPlanItems(query.period_type, query.period_key, department),
-					listFinanceProjects(
-						{
-							period_type: query.period_type,
-							period_key: query.period_key,
-						},
-						department,
-					),
-				]);
+			const [
+				{ transactions, source },
+				mappings,
+				planItems,
+				projects,
+				accountLabels,
+			] = await Promise.all([
+				loadTransactions({
+					date_from: range.dateFrom,
+					date_to: range.dateTo,
+				}),
+				loadDepartmentMappings(),
+				loadManagedPlanItems(query.period_type, query.period_key, department),
+				listFinanceProjects(
+					{
+						period_type: query.period_type,
+						period_key: query.period_key,
+					},
+					department,
+				),
+				loadAccountLabels(),
+			]);
 			const [allocations, matches] = await Promise.all([
 				loadPostingAllocations(
 					transactions.map((transaction) => transaction.external_id),
@@ -996,6 +1007,7 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 				planItems,
 				matches,
 				projects,
+				accountLabels,
 				source,
 				generatedAt: new Date().toISOString(),
 			});

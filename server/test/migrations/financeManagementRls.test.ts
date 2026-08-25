@@ -397,6 +397,7 @@ test("finance project scope changes reject linked records", {
 			p_target_amount: 0,
 			p_status: "active",
 			p_description: null,
+			p_sub_team: null,
 			...overrides,
 		});
 
@@ -461,6 +462,103 @@ test("finance project scope changes reject linked records", {
 	}
 });
 
+test("finance plan item creation rejects out-of-scope projects", {
+	skip: !RUN_LOCAL_RLS_TESTS,
+}, async () => {
+	const environment = localSupabaseEnvironment();
+	const serviceClient = createClient(
+		environment.API_URL,
+		environment.SERVICE_ROLE_KEY,
+		{
+			auth: {
+				autoRefreshToken: false,
+				detectSessionInUrl: false,
+				persistSession: false,
+			},
+		},
+	);
+	const projectId = randomUUID();
+	const createdItemIds: string[] = [];
+	const createPlanItem = (overrides: Record<string, unknown> = {}) => {
+		const id = randomUUID();
+		createdItemIds.push(id);
+		return serviceClient.rpc("create_finance_plan_item", {
+			p_id: id,
+			p_department: "Makeathon",
+			p_period_type: "year",
+			p_period_key: "2026",
+			p_label: "Scoped Planposten",
+			p_category: null,
+			p_direction: "expense",
+			p_planned_amount: 100,
+			p_expected_month: null,
+			p_status: "planned",
+			p_note: null,
+			p_project_id: projectId,
+			p_is_active: true,
+			p_vat_rate: null,
+			p_created_by: null,
+			...overrides,
+		});
+	};
+
+	try {
+		const { error: seedError } = await serviceClient
+			.from("finance_projects")
+			.insert({
+				id: projectId,
+				name: "Scoped project",
+				department: "Makeathon",
+				period_type: "year",
+				period_key: "2026",
+				tax_area: "wirtschaftlich",
+				status: "active",
+			});
+		assert.ifError(seedError);
+
+		// The route only authorises the caller against p_department, so the RPC is
+		// the boundary that has to reject a project outside that department…
+		const { error: departmentError } = await createPlanItem({
+			p_department: "Community",
+		});
+		assert.match(departmentError?.message ?? "", /same department and period/i);
+
+		// …or outside the item's own period.
+		const { error: periodError } = await createPlanItem({
+			p_period_key: "2027",
+		});
+		assert.match(periodError?.message ?? "", /same department and period/i);
+
+		const { error: missingError } = await createPlanItem({
+			p_project_id: randomUUID(),
+		});
+		assert.match(missingError?.message ?? "", /Finance project not found/i);
+
+		// Nothing was written by any of the three rejected attempts.
+		const { data: leaked, error: leakError } = await serviceClient
+			.from("finance_plan_items")
+			.select("id")
+			.in("id", createdItemIds);
+		assert.ifError(leakError);
+		assert.deepStrictEqual(leaked, []);
+
+		const { data, error: createError } = await createPlanItem({
+			p_vat_rate: 19,
+		});
+		assert.ifError(createError);
+		const created = data as Record<string, unknown>;
+		assert.strictEqual(created.project_id, projectId);
+		assert.strictEqual(Number(created.vat_rate), 19);
+		assert.strictEqual(created.is_active, true);
+	} finally {
+		await serviceClient
+			.from("finance_plan_items")
+			.delete()
+			.in("id", createdItemIds);
+		await serviceClient.from("finance_projects").delete().eq("id", projectId);
+	}
+});
+
 test("finance project parent updates serialize cycle validation", {
 	skip: !RUN_LOCAL_RLS_TESTS,
 }, async () => {
@@ -489,6 +587,7 @@ test("finance project parent updates serialize cycle validation", {
 			p_target_amount: 0,
 			p_status: "active",
 			p_description: null,
+			p_sub_team: null,
 		});
 
 	try {
@@ -695,6 +794,9 @@ test("finance RPCs preserve scoped matches and reject stale mutations", {
 				p_expected_month: null,
 				p_status: "planned",
 				p_note: null,
+				p_project_id: null,
+				p_is_active: true,
+				p_vat_rate: null,
 			},
 		);
 		assert.match(
@@ -713,6 +815,9 @@ test("finance RPCs preserve scoped matches and reject stale mutations", {
 				p_expected_month: null,
 				p_status: "planned",
 				p_note: null,
+				p_project_id: null,
+				p_is_active: true,
+				p_vat_rate: null,
 			},
 		);
 		assert.match(
