@@ -399,7 +399,7 @@ begin
             || 'join public.members member_row on member_row.user_id = bp.user_id '
             || 'where bp.user_id = public.%I.user_id '
             || 'and bp.opted_out = false '
-            || 'and coalesce(member_row.member_status, case when member_row.active then ''active'' else ''inactive'' end) = ''active''))',
+            || 'and coalesce(member_row.member_status, case when member_row.active then ''active'' else ''inactive'' end) = ''active'')))',
             t, t, t, t, t
         );
         execute format('drop policy if exists "Manage own %s" on public.%I', t, t);

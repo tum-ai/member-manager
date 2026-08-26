@@ -86,13 +86,13 @@ test("buildIdentityInsert expands per-identity rows with a provider_id fallback"
 test("buildMemberInsert uses the row's columns and escapes values", () => {
 	assert.equal(buildMemberInsert([]), "");
 	const sql = buildMemberInsert([
-		{ user_id: "u1", given_name: "Jus'tin", active: true },
+		{ user_id: "u1", given_name: "O'Brien", active: true },
 	]);
 	assert.match(
 		sql,
 		/INSERT INTO public\.members \(user_id, given_name, active\)/,
 	);
-	assert.match(sql, /'Jus''tin'/);
+	assert.match(sql, /'O''Brien'/);
 	assert.match(sql, /, true\)/);
 	assert.match(sql, /ON CONFLICT \(user_id\) DO NOTHING;/);
 });
