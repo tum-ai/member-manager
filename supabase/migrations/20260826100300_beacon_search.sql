@@ -19,18 +19,24 @@ create table if not exists "public"."beacon_search_log" (
 );
 create index if not exists "beacon_search_log_created_idx"
     on "public"."beacon_search_log" ("created_at" desc);
+create index if not exists "beacon_search_log_user_idx"
+    on "public"."beacon_search_log" ("user_id");
 
 alter table "public"."beacon_search_log" enable row level security;
 drop policy if exists "Admins read search log" on "public"."beacon_search_log";
 create policy "Admins read search log"
     on "public"."beacon_search_log" as permissive for select to authenticated
     using ("public"."beacon_is_admin"());
-revoke all on table "public"."beacon_search_log" from anon;
+revoke all on table "public"."beacon_search_log" from public, anon, authenticated;
+grant select on table "public"."beacon_search_log" to authenticated;
 grant all on table "public"."beacon_search_log" to service_role;
 
 -- Hybrid retrieval + RRF. q_embedding is passed as a text vector literal
 -- ('[..]') or null; candidate_ids restricts to a structured-filter candidate set
--- (null = no restriction).
+-- (null = no restriction). The eligibility predicate is repeated in both
+-- retrieval paths because the server calls this function with service_role,
+-- which bypasses RLS; stale chunks must not make opted-out, inactive, or
+-- profile-less members searchable.
 create or replace function "public"."beacon_hybrid_search"(
     q_embedding text default null,
     q_text text default '',
@@ -41,16 +47,24 @@ create or replace function "public"."beacon_hybrid_search"(
 returns table(user_id uuid, score real, best_chunk text, best_kind text)
 language sql
 stable
-set search_path = public, extensions
+set search_path = ''
 as $$
     with dense as (
         select c.user_id, c.content, c.kind,
-               row_number() over (order by c.embedding <=> q_embedding::vector) as rnk
-        from beacon_search_chunk c
+               row_number() over (order by c.embedding <=> q_embedding::extensions.vector) as rnk
+        from public.beacon_search_chunk c
         where q_embedding is not null
           and c.embedding is not null
           and (candidate_ids is null or c.user_id = any(candidate_ids))
-        order by c.embedding <=> q_embedding::vector
+          and exists (
+              select 1
+              from public.beacon_person bp
+              join public.members member_row on member_row.user_id = bp.user_id
+              where bp.user_id = c.user_id
+                and bp.opted_out = false
+                and coalesce(member_row.member_status, case when member_row.active then 'active' else 'inactive' end) = 'active'
+          )
+        order by c.embedding <=> q_embedding::extensions.vector
         limit 100
     ),
     q as (
@@ -64,10 +78,18 @@ as $$
     sparse as (
         select c.user_id, c.content, c.kind,
                row_number() over (order by ts_rank(c.lexeme, q.orq) desc) as rnk
-        from beacon_search_chunk c, q
+        from public.beacon_search_chunk c, q
         where q.orq is not null
           and c.lexeme @@ q.orq
           and (candidate_ids is null or c.user_id = any(candidate_ids))
+          and exists (
+              select 1
+              from public.beacon_person bp
+              join public.members member_row on member_row.user_id = bp.user_id
+              where bp.user_id = c.user_id
+                and bp.opted_out = false
+                and coalesce(member_row.member_status, case when member_row.active then 'active' else 'inactive' end) = 'active'
+          )
         order by ts_rank(c.lexeme, q.orq) desc
         limit 100
     ),
@@ -93,7 +115,9 @@ as $$
     limit match_limit;
 $$;
 
-revoke all on function "public"."beacon_hybrid_search"(text, text, uuid[], integer, integer) from anon;
-grant execute on function "public"."beacon_hybrid_search"(text, text, uuid[], integer, integer) to service_role, authenticated;
+revoke all on function "public"."beacon_hybrid_search"(text, text, uuid[], integer, integer)
+    from public, anon, authenticated, service_role;
+grant execute on function "public"."beacon_hybrid_search"(text, text, uuid[], integer, integer)
+    to service_role;
 
 commit;

@@ -44,13 +44,19 @@ returns boolean
 language sql
 security definer
 stable
-set search_path = public
+set search_path = ''
 as $$
     select exists (
-        select 1 from "public"."user_roles" ur
-        where ur.user_id = auth.uid() and ur.role = 'admin'
+        select 1 from public.user_roles ur
+        where ur.user_id = (select auth.uid()) and ur.role = 'admin'
     );
 $$;
+
+-- This helper is invoked by RLS, not exposed as an application RPC. Keep the
+-- SECURITY DEFINER boundary explicit and grant execution only to roles that
+-- need to evaluate policies or run the server-side client.
+revoke all on function "public"."beacon_is_admin"() from public, anon, authenticated, service_role;
+grant execute on function "public"."beacon_is_admin"() to authenticated, service_role;
 
 -- =========================================================================
 -- Per-person Beacon state.
@@ -169,6 +175,7 @@ create table if not exists "public"."beacon_employment" (
 );
 create index if not exists "beacon_employment_user_idx" on "public"."beacon_employment" ("user_id");
 create index if not exists "beacon_employment_org_idx" on "public"."beacon_employment" ("organization_id");
+create index if not exists "beacon_employment_source_idx" on "public"."beacon_employment" ("source_id");
 create index if not exists "beacon_employment_status_idx" on "public"."beacon_employment" ("status");
 -- Dedup target for idempotent re-enrichment (resolved orgs only).
 create unique index if not exists "beacon_employment_dedup_idx"
@@ -193,6 +200,7 @@ create table if not exists "public"."beacon_education" (
 );
 create index if not exists "beacon_education_user_idx" on "public"."beacon_education" ("user_id");
 create index if not exists "beacon_education_school_idx" on "public"."beacon_education" ("school_id");
+create index if not exists "beacon_education_source_idx" on "public"."beacon_education" ("source_id");
 create index if not exists "beacon_education_status_idx" on "public"."beacon_education" ("status");
 create unique index if not exists "beacon_education_dedup_idx"
     on "public"."beacon_education" ("user_id", "school_id", coalesce("degree", ''))
@@ -215,6 +223,7 @@ create table if not exists "public"."beacon_person_skill" (
 );
 create index if not exists "beacon_person_skill_user_idx" on "public"."beacon_person_skill" ("user_id");
 create index if not exists "beacon_person_skill_skill_idx" on "public"."beacon_person_skill" ("skill_id");
+create index if not exists "beacon_person_skill_source_idx" on "public"."beacon_person_skill" ("source_id");
 create index if not exists "beacon_person_skill_status_idx" on "public"."beacon_person_skill" ("status");
 
 create table if not exists "public"."beacon_person_project" (
@@ -233,6 +242,7 @@ create table if not exists "public"."beacon_person_project" (
 );
 create index if not exists "beacon_person_project_user_idx" on "public"."beacon_person_project" ("user_id");
 create index if not exists "beacon_person_project_project_idx" on "public"."beacon_person_project" ("project_id");
+create index if not exists "beacon_person_project_source_idx" on "public"."beacon_person_project" ("source_id");
 
 create table if not exists "public"."beacon_person_tag" (
     "id" uuid primary key default gen_random_uuid(),
@@ -249,6 +259,7 @@ create table if not exists "public"."beacon_person_tag" (
 );
 create index if not exists "beacon_person_tag_user_idx" on "public"."beacon_person_tag" ("user_id");
 create index if not exists "beacon_person_tag_tag_idx" on "public"."beacon_person_tag" ("tag");
+create index if not exists "beacon_person_tag_source_idx" on "public"."beacon_person_tag" ("source_id");
 create index if not exists "beacon_person_tag_status_idx" on "public"."beacon_person_tag" ("status");
 
 -- =========================================================================
@@ -289,6 +300,8 @@ begin
 end;
 $$;
 
+revoke all on function "public"."beacon_touch_updated_at"() from public, anon, authenticated, service_role;
+
 do $$
 declare
     t text;
@@ -310,10 +323,11 @@ $$;
 -- RLS. Defensive layer (server uses service_role → bypasses these):
 --   * canonical entities + vocabulary + sources: any authenticated member may
 --     read (shared reference data); only service_role writes.
---   * person + claim edges + chunks: a member reads their OWN rows (any status)
---     plus everyone's CONFIRMED rows (the directory); admins read all. Members
---     may self-edit/delete their own claim edges + beacon_person (Phase 2);
---     chunk writes are server-only.
+--   * person + claim edges + chunks: owners/admins can inspect person/claim rows;
+--     the shared directory exposes only active, non-opted-out profiles and
+--     confirmed or pending claims (pending facts are labeled unverified by the
+--     application). Search chunks are shared only for active, non-opted-out
+--     profiles; members may self-edit/delete their own claims and profile.
 -- =========================================================================
 
 -- Reference tables: read-only to authenticated.
@@ -331,7 +345,7 @@ begin
             'create policy "Authenticated read %s" on public.%I as permissive for select to authenticated using (true)',
             t, t
         );
-        execute format('revoke all on table public.%I from anon', t);
+        execute format('revoke all on table public.%I from public, anon', t);
         execute format('grant select on table public.%I to authenticated', t);
         execute format('grant all on table public.%I to service_role', t);
     end loop;
@@ -343,13 +357,25 @@ alter table "public"."beacon_person" enable row level security;
 drop policy if exists "Read beacon_person" on "public"."beacon_person";
 create policy "Read beacon_person"
     on "public"."beacon_person" as permissive for select to authenticated
-    using ("opted_out" = false or "user_id" = auth.uid() or "public"."beacon_is_admin"());
+    using (
+        "user_id" = (select auth.uid())
+        or "public"."beacon_is_admin"()
+        or (
+            "opted_out" = false
+            and exists (
+                select 1
+                from public.members member_row
+                where member_row.user_id = public.beacon_person.user_id
+                  and coalesce(member_row.member_status, case when member_row.active then 'active' else 'inactive' end) = 'active'
+            )
+        )
+    );
 drop policy if exists "Manage own beacon_person" on "public"."beacon_person";
 create policy "Manage own beacon_person"
     on "public"."beacon_person" as permissive for all to authenticated
-    using ("user_id" = auth.uid() or "public"."beacon_is_admin"())
-    with check ("user_id" = auth.uid() or "public"."beacon_is_admin"());
-revoke all on table "public"."beacon_person" from anon;
+    using ("user_id" = (select auth.uid()) or "public"."beacon_is_admin"())
+    with check ("user_id" = (select auth.uid()) or "public"."beacon_is_admin"());
+revoke all on table "public"."beacon_person" from public, anon;
 grant select, insert, update, delete on table "public"."beacon_person" to authenticated;
 grant all on table "public"."beacon_person" to service_role;
 
@@ -366,17 +392,24 @@ begin
         execute format('drop policy if exists "Read %s" on public.%I', t, t);
         execute format(
             'create policy "Read %s" on public.%I as permissive for select to authenticated '
-            || 'using (status = ''confirmed'' or user_id = auth.uid() or public.beacon_is_admin())',
-            t, t
+            || 'using (public.%I.user_id = (select auth.uid()) '
+            || 'or public.beacon_is_admin() '
+            || 'or (public.%I.status in (''confirmed'', ''pending'') and exists ('
+            || 'select 1 from public.beacon_person bp '
+            || 'join public.members member_row on member_row.user_id = bp.user_id '
+            || 'where bp.user_id = public.%I.user_id '
+            || 'and bp.opted_out = false '
+            || 'and coalesce(member_row.member_status, case when member_row.active then ''active'' else ''inactive'' end) = ''active''))',
+            t, t, t, t, t
         );
         execute format('drop policy if exists "Manage own %s" on public.%I', t, t);
         execute format(
             'create policy "Manage own %s" on public.%I as permissive for all to authenticated '
-            || 'using (user_id = auth.uid() or public.beacon_is_admin()) '
-            || 'with check (user_id = auth.uid() or public.beacon_is_admin())',
-            t, t
+            || 'using (public.%I.user_id = (select auth.uid()) or public.beacon_is_admin()) '
+            || 'with check (public.%I.user_id = (select auth.uid()) or public.beacon_is_admin())',
+            t, t, t, t
         );
-        execute format('revoke all on table public.%I from anon', t);
+        execute format('revoke all on table public.%I from public, anon', t);
         execute format('grant select, insert, update, delete on table public.%I to authenticated', t);
         execute format('grant all on table public.%I to service_role', t);
     end loop;
@@ -388,11 +421,15 @@ alter table "public"."beacon_search_chunk" enable row level security;
 drop policy if exists "Read beacon_search_chunk" on "public"."beacon_search_chunk";
 create policy "Read beacon_search_chunk"
     on "public"."beacon_search_chunk" as permissive for select to authenticated
-    using ("user_id" = auth.uid() or "public"."beacon_is_admin"() or exists (
-        select 1 from "public"."beacon_person" bp
-        where bp.user_id = "beacon_search_chunk".user_id and bp.opted_out = false
+    using ("public"."beacon_is_admin"() or exists (
+        select 1
+        from public.beacon_person bp
+        join public.members member_row on member_row.user_id = bp.user_id
+        where bp.user_id = public.beacon_search_chunk.user_id
+          and bp.opted_out = false
+          and coalesce(member_row.member_status, case when member_row.active then 'active' else 'inactive' end) = 'active'
     ));
-revoke all on table "public"."beacon_search_chunk" from anon;
+revoke all on table "public"."beacon_search_chunk" from public, anon;
 grant select on table "public"."beacon_search_chunk" to authenticated;
 grant all on table "public"."beacon_search_chunk" to service_role;
 

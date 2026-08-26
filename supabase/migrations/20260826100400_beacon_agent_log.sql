@@ -23,13 +23,16 @@ create table if not exists "public"."beacon_agent_log" (
 );
 create index if not exists "beacon_agent_log_chat_idx"
     on "public"."beacon_agent_log" ("chat_id", "created_at");
+create index if not exists "beacon_agent_log_user_idx"
+    on "public"."beacon_agent_log" ("user_id");
 
 alter table "public"."beacon_agent_log" enable row level security;
 drop policy if exists "Admins read agent log" on "public"."beacon_agent_log";
 create policy "Admins read agent log"
     on "public"."beacon_agent_log" as permissive for select to authenticated
     using ("public"."beacon_is_admin"());
-revoke all on table "public"."beacon_agent_log" from anon;
+revoke all on table "public"."beacon_agent_log" from public, anon, authenticated;
+grant select on table "public"."beacon_agent_log" to authenticated;
 grant all on table "public"."beacon_agent_log" to service_role;
 
 commit;
