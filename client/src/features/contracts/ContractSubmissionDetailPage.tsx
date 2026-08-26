@@ -1,3 +1,5 @@
+import { SearchX } from "lucide-react";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { ContractSubmissionActionsSection } from "./components/ContractSubmissionActionsSection";
@@ -24,13 +26,7 @@ export default function ContractSubmissionDetailPage(): JSX.Element {
 	}
 
 	const { submission } = detail;
-	if (!submission) {
-		return (
-			<Alert>
-				<AlertDescription>Not found</AlertDescription>
-			</Alert>
-		);
-	}
+	if (!submission) return <EmptyState icon={SearchX} title="Not found" />;
 
 	return (
 		<ToolPageShell

@@ -1,6 +1,7 @@
-import { Plus, Send } from "lucide-react";
+import { Inbox, Plus, Send } from "lucide-react";
 import type React from "react";
 import { useId } from "react";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -58,7 +59,11 @@ export function JobSubmissionPanel({
 				<Separator className="my-5" />
 
 				{requests.length === 0 ? (
-					<p className="text-muted-foreground">No submitted jobs yet.</p>
+					<EmptyState
+						icon={Inbox}
+						title="No submitted jobs yet."
+						className="border-none bg-transparent shadow-none"
+					/>
 				) : (
 					<div className="flex flex-col gap-3">
 						{requests.map((request) => (

@@ -1,4 +1,5 @@
 import type React from "react";
+import { useSetPageHeader } from "@/contexts/PageHeaderContext";
 
 interface ToolPageShellProps {
 	title: string;
@@ -11,16 +12,6 @@ export function ToolPageShell({
 	description,
 	children,
 }: ToolPageShellProps): React.ReactElement {
-	return (
-		<div>
-			<div className="mb-6">
-				<h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-				{description && (
-					<p className="mt-1 text-muted-foreground">{description}</p>
-				)}
-			</div>
-
-			{children}
-		</div>
-	);
+	useSetPageHeader(title, description);
+	return <>{children}</>;
 }

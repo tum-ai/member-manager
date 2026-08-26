@@ -1,8 +1,8 @@
-import { PanelRight, Plus } from "lucide-react";
+import { FileText, Inbox, PanelRight, Plus } from "lucide-react";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { GlassCard } from "@/components/ui/GlassCard";
 import {
 	Sheet,
 	SheetContent,
@@ -64,9 +64,11 @@ export default function ContractTemplatesPage(): JSX.Element {
 									))}
 									{!templates.templatesLoading &&
 									templates.templates.length === 0 ? (
-										<p className="p-2 text-sm text-muted-foreground">
-											No templates yet.
-										</p>
+										<EmptyState
+											icon={Inbox}
+											title="No templates yet."
+											className="border-0 bg-transparent shadow-none"
+										/>
 									) : null}
 								</div>
 							</div>
@@ -91,12 +93,11 @@ export default function ContractTemplatesPage(): JSX.Element {
 				{templates.selectedId ? (
 					<TemplateEditor model={templates.editor} />
 				) : (
-					<GlassCard className="p-10 text-center">
-						<p className="text-muted-foreground">
-							No template selected. Browse templates to pick one, or create a
-							new one.
-						</p>
-					</GlassCard>
+					<EmptyState
+						icon={FileText}
+						title="No template selected."
+						description="Browse templates to pick one, or create a new one."
+					/>
 				)}
 			</div>
 

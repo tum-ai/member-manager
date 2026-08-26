@@ -1,0 +1,97 @@
+/*
+ * Shared motion + surface vocabulary, promoted from Beacon so every feature
+ * draws its delight from one source. Plain CSS (not Tailwind-scanned), so these
+ * class names are preserved as-is. Durations/easings come from the --dur-* /
+ * --ease-standard tokens in index.css; prefers-reduced-motion disables it all.
+ *
+ * Vocabulary:
+ *   .fade-up        staggered entrance for sections / cards / list items
+ *   .hover-lift     subtle lift + shadow on hover for interactive surfaces
+ *   .shimmer        loading sweep, layered over a muted skeleton fill
+ *   .brand-aurora   soft brand glow for hero accents (use sparingly)
+ */
+
+@keyframes ui-fade-up {
+	from {
+		opacity: 0;
+		transform: translateY(8px);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+@keyframes ui-shimmer {
+	0% {
+		background-position: 200% 0;
+	}
+	100% {
+		background-position: -200% 0;
+	}
+}
+
+.fade-up {
+	animation: ui-fade-up var(--dur-slow) var(--ease-standard) both;
+}
+
+.hover-lift {
+	transition:
+		transform var(--dur-base) var(--ease-standard),
+		box-shadow var(--dur-base) var(--ease-standard);
+}
+
+@media (hover: hover) and (pointer: fine) {
+	.hover-lift:hover {
+		transform: translateY(-2px);
+		box-shadow: var(--elevation-overlay);
+	}
+	.hover-lift:active {
+		transform: translateY(0);
+	}
+}
+
+.hover-lift:focus-within {
+	box-shadow: var(--elevation-overlay);
+}
+
+/* Layer over a `bg-muted` skeleton block for a sweeping shimmer. */
+.shimmer {
+	background-image: linear-gradient(
+		90deg,
+		transparent 0%,
+		color-mix(in oklab, var(--foreground) 7%, transparent) 50%,
+		transparent 100%
+	);
+	background-size: 200% 100%;
+	animation: ui-shimmer 1.6s linear infinite;
+}
+
+.brand-aurora {
+	background:
+		radial-gradient(
+			60% 60% at 30% 25%,
+			color-mix(in oklab, var(--brand) 22%, transparent),
+			transparent 70%
+		),
+		radial-gradient(
+			50% 50% at 75% 70%,
+			color-mix(in oklab, var(--brand) 14%, transparent),
+			transparent 70%
+		);
+	filter: blur(24px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.fade-up,
+	.shimmer {
+		animation: none;
+	}
+	.fade-up {
+		opacity: 1;
+		transform: none;
+	}
+	.hover-lift {
+		transition: none;
+	}
+}

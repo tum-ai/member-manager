@@ -1,3 +1,4 @@
+import { useSetPageHeader } from "@/contexts/PageHeaderContext";
 import { useInnovationProjects } from "@/hooks/useInnovationProjects";
 import { useMembersListData } from "@/hooks/useMembersListData";
 import { buildOrgChart } from "./orgChartUtils";
@@ -8,6 +9,7 @@ import {
 } from "./projectSections";
 
 export default function MembersInnovationPage() {
+	useSetPageHeader("Task Forces", "Task forces and the members behind them.");
 	const { members, isLoading, error } = useMembersListData();
 	const { innovationProjects } = useInnovationProjects();
 
@@ -29,13 +31,6 @@ export default function MembersInnovationPage() {
 
 	return (
 		<div>
-			<div className="mb-6">
-				<h1 className="text-2xl font-bold tracking-tight">Task Forces</h1>
-				<p className="mt-1 text-muted-foreground">
-					Task forces and the members behind them.
-				</p>
-			</div>
-
 			{chart.innovationProjects.length > 0 ? (
 				<InnovationProjectsSection projects={chart.innovationProjects} />
 			) : (

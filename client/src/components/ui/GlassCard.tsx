@@ -9,10 +9,9 @@ interface GlassCardProps extends React.ComponentProps<"div"> {
 }
 
 const variantClasses: Record<NonNullable<GlassCardProps["variant"]>, string> = {
-	default: "shadow-sm",
-	elevated: "shadow-md",
-	interactive:
-		"cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:translate-y-0",
+	default: "shadow-raised",
+	elevated: "shadow-overlay",
+	interactive: "cursor-pointer shadow-raised hover-lift",
 };
 
 // Clean, solid surface (the glassmorphism look was retired in the shadcn

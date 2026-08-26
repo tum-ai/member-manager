@@ -62,12 +62,6 @@ describe("OrgChartView", () => {
 			/>,
 		);
 
-		expect(
-			screen.getByRole("heading", { name: /org chart/i }),
-		).toBeInTheDocument();
-		expect(
-			screen.getByText("Overview of current leadership and departments."),
-		).toBeInTheDocument();
 		expect(screen.getByText("Board Members")).toBeInTheDocument();
 		expect(screen.getByText("Paula President")).toBeInTheDocument();
 		expect(screen.getAllByText("Boris Board")).toHaveLength(2);
@@ -98,5 +92,25 @@ describe("OrgChartView", () => {
 		expect(screen.getAllByText("Linus Finance")).toHaveLength(2);
 		expect(screen.queryByText("Team Lead")).not.toBeInTheDocument();
 		expect(screen.getAllByText("Board member")).toHaveLength(1);
+	});
+
+	it("renders an empty state for a department section with no members", () => {
+		render(
+			<OrgChartView
+				members={[
+					buildMember({
+						user_id: "lead-only",
+						given_name: "Tessa",
+						surname: "Lead",
+						department: "Software Development",
+						member_role: "Team Lead",
+					}),
+				]}
+			/>,
+		);
+
+		expect(
+			screen.getByText("No active members in this department."),
+		).toBeInTheDocument();
 	});
 });

@@ -15,9 +15,6 @@ describe("AdminWorkspaceHeader", () => {
 			/>,
 		);
 
-		expect(
-			screen.getByRole("heading", { name: /admin workspace/i }),
-		).toBeInTheDocument();
 		expect(screen.getByText("Total members")).toBeInTheDocument();
 		expect(screen.getByText("120")).toBeInTheDocument();
 		expect(screen.getByText("90")).toBeInTheDocument();

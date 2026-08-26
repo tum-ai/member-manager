@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { proxiedAvatarUrl } from "@/lib/avatarUrl";
@@ -149,7 +150,7 @@ export function OrgChartTeamCard({
 				{primaryMembers.length > 0 ? (
 					renderMembers(primaryMembers, { showBoardBadge, lead: true })
 				) : (
-					<p className="text-sm text-muted-foreground">{primaryEmpty}</p>
+					<EmptyState title={primaryEmpty} className="px-4 py-6" />
 				)}
 			</div>
 
@@ -160,7 +161,7 @@ export function OrgChartTeamCard({
 				{secondaryMembers.length > 0 ? (
 					renderMembers(secondaryMembers, { showBoardBadge })
 				) : (
-					<p className="text-sm text-muted-foreground">{secondaryEmpty}</p>
+					<EmptyState title={secondaryEmpty} className="px-4 py-6" />
 				)}
 			</div>
 		</div>

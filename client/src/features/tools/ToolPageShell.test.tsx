@@ -1,10 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { renderWithClient } from "@/test/renderWithClient";
 import { ToolPageShell } from "./ToolPageShell";
 
 describe("ToolPageShell", () => {
-	it("renders the title heading and children", () => {
-		render(
+	it("publishes the title to the app header and renders children", () => {
+		renderWithClient(
 			<ToolPageShell title="My Tool">
 				<p>Tool body</p>
 			</ToolPageShell>,
@@ -16,8 +17,8 @@ describe("ToolPageShell", () => {
 		expect(screen.getByText("Tool body")).toBeInTheDocument();
 	});
 
-	it("renders the optional description when provided", () => {
-		render(
+	it("publishes the optional description when provided", () => {
+		renderWithClient(
 			<ToolPageShell title="My Tool" description="Does a thing">
 				<p>body</p>
 			</ToolPageShell>,
@@ -26,8 +27,8 @@ describe("ToolPageShell", () => {
 		expect(screen.getByText("Does a thing")).toBeInTheDocument();
 	});
 
-	it("omits the description paragraph when not provided", () => {
-		render(
+	it("omits the description when not provided", () => {
+		renderWithClient(
 			<ToolPageShell title="My Tool">
 				<p>body</p>
 			</ToolPageShell>,

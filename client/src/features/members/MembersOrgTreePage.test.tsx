@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithClient } from "@/test/renderWithClient";
 import type { Member } from "@/types";
 import MembersOrgTreePage from "./MembersOrgTreePage";
 
@@ -76,7 +77,7 @@ describe("MembersOrgTreePage", () => {
 		membersState.members = [
 			buildMember({ member_role: "Team Lead", department: "Marketing" }),
 		];
-		render(<MembersOrgTreePage />);
+		renderWithClient(<MembersOrgTreePage />);
 		expect(
 			screen.getByRole("heading", { name: "Org Tree" }),
 		).toBeInTheDocument();

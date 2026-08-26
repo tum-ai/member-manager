@@ -4,6 +4,7 @@
  */
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./styles/motion.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -114,6 +115,23 @@
  */
 :root {
 	--radius: 0.625rem;
+	/*
+	 * Motion tokens — one easing + duration vocabulary for the whole app, so
+	 * transitions/reveals feel like one product. Mode-independent (no .dark
+	 * override). `--ease-standard` is the curve Beacon already uses.
+	 */
+	--ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+	--dur-fast: 120ms;
+	--dur-base: 180ms;
+	--dur-slow: 240ms;
+	/*
+	 * Elevation ramp — soft, layered shadows tuned for the neutral palette so
+	 * surfaces read as depth, not just a border. Re-tuned per mode below.
+	 */
+	--elevation-raised:
+		0 1px 2px -1px oklch(0 0 0 / 0.08), 0 4px 12px -4px oklch(0 0 0 / 0.07);
+	--elevation-overlay:
+		0 8px 24px -6px oklch(0 0 0 / 0.14), 0 2px 6px -2px oklch(0 0 0 / 0.08);
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.145 0 0);
 	--card: oklch(1 0 0);
@@ -154,6 +172,11 @@
 }
 
 .dark {
+	/* Deeper shadows on dark so elevation still reads against the near-black base. */
+	--elevation-raised:
+		0 1px 2px -1px oklch(0 0 0 / 0.5), 0 4px 14px -4px oklch(0 0 0 / 0.45);
+	--elevation-overlay:
+		0 10px 28px -6px oklch(0 0 0 / 0.6), 0 2px 6px -2px oklch(0 0 0 / 0.5);
 	--background: oklch(0.145 0 0);
 	--foreground: oklch(0.985 0 0);
 	--card: oklch(0.205 0 0);
@@ -195,6 +218,9 @@
 
 @theme inline {
 	--font-sans: "Manrope", "Inter", "Roboto", sans-serif;
+	/* Elevation utilities: `shadow-raised` / `shadow-overlay` (dark-mode aware). */
+	--shadow-raised: var(--elevation-raised);
+	--shadow-overlay: var(--elevation-overlay);
 	--radius-sm: calc(var(--radius) - 4px);
 	--radius-md: calc(var(--radius) - 2px);
 	--radius-lg: var(--radius);

@@ -1,5 +1,6 @@
 import { Briefcase } from "lucide-react";
 import type React from "react";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -15,17 +16,11 @@ export function JobGridSection({
 }): React.ReactElement {
 	if (jobs.length === 0) {
 		return (
-			<GlassCard>
-				<div className="p-6 md:p-8">
-					<div className="flex flex-col items-start gap-3">
-						<Briefcase className="size-6 text-brand" />
-						<h2 className="text-xl font-semibold">No job postings right now</h2>
-						<p className="text-muted-foreground">
-							Approved opportunities will appear here.
-						</p>
-					</div>
-				</div>
-			</GlassCard>
+			<EmptyState
+				icon={Briefcase}
+				title="No job postings right now"
+				description="Approved opportunities will appear here."
+			/>
 		);
 	}
 

@@ -45,6 +45,16 @@ vi.mock("../../hooks/useMembersListData", () => ({
 				member_status: "active",
 				active: true,
 			},
+			{
+				user_id: "member-4",
+				given_name: "Dana",
+				surname: "Graduate",
+				department: "Marketing",
+				member_role: "Member",
+				batch: "WS22",
+				member_status: "alumni",
+				active: false,
+			},
 		],
 		isLoading: false,
 		error: null,
@@ -131,5 +141,29 @@ describe("MemberList", () => {
 		expect(screen.getByText("Ben Boardmember")).toBeInTheDocument();
 		expect(screen.getByText("Board member")).toBeInTheDocument();
 		expect(screen.queryByText("Member")).not.toBeInTheDocument();
+	});
+
+	it("tones a non-active member status badge via statusTone", async () => {
+		const user = userEvent.setup();
+		renderMemberList();
+
+		await user.type(screen.getByPlaceholderText(/search members/i), "Dana");
+
+		const badge = screen.getByText("Alumni");
+		expect(badge).toHaveAttribute("data-variant", "neutral");
+	});
+
+	it("renders the empty state when no member matches the search", async () => {
+		const user = userEvent.setup();
+		renderMemberList();
+
+		await user.type(
+			screen.getByPlaceholderText(/search members/i),
+			"zzz-no-such-member",
+		);
+
+		expect(
+			screen.getByText("No members match your search."),
+		).toBeInTheDocument();
 	});
 });

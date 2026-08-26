@@ -1,7 +1,8 @@
 import type { ContractSubmission } from "@member-manager/shared";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
+import { renderWithClient } from "@/test/renderWithClient";
 import ContractSubmissionDetailPage from "./ContractSubmissionDetailPage";
 import type { ContractSubmissionDetailViewModel } from "./contractSubmissionDetailTypes";
 
@@ -115,7 +116,7 @@ describe("ContractSubmissionDetailPage", () => {
 	it("renders the loaded submission through its presentational sections", () => {
 		state.detail = createDetail();
 
-		render(
+		renderWithClient(
 			<MemoryRouter>
 				<ContractSubmissionDetailPage />
 			</MemoryRouter>,

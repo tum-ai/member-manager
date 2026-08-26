@@ -3,16 +3,16 @@ import type {
 	FinancePlanItem,
 	FinanceProject,
 } from "@member-manager/shared";
-import { ExternalLink, FileText, RefreshCw } from "lucide-react";
+import { ExternalLink, FileText, RefreshCw, SearchX } from "lucide-react";
 import type React from "react";
 import { useId } from "react";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import {
 	Accordion,
 	AccordionContent,
 	AccordionItem,
 	AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge, type BadgeVariant } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -109,11 +109,10 @@ export function ReimbursementReviewQueue({
 }: ReimbursementReviewQueueProps): React.ReactElement {
 	if (requests.length === 0) {
 		return (
-			<Alert>
-				<AlertDescription>
-					No reimbursement requests match the current filters.
-				</AlertDescription>
-			</Alert>
+			<EmptyState
+				icon={SearchX}
+				title="No reimbursement requests match the current filters."
+			/>
 		);
 	}
 

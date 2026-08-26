@@ -64,6 +64,11 @@ import {
 	SidebarProvider,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import {
+	PageHeaderProvider,
+	usePageHeader,
+	usePageHeaderSlots,
+} from "@/contexts/PageHeaderContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToolAccess } from "@/hooks/useToolAccess";
 import { TUM_AI_LOGO_MARK_DARK, TUM_AI_LOGO_MARK_LIGHT } from "@/lib/branding";
@@ -437,26 +442,25 @@ export function MainLayout({
 			</Sidebar>
 
 			<SidebarInset className="min-w-0">
-				<header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-					<SidebarTrigger className="-ml-1" />
-					<ThemeToggleButton />
-				</header>
+				<PageHeaderProvider>
+					<AppHeaderBar />
 
-				<main
-					className={
-						fullBleed
-							? "flex min-w-0 flex-1 flex-col"
-							: "mx-auto w-full max-w-7xl min-w-0 flex-1 px-4 py-6 md:px-6 md:py-8"
-					}
-				>
-					{children}
-				</main>
+					<main
+						className={
+							fullBleed
+								? "flex min-w-0 flex-1 flex-col"
+								: "mx-auto w-full max-w-7xl min-w-0 flex-1 px-4 py-6 md:px-6 md:py-8"
+						}
+					>
+						{children}
+					</main>
 
-				{!fullBleed && (
-					<footer className="mx-auto w-full max-w-7xl px-4 pb-6 md:px-6">
-						<BugReportButton user={user} />
-					</footer>
-				)}
+					{!fullBleed && (
+						<footer className="mx-auto w-full max-w-7xl px-4 pb-6 md:px-6">
+							<BugReportButton user={user} />
+						</footer>
+					)}
+				</PageHeaderProvider>
 			</SidebarInset>
 		</SidebarProvider>
 	);
@@ -532,6 +536,41 @@ function getDisplayName(user: User | null): string {
 	return [given, family].filter(Boolean).join(" ");
 }
 
+// The sticky top bar IS the page header: sidebar toggle + contextual title on
+// the left, page actions + theme toggle on the right. Pages feed it via
+// `useSetPageHeader` / `PageHeaderActions`, so there's no redundant in-content
+// title under an otherwise-empty bar.
+function AppHeaderBar() {
+	const header = usePageHeader();
+	const { setActionsSlot } = usePageHeaderSlots();
+
+	return (
+		<header className="sticky top-0 z-10 flex h-14 min-w-0 shrink-0 items-center gap-1 border-b bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:bg-background/60 sm:gap-3 sm:px-4">
+			<SidebarTrigger className="size-11 shrink-0 sm:-ml-1 sm:size-9" />
+			{header ? (
+				<div className="flex min-w-0 flex-col justify-center">
+					<h1
+						title={header.title}
+						className="truncate font-semibold text-sm leading-tight sm:text-base"
+					>
+						{header.title}
+					</h1>
+					{header.description ? (
+						<p className="hidden truncate text-muted-foreground text-xs leading-tight sm:block">
+							{header.description}
+						</p>
+					) : null}
+				</div>
+			) : null}
+			<div
+				ref={setActionsSlot}
+				className="ml-auto flex min-w-0 items-center gap-1 overflow-x-auto [&_[data-slot=button]]:min-h-11 sm:gap-2 sm:overflow-visible sm:[&_[data-slot=button]]:min-h-9"
+			/>
+			<ThemeToggleButton />
+		</header>
+	);
+}
+
 function ThemeToggleButton() {
 	const { resolvedTheme, setTheme } = useTheme();
 	const isDark = resolvedTheme === "dark";
@@ -540,7 +579,7 @@ function ThemeToggleButton() {
 		<Button
 			variant="ghost"
 			size="icon"
-			className="ml-auto"
+			className="size-11 shrink-0 sm:size-9"
 			aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
 			onClick={() => setTheme(isDark ? "light" : "dark")}
 		>

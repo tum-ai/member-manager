@@ -1,5 +1,7 @@
+import { FileText } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -168,11 +170,10 @@ export default function ContractFormPage(): JSX.Element {
 					</AlertDescription>
 				</Alert>
 			) : selectableTemplates.length === 0 ? (
-				<Alert>
-					<AlertDescription>
-						No active templates are available.
-					</AlertDescription>
-				</Alert>
+				<EmptyState
+					icon={FileText}
+					title="No active templates are available."
+				/>
 			) : (
 				<div className="flex flex-col gap-6">
 					{detailQuery.isLoading ? (

@@ -24,13 +24,6 @@ export function OrgChartView({
 
 	return (
 		<div>
-			<div className="mb-6">
-				<h1 className="text-2xl font-bold tracking-tight">Org Chart</h1>
-				<p className="mt-1 text-muted-foreground">
-					Overview of current leadership and departments.
-				</p>
-			</div>
-
 			{hasBoard && (
 				<div className="mb-8 rounded-xl border bg-card p-6">
 					<p className="mb-5 font-semibold">Board</p>

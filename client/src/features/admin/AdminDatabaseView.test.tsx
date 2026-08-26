@@ -1,6 +1,7 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { renderWithClient } from "@/test/renderWithClient";
 import { AdminDatabaseView } from "./AdminDatabaseView";
 
 const { updateMemberAsync, mergeMembersAsync } = vi.hoisted(() => ({
@@ -168,10 +169,18 @@ vi.mock("../../hooks/useDepartmentPermissions", () => ({
 }));
 
 function renderAdminView() {
-	return render(<AdminDatabaseView />);
+	return renderWithClient(<AdminDatabaseView />);
 }
 
 describe("AdminDatabaseView", () => {
+	it("publishes the workspace title to the page header", () => {
+		renderAdminView();
+
+		expect(
+			screen.getByRole("heading", { name: /admin workspace/i }),
+		).toBeInTheDocument();
+	});
+
 	it("lets admins edit another member's role, department, status, and access", async () => {
 		const user = userEvent.setup();
 		renderAdminView();
