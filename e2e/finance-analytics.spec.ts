@@ -267,6 +267,17 @@ test.describe("Finance Analytics tool", () => {
 		page,
 		browser,
 	}) => {
+		// Six phases, three browser contexts and ~40 round-trips in one journey —
+		// by far the longest spec in the suite (the next longest is 15 s) and the
+		// only one that ever came close to the 30 s default. It grew from 21.9 s
+		// (#317) to 28.0 s (#318) and tipped over on the merge commit, failing on
+		// its *last* assertion while the write it was waiting for had already
+		// returned 200. The budget was the problem, not the app: tripling it to
+		// 90 s keeps a real regression failing fast instead of surfacing as a
+		// timeout. Scoped to this test on purpose — the rest of the group is well
+		// under the default and should stay that way.
+		test.slow();
+
 		await page.getByRole("tab", { name: "Projekte" }).click();
 		await expect(
 			page.getByRole("heading", { name: "Projekt anlegen" }),
