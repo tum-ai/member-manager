@@ -17,6 +17,14 @@ test("kindFromUrl: classifies provenance source", () => {
 		"linkedin",
 	);
 	assert.equal(kindFromUrl("https://lanfermann.substack.com/p/x"), "blog");
+	assert.equal(kindFromUrl("https://blog.example.com/post"), "blog");
+	assert.equal(kindFromUrl("https://github.com.evil.example/x"), "web_search");
+	assert.equal(kindFromUrl("https://notlinkedin.com/in/x"), "web_search");
+	assert.equal(kindFromUrl("https://medium.com.evil.example/x"), "web_search");
+	assert.equal(
+		kindFromUrl("https://substack.com.evil.example/x"),
+		"web_search",
+	);
 	assert.equal(kindFromUrl("https://example.com/about"), "web_search");
 	assert.equal(kindFromUrl(""), "web_search");
 });

@@ -2,7 +2,16 @@
 // `read_knowledge_file` base tool. Only `.md`/`.txt`, only within the pillar's
 // root (no traversal), capped in size.
 
-import { type Dirent, readdirSync, readFileSync, statSync } from "node:fs";
+import {
+	closeSync,
+	constants,
+	type Dirent,
+	fstatSync,
+	openSync,
+	readdirSync,
+	readFileSync,
+	realpathSync,
+} from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 
 const MAX_FILE_BYTES = 100_000;
@@ -10,6 +19,9 @@ const ALLOWED_EXT = [".md", ".txt"];
 
 const allowed = (name: string): boolean =>
 	ALLOWED_EXT.some((ext) => name.toLowerCase().endsWith(ext));
+
+const isWithin = (root: string, target: string): boolean =>
+	target === root || target.startsWith(root + sep);
 
 // A flat, sorted listing of readable documents (relative POSIX paths).
 export function renderFileTree(root: string): string {
@@ -37,12 +49,24 @@ export function renderFileTree(root: string): string {
 // too large / missing.
 export function readKnowledgeFile(root: string, rel: string): string {
 	const abs = resolve(root);
-	const target = resolve(abs, rel);
-	if (target !== abs && !target.startsWith(abs + sep))
+	const lexicalTarget = resolve(abs, rel);
+	if (!isWithin(abs, lexicalTarget))
 		throw new Error("path escapes the knowledge directory");
-	if (!allowed(target)) throw new Error("only .md and .txt files can be read");
-	const st = statSync(target);
-	if (!st.isFile()) throw new Error("not a file");
-	if (st.size > MAX_FILE_BYTES) throw new Error("file too large");
-	return readFileSync(target, "utf8");
+	if (!allowed(lexicalTarget))
+		throw new Error("only .md and .txt files can be read");
+
+	const realRoot = realpathSync(abs);
+	const target = realpathSync(lexicalTarget);
+	if (!isWithin(realRoot, target))
+		throw new Error("path escapes the knowledge directory");
+
+	const fd = openSync(target, constants.O_RDONLY | constants.O_NOFOLLOW);
+	try {
+		const st = fstatSync(fd);
+		if (!st.isFile()) throw new Error("not a file");
+		if (st.size > MAX_FILE_BYTES) throw new Error("file too large");
+		return readFileSync(fd, "utf8");
+	} finally {
+		closeSync(fd);
+	}
 }

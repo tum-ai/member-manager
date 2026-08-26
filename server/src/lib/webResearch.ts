@@ -12,6 +12,9 @@ import { fetchWithTimeout } from "./fetchWithTimeout.js";
 
 const RESPONSES_URL = "https://api.openai.com/v1/responses";
 
+const isHostOrSubdomain = (host: string, domain: string): boolean =>
+	host === domain || host.endsWith(`.${domain}`);
+
 export function webResearchConfigured(): boolean {
 	return Boolean(process.env.OPENAI_API_KEY?.trim());
 }
@@ -21,13 +24,13 @@ export function kindFromUrl(url: string): SourceKind {
 	if (!url) return "web_search";
 	try {
 		const host = new URL(url).hostname.replace(/^www\./, "");
-		if (host.includes("github.com")) return "github";
-		if (host.includes("linkedin.com")) return "linkedin";
+		if (isHostOrSubdomain(host, "github.com")) return "github";
+		if (isHostOrSubdomain(host, "linkedin.com")) return "linkedin";
 		if (
-			host.includes("medium.com") ||
-			host.includes("substack.com") ||
-			host.includes("blog") ||
-			host.includes("dev.to")
+			isHostOrSubdomain(host, "medium.com") ||
+			isHostOrSubdomain(host, "substack.com") ||
+			isHostOrSubdomain(host, "dev.to") ||
+			host.split(".").includes("blog")
 		)
 			return "blog";
 		return "web_search";

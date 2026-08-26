@@ -4,29 +4,24 @@
 // and the job falls back to self-data only.
 
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import type { ProposedClaim } from "./claims.js";
 import { normalizeYear } from "./claims.js";
 import { fetchWithTimeout } from "./fetchWithTimeout.js";
 
 const PDL_ENRICH_URL = "https://api.peopledatalabs.com/v5/person/enrich";
 
-// On-disk PDL response cache (gitignored server/.cache/pdl) so repeated local
-// dev runs don't burn the API quota. Keyed by the enrichment params; caches
-// "no match" too. Disable with PDL_CACHE=0.
-const PDL_CACHE_DIR = resolve(
-	dirname(fileURLToPath(import.meta.url)),
-	"../../.cache/pdl",
-);
+// Keep external enrichment data process-local so it is never persisted to disk.
+// The hashed key avoids retaining identity fields in memory. Disable with
+// PDL_CACHE=0.
+const PDL_CACHE_MAX_ENTRIES = 500;
+const pdlCache = new Map<string, PdlResult | null>();
 
 function pdlCacheEnabled(): boolean {
 	return process.env.PDL_CACHE !== "0";
 }
 
-function pdlCacheFile(input: EnrichInput): string {
-	const key = createHash("sha256")
+function pdlCacheKey(input: EnrichInput): string {
+	return createHash("sha256")
 		.update(
 			JSON.stringify({
 				l: input.linkedinUrl ?? "",
@@ -35,37 +30,24 @@ function pdlCacheFile(input: EnrichInput): string {
 				loc: input.location ?? "",
 			}),
 		)
-		.digest("hex")
-		.slice(0, 24);
-	return resolve(PDL_CACHE_DIR, `${key}.json`);
+		.digest("hex");
 }
 
 // undefined = cache miss; null = cached "no match"; PdlResult = cached hit.
 function readPdlCache(input: EnrichInput): PdlResult | null | undefined {
 	if (!pdlCacheEnabled()) return undefined;
-	try {
-		const file = pdlCacheFile(input);
-		if (!existsSync(file)) return undefined;
-		const parsed = JSON.parse(readFileSync(file, "utf8")) as {
-			result: PdlResult | null;
-		};
-		return parsed.result;
-	} catch {
-		return undefined;
-	}
+	const key = pdlCacheKey(input);
+	return pdlCache.has(key) ? pdlCache.get(key) : undefined;
 }
 
 function writePdlCache(input: EnrichInput, result: PdlResult | null): void {
 	if (!pdlCacheEnabled()) return;
-	try {
-		mkdirSync(PDL_CACHE_DIR, { recursive: true });
-		writeFileSync(
-			pdlCacheFile(input),
-			JSON.stringify({ result, cachedAt: new Date().toISOString() }),
-		);
-	} catch {
-		// best-effort cache; ignore write failures
+	const key = pdlCacheKey(input);
+	if (!pdlCache.has(key) && pdlCache.size >= PDL_CACHE_MAX_ENTRIES) {
+		const oldestKey = pdlCache.keys().next().value;
+		if (oldestKey) pdlCache.delete(oldestKey);
 	}
+	pdlCache.set(key, result);
 }
 
 export interface PdlExperience {

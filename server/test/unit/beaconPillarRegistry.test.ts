@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -75,4 +75,9 @@ test("knowledge: file tree lists only .md/.txt; sandbox rejects traversal + non-
 	assert.equal(readKnowledgeFile(root, "process.md"), "# Process\nHello");
 	assert.throws(() => readKnowledgeFile(root, "../../etc/passwd"), /escapes/);
 	assert.throws(() => readKnowledgeFile(root, "secret.json"), /\.md and \.txt/);
+
+	const outside = mkdtempSync(join(tmpdir(), "beacon-knowledge-outside-"));
+	writeFileSync(join(outside, "secret.md"), "outside");
+	symlinkSync(join(outside, "secret.md"), join(root, "linked.md"));
+	assert.throws(() => readKnowledgeFile(root, "linked.md"), /escapes/);
 });
