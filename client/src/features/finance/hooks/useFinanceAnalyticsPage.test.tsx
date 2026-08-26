@@ -14,6 +14,9 @@ const mocks = vi.hoisted(() => ({
 	tAccount: vi.fn(),
 	setDepartment: vi.fn(),
 	setPeriod: vi.fn(),
+	selection: vi.fn(),
+	clearSelection: vi.fn(),
+	actions: vi.fn(),
 	management: vi.fn(),
 }));
 
@@ -41,6 +44,12 @@ vi.mock("./useFinancePlanItems", () => ({
 vi.mock("./useFinanceTAccount", () => ({
 	useFinanceTAccount: mocks.tAccount,
 }));
+vi.mock("./useFinanceTAccountSelection", () => ({
+	useFinanceTAccountSelection: mocks.selection,
+}));
+vi.mock("./useFinanceTAccountActions", () => ({
+	useFinanceTAccountActions: mocks.actions,
+}));
 vi.mock("./useFinanceManagement", () => ({
 	useFinanceManagement: mocks.management,
 }));
@@ -66,6 +75,26 @@ describe("useFinanceAnalyticsPage", () => {
 		mocks.tAccount.mockReturnValue({
 			setDepartment: mocks.setDepartment,
 			setPeriod: mocks.setPeriod,
+			// The page hook composes the selection and action hooks on top of this
+			// one, so the mock has to carry the shape they read.
+			period: { type: "year", key: "2026" },
+			department: null,
+			groups: [],
+			projects: [],
+		});
+		mocks.selection.mockReturnValue({
+			selectedIds: [],
+			count: 0,
+			grossSum: 0,
+			isSelected: () => false,
+			toggle: vi.fn(),
+			clear: mocks.clearSelection,
+		});
+		mocks.actions.mockReturnValue({
+			createProject: vi.fn(),
+			assignToProject: vi.fn(),
+			isCreatingProject: false,
+			isAssigning: false,
 		});
 		mocks.management.mockReturnValue({});
 	});
@@ -129,6 +158,42 @@ describe("useFinanceAnalyticsPage", () => {
 			canManage: false,
 			department: "Makeathon",
 		});
+	});
+
+	it("offers the T-view write surface to anyone with a department (FR-K6)", () => {
+		// A reviewer may write every department…
+		const reviewer = renderHookWithClient(() => useFinanceAnalyticsPage());
+		expect(reviewer.result.current.tAccountWorkbench.canWrite).toBe(true);
+
+		// …a scoped member their own…
+		mocks.toolAccess.mockReturnValue({
+			permissions: ["finance.department"],
+			department: "Makeathon",
+		});
+		const member = renderHookWithClient(() => useFinanceAnalyticsPage());
+		expect(member.result.current.tAccountWorkbench.canWrite).toBe(true);
+
+		// …and someone with no department has nothing to write to. The server is
+		// the authority either way (assertCanWriteDepartment).
+		mocks.toolAccess.mockReturnValue({
+			permissions: ["finance.department"],
+			department: null,
+		});
+		const unscoped = renderHookWithClient(() => useFinanceAnalyticsPage());
+		expect(unscoped.result.current.tAccountWorkbench.canWrite).toBe(false);
+	});
+
+	it("clears the selection once a bulk action has been applied (FR-K7)", () => {
+		renderHookWithClient(() => useFinanceAnalyticsPage());
+
+		// The actions hook is wired to the T-account's own department and period,
+		// and its onApplied consumes the selection.
+		const call = mocks.actions.mock.calls.at(-1)?.[0];
+		expect(call.department).toBeNull();
+		expect(call.period).toEqual({ type: "year", key: "2026" });
+
+		call.onApplied();
+		expect(mocks.clearSelection).toHaveBeenCalled();
 	});
 
 	it("drills from the budget overview into a department's T-account", () => {

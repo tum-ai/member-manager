@@ -44,6 +44,13 @@ const planItemLifecycleMigration = readFileSync(
 	),
 	"utf8",
 );
+const departmentMatchCapacityMigration = readFileSync(
+	new URL(
+		"../../../supabase/migrations/20260825120000_finance_department_match_capacity.sql",
+		import.meta.url,
+	),
+	"utf8",
+);
 
 describe("finance management migrations", () => {
 	test("creates all managed finance tables with RLS", () => {
@@ -414,6 +421,36 @@ describe("finance management migrations", () => {
 		assert.match(
 			planItemLifecycleMigration,
 			/drop function if exists "public"\."update_finance_plan_item"\(\s*uuid,(?:\s*(?:text|numeric),){6}\s*text\s*\)/i,
+		);
+	});
+	// A department-level Planposten must survive its invoice being filed into a
+	// project of the same department: the money never leaves the department, so
+	// the match is still funded (FR-L7).
+	test("funds a department-level match from any project of that department", () => {
+		assert.match(
+			departmentMatchCapacityMigration,
+			/create or replace function "public"\."replace_finance_posting_allocations"/i,
+		);
+		assert.match(
+			departmentMatchCapacityMigration,
+			/matched_scope\.project_id is null\s*\n\s*or nullif\(entry ->> 'project_id', ''\)::uuid\s*\n\s*is not distinct from matched_scope\.project_id/i,
+		);
+		// The rest of the guard is carried over verbatim, not weakened.
+		assert.match(
+			departmentMatchCapacityMigration,
+			/cannot invalidate existing plan item matches/i,
+		);
+		assert.match(
+			departmentMatchCapacityMigration,
+			/pg_advisory_xact_lock[\s\S]*?'finance-posting:'/i,
+		);
+		assert.match(
+			departmentMatchCapacityMigration,
+			/Posting allocation targets must be unique/i,
+		);
+		assert.match(
+			departmentMatchCapacityMigration,
+			/grant execute\s*\non function "public"\."replace_finance_posting_allocations"/i,
 		);
 	});
 });

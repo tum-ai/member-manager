@@ -43,6 +43,13 @@ Offen = "Offen"
 offen = "offen"
 oder = "oder"
 unter = "unter"
+# German copy and note fixtures in the T-Konto workbench ("liegt vor", "als
+# Antrag", "leerer Ordner", "Legt … an", "auf Eis gelegt").
+vor = "vor"
+als = "als"
+Ordner = "Ordner"
+Legt = "Legt"
+Eis = "Eis"
 # German article in finance UI copy ("Bitte ein Department wählen"), not "in".
 ein = "ein"
 # Product name for the design platform (not "Canvas").

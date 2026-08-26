@@ -1202,7 +1202,11 @@ function replaceMockFinancePostingAllocations(params: Record<string, unknown>) {
 			.filter(
 				(allocation) =>
 					String(allocation.department ?? "") === department &&
-					String(allocation.project_id ?? "") === projectId,
+					// Mirrors 20260825120000: a department-level Planposten (empty
+					// project scope) is funded by any allocation of that department,
+					// including one into a project inside it.
+					(projectId === "" ||
+						String(allocation.project_id ?? "") === projectId),
 			)
 			.reduce(
 				(sum, allocation) =>

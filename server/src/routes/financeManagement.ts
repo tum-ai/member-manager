@@ -1,4 +1,5 @@
 import {
+	type FinanceAllocationSkipReason,
 	FinanceBudgetTransferRequestCreateSchema,
 	FinanceBudgetTransferRequestsQuerySchema,
 	FinanceBudgetTransferRequestsResponseSchema,
@@ -12,10 +13,15 @@ import {
 	FinancePlanTemplateItemUpdateSchema,
 	FinancePlanTemplatesResponseSchema,
 	FinancePlanTemplateUpdateSchema,
+	FinancePostingAllocationBulkResponseSchema,
+	FinancePostingAllocationBulkSchema,
 	FinancePostingAllocationReplaceSchema,
 	FinancePostingAllocationsResponseSchema,
+	type FinanceProject,
 	type FinanceProjectCreate,
 	FinanceProjectCreateSchema,
+	FinanceProjectFromPostingsCreateSchema,
+	FinanceProjectFromPostingsResponseSchema,
 	FinanceProjectsQuerySchema,
 	FinanceProjectsResponseSchema,
 	FinanceProjectUpdateSchema,
@@ -28,7 +34,7 @@ import {
 	isValidFinancePeriodKey,
 	resolveFinancePeriodRange,
 } from "@member-manager/shared";
-import type { FastifyInstance } from "fastify";
+import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import { type ZodType, z } from "zod";
 import {
 	BuchhaltungsButlerApiError,
@@ -64,6 +70,10 @@ import {
 	listFinanceBudgetTransferRequests,
 	reviewFinanceBudgetTransferRequest,
 } from "../lib/financeBudgetTransfers.js";
+import {
+	applyWriteFailures,
+	planBulkAllocation,
+} from "../lib/financeBulkAllocation.js";
 import { loadDepartmentMappings } from "../lib/financeDepartments.js";
 import {
 	assignFinancePlanTemplate,
@@ -206,6 +216,119 @@ async function validateProjectParent(
 	}
 }
 
+// Everything the planner needs about the selected postings, read before any
+// write happens. Kept separate from the writing half so "create project from
+// selection" can do all of its IO *before* the project row exists (FR-L1): a BB
+// outage or a mapping read that fails must not leave an orphaned project behind.
+async function loadAssignmentContext(postingExternalIds: string[]) {
+	// Deliberately unfiltered by period: a posting outside the project's period
+	// must be reported as a period mismatch, not as a missing posting (FR-L8).
+	const [{ transactions }, mappings, allocations, matches] = await Promise.all([
+		loadTransactions({}),
+		loadDepartmentMappings(),
+		loadPostingAllocations(postingExternalIds),
+		loadPlanItemPostingMatches({ postingExternalIds }),
+	]);
+
+	const planItemProjectById = new Map<string, string | null>();
+	for (const planItemId of new Set(
+		matches.map((match) => match.plan_item_id),
+	)) {
+		const item = await getManagedPlanItem(planItemId);
+		if (item) {
+			planItemProjectById.set(planItemId, item.project_id ?? null);
+		}
+	}
+
+	return { transactions, mappings, allocations, matches, planItemProjectById };
+}
+
+type AssignmentContext = Awaited<ReturnType<typeof loadAssignmentContext>>;
+
+// Which skip reason a write refusal earns. A bulk assign is atomic *per posting*
+// (FR-L6): once the first write has landed, throwing would hide both what was
+// applied and what was refused behind a 500, so every failure is reported
+// against its own posting instead.
+function writeFailureReason(error: unknown): FinanceAllocationSkipReason {
+	// The expected refusal: the database guard protecting existing plan-item
+	// matches at a scope the new allocation would leave unfunded.
+	if (error instanceof ConflictError) {
+		return "matched_elsewhere";
+	}
+	return "rejected";
+}
+
+// Assign whole postings to one project, one row each at 100 %. Shared by the
+// bulk endpoint and by "create project from selection", so both refuse exactly
+// the same things for exactly the same reasons (FR-L5–L8).
+async function assignPostingsToProject(input: {
+	project: FinanceProject;
+	postingExternalIds: string[];
+	note: string | null;
+	actor: string;
+	canWriteDepartment: (department: string | null) => boolean;
+	context: AssignmentContext;
+	log: FastifyBaseLogger;
+}) {
+	const periodRange = resolveFinancePeriodRange(
+		input.project.period_type,
+		input.project.period_key,
+	);
+
+	const plan = planBulkAllocation({
+		project: input.project,
+		postingExternalIds: input.postingExternalIds,
+		transactions: input.context.transactions,
+		allocations: input.context.allocations,
+		matches: input.context.matches,
+		planItemProjectById: input.context.planItemProjectById,
+		mappings: input.context.mappings,
+		periodRange,
+		canWriteDepartment: input.canWriteDepartment,
+	});
+
+	const failures = new Map<string, FinanceAllocationSkipReason>();
+	for (const posting of plan.applicable) {
+		try {
+			const normalized = await normalizePostingAllocations(
+				posting,
+				[
+					{
+						department: input.project.department,
+						project_id: input.project.id,
+						tax_area: input.project.tax_area,
+						percentage: 100,
+						note: input.note,
+					},
+				],
+				derivePostingDefaults(posting, input.context.mappings),
+			);
+			await replacePostingAllocations(
+				posting.external_id,
+				normalized,
+				input.actor,
+				posting.transaction_amount,
+			);
+		} catch (error) {
+			const reason = writeFailureReason(error);
+			if (reason === "rejected") {
+				input.log.error(
+					{ err: error, posting_external_id: posting.external_id },
+					"Finance bulk allocation write refused",
+				);
+			}
+			failures.set(posting.external_id, reason);
+		}
+	}
+
+	const results = applyWriteFailures(plan.results, failures);
+	return {
+		applied_count: results.filter((result) => result.applied).length,
+		skipped_count: results.filter((result) => !result.applied).length,
+		results,
+	};
+}
+
 export async function financeManagementRoutes(server: FastifyInstance) {
 	server.get(
 		"/finance/projects",
@@ -240,6 +363,49 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 			await validateProjectParent(null, body);
 			const project = await createFinanceProject(body, actor);
 			return reply.status(201).send(project);
+		},
+	);
+
+	// FR-L1: create the project and file the selected invoices into it in one
+	// call, so a failed second request can never leave a half-filled project
+	// behind. The project is created either way; per-posting skips are reported.
+	server.post(
+		"/finance/projects/from-postings",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request, reply) => {
+			const body = parseInput(
+				FinanceProjectFromPostingsCreateSchema,
+				request.body,
+				"Invalid finance project",
+			);
+			const actor = userId(request as AuthenticatedRequest);
+			await assertCanWriteDepartment(actor, body.department);
+			const { posting_external_ids: postingExternalIds, ...projectInput } =
+				body;
+			await validateProjectParent(null, projectInput);
+			const scope = await resolveFinanceViewerScope(actor);
+			// Every read the assignment needs happens first: from here on nothing
+			// but the writes themselves can fail, and those are reported per posting
+			// rather than thrown, so the project can never be orphaned by a failed
+			// assignment (FR-L1).
+			const context = await loadAssignmentContext(postingExternalIds);
+			const project = await createFinanceProject(projectInput, actor);
+			const assignment = await assignPostingsToProject({
+				project,
+				postingExternalIds,
+				note: null,
+				actor,
+				canWriteDepartment: (department) =>
+					scope.department === null || department === scope.department,
+				context,
+				log: request.log,
+			});
+			return reply.status(201).send(
+				FinanceProjectFromPostingsResponseSchema.parse({
+					project,
+					...assignment,
+				}),
+			);
 		},
 	);
 
@@ -281,8 +447,8 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 						body.description === undefined
 							? existing.description
 							: body.description,
-					// Nullable, so `undefined` has to mean "leave the folder alone"
-					// and an explicit `null` has to mean "move it out of one".
+					// Omitting this used to silently clear a project's sub-team on every
+					// edit, since the RPC reads it off the merged create payload.
 					sub_team:
 						body.sub_team === undefined ? existing.sub_team : body.sub_team,
 				},
@@ -510,6 +676,43 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 			return FinancePostingAllocationsResponseSchema.parse({
 				posting,
 				allocations: saved,
+			});
+		},
+	);
+
+	// FR-K5 / FR-L2: file many selected invoices into one project at once. Unlike
+	// the replace endpoint above this is open to department-scoped members, so it
+	// only ever writes whole-posting allocations and refuses anything it cannot
+	// do without destroying data (FR-L5–L8), reporting each skip by name.
+	server.post(
+		"/finance/posting-allocations/bulk",
+		{ preHandler: [authenticate, requireFinanceViewer] },
+		async (request) => {
+			const body = parseInput(
+				FinancePostingAllocationBulkSchema,
+				request.body,
+				"Invalid bulk allocation",
+			);
+			const project = await getFinanceProject(body.project_id);
+			if (!project) {
+				throw new NotFoundError("Finance project not found");
+			}
+			const actor = userId(request as AuthenticatedRequest);
+			await assertCanWriteDepartment(actor, project.department);
+			const scope = await resolveFinanceViewerScope(actor);
+			const assignment = await assignPostingsToProject({
+				project,
+				postingExternalIds: body.posting_external_ids,
+				note: body.note ?? null,
+				actor,
+				canWriteDepartment: (department) =>
+					scope.department === null || department === scope.department,
+				context: await loadAssignmentContext(body.posting_external_ids),
+				log: request.log,
+			});
+			return FinancePostingAllocationBulkResponseSchema.parse({
+				project_id: project.id,
+				...assignment,
 			});
 		},
 	);

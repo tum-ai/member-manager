@@ -1034,4 +1034,236 @@ describe("Finance management routes", async () => {
 		assert.strictEqual(response.statusCode, 400);
 		assert.match(JSON.parse(response.payload).error, /direction/i);
 	});
+
+	// FR-L7 through the real route/RPC path: a department-level Planposten keeps
+	// its match when the invoice is filed into a project of the same department —
+	// the money never leaves the department. Before 20260825120000 the RPC refused
+	// the write and the route reported it as `matched_elsewhere` with no other
+	// project involved.
+	test("files a posting matched to a department Planposten into a project", async () => {
+		seedMakeathonMapping();
+		mockDatabase.finance_projects.push({
+			id: PROJECT_ID,
+			parent_project_id: null,
+			name: "Makeathon 2026",
+			department: "Makeathon",
+			period_type: "year",
+			period_key: "2026",
+			tax_area: "wirtschaftlich",
+			target_amount: -20_000,
+			status: "active",
+			description: null,
+			sub_team: null,
+			created_at: "2026-01-01T00:00:00.000Z",
+			updated_at: "2026-01-01T00:00:00.000Z",
+		});
+		mockDatabase.finance_plan_items.push({
+			id: PLAN_ITEM_ID,
+			department: "Makeathon",
+			period_type: "year",
+			period_key: "2026",
+			label: "Department venue budget",
+			category: "Venue",
+			planned_amount: 5000,
+			expected_month: "2026-05",
+			status: "planned",
+			note: null,
+			// Department-level: no project owns this Planposten.
+			project_id: null,
+			template_item_id: null,
+		});
+		const posting = await findMakeathonVenue(app);
+
+		const matchResponse = await app.inject({
+			method: "POST",
+			url: "/api/finance/plan-item-matches",
+			headers: authHeaders(testTokens.admin),
+			payload: {
+				plan_item_id: PLAN_ITEM_ID,
+				posting_external_id: posting.external_id,
+				matched_amount: 3000,
+				match_type: "manual",
+			},
+		});
+		assert.strictEqual(matchResponse.statusCode, 201);
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/finance/posting-allocations/bulk",
+			headers: authHeaders(testTokens.admin),
+			payload: {
+				project_id: PROJECT_ID,
+				posting_external_ids: [posting.external_id],
+			},
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const payload = JSON.parse(response.payload);
+		assert.strictEqual(payload.applied_count, 1);
+		assert.strictEqual(payload.skipped_count, 0);
+		assert.deepStrictEqual(payload.results, [
+			{
+				posting_external_id: posting.external_id,
+				applied: true,
+				reason: null,
+			},
+		]);
+		// The allocation landed on the project and the match survived it.
+		assert.strictEqual(
+			mockDatabase.finance_posting_allocations.filter(
+				(row) =>
+					row.posting_external_id === posting.external_id &&
+					row.project_id === PROJECT_ID,
+			).length,
+			1,
+		);
+		assert.strictEqual(
+			mockDatabase.finance_plan_item_posting_matches.filter(
+				(row) => row.posting_external_id === posting.external_id,
+			).length,
+			1,
+		);
+	});
+
+	// A 0,00 € posting is a valid BB row and reaches the bulk endpoint like any
+	// other selected line. It must be reported as one skipped result, not abort
+	// the request after the earlier postings were already written.
+	test("skips a zero-value posting without losing the postings already written", async () => {
+		const originalFetch = globalThis.fetch;
+		process.env.BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API = "true";
+		process.env.BUCHHALTUNGSBUTLER_API_CLIENT = "client-id";
+		process.env.BUCHHALTUNGSBUTLER_API_SECRET = "client-secret";
+		process.env.BUCHHALTUNGSBUTLER_API_KEY = "customer-key";
+		process.env.BUCHHALTUNGSBUTLER_API_BASE_URL = "https://bb.test/api/v1";
+		globalThis.fetch = (async () =>
+			new Response(
+				JSON.stringify({
+					success: true,
+					data: [
+						{
+							id_by_customer: 9001,
+							date: "2026-05-04 01:00:00",
+							postingtext: "Makeathon shirts",
+							amount: "-500.00",
+							currency: "EUR",
+							vat: "0",
+							credit_type: "debit",
+							debit_postingaccount_number: 6850,
+							credit_postingaccount_number: 1200,
+							booking_number: "9001",
+							cost_location: 161,
+							transaction_amount: "-500.00",
+							transaction_purpose: "Team shirts",
+						},
+						{
+							id_by_customer: 9002,
+							date: "2026-05-04 01:00:00",
+							postingtext: "Storno Makeathon shirts",
+							amount: "0.00",
+							currency: "EUR",
+							vat: "0",
+							credit_type: "debit",
+							debit_postingaccount_number: 6850,
+							credit_postingaccount_number: 1200,
+							booking_number: "9002",
+							cost_location: 161,
+							transaction_amount: "0.00",
+							transaction_purpose: "Cancelled booking",
+						},
+					],
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			)) as typeof fetch;
+
+		try {
+			seedMakeathonMapping();
+			mockDatabase.finance_projects.push({
+				id: PROJECT_ID,
+				parent_project_id: null,
+				name: "Makeathon 2026",
+				department: "Makeathon",
+				period_type: "year",
+				period_key: "2026",
+				tax_area: "wirtschaftlich",
+				target_amount: -20_000,
+				status: "active",
+				description: null,
+				sub_team: null,
+				created_at: "2026-01-01T00:00:00.000Z",
+				updated_at: "2026-01-01T00:00:00.000Z",
+			});
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/finance/posting-allocations/bulk",
+				headers: authHeaders(testTokens.admin),
+				payload: {
+					project_id: PROJECT_ID,
+					posting_external_ids: ["9001", "9002"],
+				},
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.applied_count, 1);
+			assert.strictEqual(payload.skipped_count, 1);
+			assert.deepStrictEqual(payload.results, [
+				{ posting_external_id: "9001", applied: true, reason: null },
+				{
+					posting_external_id: "9002",
+					applied: false,
+					reason: "zero_amount",
+				},
+			]);
+			// The valid posting stayed applied instead of being rolled back into a
+			// 400 for the zero-value one (FR-L6).
+			assert.strictEqual(
+				mockDatabase.finance_posting_allocations.filter(
+					(row) => row.posting_external_id === "9001",
+				).length,
+				1,
+			);
+		} finally {
+			globalThis.fetch = originalFetch;
+			delete process.env.BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API;
+			delete process.env.BUCHHALTUNGSBUTLER_API_CLIENT;
+			delete process.env.BUCHHALTUNGSBUTLER_API_SECRET;
+			delete process.env.BUCHHALTUNGSBUTLER_API_KEY;
+			delete process.env.BUCHHALTUNGSBUTLER_API_BASE_URL;
+		}
+	});
+
+	// FR-L1 is atomic in the direction that matters: if the postings cannot be
+	// read, no project is left behind for the user to trip over on the retry.
+	test("creates no project when the selection cannot be read", async () => {
+		process.env.BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API = "true";
+		delete process.env.BUCHHALTUNGSBUTLER_API_CLIENT;
+		delete process.env.BUCHHALTUNGSBUTLER_API_SECRET;
+		delete process.env.BUCHHALTUNGSBUTLER_API_KEY;
+
+		try {
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/finance/projects/from-postings",
+				headers: authHeaders(testTokens.admin),
+				payload: {
+					name: "Sponsoring-Kampagne",
+					parent_project_id: null,
+					sub_team: null,
+					department: "Makeathon",
+					period_type: "year",
+					period_key: "2026",
+					tax_area: null,
+					target_amount: 0,
+					status: "active",
+					posting_external_ids: ["BB-1"],
+				},
+			});
+
+			assert.strictEqual(response.statusCode, 503);
+			assert.strictEqual(mockDatabase.finance_projects.length, 0);
+		} finally {
+			delete process.env.BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API;
+		}
+	});
 });
