@@ -93,29 +93,47 @@ export async function apiStream(
 	if (!response.ok || !response.body) {
 		throw new Error(await readJsonErrorMessage(response));
 	}
+	if (
+		!(response.headers.get("content-type") ?? "").includes("text/event-stream")
+	) {
+		throw new Error("The server returned an invalid event stream");
+	}
 
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();
 	let buffer = "";
-	for (;;) {
-		const { value, done } = await reader.read();
-		if (done) break;
-		buffer += decoder.decode(value, { stream: true });
-		for (;;) {
-			const idx = buffer.indexOf("\n\n");
-			if (idx < 0) break;
-			const frame = buffer.slice(0, idx);
-			buffer = buffer.slice(idx + 2);
-			const dataLine = frame
-				.split("\n")
-				.find((line) => line.startsWith("data:"));
-			if (!dataLine) continue;
-			try {
-				onEvent(JSON.parse(dataLine.slice(5).trim()));
-			} catch {
-				// ignore malformed frame
-			}
+	const consumeFrame = (frame: string) => {
+		const payload = frame
+			.split("\n")
+			.filter((line) => line.startsWith("data:"))
+			.map((line) => line.slice(5).trimStart())
+			.join("\n")
+			.trim();
+		if (!payload) return;
+		try {
+			onEvent(JSON.parse(payload));
+		} catch {
+			throw new Error("The server sent an invalid event");
 		}
+	};
+	try {
+		for (;;) {
+			const { value, done } = await reader.read();
+			buffer += done
+				? decoder.decode()
+				: decoder.decode(value, { stream: true });
+			buffer = buffer.replace(/\r\n/g, "\n");
+			for (;;) {
+				const index = buffer.indexOf("\n\n");
+				if (index < 0) break;
+				consumeFrame(buffer.slice(0, index));
+				buffer = buffer.slice(index + 2);
+			}
+			if (done) break;
+		}
+		if (buffer.trim()) consumeFrame(buffer);
+	} finally {
+		reader.releaseLock();
 	}
 }
 

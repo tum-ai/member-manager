@@ -40,9 +40,9 @@ export function ProfileHero({
 						</AvatarFallback>
 					</Avatar>
 					<div className="min-w-0">
-						<h1 className="truncate text-2xl font-bold leading-tight">
+						<h2 className="truncate text-2xl font-bold leading-tight">
 							{name}
-						</h1>
+						</h2>
 						{meta && (
 							<p className="mt-0.5 truncate text-sm text-muted-foreground">
 								{meta}
@@ -62,7 +62,7 @@ export function ProfileHero({
 							{pending > 0 && (
 								<Stat
 									icon={<Clock className="size-3.5" />}
-									label={`${pending} to review`}
+									label={`${pending} Unverified`}
 									tone="pending"
 								/>
 							)}

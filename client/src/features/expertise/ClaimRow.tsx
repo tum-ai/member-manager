@@ -1,6 +1,7 @@
 import { Check, Pencil, Trash2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
 import {
 	ConfidenceBadge,
@@ -66,7 +67,10 @@ export function ClaimRow({
 			</div>
 
 			{editable && (
-				<div className="flex shrink-0 items-center gap-1">
+				<div className="flex shrink-0 flex-wrap items-center gap-1">
+					{busy ? (
+						<Spinner className="mr-1 size-4" aria-label="Saving claim" />
+					) : null}
 					{status !== "confirmed" && onConfirm && (
 						<Button
 							type="button"

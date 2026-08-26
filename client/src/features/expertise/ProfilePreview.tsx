@@ -1,10 +1,12 @@
+import { expertiseProfileSchema } from "@member-manager/shared";
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { apiClient } from "@/lib/apiClient";
 import { cn } from "@/lib/utils";
-import { apiClient } from "../../lib/apiClient";
-import type { EmploymentClaim, ExpertiseProfile, SkillClaim } from "./types";
+import { expertiseQueryKeys } from "./expertiseQueryKeys";
+import type { EmploymentClaim, SkillClaim } from "./types";
 
 const CARD_WIDTH = 300;
 
@@ -19,15 +21,16 @@ function initialsOf(name: string): string {
 	);
 }
 
-// Shares the ["expertise", userId] cache with the profile drawer, so hovering a
-// name pre-warms the click.
+// Shares the profile cache with the drawer, so hovering pre-warms the click.
 function useProfilePreview(userId: string, enabled: boolean) {
 	return useQuery({
-		queryKey: ["expertise", userId],
+		queryKey: expertiseQueryKeys.profile(userId),
 		queryFn: async () =>
-			(await apiClient(`/api/expertise/${userId}`, {
-				method: "GET",
-			})) as ExpertiseProfile,
+			expertiseProfileSchema.parse(
+				await apiClient<unknown>(`/api/expertise/${userId}`, {
+					method: "GET",
+				}),
+			),
 		enabled,
 		staleTime: 60_000,
 	});
@@ -126,7 +129,7 @@ function PreviewCard({
 	userId: string;
 	name: string;
 }): JSX.Element {
-	const { data, isLoading } = useProfilePreview(userId, true);
+	const { data, isLoading, isError } = useProfilePreview(userId, true);
 	const member = data?.member;
 	const meta = [member?.department, member?.member_role]
 		.filter(Boolean)
@@ -161,6 +164,8 @@ function PreviewCard({
 					<Skeleton className="h-3 w-4/5" />
 					<Skeleton className="h-3 w-3/5" />
 				</div>
+			) : isError ? (
+				<p className="mt-3 text-xs text-destructive">Preview unavailable.</p>
 			) : (
 				<div className="mt-2.5 space-y-2">
 					{data?.person?.headline && (

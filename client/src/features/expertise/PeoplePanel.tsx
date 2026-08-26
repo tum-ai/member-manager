@@ -26,7 +26,10 @@ export function PeoplePanel({
 	onClose,
 }: PeoplePanelProps): JSX.Element {
 	return (
-		<aside className="hidden w-72 shrink-0 flex-col border-l lg:flex">
+		<aside
+			aria-label="Referenced people"
+			className="fixed inset-x-3 bottom-3 top-20 z-30 flex flex-col overflow-hidden rounded-2xl border bg-background shadow-2xl lg:static lg:inset-auto lg:z-auto lg:w-72 lg:shrink-0 lg:rounded-none lg:border-y-0 lg:border-r-0 lg:shadow-none"
+		>
 			<div className="flex items-center justify-between border-b px-4 py-3.5">
 				<h2 className="flex items-center gap-2 text-sm font-semibold">
 					<Users className="size-4 text-muted-foreground" />
@@ -45,6 +48,9 @@ export function PeoplePanel({
 				</button>
 			</div>
 			<div className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2 pb-2">
+				<p className="px-2 py-2 text-xs text-muted-foreground">
+					Profiles may include claims labeled Unverified.
+				</p>
 				{people.map((p, i) => (
 					<button
 						key={p.user_id}

@@ -47,7 +47,7 @@
 }
 
 .beacon-fade-up {
-	animation: beacon-fade-up 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+	animation: beacon-fade-up 0.5s var(--ease-standard) both;
 }
 
 .beacon-float {

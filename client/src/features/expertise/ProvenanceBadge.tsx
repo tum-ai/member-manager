@@ -1,3 +1,4 @@
+import { getClaimStatusLabel } from "@member-manager/shared";
 import { ExternalLink, ShieldCheck, Sparkles, UserRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,7 +14,7 @@ const STATUS_META: Record<
 	{ label: string; variant: "success" | "warning" | "neutral" }
 > = {
 	confirmed: { label: "Confirmed", variant: "success" },
-	pending: { label: "Needs review", variant: "warning" },
+	pending: { label: getClaimStatusLabel("pending"), variant: "warning" },
 	rejected: { label: "Rejected", variant: "neutral" },
 };
 
@@ -68,7 +69,7 @@ export function ProvenanceBadge({
 			{inner}
 		</a>
 	) : (
-		inner
+		<span className="inline-flex">{inner}</span>
 	);
 
 	return (
