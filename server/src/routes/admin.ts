@@ -10,7 +10,11 @@ import {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { getAuthProfiles } from "../lib/authEmails.js";
-import { ConflictError, DatabaseError } from "../lib/errors.js";
+import {
+	ConflictError,
+	DatabaseError,
+	ValidationError,
+} from "../lib/errors.js";
 import {
 	BOARD_MEMBER_ROLE,
 	buildDuplicateMemberNameKey,
@@ -357,7 +361,14 @@ export async function adminRoutes(server: FastifyInstance) {
 		"/admin/beacon/agent-log",
 		{ preHandler: [authenticate, requireAdmin] },
 		async (request, reply) => {
-			const { chat_id, turn_id } = AgentLogQuerySchema.parse(request.query);
+			const parsed = AgentLogQuerySchema.safeParse(request.query);
+			if (!parsed.success) {
+				throw new ValidationError(
+					"Invalid Beacon agent-log query",
+					parsed.error.flatten(),
+				);
+			}
+			const { chat_id, turn_id } = parsed.data;
 			let query = getSupabase()
 				.from("beacon_agent_log")
 				.select(
@@ -367,7 +378,10 @@ export async function adminRoutes(server: FastifyInstance) {
 			if (chat_id) query = query.eq("chat_id", chat_id);
 			if (turn_id) query = query.eq("turn_id", turn_id);
 			const { data, error } = await query;
-			if (error) throw new DatabaseError(error.message);
+			if (error) {
+				request.log.error({ err: error }, "Failed to read Beacon agent log");
+				throw new DatabaseError();
+			}
 			return reply.send({ turns: data ?? [] });
 		},
 	);

@@ -6,15 +6,22 @@
 // carry provenance (source/confidence/status) so the UI can show where each fact
 // came from and let the member review low-confidence / pending items.
 
+import {
+	CLAIM_STATUSES,
+	claimFieldSchemas,
+	expertiseProfileSchema,
+	optOutSchema,
+	profilePatchSchema,
+	tagVocabularyResponseSchema,
+} from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { checkAdminRole, ensureOwnerOrAdmin } from "../lib/auth.js";
 import {
-	CLAIM_STATUSES,
 	CLAIM_TABLES,
 	type ClaimType,
 	getExpertiseProfile,
-	markSearchIndexStale,
+	rebuildSearchChunks,
 	resolveOrganization,
 	resolveProject,
 	resolveSchool,
@@ -24,6 +31,7 @@ import {
 } from "../lib/beacon.js";
 import {
 	DatabaseError,
+	ForbiddenError,
 	NotFoundError,
 	ValidationError,
 } from "../lib/errors.js";
@@ -32,44 +40,92 @@ import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
 const StatusSchema = z.enum(CLAIM_STATUSES);
-const YearSchema = z.number().int().min(1900).max(2100);
+
+const UserParamsSchema = z.object({ userId: z.string().uuid() });
+const ClaimParamsSchema = UserParamsSchema.extend({
+	type: z.string().trim().min(1).max(32),
+	claimId: z.string().uuid(),
+});
+const ClaimTypeParamsSchema = UserParamsSchema.extend({
+	type: z.string().trim().min(1).max(32),
+});
 
 // Per-type editable fields for add (POST) and patch (PATCH). `status` is allowed
 // on both; entity references are by free-text name (resolved to canonical ids).
-const ClaimFieldSchemas = {
-	employment: z.object({
-		organization_name: z.string().trim().min(1).max(200).optional(),
-		title: z.string().trim().max(200).optional(),
-		start_year: YearSchema.optional(),
-		end_year: YearSchema.optional(),
-		is_current: z.boolean().optional(),
-	}),
-	education: z.object({
-		school_name: z.string().trim().min(1).max(200).optional(),
-		degree: z.string().trim().max(120).optional(),
-		field: z.string().trim().max(200).optional(),
-		start_year: YearSchema.optional(),
-		end_year: YearSchema.optional(),
-	}),
-	skill: z.object({
-		skill_name: z.string().trim().min(1).max(120).optional(),
-		proficiency: z
-			.enum(["beginner", "intermediate", "advanced", "expert"])
-			.optional(),
-	}),
-	project: z.object({
-		project_name: z.string().trim().min(1).max(200).optional(),
-		url: z.string().trim().url().max(500).optional(),
-		description: z.string().trim().max(2000).optional(),
-		role: z.string().trim().max(200).optional(),
-	}),
-	tag: z.object({
-		tag: z.string().trim().min(1).max(120).optional(),
-	}),
-} as const;
-
 function isClaimType(value: string): value is ClaimType {
 	return value in CLAIM_TABLES;
+}
+
+function parseRequest<T>(
+	schema: z.ZodType<T>,
+	input: unknown,
+	message: string,
+): T {
+	const parsed = schema.safeParse(input);
+	if (!parsed.success) {
+		throw new ValidationError(message, parsed.error.flatten());
+	}
+	return parsed.data;
+}
+
+function parseResponse<T>(schema: z.ZodType<T>, input: unknown): T {
+	const parsed = schema.safeParse(input);
+	if (!parsed.success) throw new DatabaseError();
+	return parsed.data;
+}
+
+function parseUserParams(input: unknown): { userId: string } {
+	return parseRequest(UserParamsSchema, input, "Invalid expertise member id");
+}
+
+function parseClaimTypeParams(input: unknown): {
+	userId: string;
+	type: string;
+} {
+	return parseRequest(
+		ClaimTypeParamsSchema,
+		input,
+		"Invalid expertise claim parameters",
+	);
+}
+
+function parseClaimParams(input: unknown): {
+	userId: string;
+	type: string;
+	claimId: string;
+} {
+	return parseRequest(
+		ClaimParamsSchema,
+		input,
+		"Invalid expertise claim parameters",
+	);
+}
+
+function parseClaimFields(
+	type: ClaimType,
+	input: unknown,
+	message: string,
+): Record<string, unknown> {
+	return parseRequest(
+		claimFieldSchemas[type] as z.ZodType<unknown>,
+		input,
+		message,
+	) as Record<string, unknown>;
+}
+
+async function ensureOwnerOrAdminSafe(
+	request: { log: { error: (obj: unknown, message: string) => void } },
+	userId: string,
+	targetId: string,
+	message: string,
+): Promise<void> {
+	try {
+		await ensureOwnerOrAdmin(userId, targetId, message);
+	} catch (error) {
+		if (error instanceof ForbiddenError) throw error;
+		request.log.error({ err: error }, "Beacon authorization check failed");
+		throw new DatabaseError();
+	}
 }
 
 // Resolve any entity-name fields on a claim body into the canonical *_id columns,
@@ -148,7 +204,7 @@ export async function expertiseRoutes(server: FastifyInstance) {
 				request.log.error({ err: error }, "Failed to read tag vocabulary");
 				throw new DatabaseError();
 			}
-			return { tags: data ?? [] };
+			return parseResponse(tagVocabularyResponseSchema, { tags: data ?? [] });
 		},
 	);
 
@@ -157,10 +213,18 @@ export async function expertiseRoutes(server: FastifyInstance) {
 		"/expertise/:userId",
 		{ preHandler: authenticate },
 		async (request) => {
-			const { userId } = request.params;
+			const { userId } = parseUserParams(request.params);
 			const user = (request as AuthenticatedRequest).user;
 			const isOwner = user.id === userId;
-			const isAdmin = isOwner ? false : await checkAdminRole(user.id);
+			let isAdmin = false;
+			if (!isOwner) {
+				try {
+					isAdmin = await checkAdminRole(user.id);
+				} catch (error) {
+					request.log.error({ err: error }, "Beacon admin check failed");
+					throw new DatabaseError();
+				}
+			}
 			const editable = isOwner || isAdmin;
 
 			const profile = await getExpertiseProfile(userId, {
@@ -169,7 +233,7 @@ export async function expertiseRoutes(server: FastifyInstance) {
 
 			if (!profile) {
 				// Opted out and viewer isn't owner/admin.
-				return {
+				return parseResponse(expertiseProfileSchema, {
 					user_id: userId,
 					editable: false,
 					opted_out: true,
@@ -181,49 +245,71 @@ export async function expertiseRoutes(server: FastifyInstance) {
 					projects: [],
 					tags: [],
 					counts: { confirmed: 0, pending: 0, rejected: 0 },
-				};
+				});
 			}
-			return { ...profile, editable, opted_out: false };
+			return parseResponse(expertiseProfileSchema, {
+				...profile,
+				editable,
+				opted_out: false,
+			});
 		},
 	);
 
 	// ---- PUT editable profile fields --------------------------------------
-	const ProfilePatchSchema = z.object({
-		headline: z.string().trim().max(200).nullish(),
-		summary: z.string().trim().max(4000).nullish(),
-	});
 	server.put<{ Params: { userId: string } }>(
 		"/expertise/:userId",
 		{ preHandler: authenticate },
 		async (request) => {
-			const { userId } = request.params;
+			const { userId } = parseUserParams(request.params);
+			const body = parseRequest(
+				profilePatchSchema,
+				request.body,
+				"Invalid expertise profile update",
+			);
 			const user = (request as AuthenticatedRequest).user;
-			await ensureOwnerOrAdmin(
+			await ensureOwnerOrAdminSafe(
+				request,
 				user.id,
 				userId,
 				"You can only edit your own profile",
 			);
-			const body = ProfilePatchSchema.parse(request.body);
-			const person = await upsertBeaconPerson(userId, body);
+			let person: Record<string, unknown>;
+			try {
+				person = await upsertBeaconPerson(userId, body);
+			} catch (error) {
+				request.log.error({ err: error }, "Failed to update Beacon profile");
+				throw new DatabaseError();
+			}
+			await rebuildSearchChunks(userId);
 			return { person };
 		},
 	);
 
 	// ---- POST opt-out toggle ----------------------------------------------
-	const OptOutSchema = z.object({ opted_out: z.boolean() });
 	server.post<{ Params: { userId: string } }>(
 		"/expertise/:userId/opt-out",
 		{ preHandler: authenticate },
 		async (request) => {
-			const { userId } = request.params;
+			const { userId } = parseUserParams(request.params);
+			const { opted_out } = parseRequest(
+				optOutSchema,
+				request.body,
+				"Invalid Beacon opt-out payload",
+			);
 			const user = (request as AuthenticatedRequest).user;
-			await ensureOwnerOrAdmin(
+			await ensureOwnerOrAdminSafe(
+				request,
 				user.id,
 				userId,
 				"You can only change your own opt-out",
 			);
-			const { opted_out } = OptOutSchema.parse(request.body);
-			await setOptOut(userId, opted_out);
+			try {
+				await setOptOut(userId, opted_out);
+			} catch (error) {
+				request.log.error({ err: error }, "Failed to update Beacon opt-out");
+				throw new DatabaseError();
+			}
+			await rebuildSearchChunks(userId);
 			return { opted_out };
 		},
 	);
@@ -233,17 +319,29 @@ export async function expertiseRoutes(server: FastifyInstance) {
 		"/expertise/:userId/claims/:type",
 		{ preHandler: authenticate },
 		async (request, reply) => {
-			const { userId, type } = request.params;
+			const { userId, type } = parseClaimTypeParams(request.params);
+			if (!isClaimType(type)) throw new NotFoundError("Unknown claim type");
+			const fields = parseClaimFields(
+				type,
+				request.body ?? {},
+				"Invalid Beacon claim payload",
+			);
 			const user = (request as AuthenticatedRequest).user;
-			await ensureOwnerOrAdmin(
+			await ensureOwnerOrAdminSafe(
+				request,
 				user.id,
 				userId,
 				"You can only edit your own profile",
 			);
-			if (!isClaimType(type)) throw new NotFoundError("Unknown claim type");
 
-			const fields = ClaimFieldSchemas[type].parse(request.body ?? {});
-			const cols = await buildClaimColumns(type, fields);
+			let cols: Record<string, unknown>;
+			try {
+				cols = await buildClaimColumns(type, fields);
+			} catch (error) {
+				if (error instanceof ValidationError) throw error;
+				request.log.error({ err: error }, "Failed to resolve Beacon claim");
+				throw new DatabaseError();
+			}
 
 			// Required entity ref per type.
 			if (type === "skill" && !cols.skill_id)
@@ -272,7 +370,7 @@ export async function expertiseRoutes(server: FastifyInstance) {
 				request.log.error({ err: error }, "Failed to add beacon claim");
 				throw new DatabaseError();
 			}
-			void markSearchIndexStale(userId); // fire-and-forget; never blocks the write
+			await rebuildSearchChunks(userId);
 			return reply.status(201).send({ claim: data });
 		},
 	);
@@ -282,21 +380,32 @@ export async function expertiseRoutes(server: FastifyInstance) {
 		"/expertise/:userId/claims/:type/:claimId",
 		{ preHandler: authenticate },
 		async (request) => {
-			const { userId, type, claimId } = request.params;
+			const { userId, type, claimId } = parseClaimParams(request.params);
+			if (!isClaimType(type)) throw new NotFoundError("Unknown claim type");
+			const PatchSchema = claimFieldSchemas[type].extend({
+				status: StatusSchema.optional(),
+			});
+			const fields = parseRequest(
+				PatchSchema as z.ZodType<unknown>,
+				request.body ?? {},
+				"Invalid Beacon claim update",
+			) as Record<string, unknown>;
 			const user = (request as AuthenticatedRequest).user;
-			await ensureOwnerOrAdmin(
+			await ensureOwnerOrAdminSafe(
+				request,
 				user.id,
 				userId,
 				"You can only edit your own profile",
 			);
-			if (!isClaimType(type)) throw new NotFoundError("Unknown claim type");
-
-			const PatchSchema = ClaimFieldSchemas[type].extend({
-				status: StatusSchema.optional(),
-			});
-			const fields = PatchSchema.parse(request.body ?? {});
 			const { status, ...entityFields } = fields as Record<string, unknown>;
-			const cols = await buildClaimColumns(type, entityFields);
+			let cols: Record<string, unknown>;
+			try {
+				cols = await buildClaimColumns(type, entityFields);
+			} catch (error) {
+				if (error instanceof ValidationError) throw error;
+				request.log.error({ err: error }, "Failed to resolve Beacon claim");
+				throw new DatabaseError();
+			}
 			if (status !== undefined) cols.status = status;
 			if (Object.keys(cols).length === 0)
 				throw new ValidationError("No fields to update");
@@ -314,7 +423,7 @@ export async function expertiseRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 			if (!data) throw new NotFoundError("Claim not found");
-			void markSearchIndexStale(userId); // fire-and-forget; never blocks the write
+			await rebuildSearchChunks(userId);
 			return { claim: data };
 		},
 	);
@@ -326,14 +435,15 @@ export async function expertiseRoutes(server: FastifyInstance) {
 		"/expertise/:userId/claims/:type/:claimId",
 		{ preHandler: authenticate },
 		async (request, reply) => {
-			const { userId, type, claimId } = request.params;
+			const { userId, type, claimId } = parseClaimParams(request.params);
+			if (!isClaimType(type)) throw new NotFoundError("Unknown claim type");
 			const user = (request as AuthenticatedRequest).user;
-			await ensureOwnerOrAdmin(
+			await ensureOwnerOrAdminSafe(
+				request,
 				user.id,
 				userId,
 				"You can only edit your own profile",
 			);
-			if (!isClaimType(type)) throw new NotFoundError("Unknown claim type");
 
 			const { error, count } = await getSupabase()
 				.from(CLAIM_TABLES[type])
@@ -345,7 +455,7 @@ export async function expertiseRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 			if (!count) throw new NotFoundError("Claim not found");
-			void markSearchIndexStale(userId); // fire-and-forget; never blocks the write
+			await rebuildSearchChunks(userId);
 			return reply.status(204).send();
 		},
 	);

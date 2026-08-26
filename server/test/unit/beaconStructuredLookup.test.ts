@@ -12,12 +12,14 @@ import { setSupabaseClient } from "../../src/lib/supabase.js";
 // yields a fresh thenable so chained awaits resolve to `{ data }`.
 type Rows = Record<string, unknown>[];
 class FakeQuery {
-	private statusFilter: string[] | null = null;
+	private filters: ((row: Record<string, unknown>) => boolean)[] = [];
 	constructor(private data: Rows) {}
 	select() {
 		return this;
 	}
-	eq() {
+	eq(column: string, value: unknown) {
+		if (column === "member_status" || column === "opted_out")
+			this.filters.push((row) => row[column] === value);
 		return this;
 	}
 	ilike() {
@@ -33,19 +35,15 @@ class FakeQuery {
 		return this;
 	}
 	in(col: string, vals: string[]) {
-		if (col === "status") this.statusFilter = vals;
+		if (col === "status" || col === "user_id")
+			this.filters.push((row) => vals.includes(row[col] as string));
 		return this;
 	}
 	// biome-ignore lint/suspicious/noThenProperty: intentional thenable test double
 	then(resolve: (v: { data: Rows }) => void) {
-		const data = this.statusFilter
-			? this.data.filter(
-					(r) =>
-						!("status" in r) ||
-						(this.statusFilter as string[]).includes(r.status as string),
-				)
-			: this.data;
-		resolve({ data });
+		resolve({
+			data: this.data.filter((row) => this.filters.every((f) => f(row))),
+		});
 	}
 }
 
@@ -69,8 +67,18 @@ test("peopleByProject: shapes role detail + carries pending status", async () =>
 				{ user_id: "u2", role: null, status: "pending", project_id: "p1" },
 			],
 			members: [
-				{ user_id: "u1", given_name: "Justin", surname: "Lanfermann" },
-				{ user_id: "u2", given_name: "Ana", surname: null },
+				{
+					user_id: "u1",
+					given_name: "Justin",
+					surname: "Lanfermann",
+					member_status: "active",
+				},
+				{
+					user_id: "u2",
+					given_name: "Ana",
+					surname: null,
+					member_status: "active",
+				},
 			],
 		}),
 	);
@@ -101,8 +109,18 @@ test("peopleByProject: confirmed-only filter drops pending rows", async () => {
 				{ user_id: "u2", role: null, status: "pending", project_id: "p1" },
 			],
 			members: [
-				{ user_id: "u1", given_name: "Justin", surname: "Lanfermann" },
-				{ user_id: "u2", given_name: "Ana", surname: null },
+				{
+					user_id: "u1",
+					given_name: "Justin",
+					surname: "Lanfermann",
+					member_status: "active",
+				},
+				{
+					user_id: "u2",
+					given_name: "Ana",
+					surname: null,
+					member_status: "active",
+				},
 			],
 		}),
 	);
@@ -130,7 +148,14 @@ test("peopleBySkill: shapes proficiency detail", async () => {
 					skill_id: "s1",
 				},
 			],
-			members: [{ user_id: "u1", given_name: "Justin", surname: "L" }],
+			members: [
+				{
+					user_id: "u1",
+					given_name: "Justin",
+					surname: "L",
+					member_status: "active",
+				},
+			],
 		}),
 	);
 	const hits = await peopleBySkill("python");

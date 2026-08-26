@@ -2,6 +2,7 @@
 // → compose answer. Every step degrades gracefully without OPENAI_API_KEY so
 // the search is usable (deterministic) in local/dev.
 
+import { BadGatewayError, DatabaseError } from "./errors.js";
 import { fetchWithTimeout } from "./fetchWithTimeout.js";
 import { type SearchDsl, SearchDslSchema } from "./searchDsl.js";
 import { getSupabase } from "./supabase.js";
@@ -57,11 +58,7 @@ async function chat(
 		90_000,
 	);
 	if (!res.ok) {
-		const detail = await res.text().catch(() => "");
-		console.error(
-			`[beacon] OpenAI chat failed: ${res.status} ${detail.slice(0, 600)}`,
-		);
-		throw new Error(`OpenAI failed: ${res.status}`);
+		throw new BadGatewayError("Beacon model request failed");
 	}
 	const body = (await res.json()) as {
 		choices?: Array<{ message?: { content?: string } }>;
@@ -178,10 +175,11 @@ export async function enrichDslWithDeterministicSkills(
 ): Promise<SearchDsl> {
 	const tokens = tokenizeForSkills(text);
 	if (!tokens.length) return dsl;
-	const { data } = await getSupabase()
+	const { data, error } = await getSupabase()
 		.from("beacon_skill")
 		.select("name, canonical_key")
 		.in("canonical_key", tokens);
+	if (error) throw new DatabaseError("Failed to resolve Beacon search skills");
 	const names = (data ?? []).map((s) => (s as { name: string }).name);
 	return mergeSkillMatches(dsl, names);
 }

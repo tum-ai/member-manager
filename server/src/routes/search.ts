@@ -4,20 +4,45 @@
 // fallback. Both share the ranked pipeline in lib/agent/fallback.ts.
 // GET /api/expertise/people backs the composer's @-mention typeahead.
 
+import {
+	personSuggestionSchema,
+	searchRequestSchema,
+	searchResponseSchema,
+} from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { nameOf, runMemberSearchAnswer } from "../lib/agent/fallback.js";
-import { DatabaseError } from "../lib/errors.js";
+import { sanitizeAuditDsl, sanitizeAuditQuery } from "../lib/auditQuery.js";
+import { visibleBeaconMemberIds } from "../lib/beacon.js";
+import { DatabaseError, ValidationError } from "../lib/errors.js";
 import { getSupabase } from "../lib/supabase.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
-const SearchRequestSchema = z.object({
-	text: z.string().trim().min(1).max(1000),
-	mentions: z
-		.array(z.object({ user_id: z.string().uuid(), label: z.string() }))
-		.default([]),
+const PeopleQuerySchema = z.object({
+	q: z.string().trim().max(100).optional(),
 });
+const PeopleResponseSchema = z.object({
+	people: z.array(personSuggestionSchema),
+});
+
+function parseRequest<T>(
+	schema: z.ZodType<T>,
+	input: unknown,
+	message: string,
+): T {
+	const parsed = schema.safeParse(input);
+	if (!parsed.success) {
+		throw new ValidationError(message, parsed.error.flatten());
+	}
+	return parsed.data;
+}
+
+function parseResponse<T>(schema: z.ZodType<T>, input: unknown): T {
+	const parsed = schema.safeParse(input);
+	if (!parsed.success) throw new DatabaseError();
+	return parsed.data;
+}
 
 interface MemberRow {
 	user_id: string;
@@ -31,8 +56,15 @@ export async function searchRoutes(server: FastifyInstance) {
 		"/expertise/people",
 		{ preHandler: authenticate },
 		async (request) => {
-			const q = (request.query.q ?? "").replace(/[^\p{L}\p{N}\s]/gu, "").trim();
-			if (q.length < 2) return { people: [] };
+			const { q: rawQuery } = parseRequest(
+				PeopleQuerySchema,
+				request.query,
+				"Invalid people search query",
+			);
+			const q = (rawQuery ?? "").replace(/[^\p{L}\p{N}\s]/gu, "").trim();
+			if (q.length < 2) {
+				return parseResponse(PeopleResponseSchema, { people: [] });
+			}
 			const { data, error } = await getSupabase()
 				.from("members")
 				.select("user_id, given_name, surname")
@@ -42,12 +74,21 @@ export async function searchRoutes(server: FastifyInstance) {
 				request.log.error({ err: error }, "people typeahead failed");
 				throw new DatabaseError();
 			}
-			return {
-				people: (data ?? []).map((m) => {
-					const row = m as MemberRow;
-					return { user_id: row.user_id, name: nameOf(row), avatar_url: null };
-				}),
-			};
+			const rows = (data ?? []) as MemberRow[];
+			const visible = await visibleBeaconMemberIds(
+				rows.map((row) => row.user_id),
+			);
+			return parseResponse(PeopleResponseSchema, {
+				people: rows
+					.filter((row) => visible.has(row.user_id))
+					.map((row) => {
+						return {
+							user_id: row.user_id,
+							name: nameOf(row),
+							avatar_url: null,
+						};
+					}),
+			});
 		},
 	);
 
@@ -56,21 +97,39 @@ export async function searchRoutes(server: FastifyInstance) {
 		"/expertise/search",
 		{ preHandler: authenticate },
 		async (request) => {
-			const { text, mentions } = SearchRequestSchema.parse(request.body);
+			const { text, mentions } = parseRequest(
+				searchRequestSchema,
+				request.body,
+				"Invalid Beacon search payload",
+			);
 			const user = (request as AuthenticatedRequest).user;
 
-			const { answer, people, dsl } = await runMemberSearchAnswer({
-				text,
-				mentions,
-			});
+			let result: Awaited<ReturnType<typeof runMemberSearchAnswer>>;
+			try {
+				result = await runMemberSearchAnswer({ text, mentions });
+			} catch (error) {
+				request.log.error({ err: error }, "Beacon search failed");
+				throw new DatabaseError();
+			}
+			const { answer, people, dsl } = parseResponse(
+				searchResponseSchema,
+				result,
+			);
+			const auditDsl = sanitizeAuditDsl(dsl);
 
 			// GDPR audit (best-effort).
-			await getSupabase().from("beacon_search_log").insert({
-				user_id: user.id,
-				query: text,
-				dsl,
-				result_count: people.length,
-			});
+			try {
+				await getSupabase()
+					.from("beacon_search_log")
+					.insert({
+						user_id: user.id,
+						query: sanitizeAuditQuery(text),
+						dsl: auditDsl,
+						result_count: people.length,
+					});
+			} catch (error) {
+				request.log.error({ err: error }, "Beacon search log failed");
+			}
 
 			return { answer, people, dsl };
 		},

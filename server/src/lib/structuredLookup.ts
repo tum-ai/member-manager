@@ -4,7 +4,13 @@
 // Z" answers. Confirmed + pending are included by default (pending is labeled
 // "unverified" when surfaced); pass ["confirmed"] for confirmed-only.
 
-import { type ClaimStatus, canonicalKey, tagSlug } from "./beacon.js";
+import {
+	type ClaimStatus,
+	canonicalKey,
+	tagSlug,
+	visibleBeaconMemberIds,
+} from "./beacon.js";
+import { DatabaseError } from "./errors.js";
 import { getSupabase } from "./supabase.js";
 
 export type StatusFilter = ClaimStatus[];
@@ -38,10 +44,13 @@ const yrs = (a: number | null, b: number | null, cur?: boolean): string => {
 async function membersByIds(ids: string[]): Promise<Map<string, MemberRow>> {
 	const unique = [...new Set(ids)];
 	if (!unique.length) return new Map();
-	const { data } = await getSupabase()
+	const visible = await visibleBeaconMemberIds(unique);
+	if (visible.size === 0) return new Map();
+	const { data, error } = await getSupabase()
 		.from("members")
 		.select("user_id, given_name, surname")
-		.in("user_id", unique);
+		.in("user_id", [...visible]);
+	if (error) throw new DatabaseError("Failed to load visible Beacon members");
 	return new Map(
 		(data ?? []).map((m) => [(m as MemberRow).user_id, m as MemberRow]),
 	);
@@ -58,6 +67,7 @@ async function resolveEntityIds(
 		.from(table)
 		.select("id, name")
 		.eq("canonical_key", canonicalKey(name));
+	if (exact.error) throw new DatabaseError("Failed to resolve Beacon entity");
 	if (exact.data?.length) return exact.data as { id: string; name: string }[];
 	const term = likeTerm(name);
 	if (!term) return [];
@@ -66,6 +76,7 @@ async function resolveEntityIds(
 		.select("id, name")
 		.ilike("name", `%${term}%`)
 		.limit(10);
+	if (fuzzy.error) throw new DatabaseError("Failed to resolve Beacon entity");
 	return (fuzzy.data ?? []) as { id: string; name: string }[];
 }
 
@@ -76,7 +87,7 @@ export async function peopleByProject(
 	const projects = await resolveEntityIds("beacon_project", name);
 	if (!projects.length) return [];
 	const byId = new Map(projects.map((p) => [p.id, p.name]));
-	const { data } = await getSupabase()
+	const { data, error } = await getSupabase()
 		.from("beacon_person_project")
 		.select("user_id, role, status, project_id")
 		.in(
@@ -84,6 +95,7 @@ export async function peopleByProject(
 			projects.map((p) => p.id),
 		)
 		.in("status", status);
+	if (error) throw new DatabaseError("Failed to search Beacon projects");
 	const rows = (data ?? []) as {
 		user_id: string;
 		role: string | null;
@@ -111,7 +123,7 @@ export async function peopleByOrganization(
 	const orgs = await resolveEntityIds("beacon_organization", name);
 	if (!orgs.length) return [];
 	const byId = new Map(orgs.map((o) => [o.id, o.name]));
-	const { data } = await getSupabase()
+	const { data, error } = await getSupabase()
 		.from("beacon_employment")
 		.select(
 			"user_id, title, start_year, end_year, is_current, status, organization_id",
@@ -121,6 +133,7 @@ export async function peopleByOrganization(
 			orgs.map((o) => o.id),
 		)
 		.in("status", status);
+	if (error) throw new DatabaseError("Failed to search Beacon organizations");
 	const rows = (data ?? []) as {
 		user_id: string;
 		title: string | null;
@@ -153,7 +166,7 @@ export async function peopleBySkill(
 	const skills = await resolveEntityIds("beacon_skill", name);
 	if (!skills.length) return [];
 	const byId = new Map(skills.map((s) => [s.id, s.name]));
-	const { data } = await getSupabase()
+	const { data, error } = await getSupabase()
 		.from("beacon_person_skill")
 		.select("user_id, proficiency, status, skill_id")
 		.in(
@@ -161,6 +174,7 @@ export async function peopleBySkill(
 			skills.map((s) => s.id),
 		)
 		.in("status", status);
+	if (error) throw new DatabaseError("Failed to search Beacon skills");
 	const rows = (data ?? []) as {
 		user_id: string;
 		proficiency: string | null;
@@ -192,6 +206,8 @@ export async function peopleByTag(
 		.from("beacon_tag_vocabulary")
 		.select("tag, label")
 		.eq("tag", slug);
+	if (exact.error)
+		throw new DatabaseError("Failed to resolve Beacon capability");
 	let vocab = (exact.data ?? []) as { tag: string; label: string }[];
 	if (!vocab.length) {
 		const term = likeTerm(tag);
@@ -207,8 +223,13 @@ export async function peopleByTag(
 						.select("tag, label")
 						.ilike("label", `%${term}%`)
 						.limit(10)
-				: Promise.resolve({ data: [] as { tag: string; label: string }[] }),
+				: Promise.resolve({
+						data: [] as { tag: string; label: string }[],
+						error: null,
+					}),
 		]);
+		if (bySlug.error || byLabel.error)
+			throw new DatabaseError("Failed to resolve Beacon capability");
 		const merged = new Map<string, string>();
 		for (const v of [...(bySlug.data ?? []), ...(byLabel.data ?? [])] as {
 			tag: string;
@@ -219,7 +240,7 @@ export async function peopleByTag(
 	}
 	if (!vocab.length) return [];
 	const labelByTag = new Map(vocab.map((v) => [v.tag, v.label]));
-	const { data } = await supabase
+	const { data, error } = await supabase
 		.from("beacon_person_tag")
 		.select("user_id, tag, status")
 		.in(
@@ -227,6 +248,7 @@ export async function peopleByTag(
 			vocab.map((v) => v.tag),
 		)
 		.in("status", status);
+	if (error) throw new DatabaseError("Failed to search Beacon capabilities");
 	const rows = (data ?? []) as {
 		user_id: string;
 		tag: string;

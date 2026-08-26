@@ -80,12 +80,15 @@ export function defineTool<A>(spec: {
 // A "pillar" = a domain of the org. `shortDescription` is ALWAYS in the system
 // prompt (the catalog); `load_pillar` reveals `longDescription`, activates
 // `tools`, and (if set) exposes a `knowledgeRoot` directory the agent can read.
+// `promptGuidance`, when set, is injected into the system prompt while the
+// pillar is loaded — tactical advice a pillar carries for its own tools.
 export interface Pillar {
 	id: string;
 	title: string;
 	shortDescription: string;
 	longDescription: string;
 	knowledgeRoot?: string;
+	promptGuidance?: string;
 	tools: PillarTool[];
 }
 

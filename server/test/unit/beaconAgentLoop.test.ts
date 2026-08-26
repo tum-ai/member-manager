@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
+import { loadAgentConfig } from "../../src/lib/agent/config.js";
 import type {
 	AgentResponse,
 	CreateResponseParams,
 } from "../../src/lib/agent/openai.js";
 import {
+	collectToolArgNames,
 	type LegacyFn,
 	linkifyMentions,
 	type RespondFn,
@@ -158,7 +160,31 @@ test("loop: MAX_STEPS exhausted → forced final answer", async () => {
 		{ ...deps, respond },
 	);
 	assert.equal(res.answer, "Final after cap.");
-	assert.equal(res.steps.length, 20); // one tool call per capped step (MAX_STEPS)
+	assert.equal(res.steps.length, 20); // one tool call per capped step (default maxSteps)
+});
+
+test("loop: maxSteps config knob caps the loop", async () => {
+	const { deps } = harness(demoRegistry());
+	const respond: RespondFn = async (params: CreateResponseParams) =>
+		params.tools.length === 0
+			? { id: "rf", functionCalls: [], text: "Final after cap." }
+			: {
+					id: "r",
+					functionCalls: [fc("c", "load_pillar", { pillar_id: "demo" })],
+					text: "",
+				};
+	const res = await runAgent(
+		{ ...baseInput, text: "loop" },
+		{ ...deps, respond, config: { ...loadAgentConfig({}), maxSteps: 3 } },
+	);
+	assert.equal(res.steps.length, 3);
+});
+
+test("collectToolArgNames: unions base + pillar tool arg names", () => {
+	const names = collectToolArgNames(demoRegistry());
+	// base tools (load_pillar / read_knowledge_file) + the demo tool's `q`.
+	for (const expected of ["pillar_id", "path", "q"])
+		assert.ok(names.includes(expected), `missing arg name ${expected}`);
 });
 
 test("loop: final answer is sanitized against collected ids", async () => {
@@ -227,7 +253,11 @@ test("stripLeakedToolArgs: removes leaked tool-call syntax + arg JSON", () => {
 	const leaked =
 		'Trying variants. {"project":"","organization":"x","include_pending":true} ' +
 		"to=functions.find_people_by 【json】 Final answer.";
-	const out = stripLeakedToolArgs(leaked);
+	const out = stripLeakedToolArgs(leaked, [
+		"project",
+		"organization",
+		"include_pending",
+	]);
 	assert.ok(!out.includes("to=functions"));
 	assert.ok(!out.includes('"include_pending"'));
 	assert.ok(!out.includes("【"));

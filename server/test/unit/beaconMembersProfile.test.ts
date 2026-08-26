@@ -1,6 +1,79 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { compactProfileText } from "../../src/lib/agent/pillars/members.js";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import {
+	compactProfileText,
+	membersPillar,
+} from "../../src/lib/agent/pillars/members.js";
+import type { PillarTool, ToolContext } from "../../src/lib/agent/types.js";
+import { setSupabaseClient } from "../../src/lib/supabase.js";
+
+type Row = Record<string, unknown>;
+
+class ResolveQuery {
+	private filters: ((row: Row) => boolean)[] = [];
+	private rows: Row[];
+
+	constructor(rows: Row[]) {
+		this.rows = rows;
+	}
+
+	select() {
+		return this;
+	}
+
+	or() {
+		return this;
+	}
+
+	limit(limit: number) {
+		this.rows = this.rows.slice(0, limit);
+		return this;
+	}
+
+	eq(column: string, value: unknown) {
+		this.filters.push((row) => row[column] === value);
+		return this;
+	}
+
+	in(column: string, values: unknown[]) {
+		this.filters.push((row) => values.includes(row[column]));
+		return this;
+	}
+
+	// biome-ignore lint/suspicious/noThenProperty: intentional Supabase test double
+	then(resolve: (value: { data: Row[]; error: null }) => void) {
+		resolve({
+			data: this.rows.filter((row) =>
+				this.filters.every((filter) => filter(row)),
+			),
+			error: null,
+		});
+	}
+}
+
+function resolveDb(): SupabaseClient {
+	const tables: Record<string, Row[]> = {
+		members: [
+			{
+				user_id: "visible",
+				given_name: "Ada",
+				surname: "Active",
+				member_status: "active",
+			},
+			{
+				user_id: "hidden",
+				given_name: "Grace",
+				surname: "Opted Out",
+				member_status: "active",
+			},
+		],
+		beacon_person: [{ user_id: "hidden", opted_out: true }],
+	};
+	return {
+		from: (table: string) => new ResolveQuery(tables[table] ?? []),
+	} as unknown as SupabaseClient;
+}
 
 test("compactProfileText: sorts experience earliest-first + flags unverified", () => {
 	const text = compactProfileText({
@@ -59,4 +132,20 @@ test("compactProfileText: minimal profile still renders a name", () => {
 		counts: { confirmed: 0, pending: 0, rejected: 0 },
 	} as never);
 	assert.ok(text.includes("Name: @[Ada](beacon:u1)"));
+});
+
+test("resolve_person: excludes opted-out members", async () => {
+	setSupabaseClient(resolveDb());
+	const tool = membersPillar.tools.find(
+		(candidate) => candidate.name === "resolve_person",
+	) as PillarTool;
+	const result = await tool.run({ name: "Ada" }, {
+		supabase: resolveDb(),
+	} as unknown as ToolContext);
+
+	assert.deepEqual(
+		result.people?.map((person) => person.user_id),
+		["visible"],
+	);
+	assert.doesNotMatch(result.content, /Grace/);
 });

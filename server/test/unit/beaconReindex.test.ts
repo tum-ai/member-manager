@@ -11,6 +11,7 @@ delete process.env.OPENAI_API_KEY;
 type Rows = Record<string, unknown>[];
 
 class FakeQuery {
+	private filters: ((row: Record<string, unknown>) => boolean)[] = [];
 	constructor(
 		private data: Rows,
 		private onInsert?: (rows: Rows) => void,
@@ -19,10 +20,12 @@ class FakeQuery {
 	select() {
 		return this;
 	}
-	eq() {
+	eq(column: string, value: unknown) {
+		this.filters.push((row) => row[column] === value);
 		return this;
 	}
-	in() {
+	in(column: string, values: unknown[]) {
+		this.filters.push((row) => values.includes(row[column]));
 		return this;
 	}
 	order() {
@@ -40,12 +43,21 @@ class FakeQuery {
 		return {
 			// biome-ignore lint/suspicious/noThenProperty: intentional thenable test double
 			then: (res: (v: { data: unknown; error: null }) => void) =>
-				res({ data: this.data[0] ?? null, error: null }),
+				res({
+					data:
+						this.data.filter((row) =>
+							this.filters.every((filter) => filter(row)),
+						)[0] ?? null,
+					error: null,
+				}),
 		};
 	}
 	// biome-ignore lint/suspicious/noThenProperty: intentional thenable test double
 	then(res: (v: { data: Rows; error: null; count: number }) => void) {
-		res({ data: this.data, error: null, count: this.data.length });
+		const data = this.data.filter((row) =>
+			this.filters.every((filter) => filter(row)),
+		);
+		res({ data, error: null, count: data.length });
 	}
 }
 
@@ -64,8 +76,10 @@ function fakeProfileDb(
 	capture: { inserted: Rows | null; deleted: boolean },
 ): SupabaseClient {
 	const tableData: Record<string, Rows> = {
-		beacon_person: p.person ? [p.person] : [],
-		members: p.member ? [p.member] : [],
+		beacon_person: p.person ? [{ user_id: "u1", ...p.person }] : [],
+		members: p.member
+			? [{ member_status: "active", user_id: "u1", ...p.member }]
+			: [],
 		beacon_employment: p.employment ?? [],
 		beacon_education: p.education ?? [],
 		beacon_person_skill: p.skills ?? [],
@@ -95,6 +109,7 @@ test("rebuildSearchChunks: builds chunks (NULL embeddings, no key) + delete-then
 		member: { user_id: "u1", given_name: "Justin", surname: "L" },
 		employment: [
 			{
+				user_id: "u1",
 				title: "Engineer",
 				is_current: true,
 				start_year: 2020,
@@ -143,6 +158,52 @@ test("rebuildSearchChunks: opted-out → purge only, no insert", async () => {
 	assert.equal(res.chunks, 0);
 	assert.equal(capture.deleted, true);
 	assert.equal(capture.inserted, null);
+});
+
+test("rebuildSearchChunks: inactive member → purge only", async () => {
+	const capture = { inserted: null as Rows | null, deleted: false };
+	setSupabaseClient(
+		fakeProfileDb(
+			{
+				person: { opted_out: false, headline: "hidden", summary: null },
+				member: {
+					user_id: "u1",
+					given_name: "Former",
+					surname: "Member",
+					member_status: "inactive",
+				},
+			},
+			capture,
+		),
+	);
+	const res = await rebuildSearchChunks("u1");
+	assert.equal(res.cleared, true);
+	assert.equal(res.chunks, 0);
+	assert.equal(capture.deleted, true);
+	assert.equal(capture.inserted, null);
+});
+
+test("rebuildSearchChunks: pending facts are indexed as unverified", async () => {
+	const capture = { inserted: null as Rows | null, deleted: false };
+	setSupabaseClient(
+		fakeProfileDb(
+			{
+				person: { opted_out: false, headline: null, summary: null },
+				member: { user_id: "u1", given_name: "Pat", surname: "Pending" },
+				skills: [
+					{
+						user_id: "u1",
+						status: "pending",
+						raw_value: null,
+						skill: { name: "Rust" },
+					},
+				],
+			},
+			capture,
+		),
+	);
+	await rebuildSearchChunks("u1");
+	assert.match(String(capture.inserted?.[0]?.content), /Rust \(unverified\)/);
 });
 
 test("rebuildSearchChunks: no claims/headline → cleared, no insert", async () => {

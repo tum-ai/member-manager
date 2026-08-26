@@ -8,6 +8,7 @@
 // Model: OPENAI_AGENT_MODEL → OPENAI_RESEARCH_MODEL → "gpt-5.4".
 
 import { fetchWithTimeout } from "../fetchWithTimeout.js";
+import type { ReasoningEffort } from "./config.js";
 
 const RESPONSES_URL = "https://api.openai.com/v1/responses";
 
@@ -58,6 +59,10 @@ export interface CreateResponseParams {
 	maxOutputTokens?: number;
 	// Add OpenAI's hosted web_search tool (resolved by OpenAI; we don't run it).
 	enableWebSearch?: boolean;
+	// Tunables (default to the historical literals when omitted).
+	reasoningEffort?: ReasoningEffort;
+	requestTimeoutMs?: number;
+	webSearchToolType?: string;
 }
 
 interface ResponsesBody {
@@ -84,7 +89,7 @@ export async function createAgentResponse(
 	const body: Record<string, unknown> = {
 		model: agentModel(),
 		input: params.input,
-		reasoning: { effort: "medium" },
+		reasoning: { effort: params.reasoningEffort ?? "medium" },
 		max_output_tokens: params.maxOutputTokens ?? 150_000,
 		store: true,
 	};
@@ -94,7 +99,10 @@ export async function createAgentResponse(
 	const toolList: unknown[] = [...params.tools];
 	if (params.enableWebSearch) {
 		toolList.push({
-			type: process.env.OPENAI_WEB_SEARCH_TOOL?.trim() || "web_search",
+			type:
+				params.webSearchToolType ||
+				process.env.OPENAI_WEB_SEARCH_TOOL?.trim() ||
+				"web_search",
 		});
 	}
 	if (toolList.length > 0) {
@@ -113,7 +121,7 @@ export async function createAgentResponse(
 			},
 			body: JSON.stringify(body),
 		},
-		120_000,
+		params.requestTimeoutMs ?? 120_000,
 	);
 
 	if (!res.ok) {

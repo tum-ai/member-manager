@@ -5,8 +5,13 @@
 //   compile candidates (Layer A, confirmed+pending) → embed → hybrid+RRF
 //   (Layer B) → listwise rerank.
 
+import { DatabaseError } from "../errors.js";
 import { embedTexts, toVectorLiteral } from "../searchChunks.js";
-import { compileCandidates, type SearchDsl } from "../searchDsl.js";
+import {
+	compileCandidates,
+	hasStructuredFilters,
+	type SearchDsl,
+} from "../searchDsl.js";
 import {
 	type Candidate,
 	composeAnswer,
@@ -33,6 +38,9 @@ export async function loadFilterVocab(): Promise<FilterVocab> {
 		supabase.from("beacon_school").select("groups"),
 		supabase.from("beacon_tag_vocabulary").select("tag,label"),
 	]);
+	if (orgs.error || schools.error || tags.error) {
+		throw new DatabaseError("Failed to load Beacon search vocabulary");
+	}
 	const orgTags = new Set<string>();
 	for (const o of (orgs.data ?? []) as { tags: string[] }[])
 		for (const t of o.tags ?? []) orgTags.add(t);
@@ -71,26 +79,32 @@ export async function runMemberSearch(
 	const vocab = await loadFilterVocab();
 	let dsl = await parseQuery(text, vocab);
 	dsl = await enrichDslWithDeterministicSkills(dsl, text);
+	const structured = hasStructuredFilters(dsl);
+	const candidates = await compileCandidates(dsl);
+	const visible = new Set(candidates);
 
 	// "similar to @X": fold the mentioned members' chunk text into the semantic
 	// query so retrieval leans toward people like them.
 	let semantic = dsl.semantic_query || text;
 	if (mentions.length) {
-		const { data: chunks } = await supabase
-			.from("beacon_search_chunk")
-			.select("content")
-			.in(
-				"user_id",
-				mentions.map((m) => m.user_id),
-			)
-			.limit(6);
+		const visibleMentions = mentions
+			.map((mention) => mention.user_id)
+			.filter((id) => visible.has(id));
+		const { data: chunks, error: chunkError } = visibleMentions.length
+			? await supabase
+					.from("beacon_search_chunk")
+					.select("content")
+					.in("user_id", visibleMentions)
+					.limit(6)
+			: { data: [], error: null };
+		if (chunkError)
+			throw new DatabaseError("Failed to load Beacon mention context");
 		const extra = (chunks ?? [])
 			.map((c) => (c as { content: string }).content)
 			.join(". ");
 		if (extra) semantic = `${semantic}. ${extra}`;
 	}
 
-	const candidates = await compileCandidates(dsl);
 	const queryEmbedding = (await embedTexts([semantic]))[0];
 
 	const { data: hits, error } = await supabase.rpc("beacon_hybrid_search", {
@@ -99,7 +113,7 @@ export async function runMemberSearch(
 		candidate_ids: candidates,
 		match_limit: 20,
 	});
-	if (error) throw error;
+	if (error) throw new DatabaseError("Failed to search Beacon members");
 
 	const rows = (hits ?? []) as {
 		user_id: string;
@@ -112,8 +126,8 @@ export async function runMemberSearch(
 	// include all of them (hits first, then the rest), so e.g. "worked at big
 	// tech" still returns matches even when the semantic ranker is dark.
 	let finalIds: string[];
-	if (candidates === null) {
-		finalIds = rows.map((r) => r.user_id);
+	if (!structured) {
+		finalIds = rows.map((r) => r.user_id).filter((id) => visible.has(id));
 	} else {
 		const hitOrder = rows
 			.map((r) => r.user_id)
@@ -124,10 +138,11 @@ export async function runMemberSearch(
 
 	let people: Candidate[] = [];
 	if (finalIds.length) {
-		const { data: members } = await supabase
+		const { data: members, error: memberError } = await supabase
 			.from("members")
 			.select("user_id, given_name, surname")
 			.in("user_id", finalIds);
+		if (memberError) throw new DatabaseError("Failed to load Beacon members");
 		const byId = new Map(
 			(members ?? []).map((m) => [(m as MemberRow).user_id, m as MemberRow]),
 		);

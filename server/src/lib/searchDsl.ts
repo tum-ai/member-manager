@@ -4,7 +4,12 @@
 // Semantic matching happens separately over Layer B (hybrid search).
 
 import { z } from "zod";
-import { type ClaimStatus, canonicalKey } from "./beacon.js";
+import {
+	type ClaimStatus,
+	canonicalKey,
+	visibleBeaconMemberIds,
+} from "./beacon.js";
+import { DatabaseError } from "./errors.js";
 import { getSupabase } from "./supabase.js";
 
 // Statuses a candidate's claim may have to count as a match. Pending is included
@@ -23,6 +28,16 @@ export const SearchDslSchema = z.object({
 });
 export type SearchDsl = z.infer<typeof SearchDslSchema>;
 
+/** Whether the query contains any deterministic Layer-A filter. */
+export function hasStructuredFilters(dsl: SearchDsl): boolean {
+	return Boolean(
+		dsl.org_tags.length ||
+			dsl.school_groups.length ||
+			dsl.skills.length ||
+			dsl.tags.length,
+	);
+}
+
 function intersect(sets: Set<string>[]): Set<string> {
 	if (sets.length === 0) return new Set();
 	let acc = sets[0];
@@ -37,17 +52,20 @@ async function usersByOrgTags(
 	status: StatusFilter,
 ): Promise<Set<string>> {
 	const supabase = getSupabase();
-	const { data: orgs } = await supabase
+	const { data: orgs, error: orgError } = await supabase
 		.from("beacon_organization")
 		.select("id")
 		.overlaps("tags", tags);
+	if (orgError)
+		throw new DatabaseError("Failed to resolve Beacon organizations");
 	const orgIds = (orgs ?? []).map((o) => (o as { id: string }).id);
 	if (!orgIds.length) return new Set();
-	const { data } = await supabase
+	const { data, error } = await supabase
 		.from("beacon_employment")
 		.select("user_id")
 		.in("organization_id", orgIds)
 		.in("status", status);
+	if (error) throw new DatabaseError("Failed to search Beacon employment");
 	return new Set((data ?? []).map((r) => (r as { user_id: string }).user_id));
 }
 
@@ -56,17 +74,19 @@ async function usersBySchoolGroups(
 	status: StatusFilter,
 ): Promise<Set<string>> {
 	const supabase = getSupabase();
-	const { data: schools } = await supabase
+	const { data: schools, error: schoolError } = await supabase
 		.from("beacon_school")
 		.select("id")
 		.overlaps("groups", groups);
+	if (schoolError) throw new DatabaseError("Failed to resolve Beacon schools");
 	const ids = (schools ?? []).map((s) => (s as { id: string }).id);
 	if (!ids.length) return new Set();
-	const { data } = await supabase
+	const { data, error } = await supabase
 		.from("beacon_education")
 		.select("user_id")
 		.in("school_id", ids)
 		.in("status", status);
+	if (error) throw new DatabaseError("Failed to search Beacon education");
 	return new Set((data ?? []).map((r) => (r as { user_id: string }).user_id));
 }
 
@@ -77,17 +97,19 @@ async function usersBySkills(
 	const supabase = getSupabase();
 	const keys = skills.map(canonicalKey).filter(Boolean);
 	if (!keys.length) return new Set();
-	const { data: rows } = await supabase
+	const { data: rows, error: skillError } = await supabase
 		.from("beacon_skill")
 		.select("id")
 		.in("canonical_key", keys);
+	if (skillError) throw new DatabaseError("Failed to resolve Beacon skills");
 	const ids = (rows ?? []).map((s) => (s as { id: string }).id);
 	if (!ids.length) return new Set();
-	const { data } = await supabase
+	const { data, error } = await supabase
 		.from("beacon_person_skill")
 		.select("user_id")
 		.in("skill_id", ids)
 		.in("status", status);
+	if (error) throw new DatabaseError("Failed to search Beacon skills");
 	return new Set((data ?? []).map((r) => (r as { user_id: string }).user_id));
 }
 
@@ -96,28 +118,32 @@ async function usersByTags(
 	status: StatusFilter,
 ): Promise<Set<string>> {
 	const supabase = getSupabase();
-	const { data } = await supabase
+	const { data, error } = await supabase
 		.from("beacon_person_tag")
 		.select("user_id")
 		.in("tag", tags)
 		.in("status", status);
+	if (error) throw new DatabaseError("Failed to search Beacon capabilities");
 	return new Set((data ?? []).map((r) => (r as { user_id: string }).user_id));
 }
 
-// Compile structured filters → candidate user_ids (AND across filter groups, OR
-// within each group). Returns null when no structured filters are present (the
-// search then ranks semantically over everyone). Defaults to confirmed+pending.
+// Compile structured filters → visible candidate user_ids (AND across filter
+// groups, OR within each group). With no structured filters, all visible
+// members are returned so the service-role hybrid-search RPC can never range
+// over opted-out or inactive members. Defaults to confirmed+pending claims.
 export async function compileCandidates(
 	dsl: SearchDsl,
 	status: StatusFilter = DEFAULT_STATUS,
-): Promise<string[] | null> {
+): Promise<string[]> {
 	const groups: Promise<Set<string>>[] = [];
 	if (dsl.org_tags.length) groups.push(usersByOrgTags(dsl.org_tags, status));
 	if (dsl.school_groups.length)
 		groups.push(usersBySchoolGroups(dsl.school_groups, status));
 	if (dsl.skills.length) groups.push(usersBySkills(dsl.skills, status));
 	if (dsl.tags.length) groups.push(usersByTags(dsl.tags, status));
-	if (groups.length === 0) return null;
+	if (groups.length === 0) return [...(await visibleBeaconMemberIds())];
 	const sets = await Promise.all(groups);
-	return [...intersect(sets)];
+	const candidates = [...intersect(sets)];
+	const visible = await visibleBeaconMemberIds(candidates);
+	return candidates.filter((id) => visible.has(id));
 }

@@ -13,7 +13,12 @@
 //
 // Usage:
 //   tsx src/scripts/enrichMembers.ts [--apply] [--limit N] [--user <uuid>]
-//                                    [--require-linkedin] [--no-pdl] [--no-llm]
+//                                    [--active] [--current] [--require-linkedin]
+//                                    [--concurrency N] [--no-pdl] [--no-llm]
+//   --concurrency N  members enriched in parallel (default 4).
+//   --active   restrict to member_status = 'active' (skip alumni/inactive).
+//   --current  the real current org: active AND has a department / board role /
+//              executive role (skips stale active rows of past members).
 
 import { createSource } from "../lib/beacon.js";
 import { consolidateMemberClaims } from "../lib/claimConsolidation.js";
@@ -54,6 +59,9 @@ interface Flags {
 	limit: number | null;
 	user: string | null;
 	requireLinkedin: boolean;
+	activeOnly: boolean;
+	currentOnly: boolean;
+	concurrency: number;
 	noPdl: boolean;
 	noLlm: boolean;
 	noWeb: boolean;
@@ -71,6 +79,9 @@ function parseFlags(argv: string[]): Flags {
 		limit: limitRaw ? Number(limitRaw) : null,
 		user: val("--user"),
 		requireLinkedin: has("--require-linkedin"),
+		activeOnly: has("--active"),
+		currentOnly: has("--current"),
+		concurrency: Math.max(1, Number(val("--concurrency")) || 4),
 		noPdl: has("--no-pdl"),
 		noLlm: has("--no-llm"),
 		noWeb: has("--no-web"),
@@ -79,6 +90,21 @@ function parseFlags(argv: string[]): Flags {
 
 function linkedinOf(m: MemberRow): string | null {
 	return m.linkedin_url?.trim() || m.linkedin_profile_url?.trim() || null;
+}
+
+// Bounded-concurrency map: run `worker` over `items`, at most `n` in flight.
+// Each member's enrichment is independent (keyed on its own user_id), so this is
+// safe; `totals` mutations are synchronous between awaits (single-threaded).
+async function runPool<T>(
+	items: T[],
+	n: number,
+	worker: (item: T) => Promise<void>,
+): Promise<void> {
+	let idx = 0;
+	const next = async (): Promise<void> => {
+		while (idx < items.length) await worker(items[idx++]);
+	};
+	await Promise.all(Array.from({ length: Math.min(n, items.length) }, next));
 }
 
 // Education from the member's own profile (newline-serialized degree/school
@@ -130,7 +156,8 @@ async function main(): Promise<void> {
 		`Beacon enrichment — ${flags.apply ? "APPLY (writing)" : "DRY RUN"}` +
 			` | PDL: ${pdlConfigured() && !flags.noPdl ? "on" : "off"}` +
 			` | LLM tags: ${llmConfigured() && !flags.noLlm ? "on" : "off"}` +
-			` | Web research: ${webResearchConfigured() && !flags.noWeb ? "on" : "off"}`,
+			` | Web research: ${webResearchConfigured() && !flags.noWeb ? "on" : "off"}` +
+			` | concurrency: ${flags.concurrency}`,
 	);
 
 	// Vocabulary for LLM tag extraction.
@@ -157,6 +184,16 @@ async function main(): Promise<void> {
 			"user_id, given_name, surname, linkedin_url, linkedin_profile_url, public_location, school, degree, department",
 		);
 	if (flags.user) query = query.eq("user_id", flags.user);
+	if (flags.activeOnly) query = query.eq("member_status", "active");
+	// --current = the real current org: active AND slotted into a department,
+	// the board, or an executive role. Filters out the many active-status rows
+	// of past members that were never re-flagged to alumni.
+	if (flags.currentOnly)
+		query = query
+			.eq("member_status", "active")
+			.or(
+				"department.not.is.null,board_role.not.is.null,member_role.in.(President,Vice-President)",
+			);
 	const { data, error } = await query;
 	if (error) throw new Error(`Failed to load members: ${error.message}`);
 
@@ -176,7 +213,7 @@ async function main(): Promise<void> {
 		errors: 0,
 	};
 
-	for (const m of members) {
+	async function enrichOne(m: MemberRow): Promise<void> {
 		const name =
 			[m.given_name, m.surname].filter(Boolean).join(" ") || m.user_id;
 		const result: ApplyResult = { items: [], added: 0, updated: 0, skipped: 0 };
@@ -307,7 +344,7 @@ async function main(): Promise<void> {
 		} catch (e) {
 			totals.errors++;
 			console.log(`  ✗ ${name}: ${e instanceof Error ? e.message : e}`);
-			continue;
+			return;
 		}
 
 		totals.members++;
@@ -316,20 +353,25 @@ async function main(): Promise<void> {
 		totals.skipped += result.skipped;
 
 		if (result.items.length) {
-			console.log(
+			// Buffer this member's block and print it in one call so concurrent
+			// members don't interleave their output.
+			const out = [
 				`  ${name}: +${result.added} ~${result.updated} ·${result.skipped}`,
-			);
+			];
 			for (const it of result.items) {
 				const mark =
 					it.action === "add" ? "+" : it.action === "update" ? "~" : "·";
-				console.log(
+				out.push(
 					`     ${mark} [${it.type}] ${it.label}` +
 						`${it.status ? ` → ${it.status}` : ""}` +
 						`${it.reason ? ` (${it.reason})` : ""}`,
 				);
 			}
+			console.log(out.join("\n"));
 		}
 	}
+
+	await runPool(members, flags.concurrency, enrichOne);
 
 	console.log(
 		`\n${flags.apply ? "Applied" : "Dry run"} — members=${totals.members} ` +

@@ -7,7 +7,12 @@
 // answer may cite them.
 
 import { z } from "zod";
-import { type ExpertiseProfile, getExpertiseProfile } from "../../beacon.js";
+import {
+	type ExpertiseProfile,
+	getExpertiseProfile,
+	visibleBeaconMemberIds,
+} from "../../beacon.js";
+import { DatabaseError } from "../../errors.js";
 import {
 	type PersonHit,
 	peopleByOrganization,
@@ -159,6 +164,8 @@ export const membersPillar: Pillar = {
 	shortDescription: SHORT,
 	longDescription:
 		"The TUM.ai people directory. Use search_members to rank people for an open-ended need, find_people_by to list the members tied to a specific project / company / skill / capability, get_member_profile to read one person's details, and resolve_person to turn a name into an id. Some facts are unverified (enriched but not yet confirmed by the member).",
+	promptGuidance:
+		'For an open-ended need — a kind of person, a school group like "Ivy League", a seniority or capability — call search_members ONCE with the whole need. Use find_people_by only for ONE specific named project, company, or skill.',
 	tools: [
 		defineTool({
 			name: "search_members",
@@ -292,19 +299,24 @@ export const membersPillar: Pillar = {
 				const q = name.replace(/[^\p{L}\p{N}\s]/gu, "").trim();
 				if (q.length < 2)
 					return { content: "Give me at least two letters of a name." };
-				const { data } = await ctx.supabase
+				const { data, error } = await ctx.supabase
 					.from("members")
 					.select("user_id, given_name, surname")
 					.or(`given_name.ilike.%${q}%,surname.ilike.%${q}%`)
 					.limit(5);
+				if (error) throw new DatabaseError();
 				const rows = (data ?? []) as {
 					user_id: string;
 					given_name: string | null;
 					surname: string | null;
 				}[];
-				if (!rows.length)
+				const visible = await visibleBeaconMemberIds(
+					rows.map((row) => row.user_id),
+				);
+				const visibleRows = rows.filter((row) => visible.has(row.user_id));
+				if (!visibleRows.length)
 					return { content: `I couldn't find anyone named "${name}".` };
-				const people: CollectedPerson[] = rows.map((r) => ({
+				const people: CollectedPerson[] = visibleRows.map((r) => ({
 					user_id: r.user_id,
 					name: nameOf(r),
 					avatar_url: null,

@@ -4,36 +4,43 @@
 // `Accept: text/event-stream` (live tool steps), otherwise as a single JSON
 // body. The agent core is identical; only `emit` differs.
 
+import {
+	assistantEventSchema,
+	assistantJsonResponseSchema,
+	assistantRequestSchema,
+} from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
-import { z } from "zod";
+import type { z } from "zod";
 import { runAgent } from "../lib/agent/orchestrator.js";
 import { registerAllPillars } from "../lib/agent/pillars/index.js";
 import { registry } from "../lib/agent/registry.js";
 import type { AgentEvent, AgentResult } from "../lib/agent/types.js";
+import { sanitizeAgentTrace } from "../lib/agentTrace.js";
+import { sanitizeAuditQuery } from "../lib/auditQuery.js";
+import { DatabaseError, ValidationError } from "../lib/errors.js";
 import { getSupabase } from "../lib/supabase.js";
 import { authenticate } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
 const MAX_HISTORY = 8;
 
-const AssistantRequestSchema = z.object({
-	messages: z
-		.array(
-			z.object({
-				role: z.enum(["user", "assistant"]),
-				content: z.string(),
-			}),
-		)
-		.default([]),
-	text: z.string().trim().min(1).max(2000),
-	mentions: z
-		.array(z.object({ user_id: z.string().uuid(), label: z.string() }))
-		.default([]),
-	loaded_pillars: z.array(z.string()).optional(),
-	// Correlate this turn with a chat session for the admin activity log.
-	chat_id: z.string().uuid().optional(),
-	turn_id: z.string().uuid().optional(),
-});
+function parseRequest<T>(
+	schema: z.ZodType<T>,
+	input: unknown,
+	message: string,
+): T {
+	const parsed = schema.safeParse(input);
+	if (!parsed.success) {
+		throw new ValidationError(message, parsed.error.flatten());
+	}
+	return parsed.data;
+}
+
+function parseResponse<T>(schema: z.ZodType<T>, input: unknown): T {
+	const parsed = schema.safeParse(input);
+	if (!parsed.success) throw new DatabaseError();
+	return parsed.data;
+}
 
 export async function assistantRoutes(server: FastifyInstance) {
 	registerAllPillars(registry);
@@ -42,7 +49,11 @@ export async function assistantRoutes(server: FastifyInstance) {
 		"/expertise/assistant",
 		{ preHandler: authenticate },
 		async (request, reply) => {
-			const body = AssistantRequestSchema.parse(request.body);
+			const body = parseRequest(
+				assistantRequestSchema,
+				request.body,
+				"Invalid Beacon assistant payload",
+			);
 			const user = (request as AuthenticatedRequest).user;
 			const supabase = getSupabase();
 
@@ -61,7 +72,7 @@ export async function assistantRoutes(server: FastifyInstance) {
 				try {
 					await supabase.from("beacon_search_log").insert({
 						user_id: user.id,
-						query: body.text,
+						query: sanitizeAuditQuery(body.text),
 						dsl: {
 							tools: result.steps.map((s) => s.name),
 							pillars: result.loadedPillars,
@@ -80,9 +91,9 @@ export async function assistantRoutes(server: FastifyInstance) {
 						chat_id: chatId,
 						turn_id: turnId,
 						user_id: user.id,
-						query: body.text,
+						query: sanitizeAuditQuery(body.text),
 						model: result.model,
-						trace: result.trace,
+						trace: sanitizeAgentTrace(result.trace),
 						step_count: result.steps.length,
 						people_count: result.people.length,
 						duration_ms: Date.now() - startedAt,
@@ -116,8 +127,24 @@ export async function assistantRoutes(server: FastifyInstance) {
 					headers.Vary = "Origin";
 				}
 				reply.raw.writeHead(200, headers);
-				const send = (e: AgentEvent) =>
-					reply.raw.write(`data: ${JSON.stringify(e)}\n\n`);
+				const send = (event: AgentEvent): void => {
+					const candidate =
+						event.type === "error"
+							? {
+									type: "error" as const,
+									message: "Something went wrong on my end.",
+								}
+							: event;
+					const parsed = assistantEventSchema.safeParse(candidate);
+					if (!parsed.success) {
+						request.log.warn(
+							{ issues: parsed.error.flatten() },
+							"Invalid Beacon assistant event",
+						);
+						return;
+					}
+					reply.raw.write(`data: ${JSON.stringify(parsed.data)}\n\n`);
+				};
 				try {
 					const result = await runAgent(input, {
 						supabase,
@@ -137,19 +164,26 @@ export async function assistantRoutes(server: FastifyInstance) {
 			}
 
 			// ---- JSON transport (curl / tests) --------------------------------
-			const result = await runAgent(input, {
-				supabase,
-				registry,
-				user: { id: user.id, email: user.email },
-				emit: () => {},
-			});
-			await persist(result);
-			return {
+			let result: AgentResult;
+			try {
+				result = await runAgent(input, {
+					supabase,
+					registry,
+					user: { id: user.id, email: user.email },
+					emit: () => {},
+				});
+			} catch (error) {
+				request.log.error({ err: error }, "Beacon assistant run failed");
+				throw new DatabaseError();
+			}
+			const parsedResult = parseResponse(assistantJsonResponseSchema, {
 				answer: result.answer,
 				people: result.people,
 				steps: result.steps,
 				loadedPillars: result.loadedPillars,
-			};
+			});
+			await persist(result);
+			return parsedResult;
 		},
 	);
 }

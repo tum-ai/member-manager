@@ -7,6 +7,7 @@
 // layer only.
 
 import { titleCaseName } from "./claimConsolidation.js";
+import { DatabaseError } from "./errors.js";
 import {
 	buildChunksForProfile,
 	embedTexts,
@@ -27,6 +28,51 @@ export type ClaimType = keyof typeof CLAIM_TABLES;
 
 export const CLAIM_STATUSES = ["confirmed", "pending", "rejected"] as const;
 export type ClaimStatus = (typeof CLAIM_STATUSES)[number];
+
+/**
+ * Resolve the member ids that Beacon may expose through service-role reads.
+ *
+ * Service-role queries bypass RLS, so every search, directory, and aggregate
+ * lookup must enforce the same application policy: only active members who
+ * have not opted out are visible. A missing `beacon_person` row means the
+ * member has not opted out.
+ */
+export async function visibleBeaconMemberIds(
+	ids?: readonly string[],
+): Promise<Set<string>> {
+	const unique = ids ? [...new Set(ids)] : undefined;
+	if (unique?.length === 0) return new Set();
+
+	const supabase = getSupabase();
+	let memberQuery = supabase
+		.from("members")
+		.select("user_id")
+		.eq("member_status", "active");
+	if (unique) memberQuery = memberQuery.in("user_id", unique);
+	const { data: members, error: memberError } = await memberQuery;
+	if (memberError) {
+		throw new DatabaseError("Failed to enforce Beacon member visibility");
+	}
+
+	const activeIds = (members ?? []).map(
+		(row) => (row as { user_id: string }).user_id,
+	);
+	if (activeIds.length === 0) return new Set();
+
+	const { data: optedOut, error: optedOutError } = await supabase
+		.from("beacon_person")
+		.select("user_id")
+		.eq("opted_out", true)
+		.in("user_id", activeIds);
+	if (optedOutError) {
+		throw new DatabaseError("Failed to enforce Beacon member visibility");
+	}
+
+	const hidden = new Set(
+		(optedOut ?? []).map((row) => (row as { user_id: string }).user_id),
+	);
+	return new Set(activeIds.filter((id) => !hidden.has(id)));
+}
 
 // Normalize a free-text entity name to the canonical_key used for dedup. Same
 // rule everywhere (resolve, enrichment, search), so "Google " and "google"
@@ -249,12 +295,10 @@ export interface ExpertiseProfile {
 const MEMBER_PROFILE_FIELDS =
 	"user_id, given_name, surname, department, batch, member_role, board_role, linkedin_profile_url, linkedin_url, public_location, member_status";
 
-// Aggregate a member's full expertise profile. When `confirmedOnly` is set
-// (someone viewing another member), only confirmed claims are returned and the
-// profile is hidden entirely if the member opted out. `statuses` overrides the
-// claim-status filter (e.g. ["confirmed","pending"] for the search index /
-// assistant tools); it does NOT trigger opt-out hiding — callers that index or
-// answer on behalf of others check `person.opted_out` themselves.
+// Aggregate a member's full expertise profile. Directory/service-role reads
+// (`confirmedOnly` or an explicit `statuses` filter) enforce Beacon visibility;
+// an owner/admin read without either option preserves the editable-profile
+// behavior. `statuses` overrides the claim-status filter.
 export async function getExpertiseProfile(
 	userId: string,
 	{
@@ -263,12 +307,19 @@ export async function getExpertiseProfile(
 	}: { confirmedOnly?: boolean; statuses?: ClaimStatus[] } = {},
 ): Promise<ExpertiseProfile | null> {
 	const supabase = getSupabase();
+	if (confirmedOnly || statuses !== undefined) {
+		const visible = await visibleBeaconMemberIds([userId]);
+		if (!visible.has(userId)) return null;
+	}
 
 	const personRes = await supabase
 		.from("beacon_person")
 		.select("*")
 		.eq("user_id", userId)
 		.maybeSingle();
+	if (personRes.error) {
+		throw new DatabaseError("Failed to load Beacon profile");
+	}
 	const person = (personRes.data as Record<string, unknown> | null) ?? null;
 
 	if (confirmedOnly && person?.opted_out === true) return null;
@@ -278,6 +329,9 @@ export async function getExpertiseProfile(
 		.select(MEMBER_PROFILE_FIELDS)
 		.eq("user_id", userId)
 		.maybeSingle();
+	if (memberRes.error) {
+		throw new DatabaseError("Failed to load Beacon member");
+	}
 
 	// Status filter precedence: explicit `statuses` wins; else confirmedOnly →
 	// confirmed-only; else no filter (all statuses, incl. rejected).
@@ -290,7 +344,8 @@ export async function getExpertiseProfile(
 			.select(EMBEDS[type])
 			.eq("user_id", userId);
 		if (statusFilter) q = q.in("status", statusFilter);
-		const { data } = await q.order("confidence", { ascending: false });
+		const { data, error } = await q.order("confidence", { ascending: false });
+		if (error) throw new DatabaseError("Failed to load Beacon claims");
 		return data ?? [];
 	};
 
@@ -390,6 +445,70 @@ export interface RebuildResult {
 	cleared: boolean;
 }
 
+const unverifiedLabel = (value: unknown, fallback: string): string => {
+	const label =
+		typeof value === "string" && value.trim() ? value.trim() : fallback;
+	return label.endsWith("(unverified)") ? label : `${label} (unverified)`;
+};
+
+// Layer B stores plain text, so pending claims must carry their verification
+// state in that text. This clone leaves confirmed facts untouched and marks one
+// human-readable label per pending claim before chunk construction.
+function profileForSearchIndex(profile: ExpertiseProfile): ExpertiseProfile {
+	const pending = (claim: Record<string, unknown>): boolean =>
+		claim.status === "pending";
+	return {
+		...profile,
+		employment: (profile.employment as Record<string, unknown>[]).map(
+			(claim) =>
+				pending(claim)
+					? { ...claim, title: unverifiedLabel(claim.title, "Worked") }
+					: claim,
+		),
+		education: (profile.education as Record<string, unknown>[]).map((claim) =>
+			pending(claim)
+				? { ...claim, degree: unverifiedLabel(claim.degree, "Studied") }
+				: claim,
+		),
+		skills: (profile.skills as Record<string, unknown>[]).map((claim) => {
+			if (!pending(claim)) return claim;
+			const skill = claim.skill as Record<string, unknown> | null;
+			return skill
+				? {
+						...claim,
+						skill: { ...skill, name: unverifiedLabel(skill.name, "Skill") },
+					}
+				: { ...claim, raw_value: unverifiedLabel(claim.raw_value, "Skill") };
+		}),
+		projects: (profile.projects as Record<string, unknown>[]).map((claim) => {
+			if (!pending(claim)) return claim;
+			const project = claim.project as Record<string, unknown> | null;
+			return project
+				? {
+						...claim,
+						project: {
+							...project,
+							name: unverifiedLabel(project.name, "Project"),
+						},
+					}
+				: { ...claim, raw_value: unverifiedLabel(claim.raw_value, "Project") };
+		}),
+		tags: (profile.tags as Record<string, unknown>[]).map((claim) => {
+			if (!pending(claim)) return claim;
+			const vocabulary = claim.vocabulary as Record<string, unknown> | null;
+			return vocabulary
+				? {
+						...claim,
+						vocabulary: {
+							...vocabulary,
+							label: unverifiedLabel(vocabulary.label, "Capability"),
+						},
+					}
+				: { ...claim, tag: unverifiedLabel(claim.tag, "Capability") };
+		}),
+	};
+}
+
 // Regenerate a single member's Layer-B search chunks from their current claims
 // (confirmed + pending) and editable headline/summary. Full delete + insert —
 // Layer B is derived, never hand-edited. Opted-out / empty members are purged.
@@ -402,19 +521,20 @@ export async function rebuildSearchChunks(
 	const profile = await getExpertiseProfile(userId, {
 		statuses: SEARCH_INDEX_STATUSES,
 	});
-	const optedOut = (profile?.person as { opted_out?: boolean } | null)
-		?.opted_out;
-
 	const purge = async () => {
-		await supabase.from("beacon_search_chunk").delete().eq("user_id", userId);
+		const { error } = await supabase
+			.from("beacon_search_chunk")
+			.delete()
+			.eq("user_id", userId);
+		if (error) throw new DatabaseError("Failed to clear Beacon search index");
 	};
 
-	if (!profile || optedOut === true) {
+	if (!profile) {
 		await purge();
 		return { chunks: 0, embedded: 0, cleared: true };
 	}
 
-	const chunks = buildChunksForProfile(profile);
+	const chunks = buildChunksForProfile(profileForSearchIndex(profile));
 	if (chunks.length === 0) {
 		await purge();
 		return { chunks: 0, embedded: 0, cleared: true };
@@ -431,7 +551,7 @@ export async function rebuildSearchChunks(
 		embedding: toVectorLiteral(embeddings[i]),
 	}));
 	const { error } = await supabase.from("beacon_search_chunk").insert(rows);
-	if (error) throw error;
+	if (error) throw new DatabaseError("Failed to rebuild Beacon search index");
 
 	return { chunks: chunks.length, embedded, cleared: false };
 }

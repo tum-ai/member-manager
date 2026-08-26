@@ -1,6 +1,6 @@
 // The Beacon orchestrator loop, over the OpenAI Responses API. Drives a
 // reasoning + tool-calling conversation: model → function_calls → execute
-// (harvesting people) → return outputs → repeat, capped by MAX_STEPS, then a
+// (harvesting people) → return outputs → repeat, capped by config.maxSteps, then a
 // forced tool-free final answer. Rounds chain via previous_response_id so the
 // model's reasoning is preserved across tool calls; only new function_call
 // outputs are sent each round. The final text is gated by sanitizeAnswerMentions
@@ -9,6 +9,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sanitizeAnswerMentions } from "../searchLlm.js";
+import { type AgentConfig, loadAgentConfig } from "./config.js";
 import {
 	type MemberSearchAnswer,
 	type MemberSearchInput,
@@ -38,18 +39,17 @@ import type {
 } from "./types.js";
 import { toToolJsonSchema } from "./zodSchema.js";
 
-const MAX_STEPS = 20;
-const MAX_TOOLS_PER_TURN = 24;
-const MAX_TOOL_CONTENT = 30_000;
-// Hosted web_search is on by default; set OPENAI_ENABLE_WEB_SEARCH=0 to disable
-// (it can occasionally destabilize the model when results contain spam — the
-// "answer silently" prompt + stripLeakedToolArgs guard against leakage).
-const WEB_SEARCH_ENABLED = process.env.OPENAI_ENABLE_WEB_SEARCH !== "0";
+// Loop/transport tunables live in config.ts (env-overridable); defaults mirror
+// the previous hardcoded literals.
 
 export type RespondFn = typeof createAgentResponse;
 export type LegacyFn = (
 	input: MemberSearchInput,
 ) => Promise<MemberSearchAnswer>;
+
+// Default degradation path. Swap via deps.legacy to bind the framework to a
+// different domain's no-API-key fallback.
+const defaultLegacy: LegacyFn = runMemberSearchAnswer;
 
 export interface RunAgentDeps {
 	supabase: SupabaseClient;
@@ -60,6 +60,8 @@ export interface RunAgentDeps {
 	respond?: RespondFn;
 	legacy?: LegacyFn;
 	configured?: boolean;
+	// Loop/transport tunables; defaults from loadAgentConfig() (env).
+	config?: AgentConfig;
 }
 
 function toResponsesTool(t: PillarTool): ResponsesTool {
@@ -124,14 +126,31 @@ export function linkifyMentions(
 	return out;
 }
 
+// Every tool argument name across the base tools + every registered pillar's
+// tools, derived from their zod schemas. Feeds stripLeakedToolArgs so the leak
+// filter stays correct as new pillars/tools are added — no hardcoded regex.
+export function collectToolArgNames(registry: PillarRegistry): string[] {
+	const names = new Set<string>();
+	const add = (t: PillarTool): void => {
+		const props = (toToolJsonSchema(t.params).properties ?? {}) as Record<
+			string,
+			unknown
+		>;
+		for (const k of Object.keys(props)) names.add(k);
+	};
+	for (const t of registry.baseTools()) add(t);
+	for (const p of registry.all()) for (const t of p.tools) add(t);
+	return [...names].sort();
+}
+
 // Safety net: strip leaked tool-call channel syntax / argument JSON the model
-// echoed into prose (e.g. `to=functions.find_people_by`, raw arg objects).
-export function stripLeakedToolArgs(text: string): string {
+// echoed into prose (e.g. `to=functions.find_people_by`, raw arg objects). The
+// argument-name alternation is built from the live registry (collectToolArgNames).
+export function stripLeakedToolArgs(text: string, argNames: string[]): string {
+	const safe = argNames.filter((n) => /^[A-Za-z0-9_]+$/.test(n)).map(escapeRe);
+	const alt = safe.length ? safe.join("|") : "__never__";
 	return text
-		.replace(
-			/\{[^{}]*"(?:project|organization|skill|tag|include_pending|query|user_id|pillar_id|path|top_k)"\s*:[^{}]*\}/g,
-			"",
-		)
+		.replace(new RegExp(`\\{[^{}]*"(?:${alt})"\\s*:[^{}]*\\}`, "g"), "")
 		.replace(/\b(?:to=)?functions\.\w+/g, "")
 		.replace(/【[^】]*】/g, "")
 		.replace(/[ \t]{2,}/g, " ")
@@ -139,9 +158,9 @@ export function stripLeakedToolArgs(text: string): string {
 		.trim();
 }
 
-const finalize = (raw: string, ctx: ToolContext): string =>
+const finalize = (raw: string, ctx: ToolContext, argNames: string[]): string =>
 	sanitizeAnswerMentions(
-		linkifyMentions(stripLeakedToolArgs(raw.trim()), [
+		linkifyMentions(stripLeakedToolArgs(raw.trim(), argNames), [
 			...ctx.collectedPeople.values(),
 		]),
 		validIds(ctx),
@@ -196,8 +215,10 @@ export async function runAgent(
 		degraded: false,
 	};
 	const respond = deps.respond ?? createAgentResponse;
-	const legacy = deps.legacy ?? runMemberSearchAnswer;
+	const legacy = deps.legacy ?? defaultLegacy;
 	const isConfigured = deps.configured ?? agentConfigured();
+	const config = deps.config ?? loadAgentConfig();
+	const argNames = collectToolArgNames(deps.registry);
 
 	if (!isConfigured) return degradeToLegacy(input, ctx, legacy, trace);
 
@@ -213,7 +234,7 @@ export async function runAgent(
 	let previousResponseId: string | undefined;
 	let sentInstructions = false;
 
-	for (let step = 0; step < MAX_STEPS; step++) {
+	for (let step = 0; step < config.maxSteps; step++) {
 		const tools = deps.registry
 			.activeTools(ctx.loadedPillars)
 			.map(toResponsesTool);
@@ -224,7 +245,11 @@ export async function runAgent(
 				tools,
 				instructions: sentInstructions ? undefined : instructions,
 				previousResponseId,
-				enableWebSearch: WEB_SEARCH_ENABLED,
+				enableWebSearch: config.enableWebSearch,
+				reasoningEffort: config.reasoningEffort,
+				requestTimeoutMs: config.requestTimeoutMs,
+				webSearchToolType: config.webSearchToolType,
+				maxOutputTokens: config.maxOutputTokens,
 			});
 		} catch (e) {
 			console.error(
@@ -251,7 +276,7 @@ export async function runAgent(
 
 		if (resp.functionCalls.length === 0) {
 			trace.rawAnswer = resp.text;
-			const answer = finalize(resp.text, ctx) || fallbackText(ctx);
+			const answer = finalize(resp.text, ctx, argNames) || fallbackText(ctx);
 			trace.finalAnswer = answer;
 			deps.emit({ type: "answer", text: answer });
 			deps.emit({ type: "done" });
@@ -271,7 +296,7 @@ export async function runAgent(
 			}
 
 			let content: string;
-			if (i >= MAX_TOOLS_PER_TURN) {
+			if (i >= config.maxToolsPerTurn) {
 				content = "Skipped — too many capabilities requested at once.";
 			} else {
 				deps.emit({
@@ -322,14 +347,14 @@ export async function runAgent(
 			outputs.push({
 				type: "function_call_output",
 				call_id: call.call_id,
-				output: content.slice(0, MAX_TOOL_CONTENT),
+				output: content.slice(0, config.maxToolContent),
 			});
 		}
 		// Next round sends only the new outputs; the rest is carried server-side.
 		inputItems = outputs;
 	}
 
-	// Exhausted MAX_STEPS → force a final, tool-free answer (delivers the last
+	// Exhausted config.maxSteps → force a final, tool-free answer (delivers the last
 	// pending tool outputs via previous_response_id).
 	let forced: AgentResponse | null = null;
 	try {
@@ -337,12 +362,16 @@ export async function runAgent(
 			input: inputItems,
 			tools: [],
 			previousResponseId,
+			reasoningEffort: config.reasoningEffort,
+			requestTimeoutMs: config.requestTimeoutMs,
+			maxOutputTokens: config.maxOutputTokens,
 		});
 	} catch {
 		// fall through to fallbackText
 	}
 	trace.rawAnswer = forced?.text ?? "";
-	const answer = finalize(forced?.text ?? "", ctx) || fallbackText(ctx);
+	const answer =
+		finalize(forced?.text ?? "", ctx, argNames) || fallbackText(ctx);
 	trace.finalAnswer = answer;
 	deps.emit({ type: "answer", text: answer });
 	deps.emit({ type: "done" });
