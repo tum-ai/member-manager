@@ -51,7 +51,7 @@ set search_path = ''
 as $$
     with dense as (
         select c.user_id, c.content, c.kind,
-               row_number() over (order by c.embedding <=> q_embedding::extensions.vector) as rnk
+               row_number() over (order by c.embedding operator(extensions.<=>) q_embedding::extensions.vector) as rnk
         from public.beacon_search_chunk c
         where q_embedding is not null
           and c.embedding is not null
@@ -64,7 +64,7 @@ as $$
                 and bp.opted_out = false
                 and coalesce(member_row.member_status, case when member_row.active then 'active' else 'inactive' end) = 'active'
           )
-        order by c.embedding <=> q_embedding::extensions.vector
+        order by c.embedding operator(extensions.<=>) q_embedding::extensions.vector
         limit 100
     ),
     q as (
