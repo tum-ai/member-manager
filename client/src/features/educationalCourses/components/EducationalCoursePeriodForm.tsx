@@ -115,6 +115,11 @@ export function EducationalCoursePeriodForm({
 						selected={dateRange}
 						onSelect={setDateRange}
 						excludeDisabled
+						// Open on the month the first selectable day is in, not on the
+						// current one. On the last day of a month every day on screen is
+						// already in the past, so the picker would open with nothing to
+						// pick and no hint that the next month is where to go.
+						defaultMonth={earliestStartDate}
 						numberOfMonths={numberOfMonths}
 						pagedNavigation
 						disabled={[{ before: earliestStartDate }, ...existingPeriodRanges]}
