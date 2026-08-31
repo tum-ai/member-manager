@@ -17,6 +17,16 @@ async function expandAllFolders(page: Page): Promise<void> {
 	await expect(page.getByText(/Grau = geplant/)).toBeVisible({
 		timeout: 20000,
 	});
+	// …and wait for it to be reachable *by role*, which is a stricter condition
+	// than being on screen: a Radix Select (the department picker) marks the whole
+	// app `aria-hidden` while it closes, and every role query below comes back
+	// empty for as long as that lasts. The text assertion above does not see it —
+	// text matching ignores the accessibility tree — so without this the loop
+	// reads "no folders to expand", returns having expanded nothing, and the
+	// caller waits out its timeout on a row inside a folder that never opened.
+	await expect(page.getByRole("group").first()).toBeVisible({
+		timeout: 20000,
+	});
 	// One folder per iteration, re-querying every time: expanding a folder both
 	// reveals nested folders and renumbers the list, so indexing into a live
 	// locator silently skips some of them.
