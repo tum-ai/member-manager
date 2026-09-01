@@ -19,6 +19,19 @@ const DEFAULT_LOCAL_ENCRYPTION_KEY =
 const DEFAULT_LOCAL_ADMIN_EMAILS = ["admin@example.com", "user@example.com"];
 const DEFAULT_PARTNER_PORTAL_JOBS_API_URL =
 	"http://localhost:3000/api/public/v1/jobs";
+// PostHog is configured by hand (the key comes from the PostHog project, not
+// from `supabase status`), so carry these across regenerations instead of
+// wiping them on every `pnpm setup:local`.
+const PRESERVED_OPTIONAL_CLIENT_KEYS = [
+	"VITE_POSTHOG_KEY",
+	"VITE_POSTHOG_HOST",
+	"VITE_POSTHOG_UI_HOST",
+	"VITE_POSTHOG_PROXY_TARGET",
+	"VITE_POSTHOG_AUTOCAPTURE",
+	"VITE_POSTHOG_SESSION_RECORDING",
+	"VITE_POSTHOG_IDENTIFY_EMAIL",
+	"VITE_POSTHOG_DEBUG",
+];
 const PRESERVED_OPTIONAL_SERVER_KEYS = [
 	"APP_BASE_URL",
 	"OPENAI_API_KEY",
@@ -99,18 +112,22 @@ export function parseSupabaseEnv(raw) {
 	};
 }
 
-export function buildClientEnv({ apiUrl, anonKey }) {
+export function buildClientEnv({ apiUrl, anonKey, existingEnv }) {
 	return [
 		GENERATED_HEADER,
 		`VITE_SUPABASE_URL=${apiUrl}`,
 		`VITE_SUPABASE_ANON_KEY=${anonKey}`,
 		"VITE_SLACK_CALLBACK_URL=http://localhost:5173/",
 		"VITE_API_PROXY_TARGET=http://127.0.0.1:8787",
+		...PRESERVED_OPTIONAL_CLIENT_KEYS.flatMap((key) => {
+			const value = extractExistingValue(existingEnv, key);
+			return value ? [`${key}=${value}`] : [];
+		}),
 		"",
 	].join("\n");
 }
 
-function extractExistingServerValue(existingEnv, key) {
+function extractExistingValue(existingEnv, key) {
 	if (!existingEnv) return null;
 	const match = existingEnv.match(new RegExp(`^${key}=(.+)$`, "m"));
 	return match ? match[1].trim() : null;
@@ -134,7 +151,7 @@ function mergeCsvValues(defaultValues, existingValue) {
 
 function preservedOptionalServerLines(existingEnv) {
 	return PRESERVED_OPTIONAL_SERVER_KEYS.flatMap((key) => {
-		const value = extractExistingServerValue(existingEnv, key);
+		const value = extractExistingValue(existingEnv, key);
 		return value ? [`${key}=${value}`] : [];
 	});
 }
@@ -150,10 +167,10 @@ export function buildServerEnv({
 	partnerPortalJobsApiToken,
 }) {
 	const resolvedEncryptionKey =
-		extractExistingServerValue(existingEnv, "FIELD_ENCRYPTION_KEY") ??
+		extractExistingValue(existingEnv, "FIELD_ENCRYPTION_KEY") ??
 		encryptionKey ??
 		DEFAULT_LOCAL_ENCRYPTION_KEY;
-	const existingFallbackKeys = extractExistingServerValue(
+	const existingFallbackKeys = extractExistingValue(
 		existingEnv,
 		"FIELD_ENCRYPTION_KEY_FALLBACKS",
 	);
@@ -181,11 +198,11 @@ export function buildServerEnv({
 	fallbackKeys = [
 		...new Set(fallbackKeys.filter((value) => value !== resolvedEncryptionKey)),
 	];
-	const existingPartnerPortalJobsApiUrl = extractExistingServerValue(
+	const existingPartnerPortalJobsApiUrl = extractExistingValue(
 		existingEnv,
 		"PARTNER_PORTAL_JOBS_API_URL",
 	);
-	const existingPartnerPortalJobsApiToken = extractExistingServerValue(
+	const existingPartnerPortalJobsApiToken = extractExistingValue(
 		existingEnv,
 		"PARTNER_PORTAL_JOBS_API_TOKEN",
 	);
@@ -196,11 +213,11 @@ export function buildServerEnv({
 		(resolvedPartnerPortalJobsApiToken
 			? (partnerPortalJobsApiUrl ?? DEFAULT_PARTNER_PORTAL_JOBS_API_URL)
 			: null);
-	const preservedLocalAdminEmails = extractExistingServerValue(
+	const preservedLocalAdminEmails = extractExistingValue(
 		existingEnv,
 		"LOCAL_ADMIN_EMAILS",
 	);
-	const preservedLocalAdminBootstrapFlag = extractExistingServerValue(
+	const preservedLocalAdminBootstrapFlag = extractExistingValue(
 		existingEnv,
 		"ENABLE_LOCAL_ADMIN_BOOTSTRAP",
 	);
@@ -246,6 +263,7 @@ export function writeEnvFiles({
 	clientEnvPath,
 	serverEnvPath,
 	defaultEncryptionKey = DEFAULT_LOCAL_ENCRYPTION_KEY,
+	existingClientEnv,
 	existingServerEnv,
 	partnerPortalJobsApiUrl,
 	partnerPortalJobsApiToken,
@@ -256,6 +274,7 @@ export function writeEnvFiles({
 	const clientEnv = buildClientEnv({
 		apiUrl: parsed.apiUrl,
 		anonKey: parsed.anonKey,
+		existingEnv: existingClientEnv ?? readIfExists(clientEnvPath) ?? undefined,
 	});
 
 	const serverEnv = buildServerEnv({
@@ -327,9 +346,7 @@ function runCli() {
 	const parsed = parseSupabaseEnv(raw);
 	const partnerPortalJobsApiToken =
 		partnerPortalEnvPaths
-			.map((path) =>
-				extractExistingServerValue(readIfExists(path), "MM_API_TOKEN"),
-			)
+			.map((path) => extractExistingValue(readIfExists(path), "MM_API_TOKEN"))
 			.find(Boolean) ?? null;
 	writeEnvFiles({
 		parsed,

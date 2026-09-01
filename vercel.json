@@ -1,21 +1,28 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
-  "outputDirectory": "client/dist",
-  "rewrites": [
-    {
-      "source": "/api/:path*",
-      "destination": "/api/[...path]"
-    },
-    {
-      "source": "/:path((?!api/).*)",
-      "destination": "/"
-    }
-  ],
-  "crons": [
-    {
-      "path": "/api/tum-ai-days/send-pending",
-      "schedule": "*/10 * * * *"
-    }
-  ]
+	"$schema": "https://openapi.vercel.sh/vercel.json",
+	"outputDirectory": "client/dist",
+	"rewrites": [
+		{
+			"source": "/ingest/static/:path*",
+			"destination": "https://eu-assets.i.posthog.com/static/:path*"
+		},
+		{
+			"source": "/ingest/:path*",
+			"destination": "https://eu.i.posthog.com/:path*"
+		},
+		{
+			"source": "/api/:path*",
+			"destination": "/api/[...path]"
+		},
+		{
+			"source": "/:path((?!api/).*)",
+			"destination": "/"
+		}
+	],
+	"crons": [
+		{
+			"path": "/api/tum-ai-days/send-pending",
+			"schedule": "*/10 * * * *"
+		}
+	]
 }
-

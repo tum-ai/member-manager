@@ -79,6 +79,12 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `VITE_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | anon key from Supabase dashboard |
 | `VITE_SLACK_CALLBACK_URL` | optional fallback override; usually `https://<prod-domain>/` |
+| `VITE_POSTHOG_KEY` | PostHog **project** API key (`phc_...`); leave unset to disable analytics entirely |
+| `VITE_POSTHOG_HOST` | `/ingest` (recommended, routes through the same-origin proxy) or `https://eu.i.posthog.com` |
+| `VITE_POSTHOG_UI_HOST` | `https://eu.posthog.com`; only needed when `VITE_POSTHOG_HOST` is the `/ingest` proxy |
+| `VITE_POSTHOG_AUTOCAPTURE` / `VITE_POSTHOG_SESSION_RECORDING` / `VITE_POSTHOG_IDENTIFY_EMAIL` | optional opt-ins, all default `false`; see [docs/analytics.md](./analytics.md) before enabling |
+
+> `VITE_*` values are inlined at build time, so changing them in Vercel only takes effect on the **next** deployment.
 
 > Preview deploys get their own domain (`*.vercel.app`). The client now redirects OAuth back to `window.location.origin`, so previews return to the preview deployment automatically. For that to work, Supabase must allow the preview hostname pattern in its Redirect URLs list.
 

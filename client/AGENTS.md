@@ -20,6 +20,11 @@ Package: `@member-manager/client`.
 - `src/components/ui/` — shadcn/radix primitives (exempt from size + default-export rules). Don't hand-roll.
 - `src/components/layout/`, `src/components/foundations/` — shell + design primitives.
 - `src/lib/apiClient.ts` — the only way to call the backend. `src/lib/queryClient.ts` — query client.
+- `src/lib/analytics.ts` + `src/hooks/useAnalytics.ts` — PostHog. Off unless `VITE_POSTHOG_KEY`
+  is set. Capture from hooks via `useAnalytics().capture("noun_verbed", ...)`; never put PII or
+  sensitive fields in event properties. **A new route with a token or id in its path needs a rule
+  in `PATH_TEMPLATES` (`lib/analytics.ts`) plus a test**, or the value ships to PostHog.
+  See [docs/analytics.md](../docs/analytics.md).
 - `src/contexts/` — `ToastContext` (`useToast`), etc.
 - `src/test/` — `setup.ts`, `mswServer.ts` (MSW), `renderWithClient.tsx` (RTL helper).
 

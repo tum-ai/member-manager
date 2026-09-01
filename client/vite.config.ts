@@ -8,6 +8,17 @@ import { defineConfig, loadEnv } from "vite";
 export default defineConfig(({ mode }) => {
 	const env = loadEnv(mode, process.cwd(), "");
 
+	// PostHog's ingestion host, used only by the dev-server `/ingest` proxy that
+	// mirrors the production rewrites in vercel.json. The asset host serves the
+	// lazily-loaded extensions (session recorder, surveys) and follows PostHog's
+	// `<region>.i` -> `<region>-assets.i` naming.
+	const posthogHost =
+		env.VITE_POSTHOG_PROXY_TARGET || "https://eu.i.posthog.com";
+	const posthogAssetsHost = posthogHost.replace(
+		".i.posthog.com",
+		"-assets.i.posthog.com",
+	);
+
 	return {
 		plugins: [react(), tailwindcss()],
 		resolve: {
@@ -26,6 +37,19 @@ export default defineConfig(({ mode }) => {
 				"/api": {
 					target: env.VITE_API_PROXY_TARGET || "http://127.0.0.1:8787",
 					changeOrigin: true,
+				},
+				// Same-origin PostHog proxy, matching the `/ingest` rewrites in
+				// vercel.json so `VITE_POSTHOG_HOST=/ingest` behaves identically in
+				// dev and production. Longest prefix first - Vite matches in key order.
+				"/ingest/static": {
+					target: posthogAssetsHost,
+					changeOrigin: true,
+					rewrite: (path) => path.replace(/^\/ingest/, ""),
+				},
+				"/ingest": {
+					target: posthogHost,
+					changeOrigin: true,
+					rewrite: (path) => path.replace(/^\/ingest/, ""),
 				},
 			},
 		},

@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { initAnalytics } from "@/lib/analytics";
 import "./index.css";
 
 function getErrorMessage(error: unknown): string {
@@ -33,6 +34,9 @@ function renderStartupError(message: string): void {
 
 async function bootstrap(): Promise<void> {
 	console.log("Starting app...");
+	// Fire-and-forget: PostHog loads in its own chunk and no-ops when unconfigured,
+	// so a slow or blocked analytics request never delays the first render.
+	void initAnalytics();
 	const rootElement = document.getElementById("root");
 
 	if (!rootElement) {
