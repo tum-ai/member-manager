@@ -29,7 +29,7 @@
 		"@vercel/sandbox": "^3.0.0",
 		"docx-templates": "^4.14.1",
 		"dotenv": "^16.6.1",
-		"fastify": "^5.8.5",
+		"fastify": "^5.12.1",
 		"fastify-plugin": "^5.1.0",
 		"jszip": "^3.10.1",
 		"pdf-lib": "^1.17.1",
