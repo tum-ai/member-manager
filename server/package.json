@@ -19,28 +19,28 @@
 		"test:coverage": "c8 --reporter=text-summary --reporter=lcov --reporter=json-summary --all --src=src --check-coverage --lines=70 --functions=70 --branches=50 --statements=70 tsx --test test/**/*.test.ts"
 	},
 	"dependencies": {
-		"@fastify/cors": "^11.2.0",
-		"@fastify/helmet": "^13.0.2",
+		"@fastify/cors": "^11.3.0",
+		"@fastify/helmet": "^13.1.1",
 		"@fastify/multipart": "^10.1.0",
 		"@fastify/rate-limit": "^10.3.0",
 		"@member-manager/shared": "workspace:*",
-		"@supabase/supabase-js": "^2.108.1",
-		"@vercel/functions": "^3.9.3",
-		"@vercel/sandbox": "^3.0.0",
+		"@supabase/supabase-js": "^2.112.4",
+		"@vercel/functions": "^3.9.5",
+		"@vercel/sandbox": "^3.2.1",
 		"docx-templates": "^4.14.1",
 		"dotenv": "^16.6.1",
 		"fastify": "^5.12.1",
 		"fastify-plugin": "^5.1.0",
 		"jszip": "^3.10.1",
 		"pdf-lib": "^1.17.1",
-		"pdfjs-dist": "^6.2.108",
-		"zod": "^4.4.3"
+		"pdfjs-dist": "^6.3.289",
+		"zod": "^4.5.4"
 	},
 	"devDependencies": {
-		"@types/node": "^24.13.2",
+		"@types/node": "^24.13.3",
 		"c8": "^11.0.0",
 		"cross-env": "^10.1.0",
-		"tsx": "^4.22.4",
+		"tsx": "^4.23.13",
 		"typescript": "^5.9.3"
 	}
 }
