@@ -10,6 +10,9 @@ permissions:
 jobs:
   dependency-review:
     name: Dependency Review
+    # GitHub Free does not provide dependency review for private repositories.
+    # Keep the workflow active for public repositories, where this job runs.
+    if: github.event.repository.visibility != 'private'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

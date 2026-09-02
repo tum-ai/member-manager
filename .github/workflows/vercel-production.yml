@@ -1,0 +1,135 @@
+name: Vercel Production
+
+on:
+  # This workflow is intentionally triggered only after the trusted CI
+  # workflow completes. The workflow_run event executes this file from the
+  # repository's default branch, while checkout below pins the deployment to
+  # the exact commit that CI validated.
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Queue production deployments. A newer deployment must not cancel one that is
+# already building or promoting.
+concurrency:
+  group: vercel-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy production
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout CI-validated commit
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+
+      - name: Validate Vercel repository secrets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for secret_name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [[ -z "${!secret_name:-}" ]]; then
+              missing+=("$secret_name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing required repository secret(s): ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@59.11.2 --no-fund --no-audit
+
+      - name: Pull production environment and project settings
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Build production artifacts
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel build --prod --token="$VERCEL_TOKEN"
+
+      - name: Verify main is still current
+        id: freshness
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SHA: ${{ github.event.workflow_run.head_sha }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          current_sha="$(gh api -H 'Accept: application/vnd.github+json' \
+            "repos/${REPOSITORY}/git/ref/heads/main" --jq '.object.sha')"
+          if [[ ! "$current_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "::error::GitHub returned an invalid main tip SHA."
+            exit 1
+          fi
+          if [[ "$current_sha" != "$EXPECTED_SHA" ]]; then
+            echo "current=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Vercel production deployment skipped"
+              echo "- Status: skipped as stale"
+              echo "- CI SHA: \`$EXPECTED_SHA\`"
+              echo "- Current main SHA: \`$current_sha\`"
+              echo "- Reason: a newer commit reached main before deployment."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "current=true" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy prebuilt production artifacts
+        id: deploy
+        if: steps.freshness.outputs.current == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployment_output="$(vercel deploy --prebuilt --prod --yes --token="$VERCEL_TOKEN" 2>&1)"
+          printf '%s\n' "$deployment_output"
+          deployment_url="$(printf '%s\n' "$deployment_output" | grep -Eo 'https://[^[:space:]]+' | tail -n 1 || true)"
+          if [[ ! "$deployment_url" =~ ^https:// ]]; then
+            echo "::error::Vercel did not return a deployment URL."
+            exit 1
+          fi
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+
+      - name: Summarize production deployment
+        if: steps.freshness.outputs.current == 'true'
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Vercel production deployment"
+            echo "- Target: production"
+            echo "- SHA: \`$HEAD_SHA\`"
+            echo "- URL: $DEPLOYMENT_URL"
+          } >> "$GITHUB_STEP_SUMMARY"

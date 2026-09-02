@@ -1,6 +1,6 @@
 # Deployment Guide
 
-Production lives on **Vercel**, backed by the hosted **Supabase** project. There is no bespoke infra — deployment is a `git push` to `main` once the pieces below are in place.
+Production lives on **Vercel**, backed by the hosted **Supabase** project. After the private-repository cutover, production deploys are owned by the trusted GitHub Actions workflow described below. A push to `main` is eligible only after the complete CI workflow, including migrations, succeeds.
 
 ## Architecture
 
@@ -8,7 +8,7 @@ Production lives on **Vercel**, backed by the hosted **Supabase** project. There
 Browser
    │
    ▼
-Vercel static hosting (client/dist)  ◄── built by `pnpm build` in the Vercel build step
+Vercel static hosting (client/dist)  ◄── uploaded as a prebuilt artifact by GitHub Actions
    │
    │ same-origin /api/* (rewrite in vercel.json)
    ▼
@@ -21,9 +21,15 @@ Hosted Supabase  (Auth, Postgres, Storage)
    │ OAuth callback
    │
 Slack app
+
+GitHub Actions
+   │
+   ├── CI (lint, typecheck, test, build, migrations)
+   ├── Vercel Production (successful `main` push, exact CI SHA)
+   └── Vercel Preview (maintainer/admin `/deploy-preview` comment, exact PR SHA)
 ```
 
-Key consequence: `api/[...path].ts` imports `server/dist/*`, so **`pnpm build` must run before any deploy**. Vercel does this automatically via the workspace `build` script; don't break that.
+Key consequence: `api/[...path].ts` imports `server/dist/*`, so **the Actions toolchain setup and `vercel build` must run before any deploy**. The deployment workflows upload the resulting `.vercel/output` directory with `vercel deploy --prebuilt`; Vercel's Git integration must not also deploy the same commit.
 
 ## Pre-deploy checklist
 
@@ -123,33 +129,48 @@ Migrations in `supabase/migrations/` apply locally via `pnpm supabase:reset`. Fo
 
 If local and hosted schemas drift, `/api/members` and friends will 500 in prod with DB errors. Keep schema changes in migrations and do not hand-edit production tables in Supabase Studio.
 
-### 5. Vercel deployment checks
+### 5. Vercel Git integration and deployment ownership
 
-Vercel auto-deploys GitHub pushes: PRs become preview deployments, and pushes to `main` become production deployments. To keep production from going live before migrations finish, configure a Vercel Deployment Check:
+Before the private-repository cutover, Vercel's Git integration may still create automatic deployments. The intended post-cutover ownership is:
 
-1. In Vercel, open this project's **Settings -> Build and Deployment -> Deployment Checks**.
-2. Add a **GitHub** check for the GitHub Actions check named `Production Supabase Migrations`.
-3. Keep automatic production aliasing enabled.
+- `Vercel Production` runs only after the trusted `CI` workflow succeeds for a push to `main`. It checks out `github.event.workflow_run.head_sha`, builds locally, and uploads a prebuilt production artifact.
+- Immediately before the production deploy, the workflow reads the current `main` tip through the GitHub API and compares it with the CI SHA. If `main` advanced while the run was queued or building, the deployment is skipped and the Actions summary records both SHAs.
+- `Vercel Preview` runs only for a newly created issue comment whose trimmed body is exactly `/deploy-preview`. The commenter must have the GitHub API `role_name` `maintain` or `admin`, the PR must be open, and the PR head repository must be `tum-ai/member-manager`. It checks out and reports the exact PR head SHA.
+- Preview deployment is split across four trust boundaries: authorization resolves the PR head, a default-branch job pulls the branch-specific preview settings and uploads only `.vercel/project.json` plus `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, and `VITE_SLACK_CALLBACK_URL`, the PR build receives that sanitized context without `VERCEL_TOKEN` or other secrets, and a final job deploys only the uploaded `.vercel/output` without checking out or executing PR code. Only these public `VITE_` values reach a preview build. The IDs in `project.json` identify the Vercel project but are not deployment credentials.
+- A new PR SHA needs a new `/deploy-preview` comment. Preview deployments are not triggered by arbitrary pushes or by `pull_request_target`.
+- Both workflows serialize deployments and never cancel an active deployment. Their workflow files run from the default branch, while only the authorized commit is checked out for the build.
 
-With that check selected, Vercel may still build the production deployment immediately after the `main` push, but it will not assign it to the production domain until `Production Supabase Migrations` passes.
+After the Actions workflows have been verified, disconnect the project's Vercel Git integration immediately before merging the cutover change. This prevents duplicate Git-triggered builds and leaves GitHub Actions as the only production deployment path. Keep the Vercel project and domains in place.
 
 ### 6. GitHub Actions secrets (Turborepo remote cache)
 
-CI runs `build`/`typecheck`/`lint`/`test` through Turborepo and uses Vercel's remote cache so unchanged packages are restored instead of rebuilt. Add two repo secrets (**Settings → Secrets and variables → Actions**). Until they exist, CI still runs — it just skips remote caching, so this is optional but recommended.
+CI runs `build`/`typecheck`/`lint`/`test` through Turborepo and uses Vercel's remote cache so unchanged packages are restored instead of rebuilt. The deployment workflows also require three repository secrets (**Settings → Secrets and variables → Actions**):
 
 | Secret | Value | How to get it |
 | --- | --- | --- |
-| `TURBO_TOKEN` | a Vercel access token | <https://vercel.com/account/tokens> → Create Token, **scoped to the `tum-ai` team**, with an expiry (rotate it) |
+| `VERCEL_TOKEN` | least-privilege Vercel deployment token | Vercel account/team token settings; rotate on expiry or suspected exposure |
+| `VERCEL_ORG_ID` | Vercel team/organization ID | Vercel project link metadata (`.vercel/project.json`) |
+| `VERCEL_PROJECT_ID` | Vercel project ID | Vercel project link metadata (`.vercel/project.json`) |
+
+The workflows fail closed when any of these values is missing and never print their values. `VERCEL_TOKEN` is used only by the Vercel pull, build, and deploy steps. Keep the deployment token separate from the Turborepo cache credential.
+
+For the optional remote cache, add two more repository secrets:
+
+| Secret | Value | How to get it |
+| --- | --- | --- |
+| `TURBO_TOKEN` | a separate, expiring Vercel team access token | <https://vercel.com/account/tokens> → Create Token, **scoped to the `tum-ai` team**, with an expiry (rotate it) |
 | `TURBO_TEAM` | `tum-ai` | the team's URL slug (Team Settings → General → Team URL — the `vercel.com/<slug>` part, not the display name) |
+
+`TURBO_TOKEN` must never be reused as `VERCEL_TOKEN`, and `VERCEL_TOKEN` must never be reused as `TURBO_TOKEN`. Until the cache secrets exist, CI still runs — it simply skips remote caching.
 
 Or via CLI:
 
 ```bash
-gh secret set TURBO_TOKEN --repo tum-ai/member-manager   # paste the token when prompted
+gh secret set TURBO_TOKEN --repo tum-ai/member-manager   # paste the separate expiring team token when prompted
 gh secret set TURBO_TEAM  --repo tum-ai/member-manager --body "tum-ai"
 ```
 
-Safety: only pushes to `main` may **write** the shared cache (`TURBO_CACHE=remote:rw` in `ci.yml`); every PR is read-only (`remote:r`), so a branch can't poison the cache that later runs trust. Fork PRs receive no secrets and run without the cache. Scope the token to the team and give it an expiry — if leaked it grants Vercel team API access.
+Safety: only pushes to `main` may **write** the shared cache (`TURBO_CACHE=remote:rw` in `ci.yml`); every PR is read-only (`remote:r`), so a branch can't poison the cache that later runs trust. Fork PRs receive no secrets and run without the cache. Scope the cache token to the team and give it an expiry — if leaked it grants Vercel team API access.
 
 Optional — let local builds share the same cache:
 
@@ -157,6 +178,19 @@ Optional — let local builds share the same cache:
 pnpm exec turbo login
 pnpm exec turbo link   # select the TUM-ai team
 ```
+
+### Private-repository cutover
+
+Use this sequence so the deployment owner changes without a duplicate build or a migration race:
+
+1. Add and verify `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` in the repository Actions secrets. Add the separate `TURBO_TOKEN` and `TURBO_TEAM` only if remote caching is wanted. Confirm the token values are current, scoped to the intended team/project, and have an expiry policy.
+2. Confirm the pull request's CI checks are green and review the deployment workflows. Do not merge yet.
+3. Immediately before merging, disconnect the Vercel project's Git integration. This is the narrow cutover window in which no Git-triggered Vercel deployment should be allowed to race the Actions deployment.
+4. Merge the cutover change into `main`. Wait for `CI` to complete successfully, then verify `Vercel Production` reports the exact `workflow_run.head_sha` and a production URL.
+5. Run the post-deploy smoke checks below against the production domain. Confirm the migration parity check and the app/auth probes before treating the cutover as complete.
+6. Change the GitHub repository visibility to private. GitHub Free provides only 2,000 shared Actions minutes per month, does not provide private-environment secrets, and skips CodeQL/dependency review for private repositories without paid Code Security. The Vercel deployment secrets remain repository Actions secrets, so validate them again after the visibility change.
+
+Rollback: if the Actions deployment or smoke checks fail before the cutover is accepted, reconnect the Vercel Git integration to restore the prior deployment path, then investigate the failed SHA. Preserve migration ordering and do not treat a Vercel build as proof that the database migration or runtime probes succeeded. After recovery, repeat the cutover with fresh secret and workflow evidence.
 
 ## Field encryption and rotation
 
@@ -197,15 +231,17 @@ Rotate without downtime:
 
 ## Deploying
 
-Push to `main`. GitHub Actions applies pending Supabase migrations in the `Production Supabase Migrations` job, while Vercel runs:
+Push to `main`. GitHub Actions first runs the complete `CI` workflow, including the `Production Supabase Migrations` job. Only a successful push-triggered CI run can start `Vercel Production`, which runs from the default-branch workflow and deploys the exact `workflow_run.head_sha`:
 
 ```bash
-pnpm install
-pnpm build        # builds client/dist AND server/dist
-# then deploys client/dist as static + api/[...path].ts as a Node function
+pnpm install                         # performed by ./.github/actions/setup
+pnpm build:shared                    # performed by ./.github/actions/setup
+vercel pull --yes --environment=production
+vercel build --prod --token=$VERCEL_TOKEN
+vercel deploy --prebuilt --prod --yes
 ```
 
-The Vercel Deployment Check above is required for correct production ordering. Keep app and schema changes backward compatible anyway; preview deployments still use their own Vercel URLs and may run before production migrations have landed.
+The workflow pins the Vercel CLI to `59.11.2`, validates all three Vercel repository secrets, serializes production deployments, and records the target, exact SHA, and URL in the Actions summary. Keep app and schema changes backward compatible anyway. A maintainer or administrator can request a preview by adding a new `/deploy-preview` comment to an open same-repository PR; that workflow also builds and deploys a prebuilt artifact and comments the URL plus exact PR SHA.
 
 For a dry run of the prod request path locally:
 
