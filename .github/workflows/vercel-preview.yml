@@ -1,0 +1,344 @@
+name: Vercel Preview
+
+on:
+  issue_comment:
+    types: [created]
+
+# Jobs opt into only the permissions they need. In particular, the PR build
+# has no token that can deploy to Vercel or write back to GitHub.
+permissions: {}
+
+# A preview command for one PR is processed in order. A later comment is a
+# separate command and therefore deploys the SHA that was current then.
+concurrency:
+  group: vercel-preview-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+jobs:
+  authorize:
+    name: Authorize preview deployment
+    permissions:
+      contents: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    outputs:
+      should_deploy: ${{ steps.command.outputs.should_deploy }}
+      head_sha: ${{ steps.pr.outputs.head_sha }}
+      head_ref: ${{ steps.pr.outputs.head_ref }}
+      pr_number: ${{ steps.pr.outputs.pr_number }}
+    steps:
+      - name: Check deployment command
+        id: command
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
+          ISSUE_IS_PR: ${{ github.event.issue.pull_request != null }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          trimmed="$COMMENT_BODY"
+          trimmed="${trimmed#"${trimmed%%[![:space:]]*}"}"
+          trimmed="${trimmed%"${trimmed##*[![:space:]]}"}"
+          if [[ "$ISSUE_IS_PR" != "true" || "$trimmed" != "/deploy-preview" ]]; then
+            echo "should_deploy=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_deploy=true" >> "$GITHUB_OUTPUT"
+
+      - name: Authorize maintainer and resolve PR head
+        id: pr
+        if: steps.command.outputs.should_deploy == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMENT_AUTHOR: ${{ github.event.comment.user.login }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          permission_json="$(gh api -H 'Accept: application/vnd.github+json' \
+            "repos/${REPOSITORY}/collaborators/${COMMENT_AUTHOR}/permission")"
+          role_name="$(jq -r '.role_name // empty' <<< "$permission_json")"
+          if [[ "$role_name" != "maintain" && "$role_name" != "admin" ]]; then
+            echo "::error::Only repository maintainers or administrators may deploy previews."
+            exit 1
+          fi
+
+          pr_json="$(gh api -H 'Accept: application/vnd.github+json' \
+            "repos/${REPOSITORY}/pulls/${PR_NUMBER}")"
+          state="$(jq -r '.state // empty' <<< "$pr_json")"
+          head_repository="$(jq -r '.head.repo.full_name // empty' <<< "$pr_json")"
+          base_repository="$(jq -r '.base.repo.full_name // empty' <<< "$pr_json")"
+          head_sha="$(jq -r '.head.sha // empty' <<< "$pr_json")"
+          head_ref="$(jq -r '.head.ref // empty' <<< "$pr_json")"
+          if [[ "$state" != "open" ]]; then
+            echo "::error::The pull request is not open."
+            exit 1
+          fi
+          if [[ "$head_repository" != "$REPOSITORY" || "$base_repository" != "$REPOSITORY" ]]; then
+            echo "::error::Preview deployment is limited to pull requests from this repository."
+            exit 1
+          fi
+          if [[ ! "$head_sha" =~ ^[0-9a-fA-F]{40}$ || -z "$head_ref" ]]; then
+            echo "::error::GitHub returned an invalid pull request head."
+            exit 1
+          fi
+
+          {
+            echo "head_sha=$head_sha"
+            echo "head_ref=$head_ref"
+            echo "pr_number=$PR_NUMBER"
+          } >> "$GITHUB_OUTPUT"
+
+  prepare:
+    name: Prepare trusted preview context
+    needs: authorize
+    if: >-
+      needs.authorize.result == 'success' &&
+      needs.authorize.outputs.should_deploy == 'true'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      # issue_comment workflows are loaded from the default branch. Keep this
+      # checkout on that branch so only trusted code prepares the Vercel
+      # settings artifact; the PR is checked out only by the unprivileged build.
+      - name: Checkout default branch
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Validate Vercel repository secrets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for secret_name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [[ -z "${!secret_name:-}" ]]; then
+              missing+=("$secret_name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing required repository secret(s): ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@59.11.2 --no-fund --no-audit
+
+      - name: Pull preview environment and project settings
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          HEAD_REF: ${{ needs.authorize.outputs.head_ref }}
+        run: vercel pull --yes --environment=preview --git-branch="$HEAD_REF" --token="$VERCEL_TOKEN"
+
+      - name: Create sanitized preview context
+        shell: bash
+        run: |
+          set -euo pipefail
+          context_dir="$RUNNER_TEMP/vercel-preview-context"
+          mkdir -p "$context_dir/.vercel"
+          test -f .vercel/project.json
+          cp .vercel/project.json "$context_dir/.vercel/project.json"
+
+          if [[ -f .vercel/.env.preview.local ]]; then
+            awk '
+              /^VITE_SUPABASE_URL=/ && !seen["VITE_SUPABASE_URL"]++ { print; next }
+              /^VITE_SUPABASE_ANON_KEY=/ && !seen["VITE_SUPABASE_ANON_KEY"]++ { print; next }
+              /^VITE_SLACK_CALLBACK_URL=/ && !seen["VITE_SLACK_CALLBACK_URL"]++ { print; next }
+            ' .vercel/.env.preview.local > "$context_dir/.vercel/.env.preview.local"
+          else
+            : > "$context_dir/.vercel/.env.preview.local"
+          fi
+
+          for variable_name in VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY; do
+            if ! grep -q "^${variable_name}=" "$context_dir/.vercel/.env.preview.local"; then
+              echo "::error::Missing required public preview build variable: $variable_name"
+              exit 1
+            fi
+          done
+
+      - name: Upload sanitized preview context
+        uses: actions/upload-artifact@v4
+        with:
+          name: vercel-preview-context-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/vercel-preview-context
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  build:
+    name: Build preview artifact
+    needs: [authorize, prepare]
+    if: >-
+      needs.authorize.result == 'success' &&
+      needs.prepare.result == 'success' &&
+      needs.authorize.outputs.should_deploy == 'true'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout authorized PR head
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ needs.authorize.outputs.head_sha }}
+          persist-credentials: false
+
+      - name: Download sanitized preview context
+        uses: actions/download-artifact@v4
+        with:
+          name: vercel-preview-context-${{ github.run_id }}-${{ github.run_attempt }}
+          path: preview-context
+
+      - name: Setup toolchain
+        uses: ./.github/actions/setup
+
+      - name: Restore sanitized Vercel context
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_json="$(find preview-context -type f -name project.json -print -quit)"
+          env_file="$(find preview-context -type f -name .env.preview.local -print -quit)"
+          if [[ -z "$project_json" || -z "$env_file" ]]; then
+            echo "::error::Sanitized Vercel context is incomplete."
+            exit 1
+          fi
+          mkdir -p .vercel
+          cp "$project_json" .vercel/project.json
+          cp "$env_file" .vercel/.env.preview.local
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@59.11.2 --no-fund --no-audit
+
+      - name: Build preview artifacts
+        run: vercel build
+
+      - name: Upload prebuilt preview output
+        uses: actions/upload-artifact@v4
+        with:
+          name: vercel-preview-output-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .vercel/output
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy:
+    name: Deploy preview artifact
+    needs: [authorize, prepare, build]
+    if: >-
+      needs.authorize.result == 'success' &&
+      needs.prepare.result == 'success' &&
+      needs.build.result == 'success' &&
+      needs.authorize.outputs.should_deploy == 'true'
+    permissions:
+      issues: write
+    runs-on: ubuntu-latest
+    steps:
+      # This job intentionally has no checkout and no setup action. It only
+      # restores the trusted project identifier and uploads the build output;
+      # no PR package script or source file is executed with deployment access.
+      - name: Download sanitized preview context
+        uses: actions/download-artifact@v4
+        with:
+          name: vercel-preview-context-${{ github.run_id }}-${{ github.run_attempt }}
+          path: preview-context
+
+      - name: Download prebuilt preview output
+        uses: actions/download-artifact@v4
+        with:
+          name: vercel-preview-output-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .vercel/output
+
+      - name: Restore trusted Vercel project context
+        shell: bash
+        run: |
+          set -euo pipefail
+          project_json="$(find preview-context -type f -name project.json -print -quit)"
+          if [[ -z "$project_json" ]]; then
+            echo "::error::Sanitized Vercel project context is missing."
+            exit 1
+          fi
+          mkdir -p .vercel
+          cp "$project_json" .vercel/project.json
+
+      - name: Validate Vercel repository secrets
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=()
+          for secret_name in VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [[ -z "${!secret_name:-}" ]]; then
+              missing+=("$secret_name")
+            fi
+          done
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing required repository secret(s): ${missing[*]}"
+            exit 1
+          fi
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@59.11.2 --no-fund --no-audit
+
+      - name: Deploy prebuilt preview artifacts
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          deployment_output="$(vercel deploy --prebuilt --yes --token="$VERCEL_TOKEN" 2>&1)"
+          printf '%s\n' "$deployment_output"
+          deployment_url="$(printf '%s\n' "$deployment_output" | grep -Eo 'https://[^[:space:]]+' | tail -n 1 || true)"
+          if [[ ! "$deployment_url" =~ ^https:// ]]; then
+            echo "::error::Vercel did not return a deployment URL."
+            exit 1
+          fi
+          echo "url=$deployment_url" >> "$GITHUB_OUTPUT"
+
+      - name: Comment preview deployment URL
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+          REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST -H 'Accept: application/vnd.github+json' \
+            "repos/${REPOSITORY}/issues/${PR_NUMBER}/comments" \
+            -f "body=Vercel preview deployed for commit \`${HEAD_SHA}\`: ${DEPLOYMENT_URL}"
+
+      - name: Summarize preview deployment
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          HEAD_SHA: ${{ needs.authorize.outputs.head_sha }}
+          PR_NUMBER: ${{ needs.authorize.outputs.pr_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "## Vercel preview deployment"
+            echo "- Target: preview"
+            echo "- Pull request: #$PR_NUMBER"
+            echo "- SHA: \`$HEAD_SHA\`"
+            echo "- URL: $DEPLOYMENT_URL"
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -16,6 +16,9 @@ permissions:
 jobs:
   analyze:
     name: Analyze (javascript-typescript)
+    # GitHub Free does not provide Code Security for private repositories.
+    # Keep the workflow active for public repositories, where this job runs.
+    if: github.event.repository.visibility != 'private'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
