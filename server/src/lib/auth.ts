@@ -2,6 +2,7 @@ import {
 	type EducationalCourseRole,
 	educationalCourseRoleSchema,
 	isActiveMember,
+	isVividReimbursementEligibleMember,
 	type Permission,
 } from "@member-manager/shared";
 import { fetchDepartmentPermissions } from "./departmentPermissions.js";
@@ -111,6 +112,41 @@ export async function checkReimbursementReviewer(
 	userId: string,
 ): Promise<boolean> {
 	return checkDepartmentPermission(userId, "finance.review");
+}
+
+/**
+ * Vivid reimbursement submission gate. Admins bypass member-role checks;
+ * everyone else must be an active Team Lead, President, or Vice-President.
+ * The pure role/status predicate lives in shared so the database policy and
+ * client contract can use the same canonical role set.
+ */
+export async function checkVividReimbursementEligibility(
+	userId: string,
+): Promise<boolean> {
+	if (await checkAdminRole(userId)) {
+		return true;
+	}
+
+	const { data, error } = await getSupabase()
+		.from("members")
+		.select("member_role, member_status, active")
+		.eq("user_id", userId)
+		.maybeSingle();
+
+	if (error) {
+		if (isNotFoundError(error)) {
+			return false;
+		}
+		throw new DatabaseError("Failed to check Vivid reimbursement access");
+	}
+
+	return isVividReimbursementEligibleMember(
+		(data as {
+			member_role?: string | null;
+			member_status?: string | null;
+			active?: boolean | null;
+		} | null) ?? null,
+	);
 }
 
 // Members whose department grants `finance.department` may view their own

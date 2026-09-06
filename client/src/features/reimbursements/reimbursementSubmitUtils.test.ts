@@ -81,6 +81,18 @@ describe("getStatusLabel", () => {
 	it("defaults to Pending", () => {
 		expect(getStatusLabel(makeRequest())).toBe("Pending");
 	});
+
+	it("labels Vivid requests as requiring no payment", () => {
+		expect(
+			getStatusLabel(
+				makeRequest({
+					submission_type: "vivid_reimbursement",
+					approval_status: "approved",
+					payment_status: "not_required",
+				}),
+			),
+		).toBe("No payment required");
+	});
 });
 
 describe("getRequestTypeLabel", () => {
@@ -91,6 +103,11 @@ describe("getRequestTypeLabel", () => {
 		expect(
 			getRequestTypeLabel(makeRequest({ submission_type: "reimbursement" })),
 		).toBe("Reimbursement");
+		expect(
+			getRequestTypeLabel(
+				makeRequest({ submission_type: "vivid_reimbursement" }),
+			),
+		).toBe("Vivid Reimbursement");
 	});
 });
 
@@ -201,4 +218,28 @@ describe("validateForm", () => {
 				.paymentIban,
 		).toBe("Enter a valid IBAN.");
 	});
+
+	it("does not require bank details for Vivid", () => {
+		expect(
+			validateForm(
+				values({
+					submissionType: "vivid_reimbursement",
+					paymentIban: "",
+					paymentBic: "",
+				}),
+			),
+		).toEqual({});
+	});
+});
+
+it("keeps a pending Vivid expense pending in member history", () => {
+	expect(
+		getStatusLabel(
+			makeRequest({
+				submission_type: "vivid_reimbursement",
+				approval_status: "pending",
+				payment_status: "not_required",
+			}),
+		),
+	).toBe("Pending");
 });

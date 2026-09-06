@@ -49,11 +49,12 @@ export async function loginWithSeedEmail(
 	await expectAuthenticated(page);
 }
 
-// The authenticated shell renders the persistent "Tools" sidebar section label
-// (shadcn sidebar group label). Its presence is a stable signal that auth
-// completed and the app shell mounted.
+// The authenticated shell exposes its sidebar toggle on desktop and mobile,
+// including when the mobile navigation itself is closed.
 export async function expectAuthenticated(page: Page): Promise<void> {
-	await expect(page.getByText("Tools", { exact: true })).toBeVisible();
+	await expect(
+		page.getByRole("button", { name: "Toggle Sidebar" }),
+	).toBeVisible();
 }
 
 // Sonner toasts render their message as plain text; assert on the message we

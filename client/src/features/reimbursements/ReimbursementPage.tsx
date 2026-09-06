@@ -22,6 +22,7 @@ export default function ReimbursementPage({
 		isDraggingReceipt,
 		setIsDraggingReceipt,
 		isSubmitDisabled,
+		canSubmitVivid,
 		showDepartmentWarning,
 		sortedRequests,
 		setField,
@@ -50,6 +51,7 @@ export default function ReimbursementPage({
 					isReceiptBusy={isReceiptBusy}
 					isDraggingReceipt={isDraggingReceipt}
 					isSubmitDisabled={isSubmitDisabled}
+					canSubmitVivid={canSubmitVivid}
 					showDepartmentWarning={showDepartmentWarning}
 					onDraggingChange={setIsDraggingReceipt}
 					onReceiptDrop={handleReceiptDrop}

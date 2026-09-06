@@ -1,21 +1,111 @@
-export type {
-	ReimbursementApprovalStatus,
-	ReimbursementBuchhaltungsButlerSyncStatus,
-	ReimbursementPaymentStatus,
-	ReimbursementRequest as SharedReimbursementRequest,
-	ReimbursementReviewAction,
-	ReimbursementStatus,
-	ReimbursementSubmissionType,
-} from "@member-manager/shared";
+import { z } from "zod";
+import { isActiveMember } from "./permissions.js";
 
-import type {
-	ReimbursementApprovalStatus,
-	ReimbursementBuchhaltungsButlerSyncStatus,
-	ReimbursementPaymentStatus,
-	ReimbursementReviewAction,
-	ReimbursementStatus,
-	ReimbursementSubmissionType,
-} from "@member-manager/shared";
+/** Submission variants supported by the reimbursement workflow. */
+export const REIMBURSEMENT_SUBMISSION_TYPES = [
+	"reimbursement",
+	"invoice",
+	"vivid_reimbursement",
+] as const;
+
+export type ReimbursementSubmissionType =
+	(typeof REIMBURSEMENT_SUBMISSION_TYPES)[number];
+
+/** Canonical parser for API payloads containing a reimbursement variant. */
+export const reimbursementSubmissionTypeSchema = z.enum(
+	REIMBURSEMENT_SUBMISSION_TYPES,
+);
+
+/** Lifecycle states used by the reimbursement record. */
+export const REIMBURSEMENT_STATUSES = [
+	"requested",
+	"rejected",
+	"paid",
+] as const;
+export type ReimbursementStatus = (typeof REIMBURSEMENT_STATUSES)[number];
+
+export const REIMBURSEMENT_APPROVAL_STATUSES = [
+	"pending",
+	"approved",
+	"not_approved",
+] as const;
+export type ReimbursementApprovalStatus =
+	(typeof REIMBURSEMENT_APPROVAL_STATUSES)[number];
+
+/** Payment state; Vivid expenses use `not_required` because they are never paid through this tool. */
+export const REIMBURSEMENT_PAYMENT_STATUSES = [
+	"to_be_paid",
+	"paid",
+	"not_required",
+] as const;
+export type ReimbursementPaymentStatus =
+	(typeof REIMBURSEMENT_PAYMENT_STATUSES)[number];
+
+export const REIMBURSEMENT_REVIEW_ACTIONS = [
+	"approve",
+	"reject",
+	"mark_paid",
+] as const;
+export type ReimbursementReviewAction =
+	(typeof REIMBURSEMENT_REVIEW_ACTIONS)[number];
+
+export type ReimbursementBuchhaltungsButlerSyncStatus =
+	| "not_synced"
+	| "pending"
+	| "synced"
+	| "failed";
+
+export const VIVID_REIMBURSEMENT_SUBMISSION_TYPE =
+	"vivid_reimbursement" as const;
+
+/** Member roles allowed to submit Vivid expenses when the member is active. */
+export const VIVID_REIMBURSEMENT_ELIGIBLE_MEMBER_ROLES = [
+	"Team Lead",
+	"President",
+	"Vice-President",
+] as const;
+
+export interface VividReimbursementEligibilityMember {
+	member_role?: string | null;
+	member_status?: string | null;
+	active?: boolean | null;
+}
+
+/**
+ * Resolves the role portion of Vivid eligibility without depending on a
+ * framework or database. Admin status is checked by the server separately.
+ */
+export function isVividReimbursementEligibleMember(
+	member: VividReimbursementEligibilityMember | null | undefined,
+): boolean {
+	return (
+		isActiveMember(member) &&
+		VIVID_REIMBURSEMENT_ELIGIBLE_MEMBER_ROLES.includes(
+			member?.member_role as (typeof VIVID_REIMBURSEMENT_ELIGIBLE_MEMBER_ROLES)[number],
+		)
+	);
+}
+
+/** Vivid expenses are tracked as expenses but never enter payout totals. */
+export function reimbursementRequiresPayout(
+	submissionType: string | null | undefined,
+): boolean {
+	return submissionType !== VIVID_REIMBURSEMENT_SUBMISSION_TYPE;
+}
+
+/** Human-readable labels used consistently in UI and Slack notifications. */
+export function getReimbursementSubmissionTypeLabel(
+	submissionType: string | null | undefined,
+): string {
+	switch (submissionType) {
+		case "invoice":
+			return "Invoice";
+		case VIVID_REIMBURSEMENT_SUBMISSION_TYPE:
+			return "Vivid Reimbursement";
+		default:
+			return "Reimbursement";
+	}
+}
 
 export interface ReimbursementRequest {
 	id: string;
@@ -42,6 +132,7 @@ export interface ReimbursementRequest {
 	receiptUrl?: string | null;
 	receipt_view_url?: string | null;
 	receipt_download_url?: string | null;
+	receipt_has_payload?: boolean;
 	status: ReimbursementStatus;
 	approval_status: ReimbursementApprovalStatus;
 	payment_status: ReimbursementPaymentStatus;

@@ -8,8 +8,20 @@ import { useReimbursementForm } from "./useReimbursementForm";
 const { showToast, memberState, sepaState } = vi.hoisted(() => ({
 	showToast: vi.fn(),
 	memberState: {
-		member: { user_id: "user-123", department: "Software Development" } as
-			| { user_id: string; department: string }
+		member: {
+			user_id: "user-123",
+			department: "Software Development",
+			active: true,
+			member_status: "active",
+			member_role: "Team Lead",
+		} as
+			| {
+					user_id: string;
+					department: string;
+					active: boolean;
+					member_status: string;
+					member_role: string;
+			  }
 			| undefined,
 	},
 	sepaState: {
@@ -32,6 +44,10 @@ vi.mock("../../../hooks/useMemberData", () => ({
 
 vi.mock("../../../hooks/useSepaData", () => ({
 	useSepaData: () => sepaState,
+}));
+
+vi.mock("../../../hooks/useIsAdmin", () => ({
+	useIsAdmin: () => ({ isAdmin: false, isLoading: false }),
 }));
 
 vi.mock("../../../lib/supabaseClient", () => ({
@@ -73,6 +89,9 @@ describe("useReimbursementForm", () => {
 		memberState.member = {
 			user_id: "user-123",
 			department: "Software Development",
+			active: true,
+			member_status: "active",
+			member_role: "Team Lead",
 		};
 		sepaState.sepa = {
 			user_id: "user-123",
@@ -157,6 +176,31 @@ describe("useReimbursementForm", () => {
 		act(() => result.current.setField("paymentIban", "DE12500105170648489890"));
 		act(() => result.current.setField("paymentBic", "INGDDEFFXXX"));
 
+		act(() => result.current.handleSubmissionTypeChange("reimbursement"));
+		expect(result.current.values.paymentIban).toBe("DE02120300000000202051");
+		expect(result.current.values.paymentBic).toBe("BYLADEM1001");
+	});
+
+	it("preserves normal and invoice bank drafts when passing through Vivid", async () => {
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+		await waitFor(() =>
+			expect(result.current.values.paymentIban).toBe("DE89370400440532013000"),
+		);
+
+		act(() => result.current.setField("paymentIban", "DE02120300000000202051"));
+		act(() => result.current.setField("paymentBic", "BYLADEM1001"));
+		act(() => result.current.handleSubmissionTypeChange("invoice"));
+		act(() => result.current.setField("paymentIban", "DE12500105170648489890"));
+		act(() => result.current.setField("paymentBic", "INGDDEFFXXX"));
+		act(() => result.current.handleSubmissionTypeChange("vivid_reimbursement"));
+		expect(result.current.values.paymentIban).toBe("");
+		expect(result.current.values.paymentBic).toBe("");
+
+		act(() => result.current.handleSubmissionTypeChange("invoice"));
+		expect(result.current.values.paymentIban).toBe("DE12500105170648489890");
+		expect(result.current.values.paymentBic).toBe("INGDDEFFXXX");
 		act(() => result.current.handleSubmissionTypeChange("reimbursement"));
 		expect(result.current.values.paymentIban).toBe("DE02120300000000202051");
 		expect(result.current.values.paymentBic).toBe("BYLADEM1001");
@@ -257,6 +301,33 @@ describe("useReimbursementForm", () => {
 			"Receipt details extracted. Please review and correct them.",
 			"success",
 		);
+	});
+
+	it("does not apply parsed bank details while a Vivid draft is active", async () => {
+		server.use(
+			http.post("/api/reimbursements/parse-receipt", () =>
+				HttpResponse.json({
+					amount: 42.5,
+					date: "2026-04-12",
+					description: "Virtual card purchase",
+					payment_iban: "DE89370400440532013000",
+					payment_bic: "COBADEFFXXX",
+				}),
+			),
+		);
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+
+		await waitFor(() => expect(result.current.canSubmitVivid).toBe(true));
+		act(() => result.current.handleSubmissionTypeChange("vivid_reimbursement"));
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+
+		await waitFor(() => expect(result.current.values.amount).toBe("42.5"));
+		expect(result.current.values.paymentIban).toBe("");
+		expect(result.current.values.paymentBic).toBe("");
 	});
 
 	it("warns when receipt parsing fails but keeps the attachment", async () => {

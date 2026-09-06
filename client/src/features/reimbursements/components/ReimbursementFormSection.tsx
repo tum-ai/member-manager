@@ -29,6 +29,7 @@ interface ReimbursementFormSectionProps {
 	isReceiptBusy: boolean;
 	isDraggingReceipt: boolean;
 	isSubmitDisabled: boolean;
+	canSubmitVivid: boolean;
 	showDepartmentWarning: boolean;
 	onDraggingChange: (dragging: boolean) => void;
 	onReceiptDrop: (event: React.DragEvent<HTMLLabelElement>) => void;
@@ -48,6 +49,7 @@ export function ReimbursementFormSection({
 	isReceiptBusy,
 	isDraggingReceipt,
 	isSubmitDisabled,
+	canSubmitVivid,
 	showDepartmentWarning,
 	onDraggingChange,
 	onReceiptDrop,
@@ -91,8 +93,22 @@ export function ReimbursementFormSection({
 							<ToggleGroupItem value="invoice" className="flex-1">
 								Invoice
 							</ToggleGroupItem>
+							{canSubmitVivid && (
+								<ToggleGroupItem value="vivid_reimbursement" className="flex-1">
+									Vivid
+								</ToggleGroupItem>
+							)}
 						</ToggleGroup>
 					</div>
+
+					{values.submissionType === "vivid_reimbursement" && (
+						<Alert className="mb-4">
+							<AlertDescription>
+								Vivid expenses are tracked for virtual card spend. No payment
+								details are required.
+							</AlertDescription>
+						</Alert>
+					)}
 
 					<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 						<div className="flex min-w-0 flex-col gap-1.5">
@@ -178,36 +194,44 @@ export function ReimbursementFormSection({
 							)}
 						</div>
 
-						<div className="flex min-w-0 flex-col gap-1.5">
-							<Label htmlFor="reimbursement-iban">IBAN</Label>
-							<Input
-								id="reimbursement-iban"
-								value={values.paymentIban}
-								onChange={(event) =>
-									onFieldChange("paymentIban", event.target.value)
-								}
-								aria-invalid={Boolean(errors.paymentIban)}
-								required
-							/>
-							{errors.paymentIban && (
-								<p className="text-xs text-destructive">{errors.paymentIban}</p>
-							)}
-						</div>
-						<div className="flex min-w-0 flex-col gap-1.5">
-							<Label htmlFor="reimbursement-bic">BIC</Label>
-							<Input
-								id="reimbursement-bic"
-								value={values.paymentBic}
-								onChange={(event) =>
-									onFieldChange("paymentBic", event.target.value)
-								}
-								aria-invalid={Boolean(errors.paymentBic)}
-								required
-							/>
-							{errors.paymentBic && (
-								<p className="text-xs text-destructive">{errors.paymentBic}</p>
-							)}
-						</div>
+						{values.submissionType !== "vivid_reimbursement" && (
+							<>
+								<div className="flex min-w-0 flex-col gap-1.5">
+									<Label htmlFor="reimbursement-iban">IBAN</Label>
+									<Input
+										id="reimbursement-iban"
+										value={values.paymentIban}
+										onChange={(event) =>
+											onFieldChange("paymentIban", event.target.value)
+										}
+										aria-invalid={Boolean(errors.paymentIban)}
+										required
+									/>
+									{errors.paymentIban && (
+										<p className="text-xs text-destructive">
+											{errors.paymentIban}
+										</p>
+									)}
+								</div>
+								<div className="flex min-w-0 flex-col gap-1.5">
+									<Label htmlFor="reimbursement-bic">BIC</Label>
+									<Input
+										id="reimbursement-bic"
+										value={values.paymentBic}
+										onChange={(event) =>
+											onFieldChange("paymentBic", event.target.value)
+										}
+										aria-invalid={Boolean(errors.paymentBic)}
+										required
+									/>
+									{errors.paymentBic && (
+										<p className="text-xs text-destructive">
+											{errors.paymentBic}
+										</p>
+									)}
+								</div>
+							</>
+						)}
 					</div>
 
 					<div className="mt-6 flex justify-end">

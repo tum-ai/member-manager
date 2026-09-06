@@ -1,4 +1,7 @@
-import { isValidIban } from "@member-manager/shared";
+import {
+	getReimbursementSubmissionTypeLabel,
+	isValidIban,
+} from "@member-manager/shared";
 import type {
 	ReimbursementRequest,
 	ReimbursementSubmissionType,
@@ -69,6 +72,11 @@ export function formatAmount(value: number): string {
 
 export function getStatusLabel(request: ReimbursementRequest): string {
 	if (request.approval_status === "not_approved") return "Not approved";
+	if (
+		request.payment_status === "not_required" &&
+		request.approval_status === "approved"
+	)
+		return "No payment required";
 	if (request.status === "paid" || request.payment_status === "paid")
 		return "Paid";
 	if (request.approval_status === "approved") return "Approved";
@@ -76,7 +84,7 @@ export function getStatusLabel(request: ReimbursementRequest): string {
 }
 
 export function getRequestTypeLabel(request: ReimbursementRequest): string {
-	return request.submission_type === "invoice" ? "Invoice" : "Reimbursement";
+	return getReimbursementSubmissionTypeLabel(request.submission_type);
 }
 
 export function sortRequestsByDateDesc(
@@ -115,12 +123,14 @@ export function validateForm(values: FormValues): FormErrors {
 		errors.description = "Describe what this request is for.";
 	if (!values.department) errors.department = "Select a department.";
 	if (!values.receipt) errors.receiptFile = "Attach a receipt.";
-	if (!values.paymentIban.trim()) {
-		errors.paymentIban = "IBAN is required.";
-	} else if (!isValidIban(values.paymentIban)) {
-		errors.paymentIban = "Enter a valid IBAN.";
+	if (values.submissionType !== "vivid_reimbursement") {
+		if (!values.paymentIban.trim()) {
+			errors.paymentIban = "IBAN is required.";
+		} else if (!isValidIban(values.paymentIban)) {
+			errors.paymentIban = "Enter a valid IBAN.";
+		}
+		if (!values.paymentBic.trim()) errors.paymentBic = "BIC is required.";
 	}
-	if (!values.paymentBic.trim()) errors.paymentBic = "BIC is required.";
 
 	return errors;
 }

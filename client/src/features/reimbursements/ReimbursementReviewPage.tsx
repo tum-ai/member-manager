@@ -11,6 +11,8 @@ import { ReimbursementReviewQueue } from "./ReimbursementReviewQueue";
 import {
 	ALL_REIMBURSEMENT_REVIEW_FILTER,
 	hasReceiptEndpoint,
+	isClosedReimbursement,
+	matchesReimbursementPaymentFilter,
 	matchesReimbursementReviewSearch,
 	type ReimbursementReviewApprovalFilter,
 	type ReimbursementReviewPaymentFilter,
@@ -38,13 +40,9 @@ function getQueueStats(requests: ReimbursementRequest[]) {
 		readyForPayment: requests.filter(
 			(request) =>
 				request.approval_status === "approved" &&
-				request.payment_status !== "paid",
+				request.payment_status === "to_be_paid",
 		).length,
-		closed: requests.filter(
-			(request) =>
-				request.payment_status === "paid" ||
-				request.approval_status === "not_approved",
-		).length,
+		closed: requests.filter(isClosedReimbursement).length,
 	};
 }
 
@@ -120,10 +118,7 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 					) {
 						return false;
 					}
-					if (
-						paymentFilter !== ALL_REIMBURSEMENT_REVIEW_FILTER &&
-						request.payment_status !== paymentFilter
-					) {
+					if (!matchesReimbursementPaymentFilter(request, paymentFilter)) {
 						return false;
 					}
 					return true;
@@ -239,7 +234,7 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		}
 		if (filter === "closed") {
 			setApprovalFilter(ALL_REIMBURSEMENT_REVIEW_FILTER);
-			setPaymentFilter("paid");
+			setPaymentFilter("closed");
 		}
 	};
 

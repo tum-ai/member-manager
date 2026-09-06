@@ -2,10 +2,14 @@ import {
 	FinanceReimbursementLinkSchema,
 	isValidIban,
 	normalizeIban,
+	reimbursementRequiresPayout,
+	reimbursementSubmissionTypeSchema,
+	VIVID_REIMBURSEMENT_SUBMISSION_TYPE,
 } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import JSZip from "jszip";
 import { z } from "zod";
+import { checkVividReimbursementEligibility } from "../lib/auth.js";
 import { getAuthEmail, getAuthEmails } from "../lib/authEmails.js";
 import {
 	addBuchhaltungsButlerReceiptComment,
@@ -207,11 +211,9 @@ const CreateReimbursementSchema = z
 		date: z.string().refine(isValidDate, "Invalid date"),
 		description: z.string().trim().min(1).max(1000),
 		department: z.string().trim().min(1).max(120),
-		submission_type: z
-			.enum(["reimbursement", "invoice"])
-			.default("reimbursement"),
-		payment_iban: z.string().optional().nullable(),
-		payment_bic: z.string().trim().min(1).max(34).optional().nullable(),
+		submission_type: reimbursementSubmissionTypeSchema.default("reimbursement"),
+		payment_iban: z.string().trim().optional().nullable(),
+		payment_bic: z.string().trim().max(34).optional().nullable(),
 		receipt_filename: z.string().trim().min(1).max(255).optional().nullable(),
 		receipt_mime_type: z.string().trim().min(1).max(120).optional().nullable(),
 		receipt_base64: z.string().trim().optional().nullable(),
@@ -232,19 +234,31 @@ const CreateReimbursementSchema = z
 			});
 		}
 
-		if (!body.payment_iban) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: "IBAN is required for reimbursement and invoice requests",
-				path: ["payment_iban"],
-			});
-		}
-		if (!body.payment_bic) {
-			context.addIssue({
-				code: z.ZodIssueCode.custom,
-				message: "BIC is required for reimbursement and invoice requests",
-				path: ["payment_bic"],
-			});
+		const hasIban = Boolean(body.payment_iban?.trim());
+		const hasBic = Boolean(body.payment_bic?.trim());
+		if (body.submission_type === VIVID_REIMBURSEMENT_SUBMISSION_TYPE) {
+			if (hasIban || hasBic) {
+				context.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "Vivid reimbursement requests must not include IBAN or BIC",
+					path: [hasIban ? "payment_iban" : "payment_bic"],
+				});
+			}
+		} else {
+			if (!hasIban) {
+				context.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "IBAN is required for reimbursement and invoice requests",
+					path: ["payment_iban"],
+				});
+			}
+			if (!hasBic) {
+				context.addIssue({
+					code: z.ZodIssueCode.custom,
+					message: "BIC is required for reimbursement and invoice requests",
+					path: ["payment_bic"],
+				});
+			}
 		}
 
 		if (body.receipt_base64) {
@@ -1231,7 +1245,9 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 		async (request, _reply) => {
 			const { data, error } = await getSupabase()
 				.from("reimbursements")
-				.select("amount, date, status, approval_status, payment_status");
+				.select(
+					"amount, date, status, approval_status, payment_status, submission_type",
+				);
 
 			if (error) {
 				request.log.error({ err: error }, "Failed to summarize reimbursements");
@@ -1246,6 +1262,9 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			const paidThisMonthAmount = rows
 				.filter(
 					(row) =>
+						reimbursementRequiresPayout(
+							String(row.submission_type ?? "reimbursement"),
+						) &&
 						(row.payment_status === "paid" || row.status === "paid") &&
 						isInCurrentMonth(row.date),
 				)
@@ -1259,7 +1278,11 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				).length,
 				approved_unpaid_count: rows.filter(
 					(row) =>
-						row.approval_status === "approved" && row.payment_status !== "paid",
+						row.approval_status === "approved" &&
+						reimbursementRequiresPayout(
+							String(row.submission_type ?? "reimbursement"),
+						) &&
+						row.payment_status !== "paid",
 				).length,
 				paid_this_month_amount: roundCurrency(paidThisMonthAmount),
 			};
@@ -1443,6 +1466,14 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			const existingRequest = existing as ReimbursementRow;
 			if (
 				body.action === "mark_paid" &&
+				existingRequest.submission_type === VIVID_REIMBURSEMENT_SUBMISSION_TYPE
+			) {
+				return reply.status(409).send({
+					error: "Vivid reimbursement requests do not require payment",
+				});
+			}
+			if (
+				body.action === "mark_paid" &&
 				existingRequest.approval_status !== "approved"
 			) {
 				return reply
@@ -1551,7 +1582,20 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
 			const body = CreateReimbursementSchema.parse(request.body);
-			const paymentIban = validateOptionalIban(body.payment_iban);
+			const isVividReimbursement =
+				body.submission_type === VIVID_REIMBURSEMENT_SUBMISSION_TYPE;
+			if (
+				isVividReimbursement &&
+				!(await checkVividReimbursementEligibility(user.id))
+			) {
+				return reply.status(403).send({
+					error:
+						"Only active Team Leads, Presidents, Vice-Presidents, and admins may submit Vivid reimbursements",
+				});
+			}
+			const paymentIban = isVividReimbursement
+				? null
+				: validateOptionalIban(body.payment_iban);
 			const financeLinks = {
 				finance_project_id: null,
 				finance_plan_item_id: null,
@@ -1598,7 +1642,9 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					department: body.department.trim(),
 					submission_type: body.submission_type,
 					payment_iban: paymentIban,
-					payment_bic: body.payment_bic?.trim(),
+					payment_bic: isVividReimbursement
+						? null
+						: body.payment_bic?.trim() || null,
 					receipt_filename: body.receipt_filename?.trim() || null,
 					receipt_mime_type: body.receipt_mime_type?.trim() || null,
 					receipt_base64: body.receipt_base64
@@ -1610,7 +1656,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					...financeLinks,
 					status: "requested",
 					approval_status: "pending",
-					payment_status: "to_be_paid",
+					payment_status: isVividReimbursement ? "not_required" : "to_be_paid",
 					rejection_reason: null,
 					created_at: new Date().toISOString(),
 					updated_at: new Date().toISOString(),

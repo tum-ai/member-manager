@@ -30,6 +30,7 @@ function renderSection(
 			isReceiptBusy={false}
 			isDraggingReceipt={false}
 			isSubmitDisabled={false}
+			canSubmitVivid={true}
 			showDepartmentWarning={false}
 			{...handlers}
 			{...overrides.props}

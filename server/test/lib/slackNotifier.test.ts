@@ -174,6 +174,53 @@ test("notifyFinanceOfReimbursementRequest DMs only opted-in eligible reviewers",
 	);
 });
 
+test("labels Vivid reimbursement notifications for reviewers", async () => {
+	resetMockDatabase();
+	setSupabaseClient(createMockSupabaseClient());
+	process.env.SLACK_BOT_TOKEN = "xoxb-test";
+	const adminMember = mockDatabase.members.find(
+		(member) => member.user_id === MOCK_ADMIN_ID,
+	);
+	assert.ok(adminMember);
+	adminMember.reimbursement_slack_notifications_enabled = true;
+
+	const posts: Array<Record<string, unknown>> = [];
+	globalThis.fetch = async (input, init) => {
+		const url = String(input);
+		const body = init?.body?.toString() ?? "";
+		if (url.endsWith("/users.lookupByEmail")) {
+			return new Response(
+				JSON.stringify({ ok: true, user: { id: "U-reviewer" } }),
+				{ status: 200 },
+			);
+		}
+		if (url.endsWith("/conversations.open")) {
+			return new Response(
+				JSON.stringify({ ok: true, channel: { id: "D-reviewer" } }),
+				{ status: 200 },
+			);
+		}
+		if (url.endsWith("/chat.postMessage")) {
+			posts.push(JSON.parse(body) as Record<string, unknown>);
+			return new Response(JSON.stringify({ ok: true }), { status: 200 });
+		}
+		return new Response("not found", { status: 404 });
+	};
+
+	await notifyFinanceOfReimbursementRequest({
+		requestId: "vivid-request-1",
+		requesterUserId: "requester-1",
+		requesterEmail: "requester@test.com",
+		submissionType: "vivid_reimbursement",
+		department: "Community",
+		amount: 42,
+		reviewUrl: "https://member-manager.test/tools/reimbursement/review",
+	});
+
+	assert.strictEqual(posts.length, 1);
+	assert.match(String(posts[0].text), /New Vivid Reimbursement request/);
+});
+
 test("notifyBugReport tags a round-robin member from the Slack channel", async () => {
 	const calls: Array<{ body?: string; url: string }> = [];
 	process.env.SLACK_BOT_TOKEN = "xoxb-test";

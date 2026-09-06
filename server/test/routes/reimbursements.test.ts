@@ -254,6 +254,120 @@ describe("Reimbursement Routes", async () => {
 			assert.match(String(stored?.payment_bic), /^enc-v1:/);
 		});
 
+		test("creates Vivid reimbursements without payout details", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					amount: 75,
+					date: "2026-04-14",
+					description: "Vivid event expense",
+					department: "Community",
+					submission_type: "vivid_reimbursement",
+					receipt_filename: "vivid.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_base64: PDF_BASE64,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 201);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.submission_type, "vivid_reimbursement");
+			assert.strictEqual(data.payment_iban, null);
+			assert.strictEqual(data.payment_bic, null);
+			assert.strictEqual(data.payment_status, "not_required");
+			const stored = mockDatabase.reimbursements.find(
+				(row) => row.id === data.id,
+			);
+			assert.strictEqual(stored?.payment_iban, null);
+			assert.strictEqual(stored?.payment_bic, null);
+			assert.strictEqual(stored?.payment_status, "not_required");
+		});
+
+		test("allows active Team Leads to submit Vivid reimbursements", async () => {
+			resetDatabase();
+			const member = mockDatabase.members.find(
+				(row) => row.user_id === testUserIds.user,
+			);
+			assert.ok(member);
+			member.member_role = "Team Lead";
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					amount: 75,
+					date: "2026-04-14",
+					description: "Vivid event expense",
+					department: "Community",
+					submission_type: "vivid_reimbursement",
+					receipt_filename: "vivid.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_base64: PDF_BASE64,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 201);
+		});
+
+		test("rejects Vivid submissions from regular members or with payout details", async () => {
+			resetDatabase();
+			const forbidden = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					amount: 75,
+					date: "2026-04-14",
+					description: "Vivid event expense",
+					department: "Community",
+					submission_type: "vivid_reimbursement",
+					receipt_filename: "vivid.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_base64: PDF_BASE64,
+				}),
+			});
+			assert.strictEqual(forbidden.statusCode, 403);
+
+			const withIban = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					amount: 75,
+					date: "2026-04-14",
+					description: "Vivid event expense",
+					department: "Community",
+					submission_type: "vivid_reimbursement",
+					payment_iban: "DE89370400440532013000",
+					receipt_filename: "vivid.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_base64: PDF_BASE64,
+				}),
+			});
+			assert.strictEqual(withIban.statusCode, 400);
+			assert.match(
+				JSON.parse(withIban.payload).error,
+				/invalid iban|must not include/i,
+			);
+		});
+
 		test("accepts concise request descriptions", async () => {
 			resetDatabase();
 
@@ -810,84 +924,104 @@ describe("Reimbursement Routes", async () => {
 			]);
 		});
 
-		test("syncs approved requests to BuchhaltungsButler", async () => {
-			resetDatabase();
-			process.env.BUCHHALTUNGSBUTLER_API_CLIENT = "client-id";
-			process.env.BUCHHALTUNGSBUTLER_API_SECRET = "client-secret";
-			process.env.BUCHHALTUNGSBUTLER_API_KEY = "customer-key";
-			process.env.BUCHHALTUNGSBUTLER_API_BASE_URL = "https://bb.test/api/v1";
-			process.env.BUCHHALTUNGSBUTLER_SYNC_ENABLED = "true";
-
-			const requests: Array<{ url: string; body: URLSearchParams }> = [];
-			globalThis.fetch = (async (input, init) => {
-				const url = String(input);
-				const body = new URLSearchParams(String(init?.body ?? ""));
-				requests.push({ url, body });
-				assert.strictEqual(
-					(init?.headers as Record<string, string>).Authorization,
-					`Basic ${Buffer.from("client-id:client-secret").toString("base64")}`,
+		for (const submissionType of ["reimbursement", "vivid_reimbursement"]) {
+			test(`syncs approved ${submissionType} requests to BuchhaltungsButler`, async () => {
+				resetDatabase();
+				const expense = mockDatabase.reimbursements.find(
+					(row) => row.id === "reimbursement-newer",
 				);
-				assert.strictEqual(body.get("api_key"), "customer-key");
-
-				if (url.endsWith("/receipts/upload")) {
-					assert.strictEqual(body.get("file"), PDF_BASE64);
-					assert.strictEqual(body.get("file_name"), "newer.pdf");
-					assert.strictEqual(body.get("type"), "invoice inbound");
-					assert.strictEqual(body.get("date"), "2026-04-12");
-					assert.strictEqual(body.get("amount"), "80.00");
-					assert.strictEqual(body.get("currency"), "EUR");
-					return new Response(
-						JSON.stringify({
-							success: true,
-							message: "",
-							id_by_customer: "321",
-							filename: "receipt321",
-						}),
-						{ status: 200, headers: { "content-type": "application/json" } },
-					);
+				assert.ok(expense);
+				expense.submission_type = submissionType;
+				if (submissionType === "vivid_reimbursement") {
+					expense.payment_iban = null;
+					expense.payment_bic = null;
+					expense.payment_status = "not_required";
 				}
+				process.env.BUCHHALTUNGSBUTLER_API_CLIENT = "client-id";
+				process.env.BUCHHALTUNGSBUTLER_API_SECRET = "client-secret";
+				process.env.BUCHHALTUNGSBUTLER_API_KEY = "customer-key";
+				process.env.BUCHHALTUNGSBUTLER_API_BASE_URL = "https://bb.test/api/v1";
+				process.env.BUCHHALTUNGSBUTLER_SYNC_ENABLED = "true";
 
-				assert.ok(url.endsWith("/comments/add"));
-				assert.strictEqual(body.get("receipt_id_by_customer"), "321");
-				assert.match(body.get("comment_text") ?? "", /Member Manager request/);
-				return new Response(JSON.stringify({ success: true, message: "" }), {
-					status: 200,
-					headers: { "content-type": "application/json" },
+				const requests: Array<{ url: string; body: URLSearchParams }> = [];
+				globalThis.fetch = (async (input, init) => {
+					const url = String(input);
+					const body = new URLSearchParams(String(init?.body ?? ""));
+					requests.push({ url, body });
+					assert.strictEqual(
+						(init?.headers as Record<string, string>).Authorization,
+						`Basic ${Buffer.from("client-id:client-secret").toString("base64")}`,
+					);
+					assert.strictEqual(body.get("api_key"), "customer-key");
+
+					if (url.endsWith("/receipts/upload")) {
+						assert.strictEqual(body.get("file"), PDF_BASE64);
+						assert.strictEqual(body.get("file_name"), "newer.pdf");
+						assert.strictEqual(body.get("type"), "invoice inbound");
+						assert.strictEqual(body.get("date"), "2026-04-12");
+						assert.strictEqual(body.get("amount"), "80.00");
+						assert.strictEqual(body.get("currency"), "EUR");
+						return new Response(
+							JSON.stringify({
+								success: true,
+								message: "",
+								id_by_customer: "321",
+								filename: "receipt321",
+							}),
+							{ status: 200, headers: { "content-type": "application/json" } },
+						);
+					}
+
+					assert.ok(url.endsWith("/comments/add"));
+					assert.strictEqual(body.get("receipt_id_by_customer"), "321");
+					assert.match(
+						body.get("comment_text") ?? "",
+						/Member Manager request/,
+					);
+					return new Response(JSON.stringify({ success: true, message: "" }), {
+						status: 200,
+						headers: { "content-type": "application/json" },
+					});
+				}) as typeof fetch;
+
+				const response = await app.inject({
+					method: "POST",
+					url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
+					headers: {
+						...authHeaders(testTokens.admin),
+						"content-type": "application/json",
+					},
+					payload: JSON.stringify({}),
 				});
-			}) as typeof fetch;
 
-			const response = await app.inject({
-				method: "POST",
-				url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
-				headers: {
-					...authHeaders(testTokens.admin),
-					"content-type": "application/json",
-				},
-				payload: JSON.stringify({}),
+				assert.strictEqual(response.statusCode, 200);
+				const data = JSON.parse(response.payload);
+				assert.strictEqual(data.receipt_base64, undefined);
+				assert.strictEqual(data.bb_sync_status, "synced");
+				assert.strictEqual(data.bb_receipt_id_by_customer, "321");
+				assert.strictEqual(data.bb_receipt_filename, "receipt321");
+				assert.strictEqual(data.bb_sync_attempts, 1);
+				assert.strictEqual(requests.length, 2);
+
+				const second = await app.inject({
+					method: "POST",
+					url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
+					headers: {
+						...authHeaders(testTokens.admin),
+						"content-type": "application/json",
+					},
+					payload: JSON.stringify({}),
+				});
+
+				assert.strictEqual(second.statusCode, 200);
+				assert.strictEqual(requests.length, 2);
+				if (submissionType === "vivid_reimbursement") {
+					assert.strictEqual(data.payment_status, "not_required");
+					assert.strictEqual(data.payment_iban, null);
+					assert.strictEqual(data.payment_bic, null);
+				}
 			});
-
-			assert.strictEqual(response.statusCode, 200);
-			const data = JSON.parse(response.payload);
-			assert.strictEqual(data.receipt_base64, undefined);
-			assert.strictEqual(data.bb_sync_status, "synced");
-			assert.strictEqual(data.bb_receipt_id_by_customer, "321");
-			assert.strictEqual(data.bb_receipt_filename, "receipt321");
-			assert.strictEqual(data.bb_sync_attempts, 1);
-			assert.strictEqual(requests.length, 2);
-
-			const second = await app.inject({
-				method: "POST",
-				url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
-				headers: {
-					...authHeaders(testTokens.admin),
-					"content-type": "application/json",
-				},
-				payload: JSON.stringify({}),
-			});
-
-			assert.strictEqual(second.statusCode, 200);
-			assert.strictEqual(requests.length, 2);
-		});
+		}
 
 		test("short-circuits in-flight BuchhaltungsButler sync attempts", async () => {
 			resetDatabase();
@@ -1119,6 +1253,49 @@ describe("Reimbursement Routes", async () => {
 			);
 		});
 
+		test("blocks marking Vivid reimbursements as paid", async () => {
+			resetDatabase();
+			mockDatabase.reimbursements.push({
+				id: "vivid-reimbursement",
+				user_id: testUserIds.user,
+				amount: 100,
+				date: "2026-04-12",
+				description: "Vivid event expense",
+				department: "Community",
+				submission_type: "vivid_reimbursement",
+				payment_iban: null,
+				payment_bic: null,
+				receipt_filename: "vivid.pdf",
+				receipt_mime_type: "application/pdf",
+				receipt_base64: PDF_BASE64,
+				status: "requested",
+				approval_status: "approved",
+				payment_status: "not_required",
+				rejection_reason: null,
+			});
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: "/api/reimbursements/review/vivid-reimbursement",
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ action: "mark_paid" }),
+			});
+
+			assert.strictEqual(response.statusCode, 409);
+			assert.match(
+				JSON.parse(response.payload).error,
+				/do not require payment/i,
+			);
+			const request = mockDatabase.reimbursements.find(
+				(row) => row.id === "vivid-reimbursement",
+			);
+			assert.strictEqual(request?.status, "requested");
+			assert.strictEqual(request?.payment_status, "not_required");
+		});
+
 		test("summarizes finance review essentials for reviewers", async () => {
 			resetDatabase();
 			const currentMonth = new Date().toISOString().slice(0, 10);
@@ -1144,6 +1321,37 @@ describe("Reimbursement Routes", async () => {
 				pending_approval_count: 2,
 				approved_unpaid_count: 0,
 				paid_this_month_amount: 80,
+			});
+		});
+
+		test("keeps Vivid expenses in totals but excludes them from payout metrics", async () => {
+			resetDatabase();
+			mockDatabase.reimbursements.push({
+				id: "vivid-reimbursement",
+				user_id: testUserIds.user,
+				amount: 100,
+				date: new Date().toISOString().slice(0, 10),
+				description: "Vivid event expense",
+				department: "Community",
+				submission_type: "vivid_reimbursement",
+				status: "requested",
+				approval_status: "approved",
+				payment_status: "not_required",
+			});
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/summary",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			assert.deepStrictEqual(JSON.parse(response.payload), {
+				total_requests: 4,
+				total_amount: 217.5,
+				pending_approval_count: 2,
+				approved_unpaid_count: 1,
+				paid_this_month_amount: 0,
 			});
 		});
 
