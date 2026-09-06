@@ -1,3 +1,5 @@
+import { FolderOpen } from "lucide-react";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import {
 	Accordion,
 	AccordionContent,
@@ -100,9 +102,10 @@ export function InnovationProjectsSection({
 								{project.leads.length > 0 ? (
 									renderMembers(project.leads, { lead: true })
 								) : (
-									<p className="text-sm text-muted-foreground">
-										No project lead assigned yet.
-									</p>
+									<EmptyState
+										title="No project lead assigned yet."
+										className="px-4 py-6"
+									/>
 								)}
 							</div>
 
@@ -113,9 +116,10 @@ export function InnovationProjectsSection({
 								{project.members.length > 0 ? (
 									renderMembers(project.members)
 								) : (
-									<p className="text-sm text-muted-foreground">
-										No project members assigned yet.
-									</p>
+									<EmptyState
+										title="No project members assigned yet."
+										className="px-4 py-6"
+									/>
 								)}
 							</div>
 						</AccordionContent>
@@ -128,9 +132,7 @@ export function InnovationProjectsSection({
 
 export function ProjectsEmptyState({ label }: { label: string }): JSX.Element {
 	return (
-		<div className="rounded-xl border bg-card p-8 text-center">
-			<p className="text-muted-foreground">{`No active ${label} projects yet.`}</p>
-		</div>
+		<EmptyState icon={FolderOpen} title={`No active ${label} projects yet.`} />
 	);
 }
 

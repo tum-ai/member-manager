@@ -1,6 +1,8 @@
 import type { ContractWorkflowStatus } from "@member-manager/shared";
+import { SearchX } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -130,6 +132,8 @@ export default function ContractSubmissionsPage(): JSX.Element {
 						{(submissionsQuery.error as Error).message}
 					</AlertDescription>
 				</Alert>
+			) : filtered.length === 0 ? (
+				<EmptyState icon={SearchX} title="No submissions match this filter." />
 			) : (
 				<GlassCard variant="elevated" className="overflow-x-auto">
 					<Table>
@@ -189,16 +193,6 @@ export default function ContractSubmissionsPage(): JSX.Element {
 									</TableRow>
 								);
 							})}
-							{filtered.length === 0 ? (
-								<TableRow>
-									<TableCell
-										colSpan={5}
-										className="py-10 text-center text-muted-foreground"
-									>
-										No submissions match this filter.
-									</TableCell>
-								</TableRow>
-							) : null}
 						</TableBody>
 					</Table>
 				</GlassCard>

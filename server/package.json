@@ -11,12 +11,15 @@
 		"backfill:encryption": "tsx src/scripts/rotateSensitiveData.ts --apply --plaintext-only",
 		"rotate:encryption": "tsx src/scripts/rotateSensitiveData.ts",
 		"backfill:member-cvs": "tsx src/scripts/backfillMemberCvs.ts",
+		"enrich:members": "tsx src/scripts/enrichMembers.ts",
+		"build:search-chunks": "tsx src/scripts/buildSearchChunks.ts",
+		"consolidate:claims": "tsx src/scripts/consolidateClaims.ts",
 		"start": "node dist/index.js",
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write",
 		"typecheck": "tsc --noEmit",
-		"test": "tsx --test test/**/*.test.ts",
-		"test:coverage": "c8 --reporter=text-summary --reporter=lcov --reporter=json-summary --all --src=src --check-coverage --lines=70 --functions=70 --branches=50 --statements=70 tsx --test test/**/*.test.ts"
+		"test": "tsx --import ./test/setup.ts --test test/**/*.test.ts",
+		"test:coverage": "c8 --reporter=text-summary --reporter=lcov --reporter=json-summary --all --src=src --check-coverage --lines=70 --functions=70 --branches=50 --statements=70 tsx --import ./test/setup.ts --test test/**/*.test.ts"
 	},
 	"dependencies": {
 		"@fastify/cors": "^11.2.0",

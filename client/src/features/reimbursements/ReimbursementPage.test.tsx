@@ -1,14 +1,9 @@
 import type { User } from "@supabase/supabase-js";
-import {
-	fireEvent,
-	render,
-	screen,
-	waitFor,
-	within,
-} from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderWithClient } from "@/test/renderWithClient";
 import ReimbursementPage from "./ReimbursementPage";
 
 const {
@@ -89,7 +84,7 @@ const mockUser = {
 } as User;
 
 function renderPage() {
-	return render(
+	return renderWithClient(
 		<MemoryRouter>
 			<ReimbursementPage user={mockUser} />
 		</MemoryRouter>,

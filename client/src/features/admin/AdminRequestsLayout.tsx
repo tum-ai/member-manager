@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
+import {
+	PageHeaderActions,
+	useSetPageHeader,
+} from "@/contexts/PageHeaderContext";
 
 interface AdminRequestsLayoutProps {
 	title: string;
@@ -20,16 +24,10 @@ export function AdminRequestsLayout({
 	error = null,
 	children,
 }: AdminRequestsLayoutProps) {
+	useSetPageHeader(title, description);
 	return (
 		<div>
-			<div className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-				<div>
-					<h1 className="text-2xl font-bold tracking-tight">{title}</h1>
-					<p className="mt-1 text-muted-foreground">{description}</p>
-				</div>
-				{actions}
-			</div>
-
+			{actions ? <PageHeaderActions>{actions}</PageHeaderActions> : null}
 			{isLoading ? (
 				<SkeletonRegion
 					label="Loading requests"

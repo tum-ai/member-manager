@@ -1,4 +1,5 @@
 import { GlassCard } from "@/components/ui/GlassCard";
+import { useSetPageHeader } from "@/contexts/PageHeaderContext";
 import { AdminDatabaseSkeleton } from "./components/AdminDatabaseSkeleton";
 import { AdminDuplicateCandidatesPanel } from "./components/AdminDuplicateCandidatesPanel";
 import { AdminFilterBar } from "./components/AdminFilterBar";
@@ -42,6 +43,11 @@ export function AdminDatabaseView() {
 
 	const editor = useAdminMemberEditor({ updateMemberAsync, isSavingMember });
 	const merge = useAdminMemberMerge({ mergeMembersAsync, isMergingMembers });
+
+	useSetPageHeader(
+		"Admin Workspace",
+		"Review membership records, agreement status, and banking data.",
+	);
 
 	if (isLoading) return <AdminDatabaseSkeleton />;
 	if (error)

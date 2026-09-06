@@ -1,10 +1,15 @@
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
+import { useSetPageHeader } from "@/contexts/PageHeaderContext";
 import { useMembersListData } from "@/hooks/useMembersListData";
 import { isActiveMember } from "@/lib/memberMetadata";
 import { OrgChartView } from "./OrgChartView";
 
 export default function MembersOrgChartPage() {
+	useSetPageHeader(
+		"Org Chart",
+		"Overview of current leadership and departments.",
+	);
 	const { members, isLoading, error } = useMembersListData();
 
 	if (isLoading) {

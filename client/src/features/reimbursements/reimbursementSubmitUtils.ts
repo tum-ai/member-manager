@@ -75,6 +75,15 @@ export function getStatusLabel(request: ReimbursementRequest): string {
 	return "Pending";
 }
 
+/** Generic status key for a request, fed to `statusTone()` for the Badge tone. */
+export function getStatusToneKey(request: ReimbursementRequest): string {
+	if (request.approval_status === "not_approved") return "rejected";
+	if (request.status === "paid" || request.payment_status === "paid")
+		return "paid";
+	if (request.approval_status === "approved") return "approved";
+	return "pending";
+}
+
 export function getRequestTypeLabel(request: ReimbursementRequest): string {
 	return request.submission_type === "invoice" ? "Invoice" : "Reimbursement";
 }

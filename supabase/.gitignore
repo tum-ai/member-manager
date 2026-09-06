@@ -2,6 +2,9 @@
 .branches
 .temp
 
+# Raw snapshots pulled from remote by `pnpm db:pull` (real member data).
+.remote
+
 # dotenvx
 .env.keys
 .env.local

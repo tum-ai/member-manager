@@ -10,7 +10,11 @@ import {
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { getAuthProfiles } from "../lib/authEmails.js";
-import { ConflictError, DatabaseError } from "../lib/errors.js";
+import {
+	ConflictError,
+	DatabaseError,
+	ValidationError,
+} from "../lib/errors.js";
 import {
 	BOARD_MEMBER_ROLE,
 	buildDuplicateMemberNameKey,
@@ -342,7 +346,46 @@ const RoleHistoryCreateSchema = z
 		},
 	);
 
+const AgentLogQuerySchema = z
+	.object({
+		chat_id: z.string().uuid().optional(),
+		turn_id: z.string().uuid().optional(),
+	})
+	.refine((q) => q.chat_id || q.turn_id, {
+		message: "chat_id or turn_id is required",
+	});
+
 export async function adminRoutes(server: FastifyInstance) {
+	// Beacon assistant activity log — full per-turn reasoning trace for a chat.
+	server.get(
+		"/admin/beacon/agent-log",
+		{ preHandler: [authenticate, requireAdmin] },
+		async (request, reply) => {
+			const parsed = AgentLogQuerySchema.safeParse(request.query);
+			if (!parsed.success) {
+				throw new ValidationError(
+					"Invalid Beacon agent-log query",
+					parsed.error.flatten(),
+				);
+			}
+			const { chat_id, turn_id } = parsed.data;
+			let query = getSupabase()
+				.from("beacon_agent_log")
+				.select(
+					"id, chat_id, turn_id, user_id, query, model, trace, step_count, people_count, duration_ms, created_at",
+				)
+				.order("created_at", { ascending: true });
+			if (chat_id) query = query.eq("chat_id", chat_id);
+			if (turn_id) query = query.eq("turn_id", turn_id);
+			const { data, error } = await query;
+			if (error) {
+				request.log.error({ err: error }, "Failed to read Beacon agent log");
+				throw new DatabaseError();
+			}
+			return reply.send({ turns: data ?? [] });
+		},
+	);
+
 	server.get(
 		"/admin/members",
 		{ preHandler: [authenticate, requireAdmin] },

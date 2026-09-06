@@ -19,6 +19,10 @@ paths: ["client/**"]
 - **Forms**: react-hook-form + the **shared** Zod schema (`@member-manager/shared`); don't redefine
   validation client-side.
 - **UI**: shadcn/ui + radix primitives (`src/components/ui/`); don't hand-roll dialogs/menus/tooltips.
+- **Design language**: page title goes in the top app bar via `useSetPageHeader(title, description?)`
+  (`@/contexts/PageHeaderContext`) — no in-content page `<h1>`. Reuse `EmptyState` / `SectionCard`
+  (`components/foundations/`), `statusTone()` for badges, and tokens/motion in `src/styles/motion.css`.
+  See the **Foundations/Design Language** Storybook page.
 - **Responsive + dark mode** are requirements: mobile-first (`grid-cols-1 md:grid-cols-12`),
   dark-mode parity via next-themes.
 - **Biome**: tabs, double quotes, named exports (default only on `*Page.tsx`), `import type`/

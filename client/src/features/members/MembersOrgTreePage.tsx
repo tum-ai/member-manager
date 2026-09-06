@@ -1,6 +1,7 @@
 import { Navigate } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
+import { useSetPageHeader } from "@/contexts/PageHeaderContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useMembersListData } from "@/hooks/useMembersListData";
 import { isActiveMember } from "@/lib/memberMetadata";
@@ -8,6 +9,10 @@ import { OrgChartDiagram } from "./orgTree/OrgChartDiagram";
 import { buildOrgTree } from "./orgTree/orgTreeData";
 
 export default function MembersOrgTreePage() {
+	useSetPageHeader(
+		"Org Tree",
+		"Interactive hierarchy of the board, departments, and their co-leads. Click a department to reveal its members.",
+	);
 	const isMobile = useIsMobile();
 	const { members, isLoading, error } = useMembersListData();
 
@@ -43,13 +48,6 @@ export default function MembersOrgTreePage() {
 
 	return (
 		<div>
-			<div className="mb-6">
-				<h1 className="text-2xl font-bold tracking-tight">Org Tree</h1>
-				<p className="mt-1 text-muted-foreground">
-					Interactive hierarchy of the board, departments, and their co-leads.
-					Click a department to reveal its members.
-				</p>
-			</div>
 			<OrgChartDiagram nodes={nodes} />
 		</div>
 	);

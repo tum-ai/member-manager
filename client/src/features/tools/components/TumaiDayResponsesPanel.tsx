@@ -7,6 +7,7 @@ import {
 	Users,
 } from "lucide-react";
 import type { ReactElement } from "react";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -67,16 +68,12 @@ export function TumaiDayResponsesPanel({
 		<GlassCard className="h-full">
 			<div className="p-5">
 				{!selectedEventId ? (
-					<div className="flex min-h-[400px] flex-col items-center justify-center text-center">
-						<span className="mb-4 flex size-14 items-center justify-center rounded-full bg-brand/10 text-brand">
-							<CalendarCheck className="size-6" />
-						</span>
-						<h3 className="text-sm font-semibold">No event selected</h3>
-						<p className="mt-1 max-w-xs text-xs text-muted-foreground">
-							Pick an event from the list to see who's coming and audit every
-							RSVP.
-						</p>
-					</div>
+					<EmptyState
+						icon={CalendarCheck}
+						title="No event selected"
+						description="Pick an event from the list to see who's coming and audit every RSVP."
+						className="min-h-[400px] justify-center border-none bg-transparent shadow-none"
+					/>
 				) : isLoading ? (
 					<div className="flex flex-col gap-5">
 						<Skeleton className="h-6 w-40" />

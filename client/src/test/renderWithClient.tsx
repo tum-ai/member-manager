@@ -8,6 +8,29 @@ import {
 	renderHook,
 } from "@testing-library/react";
 import type { PropsWithChildren, ReactElement } from "react";
+import {
+	PageHeaderProvider,
+	usePageHeader,
+	usePageHeaderSlots,
+} from "@/contexts/PageHeaderContext";
+
+/**
+ * Stand-in for the app's sticky header bar. Pages set their title via
+ * `useSetPageHeader`, so this surfaces it (as the page's <h1>) plus an actions
+ * slot, letting page tests assert on the title/description/actions just as they
+ * render in the real shell.
+ */
+function PageHeaderProbe(): ReactElement {
+	const header = usePageHeader();
+	const { setActionsSlot } = usePageHeaderSlots();
+	return (
+		<header>
+			{header ? <h1>{header.title}</h1> : null}
+			{header?.description ? <p>{header.description}</p> : null}
+			<div ref={setActionsSlot} />
+		</header>
+	);
+}
 
 /**
  * A QueryClient tuned for tests: no retries (so rejected queries surface the
@@ -25,7 +48,12 @@ export function createTestQueryClient(): QueryClient {
 function createWrapper(queryClient: QueryClient) {
 	return function Wrapper({ children }: PropsWithChildren): ReactElement {
 		return (
-			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+			<QueryClientProvider client={queryClient}>
+				<PageHeaderProvider>
+					<PageHeaderProbe />
+					{children}
+				</PageHeaderProvider>
+			</QueryClientProvider>
 		);
 	};
 }

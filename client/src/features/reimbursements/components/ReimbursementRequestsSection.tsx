@@ -1,4 +1,6 @@
+import { Receipt } from "lucide-react";
 import type { ReactElement } from "react";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -10,8 +12,10 @@ import {
 	getErrorMessage,
 	getRequestTypeLabel,
 	getStatusLabel,
+	getStatusToneKey,
 } from "@/features/reimbursements/reimbursementSubmitUtils";
 import type { ReimbursementRequest } from "@/features/reimbursements/reimbursementTypes";
+import { statusTone } from "@/lib/statusTone";
 
 interface ReimbursementRequestsSectionProps {
 	isLoading: boolean;
@@ -66,9 +70,7 @@ export function ReimbursementRequestsSection({
 				)}
 
 				{!isLoading && !error && requests.length === 0 && (
-					<Alert>
-						<AlertDescription>No reimbursement requests yet.</AlertDescription>
-					</Alert>
+					<EmptyState icon={Receipt} title="No reimbursement requests yet." />
 				)}
 
 				{!isLoading && !error && requests.length > 0 && (
@@ -95,7 +97,9 @@ export function ReimbursementRequestsSection({
 									<Badge variant="outline">
 										{getRequestTypeLabel(request)}
 									</Badge>
-									<Badge variant="neutral">{getStatusLabel(request)}</Badge>
+									<Badge variant={statusTone(getStatusToneKey(request))}>
+										{getStatusLabel(request)}
+									</Badge>
 								</div>
 								<p className="mb-1 text-sm break-words">
 									{request.description}

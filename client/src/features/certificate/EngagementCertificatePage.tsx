@@ -1,5 +1,7 @@
 import type { User } from "@supabase/supabase-js";
+import { FileText } from "lucide-react";
 
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
 
 import { EngagementCard } from "./components/EngagementCard";
@@ -50,7 +52,7 @@ export default function EngagementCertificatePage({
 	if (!member) {
 		return (
 			<div className="p-6">
-				<p className="text-muted-foreground">No member data found.</p>
+				<EmptyState icon={FileText} title="No member data found." />
 			</div>
 		);
 	}

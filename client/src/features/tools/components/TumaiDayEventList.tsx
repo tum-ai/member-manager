@@ -1,5 +1,6 @@
 import { CalendarDays, Clock, Pencil, Send, Trash2 } from "lucide-react";
 import type { ReactElement } from "react";
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -66,9 +67,12 @@ export function TumaiDayEventList({
 						<AlertDescription>Failed to load events.</AlertDescription>
 					</Alert>
 				) : events.length === 0 ? (
-					<p className="py-6 text-center text-sm text-muted-foreground">
-						No scheduled events. Create one above!
-					</p>
+					<EmptyState
+						icon={CalendarDays}
+						title="No scheduled events"
+						description="Create one above!"
+						className="border-none bg-transparent px-0 py-8 shadow-none"
+					/>
 				) : (
 					<div className="flex flex-col gap-2">
 						{events.map((event) => {

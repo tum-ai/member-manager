@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import {
 	loginAsLocalAdmin,
 	loginWithSeedEmail,
@@ -22,6 +22,19 @@ async function expandAllFolders(page: Page): Promise<void> {
 			await collapsed.nth(index).click();
 		}
 	}
+}
+
+// The T-account query may refresh once after its totals are visible, remounting
+// collapsed folders. Keep expansion and selection in one retried operation so
+// the test observes the settled tree instead of racing that refresh.
+async function checkPosting(page: Page, name: string): Promise<Locator> {
+	const posting = page.getByRole("checkbox", { name });
+	await expect(async () => {
+		await expandAllFolders(page);
+		await posting.check({ timeout: 2000 });
+		await expect(posting).toBeChecked();
+	}).toPass({ timeout: 20000 });
+	return posting;
 }
 
 test.describe("Finance Analytics tool", () => {
@@ -179,21 +192,14 @@ test.describe("Finance Analytics tool", () => {
 		// live. The suite does not reset the database between runs, so the free
 		// invoice sits in the sub-team folder on a fresh seed and inside the project
 		// a previous run created on any later one — the flow must work from both.
-		await expandAllFolders(page);
-
-		const freeInvoice = page.getByRole("checkbox", {
-			name: "Onboarding SS Location auswählen",
-		});
-		await expect(freeInvoice).toBeVisible({ timeout: 20000 });
-		await freeInvoice.check();
+		const freeInvoice = await checkPosting(
+			page,
+			"Onboarding SS Location auswählen",
+		);
 
 		// "Onboarding SS Catering" funds a Planposten of the seeded "Onboarding
 		// SS26" project, so it can never be moved — it stays put on every run.
-		const matchedInvoice = page.getByRole("checkbox", {
-			name: "Onboarding SS Catering auswählen",
-		});
-		await expect(matchedInvoice).toBeVisible();
-		await matchedInvoice.check();
+		await checkPosting(page, "Onboarding SS Catering auswählen");
 
 		// Selection spans folders and states its size (FR-K1/FR-K5).
 		const selectionBar = page.getByRole("region", { name: "Auswahl" });

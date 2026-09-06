@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiClient } from "./apiClient";
+import { apiClient, apiStream } from "./apiClient";
 
 vi.mock("./supabaseClient", () => ({
 	supabase: {
@@ -72,5 +72,49 @@ describe("apiClient", () => {
 		const headers = init.headers as Record<string, string>;
 		expect(headers["Content-Type"]).toBeUndefined();
 		expect(headers.Authorization).toBe("Bearer test-token");
+	});
+
+	it("parses chunked CRLF server-sent events", async () => {
+		const encoder = new TextEncoder();
+		const body = new ReadableStream({
+			start(controller) {
+				controller.enqueue(encoder.encode('data: {"type":"ans'));
+				controller.enqueue(encoder.encode('wer","text":"hello"}\r\n\r\n'));
+				controller.enqueue(encoder.encode('data: {"type":"done"}\r\n\r\n'));
+				controller.close();
+			},
+		});
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				new Response(body, {
+					status: 200,
+					headers: { "content-type": "text/event-stream" },
+				}),
+			),
+		);
+		const events: unknown[] = [];
+		await apiStream("/api/expertise/assistant", {}, (event) =>
+			events.push(event),
+		);
+		expect(events).toEqual([
+			{ type: "answer", text: "hello" },
+			{ type: "done" },
+		]);
+	});
+
+	it("rejects malformed server-sent events", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				new Response("data: {not-json}\n\n", {
+					status: 200,
+					headers: { "content-type": "text/event-stream" },
+				}),
+			),
+		);
+		await expect(
+			apiStream("/api/expertise/assistant", {}, () => {}),
+		).rejects.toThrow("invalid event");
 	});
 });

@@ -5,6 +5,7 @@ import type { InnovationProject, Member } from "@/types";
 import { buildOrgChart } from "./orgChartUtils";
 import {
 	InnovationProjectsSection,
+	ProjectsEmptyState,
 	ResearchProjectsSection,
 } from "./projectSections";
 
@@ -153,5 +154,15 @@ describe("InnovationProjectsSection", () => {
 		expect(screen.getByText("Project Leads")).toBeInTheDocument();
 		expect(screen.getByText("Iris Innovation")).toBeInTheDocument();
 		expect(screen.getByText("Ivan Innovation")).toBeInTheDocument();
+	});
+});
+
+describe("ProjectsEmptyState", () => {
+	it("renders the empty state with the labelled title", () => {
+		render(<ProjectsEmptyState label="research" />);
+
+		expect(
+			screen.getByText("No active research projects yet."),
+		).toBeInTheDocument();
 	});
 });

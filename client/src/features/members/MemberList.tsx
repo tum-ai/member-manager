@@ -1,7 +1,8 @@
-import { MapPin, Search } from "lucide-react";
+import { MapPin, Search, SearchX, Users } from "lucide-react";
 import type * as React from "react";
 import { useMemo, useState } from "react";
 
+import { EmptyState } from "@/components/foundations/EmptyState";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useSetPageHeader } from "@/contexts/PageHeaderContext";
 import { useMembersListData } from "@/hooks/useMembersListData";
 import { proxiedAvatarUrl } from "@/lib/avatarUrl";
 import {
@@ -39,6 +41,7 @@ import {
 	getOperationalDepartment,
 	splitDegree,
 } from "@/lib/memberMetadata";
+import { statusTone } from "@/lib/statusTone";
 import type { Member } from "@/types";
 
 const ALL_VALUE = "__all__";
@@ -87,6 +90,7 @@ function isBoardOnlyMember(member: Member): boolean {
 }
 
 export function MemberList() {
+	useSetPageHeader("Members", "Browse the TUM.ai member directory.");
 	const { members, isLoading, error } = useMembersListData();
 	const [search, setSearch] = useState("");
 	const [department, setDepartment] = useState("");
@@ -354,11 +358,10 @@ export function MemberList() {
 			</GlassCard>
 
 			{filtered.length === 0 ? (
-				<GlassCard className="py-16 text-center">
-					<p className="text-muted-foreground">
-						{search ? "No members match your search." : "No members found."}
-					</p>
-				</GlassCard>
+				<EmptyState
+					icon={search ? SearchX : Users}
+					title={search ? "No members match your search." : "No members found."}
+				/>
 			) : (
 				<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
 					{filtered.map((member) => (
@@ -390,8 +393,8 @@ function MemberCard({ member }: MemberCardProps) {
 		: null;
 
 	return (
-		<GlassCard variant="interactive" className="h-full">
-			<div className="p-5">
+		<GlassCard className="h-full">
+			<div className="p-6">
 				<div className="flex items-start gap-4">
 					<Avatar className="size-14 shrink-0 bg-muted text-foreground">
 						<AvatarImage
@@ -447,7 +450,9 @@ function MemberCard({ member }: MemberCardProps) {
 
 				<div className="mt-4 flex flex-wrap gap-1.5">
 					{status !== "active" && (
-						<Badge variant="outline">{getMemberStatusLabel(status)}</Badge>
+						<Badge variant={statusTone(status)}>
+							{getMemberStatusLabel(status)}
+						</Badge>
 					)}
 					{boardBadgeLabel && (
 						<Badge variant="outline">{boardBadgeLabel}</Badge>

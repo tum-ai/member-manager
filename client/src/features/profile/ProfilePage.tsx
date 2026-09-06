@@ -2,6 +2,7 @@ import { Save } from "lucide-react";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useSetPageHeader } from "@/contexts/PageHeaderContext";
 import { CvPanel } from "./CvPanel";
 import { LinksSection } from "./components/LinksSection";
 import { PersonalInfoSection } from "./components/PersonalInfoSection";
@@ -20,6 +21,7 @@ import type { ProfilePageProps } from "./profileTypes";
 export { ProfilePageSkeleton };
 
 export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
+	useSetPageHeader("Profile");
 	const fieldId = useId();
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
