@@ -3,6 +3,7 @@ import type {
 	FinancePlanItem,
 	FinanceProject,
 } from "@member-manager/shared";
+import { getReimbursementSubmissionTypeLabel } from "@member-manager/shared";
 import { ExternalLink, FileText, RefreshCw } from "lucide-react";
 import type React from "react";
 import { useId } from "react";
@@ -222,8 +223,9 @@ function ReviewItem({
 		hasBulkDownload &&
 		Boolean(request.receipt_filename) &&
 		hasReceiptEndpoint(request);
-	const typeLabel =
-		request.submission_type === "invoice" ? "Invoice" : "Reimbursement";
+	const typeLabel = getReimbursementSubmissionTypeLabel(
+		request.submission_type,
+	);
 	const bbSyncStatus = request.bb_sync_status ?? "not_synced";
 
 	return (
@@ -298,17 +300,23 @@ function ReviewItem({
 								</DetailGroup>
 
 								<DetailGroup title="Payment">
-									<Detail label="Bank" value={getBankName(request)} />
-									<Detail
-										label="IBAN"
-										value={getPaymentIban(request)}
-										monospace
-									/>
-									<Detail
-										label="BIC"
-										value={getPaymentBic(request)}
-										monospace
-									/>
+									{request.submission_type === "vivid_reimbursement" ? (
+										<Detail label="Status" value="No payment required" strong />
+									) : (
+										<>
+											<Detail label="Bank" value={getBankName(request)} />
+											<Detail
+												label="IBAN"
+												value={getPaymentIban(request)}
+												monospace
+											/>
+											<Detail
+												label="BIC"
+												value={getPaymentBic(request)}
+												monospace
+											/>
+										</>
+									)}
 								</DetailGroup>
 
 								<DetailGroup title="Receipt">
@@ -484,6 +492,7 @@ function getBuchhaltungsButlerSyncTone(status: string): BadgeVariant {
 
 function getReviewStageTone(stage: string): BadgeVariant {
 	if (stage === "Paid") return "success";
+	if (stage === "No payment required") return "accent";
 	if (stage === "Ready for payment") return "accent";
 	if (stage === "Rejected") return "danger";
 	// Needs approval

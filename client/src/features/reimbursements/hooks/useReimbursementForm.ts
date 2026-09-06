@@ -1,4 +1,7 @@
-import { normalizeIban } from "@member-manager/shared";
+import {
+	isVividReimbursementEligibleMember,
+	normalizeIban,
+} from "@member-manager/shared";
 import type React from "react";
 import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
@@ -16,6 +19,7 @@ import type {
 	CreateReimbursementRequestPayload,
 	ReimbursementSubmissionType,
 } from "@/features/reimbursements/reimbursementTypes";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useMemberData } from "@/hooks/useMemberData";
 import { useReimbursementRequests } from "@/hooks/useReimbursementRequests";
 import { useSepaData } from "@/hooks/useSepaData";
@@ -33,7 +37,8 @@ export function useReimbursementForm(userId: string) {
 		parseReceiptAsync,
 		isParsingReceipt,
 	} = useReimbursementRequests(userId);
-	const { member } = useMemberData(userId);
+	const { member, isLoading: isMemberLoading } = useMemberData(userId);
+	const { isAdmin, isLoading: isAdminLoading } = useIsAdmin(userId);
 	const { sepa, isLoading: isSepaLoading } = useSepaData(userId);
 	const [values, setValues] = useState<FormValues>(defaultValues);
 	const [errors, setErrors] = useState<FormErrors>({});
@@ -46,6 +51,17 @@ export function useReimbursementForm(userId: string) {
 			: "";
 	const profileIban = typeof sepa?.iban === "string" ? sepa.iban : "";
 	const profileBic = typeof sepa?.bic === "string" ? sepa.bic : "";
+	const canSubmitVivid =
+		!isAdminLoading &&
+		(isAdmin ||
+			(!isMemberLoading &&
+				isVividReimbursementEligibleMember(
+					member as {
+						active?: boolean | null;
+						member_status?: string | null;
+						member_role?: string | null;
+					},
+				)));
 	// Reimbursement and invoice submissions share one paymentIban/paymentBic
 	// field, but must not leak into each other when the member switches
 	// submission type mid-form. These drafts remember what was last shown for
@@ -95,7 +111,7 @@ export function useReimbursementForm(userId: string) {
 	const handleSubmissionTypeChange = (
 		nextType: ReimbursementSubmissionType | "",
 	): void => {
-		if (!nextType) {
+		if (!nextType || (nextType === "vivid_reimbursement" && !canSubmitVivid)) {
 			return;
 		}
 
@@ -112,7 +128,7 @@ export function useReimbursementForm(userId: string) {
 				iban: values.paymentIban || (isSepaLoading ? null : ""),
 				bic: values.paymentBic || (isSepaLoading ? null : ""),
 			};
-		} else {
+		} else if (values.submissionType === "invoice") {
 			invoiceDraft.current = {
 				iban: values.paymentIban,
 				bic: values.paymentBic,
@@ -127,9 +143,14 @@ export function useReimbursementForm(userId: string) {
 			...current,
 			submissionType: nextType,
 			paymentIban:
-				nextDraft.iban ?? (nextType === "reimbursement" ? profileIban : ""),
+				nextType === "vivid_reimbursement"
+					? ""
+					: (nextDraft.iban ??
+						(nextType === "reimbursement" ? profileIban : "")),
 			paymentBic:
-				nextDraft.bic ?? (nextType === "reimbursement" ? profileBic : ""),
+				nextType === "vivid_reimbursement"
+					? ""
+					: (nextDraft.bic ?? (nextType === "reimbursement" ? profileBic : "")),
 		}));
 		setErrors((current) => ({
 			...current,
@@ -140,6 +161,7 @@ export function useReimbursementForm(userId: string) {
 	};
 
 	const processReceiptFile = async (file: File): Promise<void> => {
+		const parsingSubmissionType = values.submissionType;
 		if (!ALLOWED_RECEIPT_TYPES.has(file.type)) {
 			setErrors((current) => ({
 				...current,
@@ -185,8 +207,13 @@ export function useReimbursementForm(userId: string) {
 							: current.amount,
 					date: parsedReceipt.date ?? current.date,
 					description: parsedReceipt.description ?? current.description,
-					paymentIban: parsedReceipt.payment_iban ?? current.paymentIban,
-					paymentBic: parsedReceipt.payment_bic ?? current.paymentBic,
+					...(current.submissionType === parsingSubmissionType &&
+					parsingSubmissionType !== "vivid_reimbursement"
+						? {
+								paymentIban: parsedReceipt.payment_iban ?? current.paymentIban,
+								paymentBic: parsedReceipt.payment_bic ?? current.paymentBic,
+							}
+						: {}),
 				}));
 				showToast(
 					"Receipt details extracted. Please review and correct them.",
@@ -238,6 +265,13 @@ export function useReimbursementForm(userId: string) {
 		if (Object.keys(nextErrors).length > 0) {
 			return;
 		}
+		if (values.submissionType === "vivid_reimbursement" && !canSubmitVivid) {
+			showToast(
+				"Vivid Reimbursement is only available to eligible active leaders or admins.",
+				"error",
+			);
+			return;
+		}
 
 		const payload: CreateReimbursementRequestPayload = {
 			amount: Number(values.amount),
@@ -245,8 +279,12 @@ export function useReimbursementForm(userId: string) {
 			description: values.description.trim(),
 			department: values.department,
 			submission_type: values.submissionType,
-			payment_iban: normalizeIban(values.paymentIban),
-			payment_bic: values.paymentBic.trim(),
+			...(values.submissionType === "vivid_reimbursement"
+				? {}
+				: {
+						payment_iban: normalizeIban(values.paymentIban),
+						payment_bic: values.paymentBic.trim(),
+					}),
 			receipt_filename: values.receipt?.fileName ?? "",
 			receipt_mime_type: values.receipt?.mimeType ?? "",
 			receipt_storage_bucket: values.receipt?.storageBucket ?? "",
@@ -291,6 +329,7 @@ export function useReimbursementForm(userId: string) {
 		isDraggingReceipt,
 		setIsDraggingReceipt,
 		isSubmitDisabled,
+		canSubmitVivid,
 		showDepartmentWarning,
 		sortedRequests,
 		setField,

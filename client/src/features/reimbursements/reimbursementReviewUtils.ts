@@ -10,6 +10,7 @@ export type ReimbursementReviewApprovalFilter =
 	| typeof ALL_REIMBURSEMENT_REVIEW_FILTER;
 export type ReimbursementReviewPaymentFilter =
 	| ReimbursementPaymentStatus
+	| "closed"
 	| typeof ALL_REIMBURSEMENT_REVIEW_FILTER;
 
 export function formatReviewAmount(value: number): string {
@@ -39,16 +40,44 @@ export function formatReviewStatus(value: string): string {
 }
 
 export function getReviewStage(request: ReimbursementRequest): string {
+	if (request.approval_status === "not_approved") {
+		return "Rejected";
+	}
 	if (request.status === "paid" || request.payment_status === "paid") {
 		return "Paid";
 	}
-	if (request.approval_status === "not_approved") {
-		return "Rejected";
+	if (
+		request.payment_status === "not_required" &&
+		request.approval_status === "approved"
+	) {
+		return "No payment required";
 	}
 	if (request.approval_status === "approved") {
 		return "Ready for payment";
 	}
 	return "Needs approval";
+}
+
+/** Closed requests have finished review and do not need a payout action. */
+export function isClosedReimbursement(request: ReimbursementRequest): boolean {
+	return (
+		request.approval_status === "not_approved" ||
+		request.payment_status === "paid" ||
+		(request.approval_status === "approved" &&
+			request.payment_status === "not_required")
+	);
+}
+
+/** Applies the same closed predicate used by the queue count and quick filter. */
+export function matchesReimbursementPaymentFilter(
+	request: ReimbursementRequest,
+	filter: ReimbursementReviewPaymentFilter,
+): boolean {
+	if (filter === "closed") return isClosedReimbursement(request);
+	return (
+		filter === ALL_REIMBURSEMENT_REVIEW_FILTER ||
+		request.payment_status === filter
+	);
 }
 
 export function getRequesterName(request: ReimbursementRequest): string {
@@ -65,14 +94,20 @@ export function getRequesterEmail(request: ReimbursementRequest): string {
 }
 
 export function getPaymentIban(request: ReimbursementRequest): string {
+	if (request.submission_type === "vivid_reimbursement")
+		return "Not applicable";
 	return request.payment_iban ?? request.iban ?? "Not provided";
 }
 
 export function getPaymentBic(request: ReimbursementRequest): string {
+	if (request.submission_type === "vivid_reimbursement")
+		return "Not applicable";
 	return request.payment_bic ?? request.bic ?? "Not provided";
 }
 
 export function getBankName(request: ReimbursementRequest): string {
+	if (request.submission_type === "vivid_reimbursement")
+		return "No payment required";
 	return request.bank_name ?? request.payment_bank_name ?? "Not provided";
 }
 
@@ -105,9 +140,13 @@ export function matchesReimbursementReviewSearch(
 	return [
 		getRequesterName(request),
 		getRequesterEmail(request),
-		getBankName(request),
-		getPaymentIban(request),
-		getPaymentBic(request),
+		...(request.submission_type === "vivid_reimbursement"
+			? []
+			: [
+					getBankName(request),
+					getPaymentIban(request),
+					getPaymentBic(request),
+				]),
 		request.description,
 		request.department,
 		request.date,

@@ -30,7 +30,9 @@ export function ReimbursementReviewActions({
 }: ReimbursementReviewActionsProps): React.ReactElement | null {
 	const canApprove = request.approval_status === "pending";
 	const canMarkPaid =
-		request.approval_status === "approved" && request.payment_status !== "paid";
+		request.approval_status === "approved" &&
+		request.payment_status !== "paid" &&
+		request.payment_status !== "not_required";
 	const availableActions: ReimbursementReviewAction[] = canApprove
 		? ["approve", "reject"]
 		: canMarkPaid

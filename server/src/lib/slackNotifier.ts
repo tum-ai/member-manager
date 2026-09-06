@@ -1,3 +1,7 @@
+import {
+	getReimbursementSubmissionTypeLabel,
+	VIVID_REIMBURSEMENT_SUBMISSION_TYPE,
+} from "@member-manager/shared";
 import { getAuthEmail } from "./authEmails.js";
 import { fetchWithTimeout } from "./fetchWithTimeout.js";
 import { isLocalAdminBootstrapEnabled } from "./localAdmin.js";
@@ -67,6 +71,14 @@ type ReimbursementStatusSlackNotifier = (
 type BugReportSlackNotifier = (
 	payload: BugReportSlackNotification,
 ) => Promise<void>;
+
+function getSlackReimbursementTypeLabel(submissionType: string): string {
+	// Preserve the established lowercase wording for existing reimbursement
+	// notifications while giving new variants a canonical shared label.
+	return submissionType === "reimbursement"
+		? "reimbursement"
+		: getReimbursementSubmissionTypeLabel(submissionType);
+}
 
 function selectRoundRobinSlackMember(
 	issueNumber: number,
@@ -366,12 +378,13 @@ async function fetchReimbursementReviewerEmails(): Promise<string[]> {
 function buildReimbursementMessage(
 	payload: ReimbursementSlackNotification,
 ): string {
+	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
 	const reviewLine = payload.reviewUrl
 		? `Review in Member Manager: ${payload.reviewUrl}`
 		: "Review in the Member Manager finance workspace.";
 
 	return [
-		`New ${payload.submissionType} request`,
+		`New ${requestLabel} request`,
 		`Requester: ${payload.requesterEmail}`,
 		`Department: ${payload.department}`,
 		`Amount: ${payload.amount.toFixed(2)} EUR`,
@@ -387,12 +400,14 @@ function buildReimbursementBlocks(
 		return undefined;
 	}
 
+	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
+
 	return [
 		{
 			type: "section",
 			text: {
 				type: "mrkdwn",
-				text: `*New ${payload.submissionType} request*\n${payload.amount.toFixed(
+				text: `*New ${requestLabel} request*\n${payload.amount.toFixed(
 					2,
 				)} EUR · ${payload.department}`,
 			},
@@ -476,7 +491,7 @@ function buildReimbursementStatusBlocks(
 function buildReimbursementStatusMessage(
 	payload: ReimbursementStatusSlackNotification,
 ): string {
-	const requestLabel = payload.submissionType || "reimbursement";
+	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
 	const requestLine = payload.requestUrl
 		? `View in Member Manager: ${payload.requestUrl}`
 		: "View it in Member Manager.";
@@ -503,7 +518,9 @@ function buildReimbursementStatusMessage(
 	return [
 		`Your ${requestLabel} request was approved`,
 		`Amount: ${payload.amount.toFixed(2)} EUR`,
-		"Legal & Finance will mark it paid after payout.",
+		...(payload.submissionType === VIVID_REIMBURSEMENT_SUBMISSION_TYPE
+			? ["This expense will be recorded; no payout is required."]
+			: ["Legal & Finance will mark it paid after payout."]),
 		`Request ID: ${payload.requestId}`,
 		requestLine,
 	].join("\n");

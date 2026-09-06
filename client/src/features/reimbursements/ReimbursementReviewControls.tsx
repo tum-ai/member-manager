@@ -73,7 +73,7 @@ export function ReimbursementReviewControls({
 	const isNeedsApproval = approvalFilter === "pending";
 	const isApprovedNotPaid =
 		approvalFilter === "approved" && paymentFilter === "to_be_paid";
-	const isClosed = paymentFilter === "paid";
+	const isClosed = paymentFilter === "closed";
 
 	return (
 		<GlassCard variant="elevated">
@@ -194,6 +194,8 @@ export function ReimbursementReviewControls({
 								},
 								{ value: "to_be_paid", label: "To be paid" },
 								{ value: "paid", label: "Paid" },
+								{ value: "closed", label: "Closed" },
+								{ value: "not_required", label: "No payment required" },
 							]}
 						/>
 						{hasActiveFilters && (

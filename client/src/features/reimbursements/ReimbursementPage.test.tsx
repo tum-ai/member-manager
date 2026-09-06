@@ -11,11 +11,20 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ReimbursementPage from "./ReimbursementPage";
 
+interface TestMember {
+	user_id: string;
+	department: string;
+	active: boolean;
+	member_status: string;
+	member_role: string;
+}
+
 const {
 	createRequestAsync,
 	uploadReceiptAsync,
 	parseReceiptAsync,
 	showToast,
+	adminState,
 	hookState,
 	memberState,
 	sepaState,
@@ -24,6 +33,10 @@ const {
 	uploadReceiptAsync: vi.fn(),
 	parseReceiptAsync: vi.fn(),
 	showToast: vi.fn(),
+	adminState: {
+		isAdmin: false,
+		isLoading: false,
+	},
 	hookState: {
 		requests: [] as unknown[],
 		isLoading: false,
@@ -36,7 +49,10 @@ const {
 		member: {
 			user_id: "user-123",
 			department: "Software Development",
-		},
+			active: true,
+			member_status: "active",
+			member_role: "Team Lead",
+		} as TestMember | undefined,
 		isLoading: false,
 		error: null as Error | null,
 	},
@@ -81,6 +97,10 @@ vi.mock("../../hooks/useMemberData", () => ({
 
 vi.mock("../../hooks/useSepaData", () => ({
 	useSepaData: () => sepaState,
+}));
+
+vi.mock("../../hooks/useIsAdmin", () => ({
+	useIsAdmin: () => adminState,
 }));
 
 const mockUser = {
@@ -143,6 +163,9 @@ describe("ReimbursementPage", () => {
 		memberState.member = {
 			user_id: "user-123",
 			department: "Software Development",
+			active: true,
+			member_status: "active",
+			member_role: "Team Lead",
 		};
 		memberState.isLoading = false;
 		memberState.error = null;
@@ -157,6 +180,48 @@ describe("ReimbursementPage", () => {
 		};
 		sepaState.isLoading = false;
 		sepaState.error = null;
+		adminState.isAdmin = false;
+		adminState.isLoading = false;
+	});
+
+	it("shows Vivid only after an eligible active leadership role resolves", () => {
+		const view = renderPage();
+
+		expect(screen.getByRole("radio", { name: "Vivid" })).toBeVisible();
+
+		adminState.isLoading = true;
+		view.rerender(
+			<MemoryRouter>
+				<ReimbursementPage user={mockUser} />
+			</MemoryRouter>,
+		);
+		expect(
+			screen.queryByRole("radio", { name: "Vivid" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("hides Vivid for inactive leadership members", () => {
+		memberState.member = {
+			user_id: "user-123",
+			department: "Software Development",
+			active: false,
+			member_status: "alumni",
+			member_role: "Team Lead",
+		};
+		renderPage();
+
+		expect(
+			screen.queryByRole("radio", { name: "Vivid" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("shows Vivid for an admin even while member details are loading", () => {
+		adminState.isAdmin = true;
+		memberState.member = undefined;
+		memberState.isLoading = true;
+		renderPage();
+
+		expect(screen.getByRole("radio", { name: "Vivid" })).toBeVisible();
 	});
 
 	it("prefills the department from the member profile and warns on overrides", async () => {
@@ -219,6 +284,41 @@ describe("ReimbursementPage", () => {
 		await user.clear(screen.getByLabelText(/amount/i));
 		await user.type(screen.getByLabelText(/amount/i), "43");
 		expect(screen.getByLabelText(/amount/i)).toHaveValue(43);
+	});
+
+	it("submits Vivid without bank fields or parsed bank autofill", async () => {
+		createRequestAsync.mockResolvedValueOnce({});
+		parseReceiptAsync.mockResolvedValueOnce({
+			amount: 42.5,
+			date: "2026-04-12",
+			description: "Virtual card purchase",
+			payment_iban: "DE89370400440532013000",
+			payment_bic: "COBADEFFXXX",
+		});
+		const user = userEvent.setup();
+		const { container } = renderPage();
+
+		await user.click(screen.getByRole("radio", { name: "Vivid" }));
+		expect(screen.queryByLabelText(/iban/i)).not.toBeInTheDocument();
+		expect(screen.queryByLabelText(/bic/i)).not.toBeInTheDocument();
+		await fillBaseRequest(user);
+		await uploadReceipt(user, container);
+		await waitFor(() =>
+			expect(screen.getByLabelText(/amount/i)).toHaveValue(42.5),
+		);
+		expect(screen.queryByLabelText(/iban/i)).not.toBeInTheDocument();
+		expect(screen.queryByLabelText(/bic/i)).not.toBeInTheDocument();
+
+		await user.click(screen.getByRole("button", { name: /submit request/i }));
+
+		await waitFor(() => expect(createRequestAsync).toHaveBeenCalledTimes(1));
+		const payload = createRequestAsync.mock.calls[0]?.[0] as Record<
+			string,
+			unknown
+		>;
+		expect(payload.submission_type).toBe("vivid_reimbursement");
+		expect(payload).not.toHaveProperty("payment_iban");
+		expect(payload).not.toHaveProperty("payment_bic");
 	});
 
 	it("requires IBAN and BIC for reimbursements", async () => {

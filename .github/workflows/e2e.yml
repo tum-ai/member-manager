@@ -62,7 +62,7 @@ jobs:
 
       - name: Run finance RLS integration tests
         if: steps.filter.outputs.code == 'true'
-        run: RUN_LOCAL_SUPABASE_RLS_TESTS=true pnpm --filter @member-manager/server exec tsx --test test/migrations/financeManagementRls.test.ts
+        run: RUN_LOCAL_SUPABASE_RLS_TESTS=true pnpm --filter @member-manager/server exec tsx --test test/migrations/financeManagementRls.test.ts test/migrations/vividReimbursementMigration.test.ts
 
       - name: Cache Playwright browsers
         if: steps.filter.outputs.code == 'true'
