@@ -19,6 +19,7 @@ import {
 import type {
 	FinancePeriodType,
 	FinanceTAccountGroup as FinanceTAccountGroupData,
+	FinanceTAccountPlanItemRef,
 	FinanceTAccountResponse,
 } from "@/features/finance/financeTypes";
 import type { FinancePeriod } from "@/features/finance/financeUtils";
@@ -38,9 +39,10 @@ interface FinanceTAccountChromeProps {
 	canChooseDepartment: boolean;
 	department: string | null;
 	groups: FinanceTAccountGroupData[];
-	// Names for Planposten that have no line of their own (fully matched ones),
-	// so an expanded invoice can still say what it funds.
-	planItemLabels?: Record<string, string>;
+	// Name and project for Planposten that have no line of their own (fully
+	// matched ones), so an expanded invoice can still say what it funds and which
+	// project's share of it that match spends.
+	planItems?: Record<string, FinanceTAccountPlanItemRef>;
 	totals?: FinanceTAccountResponse["totals"];
 	isLoading: boolean;
 	error: Error | null;
@@ -63,7 +65,7 @@ export function FinanceTAccountSection({
 	canChooseDepartment,
 	department,
 	groups,
-	planItemLabels = {},
+	planItems = {},
 	totals,
 	isLoading,
 	error,
@@ -121,7 +123,7 @@ export function FinanceTAccountSection({
 					department={department}
 					period={period}
 					groups={groups}
-					planItemLabels={planItemLabels}
+					planItems={planItems}
 					totals={totals}
 					isLoading={isLoading}
 					{...workbench}
@@ -135,7 +137,7 @@ function TAccountBody({
 	department,
 	period,
 	groups,
-	planItemLabels,
+	planItems,
 	totals,
 	isLoading,
 	canWrite = false,
@@ -149,7 +151,7 @@ function TAccountBody({
 	department: string;
 	period: FinancePeriod;
 	groups: FinanceTAccountGroupData[];
-	planItemLabels: Record<string, string>;
+	planItems: Record<string, FinanceTAccountPlanItemRef>;
 	totals?: FinanceTAccountResponse["totals"];
 	isLoading: boolean;
 } & Partial<
@@ -158,8 +160,8 @@ function TAccountBody({
 	// Build the nested display tree (per-column subtotals + child roll-ups) once
 	// per data change, before any early return so the hook order stays stable.
 	const tree = useMemo(
-		() => buildTAccountTree(groups, planItemLabels),
-		[groups, planItemLabels],
+		() => buildTAccountTree(groups, planItems),
+		[groups, planItems],
 	);
 	// The sub-team folders the project dialog may drop a new project into
 	// (FR-L4). Derived from the groups rather than the display tree, so a folder

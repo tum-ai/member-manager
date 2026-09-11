@@ -6,6 +6,7 @@ import type {
 	FinanceTAccountGroup,
 	FinanceTAccountLine,
 	FinanceTAccountPlanDetail,
+	FinanceTAccountPlanItemRef,
 	FinanceTAccountPostingDetail,
 } from "@/features/finance/financeTypes";
 
@@ -86,6 +87,10 @@ export interface TAccountMatchView {
 	key: string;
 	label: string;
 	amount: number;
+	// The (department, project) share this match spends, taken from the
+	// Planposten behind it. Match capacity is counted per scope in the database,
+	// so a posting split across two projects has to keep the two apart.
+	projectId: string | null;
 }
 
 // A line as rendered in a T-account column: either a real posting/plan line or a
@@ -209,12 +214,32 @@ export interface TAccountMatchCandidate {
 	openAmount: number;
 }
 
-// What is left of a booked invoice after the Planposten already matched to it.
-// A plan line already carries its own open remainder as its amount, so it needs
-// no equivalent.
+// What is left of a booked invoice for *this* line's share of it. A plan line
+// already carries its own open remainder as its amount, so it needs no
+// equivalent.
+//
+// `line.amount` is one (department, project) share of the posting and only a
+// match drawing on that same share consumes it — that is how the database
+// counts capacity. A €100 invoice split €50 into two projects keeps €50 open on
+// each side, even once the first side is fully matched. The posting as a whole
+// is still a ceiling: a match booked against a scope this line cannot see (an
+// unallocated posting matched from a project) has spent the invoice all the
+// same. `posting_amount` is zero only when unknown — the database refuses a
+// posting without an amount.
 export function openPostingAmount(line: TAccountDisplayLine): number {
-	const matched = line.matches.reduce((sum, match) => sum + match.amount, 0);
-	return round(line.amount - matched);
+	let matchedInScope = 0;
+	let matchedOnPosting = 0;
+	for (const match of line.matches) {
+		matchedOnPosting += match.amount;
+		if (match.projectId === line.projectId) {
+			matchedInScope += match.amount;
+		}
+	}
+	const openInScope = line.amount - matchedInScope;
+	const postingAmount = Math.abs(line.postingDetail?.posting_amount ?? 0);
+	const openOnPosting =
+		postingAmount > 0 ? postingAmount - matchedOnPosting : openInScope;
+	return round(Math.max(0, Math.min(openInScope, openOnPosting)));
 }
 
 // Everything in the department that could still absorb a match, from both
@@ -271,19 +296,26 @@ export function collectMatchCandidates(nodes: TAccountNode[]): {
 interface TAccountLookups {
 	projectNames: Map<string, string>;
 	planItemLabels: Map<string, string>;
+	// The project each Planposten belongs to — the scope a match against it
+	// spends. Needed for the fully matched ones above all: they have no line, so
+	// only the response-level map knows where they sit.
+	planItemProjects: Map<string, string | null>;
 	postingLabels: Map<string, string>;
 }
 
 function buildLookups(
 	groups: FinanceTAccountGroup[],
-	knownPlanItemLabels: Record<string, string>,
+	knownPlanItems: Record<string, FinanceTAccountPlanItemRef>,
 ): TAccountLookups {
 	const projectNames = new Map<string, string>();
 	// Seeded from the response so a fully matched Planposten — which has no line
-	// of its own — is still named where an invoice references it.
-	const planItemLabels = new Map<string, string>(
-		Object.entries(knownPlanItemLabels),
-	);
+	// of its own — is still named and placed where an invoice references it.
+	const planItemLabels = new Map<string, string>();
+	const planItemProjects = new Map<string, string | null>();
+	for (const [id, item] of Object.entries(knownPlanItems)) {
+		planItemLabels.set(id, item.label);
+		planItemProjects.set(id, item.project_id);
+	}
 	const postingLabels = new Map<string, string>();
 	for (const group of groups) {
 		if (group.project_id !== null && group.project_name !== null) {
@@ -292,13 +324,14 @@ function buildLookups(
 		for (const line of [...group.expense_lines, ...group.income_lines]) {
 			if (line.plan_item_id !== null) {
 				planItemLabels.set(line.plan_item_id, line.label);
+				planItemProjects.set(line.plan_item_id, line.project_id);
 			}
 			if (line.posting_external_id !== null) {
 				postingLabels.set(line.posting_external_id, line.label);
 			}
 		}
 	}
-	return { projectNames, planItemLabels, postingLabels };
+	return { projectNames, planItemLabels, planItemProjects, postingLabels };
 }
 
 function allocationViews(
@@ -334,10 +367,18 @@ function matchViews(
 			: (match: (typeof matches)[number]) =>
 					lookups.postingLabels.get(match.posting_external_id) ??
 					match.posting_external_id;
+	// A Planposten the response never named (undefined, not a null project) is
+	// read as drawing on this line's own share: that understates what is still
+	// open rather than offering capacity the database would refuse.
+	const scopeOf = (match: (typeof matches)[number]): string | null => {
+		const scope = lookups.planItemProjects.get(match.plan_item_id);
+		return scope === undefined ? line.project_id : scope;
+	};
 	return matches.map((match) => ({
 		key: match.id,
 		label: resolve(match),
 		amount: match.matched_amount,
+		projectId: scopeOf(match),
 	}));
 }
 
@@ -436,9 +477,9 @@ function rollupLine(
 // server `totals`, so a child is never counted twice (keeps FR-G5 intact).
 export function buildTAccountTree(
 	groups: FinanceTAccountGroup[],
-	planItemLabels: Record<string, string> = {},
+	planItems: Record<string, FinanceTAccountPlanItemRef> = {},
 ): TAccountNode[] {
-	const lookups = buildLookups(groups, planItemLabels);
+	const lookups = buildLookups(groups, planItems);
 	const byId = new Map<string, FinanceTAccountGroup>();
 	const subTeamGroups = new Set<string>();
 	for (const group of groups) {

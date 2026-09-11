@@ -1400,6 +1400,18 @@ export const FinanceTAccountGroupSchema = z.object({
 });
 export type FinanceTAccountGroup = z.infer<typeof FinanceTAccountGroupSchema>;
 
+// A Planposten as referenced from elsewhere in the response: its name, plus the
+// scope it draws on. The database counts match capacity per (department,
+// project), so the project is what tells a match against this item apart from a
+// sibling project's match on the same invoice.
+export const FinanceTAccountPlanItemRefSchema = z.object({
+	label: z.string().min(1),
+	project_id: UUID_SCHEMA.nullable(),
+});
+export type FinanceTAccountPlanItemRef = z.infer<
+	typeof FinanceTAccountPlanItemRefSchema
+>;
+
 export const FinanceTAccountResponseSchema = z.object({
 	period_type: FinancePeriodTypeSchema,
 	period_key: z.string().min(1),
@@ -1407,9 +1419,10 @@ export const FinanceTAccountResponseSchema = z.object({
 	// Ungrouped bucket first (project_id null), then one group per project.
 	groups: z.array(FinanceTAccountGroupSchema),
 	// Every Planposten of the department by id, so an expanded invoice can name
-	// the plan item it funds even when that item has no line of its own — a fully
-	// matched one carries no open remainder and is not emitted as a line.
-	plan_item_labels: z.record(z.string(), z.string()),
+	// the plan item it funds — and tell which share of itself that match spends —
+	// even when the item has no line of its own: a fully matched one carries no
+	// open remainder and is not emitted as a line.
+	plan_items: z.record(z.string(), FinanceTAccountPlanItemRefSchema),
 	totals: z.object({
 		actual: FinanceTAccountSaldoSchema,
 		plan: FinanceTAccountSaldoSchema,

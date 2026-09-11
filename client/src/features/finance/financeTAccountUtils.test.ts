@@ -136,6 +136,103 @@ describe("collectMatchCandidates", () => {
 		expect(venue && openPostingAmount(venue)).toBe(100);
 		expect(catering && openPostingAmount(catering)).toBe(500);
 	});
+
+	it("keeps a split invoice open in the project that has not matched it", () => {
+		// A €100 invoice split €50/€50 over two projects appears as one line per
+		// project, but each line carries *every* match on the posting. The database
+		// counts capacity per (department, project), so matching the Makeathon half
+		// must leave the Hackathon half fully open — it used to disappear from the
+		// candidate list together with its sibling.
+		const splitLine = (projectId: string) =>
+			line({
+				kind: "actual",
+				amount: 50,
+				label: `Sammelrechnung (${projectId === MAKEATHON ? "M" : "H"})`,
+				posting_external_id: "BB-split",
+				project_id: projectId,
+				posting_detail: postingDetail({
+					posting_amount: -100,
+					matches: [
+						match({
+							id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+							posting_external_id: "BB-split",
+							plan_item_id: "plan-makeathon",
+							matched_amount: 50,
+						}),
+					],
+				}),
+			});
+		const tree = buildTAccountTree(
+			[
+				group({
+					project_id: MAKEATHON,
+					project_name: "Makeathon",
+					expense_lines: [splitLine(MAKEATHON)],
+				}),
+				group({
+					project_id: HACKATHON,
+					project_name: "Hackathon",
+					expense_lines: [
+						splitLine(HACKATHON),
+						line({
+							kind: "plan",
+							amount: 50,
+							label: "Hackathon-Plan",
+							plan_item_id: "plan-hackathon",
+							project_id: HACKATHON,
+						}),
+					],
+				}),
+			],
+			// The Makeathon Planposten is fully matched, so it has no line of its
+			// own: only the response-level map says which share its match spends.
+			{ "plan-makeathon": { label: "Makeathon-Plan", project_id: MAKEATHON } },
+		);
+		const [makeathon, hackathon] = tree;
+
+		expect(openPostingAmount(makeathon.expenseLines[0])).toBe(0);
+		expect(openPostingAmount(hackathon.expenseLines[0])).toBe(50);
+		expect(
+			collectMatchCandidates(tree).postings.map((entry) => [
+				entry.projectId,
+				entry.openAmount,
+			]),
+		).toEqual([[HACKATHON, 50]]);
+	});
+
+	it("never offers more than the posting itself still has open", () => {
+		// An unallocated invoice matched from a project (only the automatic
+		// reconciliation can produce that pairing) is spent all the same: the
+		// department-level line must not re-offer the €40 that already went.
+		const [node] = buildTAccountTree(
+			[
+				group({
+					expense_lines: [
+						line({
+							kind: "actual",
+							amount: 100,
+							label: "Sammelrechnung",
+							posting_external_id: "BB-loose",
+							posting_detail: postingDetail({
+								posting_amount: -100,
+								matches: [
+									match({
+										id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3",
+										posting_external_id: "BB-loose",
+										plan_item_id: "plan-makeathon",
+										matched_amount: 40,
+									}),
+								],
+							}),
+						}),
+					],
+				}),
+			],
+			{ "plan-makeathon": { label: "Makeathon-Plan", project_id: MAKEATHON } },
+		);
+
+		expect(openPostingAmount(node.expenseLines[0])).toBe(60);
+	});
 });
 
 describe("summarizeAllocationResults", () => {
@@ -560,7 +657,7 @@ describe("buildTAccountTree", () => {
 					],
 				}),
 			],
-			{ "plan-venue": "Venue" },
+			{ "plan-venue": { label: "Venue", project_id: null } },
 		);
 
 		expect(node.expenseLines[0]?.matches.map((m) => m.label)).toEqual([

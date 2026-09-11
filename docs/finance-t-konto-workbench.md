@@ -430,8 +430,17 @@ status walk-back on detach, and the "below its matched total" guard):
 
 - **Third find:** a fully matched Planposten carries no open remainder, so the server emits no
   line for it — and the invoice funding it then showed a nameless "Planposten". The response
-  now carries `plan_item_labels` (every Planposten of the department by id) so a reference can
-  always be named, whether or not the item has a line.
+  now carries `plan_items` (every Planposten of the department by id, with its label and its
+  project) so a reference can always be named, whether or not the item has a line.
+
+- **Fourth find (review):** a posting split across two projects appears as one line per project,
+  but each line carries *every* match on that posting. `openPostingAmount` subtracted all of
+  them from one project's share, so matching project A's half also emptied project B's — B
+  vanished from the candidate list with €50 still open. Match capacity is counted per
+  `(department, project)` in the database, so the client now attributes each match to the
+  project of the Planposten behind it (that is what `plan_items` carries the project for) and
+  only subtracts the ones drawing on the same share. The posting as a whole stays a second
+  ceiling, for a match booked against a scope this line cannot see.
 
 Deliberately **not** included: deleting a Planposten from the T-view. FR-M covers parking, not
 deletion, and the plan tab still owns delete until Phase 5 retires it — that phase has to grow
