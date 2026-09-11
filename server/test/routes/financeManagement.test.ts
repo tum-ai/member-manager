@@ -177,9 +177,9 @@ describe("Finance management routes", async () => {
 			),
 			false,
 		);
-		// What happens to the rows that pointed at it is the database's job (ON
-		// DELETE SET NULL), which this in-memory harness does not model — it is
-		// covered against real Postgres by the E2E instead.
+		// What happens to the rows that pointed at it is the database's job; the
+		// harness mirrors the ON DELETE SET NULL detach and the target fold of
+		// `delete_finance_project`, and the E2E covers it against real Postgres.
 	});
 
 	test("refuses deletion without finance write access", async () => {
@@ -212,6 +212,176 @@ describe("Finance management routes", async () => {
 			headers: authHeaders(testTokens.admin),
 		});
 		assert.strictEqual(missing.statusCode, 404);
+	});
+
+	// An invoice split between this project and the direct bucket of the same
+	// department with the same tax area leaves two allocations that differ only in
+	// `project_id`. `finance_posting_allocations_target_idx` is UNIQUE NULLS NOT
+	// DISTINCT, so the ON DELETE SET NULL used to turn them into duplicates and
+	// the endpoint answered 500 instead of detaching the invoice.
+	test("deletes a project whose invoice is split between it and the direct bucket of the same department with the same tax area", async () => {
+		seedMakeathonMapping();
+		mockDatabase.finance_projects.push({
+			id: PROJECT_ID,
+			parent_project_id: null,
+			name: "Makeathon 2026",
+			department: "Makeathon",
+			period_type: "year",
+			period_key: "2026",
+			tax_area: "wirtschaftlich",
+			target_amount: -20_000,
+			status: "active",
+			description: null,
+			sub_team: null,
+			created_at: "2026-01-01T00:00:00.000Z",
+			updated_at: "2026-01-01T00:00:00.000Z",
+		});
+		const posting = await findMakeathonVenue(app);
+
+		const split = await app.inject({
+			method: "PUT",
+			url: `/api/finance/posting-allocations/${posting.external_id}`,
+			headers: authHeaders(testTokens.admin),
+			payload: {
+				allocations: [
+					{
+						department: "Makeathon",
+						project_id: PROJECT_ID,
+						tax_area: "wirtschaftlich",
+						percentage: 60,
+						note: "Projektanteil",
+					},
+					{
+						department: "Makeathon",
+						tax_area: "wirtschaftlich",
+						percentage: 40,
+						note: "Direktanteil",
+					},
+				],
+			},
+		});
+		assert.strictEqual(split.statusCode, 200, split.payload);
+		const saved = JSON.parse(split.payload).allocations;
+		assert.strictEqual(saved.length, 2);
+		assert.deepStrictEqual(
+			saved.map((row: { project_id: string | null }) => row.project_id).sort(),
+			[PROJECT_ID, null],
+		);
+
+		const deleted = await app.inject({
+			method: "DELETE",
+			url: `/api/finance/projects/${PROJECT_ID}`,
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(deleted.statusCode, 204, deleted.payload);
+
+		const remaining = mockDatabase.finance_posting_allocations.filter(
+			(row) => row.posting_external_id === posting.external_id,
+		);
+		assert.strictEqual(remaining.length, 1);
+		assert.deepStrictEqual(
+			{
+				department: remaining[0].department,
+				project_id: remaining[0].project_id,
+				tax_area: remaining[0].tax_area,
+				allocated_amount: remaining[0].allocated_amount,
+				allocated_percentage: remaining[0].allocated_percentage,
+			},
+			{
+				department: "Makeathon",
+				project_id: null,
+				tax_area: "wirtschaftlich",
+				// The fold preserves the posting's money exactly: the whole -4800
+				// invoice and the full 100 % now sit in the department bucket.
+				allocated_amount: posting.transaction_amount,
+				allocated_percentage: 100,
+			},
+		);
+		assert.match(String(remaining[0].note), /Direktanteil/);
+		assert.match(String(remaining[0].note), /Projektanteil/);
+	});
+
+	test("folds a reallocation request's project target into its department target", async () => {
+		mockDatabase.finance_projects.push({
+			id: PROJECT_ID,
+			parent_project_id: null,
+			name: "Makeathon 2026",
+			department: "Makeathon",
+			period_type: "year",
+			period_key: "2026",
+			tax_area: "wirtschaftlich",
+			target_amount: -20_000,
+			status: "active",
+			description: null,
+			sub_team: null,
+			created_at: "2026-01-01T00:00:00.000Z",
+			updated_at: "2026-01-01T00:00:00.000Z",
+		});
+		const requestId = "70000000-0000-4000-8000-000000000001";
+		mockDatabase.finance_reallocation_requests.push({
+			id: requestId,
+			posting_external_id: "BB-split",
+			requesting_department: "Makeathon",
+			reason: "Projektanteil zurück in die Abteilung",
+			status: "pending",
+			allocation_snapshot: [],
+			requested_by: testUserIds.admin,
+			reviewed_by: null,
+			review_note: null,
+			reviewed_at: null,
+			created_at: "2026-05-05T00:00:00.000Z",
+			updated_at: "2026-05-05T00:00:00.000Z",
+		});
+		mockDatabase.finance_reallocation_request_items.push(
+			{
+				id: "80000000-0000-4000-8000-000000000001",
+				request_id: requestId,
+				posting_external_id: "BB-split",
+				department: "Makeathon",
+				project_id: PROJECT_ID,
+				tax_area: "wirtschaftlich",
+				allocated_amount: -2880,
+				allocated_percentage: 60,
+				note: "Projektanteil",
+				created_by: testUserIds.admin,
+				created_at: "2026-05-05T00:00:00.000Z",
+				updated_at: "2026-05-05T00:00:00.000Z",
+			},
+			{
+				id: "80000000-0000-4000-8000-000000000002",
+				request_id: requestId,
+				posting_external_id: "BB-split",
+				department: "Makeathon",
+				project_id: null,
+				tax_area: "wirtschaftlich",
+				allocated_amount: -1920,
+				allocated_percentage: 40,
+				note: "Direktanteil",
+				created_by: testUserIds.admin,
+				created_at: "2026-05-05T00:00:00.000Z",
+				updated_at: "2026-05-05T00:00:00.000Z",
+			},
+		);
+
+		const deleted = await app.inject({
+			method: "DELETE",
+			url: `/api/finance/projects/${PROJECT_ID}`,
+			headers: authHeaders(testTokens.admin),
+		});
+		assert.strictEqual(deleted.statusCode, 204, deleted.payload);
+
+		const items = mockDatabase.finance_reallocation_request_items.filter(
+			(row) => row.request_id === requestId,
+		);
+		assert.strictEqual(items.length, 1);
+		assert.deepStrictEqual(
+			{
+				project_id: items[0].project_id,
+				allocated_amount: items[0].allocated_amount,
+				allocated_percentage: items[0].allocated_percentage,
+			},
+			{ project_id: null, allocated_amount: -4800, allocated_percentage: 100 },
+		);
 	});
 
 	test("rejects project scope changes once dependent finance rows exist", async (t) => {

@@ -51,6 +51,13 @@ const departmentMatchCapacityMigration = readFileSync(
 	),
 	"utf8",
 );
+const projectDeleteFoldMigration = readFileSync(
+	new URL(
+		"../../../supabase/migrations/20260911120000_finance_project_delete_target_fold.sql",
+		import.meta.url,
+	),
+	"utf8",
+);
 
 describe("finance management migrations", () => {
 	test("creates all managed finance tables with RLS", () => {
@@ -452,5 +459,106 @@ describe("finance management migrations", () => {
 			departmentMatchCapacityMigration,
 			/grant execute\s*\non function "public"\."replace_finance_posting_allocations"/i,
 		);
+	});
+
+	// An invoice split between a project and the *direct* bucket of the same
+	// department with the same tax area leaves two rows that differ only in
+	// `project_id`. Both target indexes are UNIQUE NULLS NOT DISTINCT, so the
+	// ON DELETE SET NULL turned them into duplicates and the delete failed with
+	// a 500 instead of detaching the invoice.
+	test("folds colliding allocation targets before deleting a project", () => {
+		assert.match(
+			projectDeleteFoldMigration,
+			/create or replace function "public"\."delete_finance_project"\("p_id" uuid\)[\s\S]*?security definer[\s\S]*?set search_path = ''/i,
+		);
+		// Same dependency-first lock order as update_finance_project, then the
+		// per-project advisory lock, then the row itself.
+		for (const table of [
+			"finance_project_template_assignments",
+			"finance_plan_items",
+			"finance_posting_allocations",
+			"finance_reallocation_request_items",
+			"reimbursements",
+			"finance_projects",
+		]) {
+			assert.match(
+				projectDeleteFoldMigration,
+				new RegExp(
+					`lock table public\\.${table}\\s+in share row exclusive mode`,
+					"i",
+				),
+			);
+		}
+		assert.match(
+			projectDeleteFoldMigration,
+			/lock table public\.finance_project_template_assignments[\s\S]*?lock table public\.finance_projects[\s\S]*?pg_advisory_xact_lock\(\s*\n\s*pg_catalog\.hashtextextended\('finance-project:'[\s\S]*?where id = p_id\s*\n\s*for update/i,
+		);
+		assert.match(
+			projectDeleteFoldMigration,
+			/if not found then\s*\n\s*raise exception 'Finance project not found';/i,
+		);
+
+		const allocationFold = projectDeleteFoldMigration.slice(
+			projectDeleteFoldMigration.indexOf(
+				"from public.finance_posting_allocations a",
+			),
+			projectDeleteFoldMigration.indexOf(
+				"from public.finance_reallocation_request_items i",
+			),
+		);
+		assert.ok(allocationFold.length > 0);
+		// The post-delete target reads the project's department for a row that only
+		// names the project, so the fold also keeps *_target_check satisfied.
+		assert.match(
+			allocationFold,
+			/group by\s*\n\s*a\.posting_external_id,\s*\n\s*coalesce\(a\.department, v_project\.department\),\s*\n\s*a\.tax_area/i,
+		);
+		// Money is preserved by summing the stored fixed-scale values into the
+		// surviving department-level row — no re-apportioning, no re-rounding.
+		assert.match(
+			allocationFold,
+			/update public\.finance_posting_allocations s\s*\n\s*set\s*\n\s*allocated_amount = s\.allocated_amount \+ v_fold\.allocated_amount,\s*\n\s*allocated_percentage =\s*\n\s*s\.allocated_percentage \+ v_fold\.allocated_percentage/i,
+		);
+		assert.match(allocationFold, /and s\.project_id is null/i);
+		assert.match(
+			allocationFold,
+			/delete from public\.finance_posting_allocations a\s*\n\s*where a\.project_id = p_id/i,
+		);
+
+		const itemFold = projectDeleteFoldMigration.slice(
+			projectDeleteFoldMigration.indexOf(
+				"from public.finance_reallocation_request_items i",
+			),
+		);
+		assert.match(
+			itemFold,
+			/group by\s*\n\s*i\.request_id,\s*\n\s*coalesce\(i\.department, v_project\.department\),\s*\n\s*i\.tax_area/i,
+		);
+		assert.match(
+			itemFold,
+			/update public\.finance_reallocation_request_items s\s*\n\s*set\s*\n\s*allocated_amount = s\.allocated_amount \+ v_fold\.allocated_amount,\s*\n\s*allocated_percentage =\s*\n\s*s\.allocated_percentage \+ v_fold\.allocated_percentage/i,
+		);
+		assert.match(itemFold, /and s\.project_id is null/i);
+
+		// Both folds have to happen before the project row goes away, or the FK
+		// fires first and the unique violation is back.
+		const projectDelete = projectDeleteFoldMigration.indexOf(
+			"delete from public.finance_projects",
+		);
+		assert.ok(projectDelete > 0);
+		assert.ok(
+			projectDeleteFoldMigration.indexOf(
+				"from public.finance_reallocation_request_items i",
+			) < projectDelete,
+		);
+		// Re-rounding or re-apportioning the fold would corrupt the posting total.
+		assert.doesNotMatch(projectDeleteFoldMigration, /\bfloor\(/i);
+		assert.doesNotMatch(projectDeleteFoldMigration, /\bround\(/i);
+		assert.match(
+			projectDeleteFoldMigration,
+			/revoke all\s*\non function "public"\."delete_finance_project"\(uuid\)\s*\nfrom public, anon, authenticated, service_role;\s*\ngrant execute\s*\non function "public"\."delete_finance_project"\(uuid\)\s*\nto service_role;/i,
+		);
+		assert.doesNotMatch(projectDeleteFoldMigration, /\bgrant\s+all\b/i);
+		assert.doesNotMatch(projectDeleteFoldMigration, /\btruncate\b/i);
 	});
 });

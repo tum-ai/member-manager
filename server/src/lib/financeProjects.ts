@@ -196,13 +196,23 @@ export async function updateFinanceProject(
 // department bucket they came from and its sub-projects become top-level. Only
 // its template assignments cascade away, which is what they are for. The caller
 // is responsible for telling the user that before asking.
+//
+// It goes through an RPC rather than a plain delete because detaching can
+// collide: an invoice split between this project and the *direct* bucket of the
+// same department and tax area produces two rows that differ only in
+// `project_id`, and the target indexes on allocations and reallocation request
+// items are UNIQUE NULLS NOT DISTINCT. `delete_finance_project` folds those
+// targets together — preserving the posting's amount and its 100 % percentage
+// sum — inside the same transaction as the delete.
 export async function deleteFinanceProject(projectId: string): Promise<void> {
-	const { error } = await getSupabase()
-		.from("finance_projects")
-		.delete()
-		.eq("id", projectId);
+	const { error } = await getSupabase().rpc("delete_finance_project", {
+		p_id: projectId,
+	});
 
 	if (error) {
+		if (error.message.includes("not found")) {
+			throw new NotFoundError("Finance project not found");
+		}
 		throw new DatabaseError("Failed to delete finance project");
 	}
 }
