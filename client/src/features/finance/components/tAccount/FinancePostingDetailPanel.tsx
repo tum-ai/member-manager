@@ -172,9 +172,12 @@ export function FinancePostingDetailPanel({
 						<Send />
 						Umverteilung beantragen
 					</Button>
-					{/* A split posting cannot take the fast path without destroying its
-					    split, so it is edited here instead (FR-L5). */}
-					{line.allocations.length > 1 ? (
+					{/* The only direct allocation editor left since Abgleich retired
+					    (FR-O), so it has to be reachable for a posting that is not split
+					    yet as well — otherwise a first percentage split cannot be made
+					    anywhere. Gated on the reviewer bit, not on `canWrite`: the save
+					    behind it is the reviewer-only replace endpoint (FR-L5). */}
+					{interaction?.canReview === true ? (
 						<Button
 							type="button"
 							size="sm"

@@ -20,6 +20,7 @@ function interaction(
 ): TAccountInteraction {
 	return {
 		canWrite: true,
+		canReview: true,
 		isSelected: () => false,
 		onToggleSelect: vi.fn(),
 		onEditSplit: vi.fn(),

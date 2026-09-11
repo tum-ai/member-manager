@@ -16,6 +16,10 @@ import type {
 export interface FinanceSplitDialogPreset {
 	postingExternalId: string;
 	label: string;
+	// Whether the posting already carries stored allocations. The editor itself
+	// starts from one fresh 100 % row either way, but a posting that has none has
+	// nothing to "replace" — saying so would misstate what the save does.
+	hasStoredAllocations: boolean;
 }
 
 interface FinanceSplitAllocationDialogProps {
@@ -30,8 +34,9 @@ interface FinanceSplitAllocationDialogProps {
 
 // The split editor, moved into the invoice it edits. The bulk assign refuses an
 // already-split posting and points here (FR-L5); with the Abgleich tab gone
-// (FR-O) this is where "here" is. Writing a split replaces every allocation of
-// the posting, which is why it stays reviewer-only, exactly as the endpoint is.
+// (FR-O) this is where "here" is — for the first split of a posting as much as
+// for a later edit of one. Writing a split replaces every allocation of the
+// posting, which is why it stays reviewer-only, exactly as the endpoint is.
 export function FinanceSplitAllocationDialog({
 	preset,
 	projects,
@@ -52,7 +57,10 @@ export function FinanceSplitAllocationDialog({
 				<DialogHeader>
 					<DialogTitle>Aufteilung bearbeiten</DialogTitle>
 					<DialogDescription>
-						{preset?.label} · ersetzt die bestehende Aufteilung der Buchung.
+						{preset?.label} ·{" "}
+						{preset?.hasStoredAllocations === true
+							? "ersetzt die bestehende Aufteilung der Buchung."
+							: "diese Buchung hat noch keine gespeicherte Aufteilung — hier entsteht die erste."}
 					</DialogDescription>
 				</DialogHeader>
 				{preset ? (

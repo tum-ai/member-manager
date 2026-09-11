@@ -9,12 +9,20 @@ import type {
 // still expand (FR-K2/K4), nothing is selectable or writable (FR-K6).
 export interface TAccountInteraction {
 	canWrite: boolean;
+	// A finance reviewer (`finance.review`), not merely someone who may write
+	// their own department. The split editor replaces every allocation of a
+	// posting through the reviewer-only PUT endpoint, so `canWrite` is too wide a
+	// gate for it — an ordinary department member offered that action would only
+	// ever get a 403 back (FR-L5).
+	canReview: boolean;
 
 	// --- Invoices (FR-K1, FR-L2) ---------------------------------------------
 	isSelected: (postingExternalId: string) => boolean;
 	onToggleSelect: (postingExternalId: string) => void;
-	// Edit an existing split in place. Reviewer-only, like the endpoint behind
-	// it — a split posting is refused by the fast path and sent here (FR-L5).
+	// Open the allocation editor on this posting: edit an existing split in place
+	// or create the first one on a posting that has none. Reviewer-only, like the
+	// endpoint behind it — a split posting is refused by the fast path and sent
+	// here (FR-L5), and since Abgleich retired this is the only way in.
 	onEditSplit: (line: TAccountDisplayLine) => void;
 	// Ask another department to take this posting. The only allocation change a
 	// department member cannot make directly, so it stays a request (FR-O).

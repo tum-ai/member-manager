@@ -111,6 +111,11 @@ export function useFinanceAnalyticsPage() {
 			// decides whether the UI offers the actions at all (FR-K6). A viewer
 			// without a department never gets a T-account to write to.
 			canWrite: canManage || department !== null,
+			// Narrower than `canWrite`: replacing a posting's whole allocation is
+			// guarded by requireReimbursementReviewer (`finance.review`) on the
+			// server, so the split editor is offered to reviewers only — a department
+			// member would get a 403 on save (FR-L5).
+			canReview: canManage,
 			projects: tAccount.projects,
 			selection: tAccountSelection,
 			isCreatingProject: tAccountActions.isCreatingProject,

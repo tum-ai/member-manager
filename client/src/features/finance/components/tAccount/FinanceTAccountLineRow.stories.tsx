@@ -134,6 +134,7 @@ const incomeInvoice = displayLine(
 function writableInteraction(): TAccountInteraction {
 	return {
 		canWrite: true,
+		canReview: true,
 		isSelected: () => false,
 		onToggleSelect: fn(),
 		onAssignPosting: fn(),

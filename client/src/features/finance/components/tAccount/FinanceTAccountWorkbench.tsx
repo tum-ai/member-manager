@@ -53,6 +53,10 @@ export interface FinanceTAccountWorkbenchProps {
 	// which department it is.
 	department: string;
 	canWrite: boolean;
+	// Finance reviewer (`finance.review`). Narrower than `canWrite`, which also
+	// covers a member writing their own department: only a reviewer may replace a
+	// posting's whole allocation, so only a reviewer is offered the split editor.
+	canReview: boolean;
 	projects: FinanceProject[];
 	// Sub-team folders that exist in this department's T-account, so a new
 	// project lands in one by exact name instead of a typo'd near-match (FR-L4).
@@ -93,6 +97,7 @@ export function FinanceTAccountWorkbench({
 	tree,
 	department,
 	canWrite,
+	canReview,
 	projects,
 	subTeamOptions,
 	selection,
@@ -133,6 +138,7 @@ export function FinanceTAccountWorkbench({
 	const interaction: TAccountInteraction | undefined = writable
 		? {
 				canWrite: true,
+				canReview,
 				isSelected: selection.isSelected,
 				onToggleSelect: selection.toggle,
 				onAssignPosting: (postingExternalId, amount) =>
@@ -219,6 +225,7 @@ export function FinanceTAccountWorkbench({
 					setSplitPreset({
 						postingExternalId: line.postingExternalId,
 						label: line.label,
+						hasStoredAllocations: line.allocations.length > 0,
 					});
 				},
 				onRequestReallocation: (line) => {

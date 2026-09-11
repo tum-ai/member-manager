@@ -193,6 +193,7 @@ describe("useFinanceAnalyticsPage", () => {
 		// A reviewer may write every department…
 		const reviewer = renderHookWithClient(() => useFinanceAnalyticsPage());
 		expect(reviewer.result.current.tAccountWorkbench.canWrite).toBe(true);
+		expect(reviewer.result.current.tAccountWorkbench.canReview).toBe(true);
 
 		// …a scoped member their own…
 		mocks.toolAccess.mockReturnValue({
@@ -201,6 +202,9 @@ describe("useFinanceAnalyticsPage", () => {
 		});
 		const member = renderHookWithClient(() => useFinanceAnalyticsPage());
 		expect(member.result.current.tAccountWorkbench.canWrite).toBe(true);
+		// …but only `finance.review` unlocks the allocation editor, because only
+		// that reaches the reviewer-only replace endpoint (FR-L5).
+		expect(member.result.current.tAccountWorkbench.canReview).toBe(false);
 
 		// …and someone with no department has nothing to write to. The server is
 		// the authority either way (assertCanWriteDepartment).

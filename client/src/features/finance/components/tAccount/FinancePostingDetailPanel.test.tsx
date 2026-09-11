@@ -19,6 +19,9 @@ function interaction(
 ): TAccountInteraction {
 	return {
 		canWrite: true,
+		// The default actor here is a finance reviewer; the department-member
+		// case overrides this to false.
+		canReview: true,
 		isSelected: () => false,
 		onToggleSelect: vi.fn(),
 		onEditSplit: vi.fn(),
@@ -59,6 +62,30 @@ function booked(overrides: Partial<FinanceTAccountLine> = {}) {
 			sub_team: "Big Makeathon",
 		}),
 		...overrides,
+	});
+}
+
+// The same invoice after a 50/50 split across two departments: two stored
+// allocations, and a department share that differs from the booked amount.
+function splitBooked() {
+	return booked({
+		amount: 59.5,
+		posting_detail: tAccountPostingDetail({
+			posting_amount: -119,
+			allocations: [
+				tAccountAllocation({
+					department: "Makeathon",
+					allocated_amount: -59.5,
+					allocated_percentage: 50,
+				}),
+				tAccountAllocation({
+					id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+					department: "Marketing",
+					allocated_amount: -59.5,
+					allocated_percentage: 50,
+				}),
+			],
+		}),
 	});
 }
 
@@ -135,27 +162,7 @@ describe("FinancePostingDetailPanel", () => {
 	// `line.amount` is this department's share; `posting_amount` is what the bank
 	// booked. On a split posting they differ, and showing both is the point.
 	it("shows the department share only when it differs from the booking", () => {
-		renderPanel(
-			booked({
-				amount: 59.5,
-				posting_detail: tAccountPostingDetail({
-					posting_amount: -119,
-					allocations: [
-						tAccountAllocation({
-							department: "Makeathon",
-							allocated_amount: -59.5,
-							allocated_percentage: 50,
-						}),
-						tAccountAllocation({
-							id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-							department: "Marketing",
-							allocated_amount: -59.5,
-							allocated_percentage: 50,
-						}),
-					],
-				}),
-			}),
-		);
+		renderPanel(splitBooked());
 
 		expect(screen.getByText("Anteil dieses Departments")).toBeInTheDocument();
 	});
@@ -280,42 +287,89 @@ describe("FinancePostingDetailPanel", () => {
 		expect(actions.onRequestReallocation).toHaveBeenCalledWith(display);
 	});
 
-	// A split posting is refused by the fast path and edited here instead (FR-L5).
-	it("offers the split editor only for an already-split posting", () => {
-		const single = renderPanel(booked(), {
-			interaction: interaction(),
+	// Regression (PR #321 review): this is the only direct allocation editor left
+	// since Abgleich retired, so a reviewer has to reach it on a posting that is
+	// not split yet — otherwise no first percentage split can be made anywhere.
+	// It used to be gated on `allocations.length > 1`, which hid it exactly for
+	// the freshly imported and fast-path-assigned postings that need it most.
+	it("offers a reviewer the split editor on a posting with no allocation yet", async () => {
+		const actions = interaction();
+		const display = renderPanel(booked(), {
+			interaction: actions,
 			onAssignToProject: vi.fn(),
 		});
-		expect(single.allocations.length).toBeLessThan(2);
-		expect(
-			screen.queryByRole("button", { name: "Aufteilung bearbeiten" }),
-		).not.toBeInTheDocument();
+		expect(display.allocations).toHaveLength(0);
+
+		await userEvent.click(
+			screen.getByRole("button", { name: "Aufteilung bearbeiten" }),
+		);
+
+		expect(actions.onEditSplit).toHaveBeenCalledWith(display);
 	});
 
-	it("edits the split of a posting that has one", async () => {
+	it("offers a reviewer the split editor on a posting assigned through the fast path", async () => {
 		const actions = interaction();
 		const display = renderPanel(
 			booked({
-				amount: 59.5,
 				posting_detail: tAccountPostingDetail({
 					posting_amount: -119,
 					allocations: [
 						tAccountAllocation({
 							department: "Makeathon",
-							allocated_amount: -59.5,
-							allocated_percentage: 50,
-						}),
-						tAccountAllocation({
-							id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
-							department: "Marketing",
-							allocated_amount: -59.5,
-							allocated_percentage: 50,
+							project_id: TACCOUNT_FIXTURE_PROJECT_ID,
+							allocated_amount: -119,
+							allocated_percentage: 100,
 						}),
 					],
 				}),
 			}),
 			{ interaction: actions, onAssignToProject: vi.fn() },
 		);
+		expect(display.allocations).toHaveLength(1);
+
+		await userEvent.click(
+			screen.getByRole("button", { name: "Aufteilung bearbeiten" }),
+		);
+
+		expect(actions.onEditSplit).toHaveBeenCalledWith(display);
+	});
+
+	// The save behind the editor is the reviewer-only replace endpoint
+	// (requireReimbursementReviewer), so `canWrite` is too wide a gate: an
+	// ordinary department member must not be offered an action the server refuses.
+	// Everything else they may actually do stays on offer.
+	it("withholds the split editor from a department member without review rights", () => {
+		// Deliberately an already-split posting: under the retired
+		// `allocations.length > 1` gate this is exactly the case where a member was
+		// offered the editor, only for the PUT behind it to answer 403.
+		const display = renderPanel(splitBooked(), {
+			interaction: interaction({ canReview: false }),
+			onAssignToProject: vi.fn(),
+		});
+		expect(display.allocations.length).toBeGreaterThan(1);
+
+		expect(
+			screen.queryByRole("button", { name: "Aufteilung bearbeiten" }),
+		).not.toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Zu Projekt hinzufügen" }),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Planposten zuordnen" }),
+		).toBeInTheDocument();
+		// A member cannot replace an allocation, but may still ask the owning
+		// department to take the posting (FR-O).
+		expect(
+			screen.getByRole("button", { name: "Umverteilung beantragen" }),
+		).toBeInTheDocument();
+	});
+
+	it("edits the split of a posting that already has one", async () => {
+		const actions = interaction();
+		const display = renderPanel(splitBooked(), {
+			interaction: actions,
+			onAssignToProject: vi.fn(),
+		});
 
 		await userEvent.click(
 			screen.getByRole("button", { name: "Aufteilung bearbeiten" }),
