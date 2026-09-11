@@ -24,7 +24,8 @@ import type { TAccountMatchInput } from "@/features/finance/hooks/useFinanceTAcc
 export interface FinanceMatchCandidate {
 	id: string;
 	label: string;
-	// What is still open on that candidate, used to cap the suggested amount.
+	// What is still open on that candidate, gross, used to cap the suggested
+	// amount.
 	openAmount: number;
 }
 
@@ -36,7 +37,9 @@ export interface FinanceMatchDialogPreset {
 	postingExternalId: string | null;
 	planItemId: string | null;
 	fixedLabel: string;
-	// Open remainder of the fixed side — the sensible default amount.
+	// Open remainder of the fixed side — the sensible default amount. Gross, like
+	// every amount in this dialog: it is submitted as `matched_amount`, which the
+	// server and the database count gross whatever the T-view happens to display.
 	openAmount: number;
 	candidates: FinanceMatchCandidate[];
 }
@@ -154,7 +157,7 @@ export function FinanceMatchPlanItemDialog({
 					<Field
 						label="Betrag (€)"
 						htmlFor={`${fieldId}-amount`}
-						description="Teilbeträge sind erlaubt; voreingestellt ist der offene Rest."
+						description="Immer brutto. Teilbeträge sind erlaubt; voreingestellt ist der offene Rest."
 						required
 					>
 						<Input

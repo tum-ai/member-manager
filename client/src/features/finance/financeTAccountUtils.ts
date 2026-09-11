@@ -224,15 +224,22 @@ export interface TAccountMatchCandidate {
 	// so a department-level Planposten cannot take a project's invoice and vice
 	// versa. Offering such a pair would only produce a rejection.
 	projectId: string | null;
+	// Gross, even while the view shows net: `matched_amount` is gross, so a net
+	// capacity would understate the match and strand the VAT share.
 	openAmount: number;
 }
 
 // What is left of a booked invoice for *this* line's share of it. A plan line
-// already carries its own open remainder as its amount, so it needs no
+// already carries its own open remainder as its gross amount, so it needs no
 // equivalent.
 //
-// `line.amount` is one (department, project) share of the posting and only a
-// match drawing on that same share consumes it — that is how the database
+// Always gross, whatever the display mode is: `matched_amount`, `posting_amount`
+// and the saved match are all gross, so measuring capacity in net would offer a
+// €100 match on a €119 invoice and leave €19 that no longer shows as open
+// (FR-N4 is about what is *rendered*, not about what is matched).
+//
+// `line.grossAmount` is one (department, project) share of the posting and only
+// a match drawing on that same share consumes it — that is how the database
 // counts capacity. A €100 invoice split €50 into two projects keeps €50 open on
 // each side, even once the first side is fully matched. The posting as a whole
 // is still a ceiling: a match booked against a scope this line cannot see (an
@@ -248,7 +255,7 @@ export function openPostingAmount(line: TAccountDisplayLine): number {
 			matchedInScope += match.amount;
 		}
 	}
-	const openInScope = line.amount - matchedInScope;
+	const openInScope = line.grossAmount - matchedInScope;
 	const postingAmount = Math.abs(line.postingDetail?.posting_amount ?? 0);
 	const openOnPosting =
 		postingAmount > 0 ? postingAmount - matchedOnPosting : openInScope;
@@ -269,13 +276,15 @@ export function collectMatchCandidates(nodes: TAccountNode[]): {
 		for (const line of [...node.expenseLines, ...node.incomeLines]) {
 			if (line.isProjectRollup) continue;
 			if (line.kind === "plan" && line.planItemId !== null) {
-				if (line.isActive && line.amount > 0) {
+				// The Planposten's still-open remainder, gross — the figure the
+				// match is saved with, not the one the column happens to show.
+				if (line.isActive && line.grossAmount > 0) {
 					planItems.push({
 						id: line.planItemId,
 						label: line.label,
 						direction: line.direction,
 						projectId: line.projectId,
-						openAmount: line.amount,
+						openAmount: line.grossAmount,
 					});
 				}
 				continue;

@@ -104,6 +104,94 @@ describe("buildTAccountTree amount mode (FR-N4)", () => {
 		expect(net.expenseLines[0]?.amountMode).toBe("net");
 	});
 
+	it("measures match capacity gross in both modes (FR-N4 is display only)", () => {
+		// A €119 invoice and a €119 Planposten, both 19 % VAT. `matched_amount` is
+		// gross whatever the T-view shows, so switching to Netto must not offer a
+		// €100 match: that would save €100 gross and strand €19 that no longer
+		// reads as open.
+		const matchable = () => [
+			group({
+				expense_lines: [
+					line({
+						kind: "actual",
+						amount: 119,
+						vat_amount: 19,
+						vat_rate: 19,
+						net_amount: 100,
+						label: "Catering",
+						posting_external_id: "BB-catering",
+						posting_detail: postingDetail({ posting_amount: -119 }),
+					}),
+					line({
+						kind: "plan",
+						amount: 119,
+						vat_amount: 19,
+						vat_rate: 19,
+						net_amount: 100,
+						label: "Catering geplant",
+						plan_item_id: "plan-catering",
+					}),
+				],
+			}),
+		];
+
+		for (const amountMode of ["gross", "net"] as const) {
+			const tree = buildTAccountTree(matchable(), { amountMode });
+			const candidates = collectMatchCandidates(tree);
+
+			expect(candidates.postings.map((entry) => entry.openAmount)).toEqual([
+				119,
+			]);
+			expect(candidates.planItems.map((entry) => entry.openAmount)).toEqual([
+				119,
+			]);
+			expect(openPostingAmount(tree[0].expenseLines[0])).toBe(119);
+		}
+	});
+
+	it("reports the gross remainder of a partly matched invoice in Netto", () => {
+		// €119 booked, €60 of it already matched. What is still open is €59
+		// gross — never the €100 net line minus the €60 gross match, which is
+		// what made the invoice vanish from the candidates.
+		const tree = buildTAccountTree(
+			[
+				group({
+					expense_lines: [
+						line({
+							kind: "actual",
+							amount: 119,
+							vat_amount: 19,
+							vat_rate: 19,
+							net_amount: 100,
+							label: "Catering",
+							posting_external_id: "BB-catering",
+							posting_detail: postingDetail({
+								posting_amount: -119,
+								matches: [
+									match({
+										id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb4",
+										posting_external_id: "BB-catering",
+										plan_item_id: "plan-catering",
+										matched_amount: 60,
+									}),
+								],
+							}),
+						}),
+					],
+				}),
+			],
+			{
+				amountMode: "net",
+				planItems: {
+					"plan-catering": { label: "Catering geplant", project_id: null },
+				},
+			},
+		);
+
+		expect(openPostingAmount(tree[0].expenseLines[0])).toBe(59);
+		expect(collectMatchCandidates(tree).postings[0]?.openAmount).toBe(59);
+	});
+
 	it("rolls a child up in the active mode", () => {
 		const nested = [
 			group({

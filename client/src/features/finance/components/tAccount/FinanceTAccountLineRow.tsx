@@ -151,9 +151,12 @@ export function FinanceTAccountLineRow({
 							onAssignToProject={
 								selectable
 									? () =>
+											// The assign dialog states what is about to move; it
+											// stays gross in Netto mode, like the selection bar's
+											// sum it shares a sentence with.
 											interaction.onAssignPosting(
 												postingExternalId,
-												line.amount,
+												line.grossAmount,
 											)
 									: undefined
 							}

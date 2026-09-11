@@ -146,7 +146,9 @@ export function FinanceTAccountWorkbench({
 						planItemId: line.planItemId,
 						postingExternalId: null,
 						fixedLabel: line.label,
-						openAmount: line.amount,
+						// Gross even in Netto mode: the dialog's amount is submitted as
+						// `matched_amount`, whose contract is gross.
+						openAmount: line.grossAmount,
 						candidates: candidates.postings.filter(
 							(candidate) =>
 								candidate.direction === line.direction &&
@@ -300,7 +302,8 @@ export function FinanceTAccountWorkbench({
 }
 
 // An edit starts from the Planposten's own values (FR-M2). `line.amount` is the
-// still-open remainder, so the full planned amount comes off the detail.
+// still-open remainder — and in Netto mode the net one — so the full planned
+// amount comes off the detail, which is always the gross figure that is saved.
 function planItemPresetFromLine(
 	line: TAccountDisplayLine,
 ): FinancePlanItemDialogPreset | null {

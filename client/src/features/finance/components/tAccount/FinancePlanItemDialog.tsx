@@ -166,7 +166,12 @@ export function FinancePlanItemDialog({
 					</Field>
 
 					<div className="grid gap-4 sm:grid-cols-2">
-						<Field label="Betrag (€)" htmlFor={`${fieldId}-amount`} required>
+						<Field
+							label="Betrag (€)"
+							htmlFor={`${fieldId}-amount`}
+							description="Bruttobetrag, auch wenn die Ansicht auf Netto steht."
+							required
+						>
 							<Input
 								id={`${fieldId}-amount`}
 								type="number"

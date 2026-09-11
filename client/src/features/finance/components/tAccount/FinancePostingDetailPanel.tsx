@@ -53,11 +53,12 @@ export function FinancePostingDetailPanel({
 	// invoice into an existing project (FR-L2).
 	onAssignToProject?: () => void;
 }): ReactElement {
-	// `line.amount` is this department's share after allocation splits, while
+	// `line.grossAmount` is this department's share after allocation splits, while
 	// `posting_amount` is what the bank booked — on a split posting they differ,
-	// and showing both is the point of the panel.
+	// and showing both is the point of the panel. Both are gross, so the row
+	// appears for a real split and not for every VAT-bearing line in Netto mode.
 	const isSplitShare =
-		Math.abs(Math.abs(detail.posting_amount) - line.amount) >= 0.01;
+		Math.abs(Math.abs(detail.posting_amount) - line.grossAmount) >= 0.01;
 
 	return (
 		<div className="mb-2 ml-5 grid gap-3 rounded-md border border-border/60 bg-background p-3">
@@ -76,7 +77,7 @@ export function FinancePostingDetailPanel({
 				{isSplitShare ? (
 					<DetailField
 						label="Anteil dieses Departments"
-						value={formatFinanceAmount(line.amount)}
+						value={formatFinanceAmount(line.grossAmount)}
 					/>
 				) : null}
 				<DetailField label="Steuersatz" value={formatRate(line.vatRate)} />
