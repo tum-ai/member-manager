@@ -1456,6 +1456,153 @@ function assignMockFinancePlanTemplate(params: Record<string, unknown>) {
 	});
 }
 
+function roundMockCurrency(value: number): number {
+	return Math.round(value * 100) / 100;
+}
+
+function roundMockPercentage(value: number): number {
+	return Math.round(value * 10_000) / 10_000;
+}
+
+function mergeMockFinanceNotes(notes: Array<unknown>): string | null {
+	const merged = [
+		...new Set(
+			notes
+				.map((note) => (typeof note === "string" ? note.trim() : ""))
+				.filter((note) => note !== ""),
+		),
+	].sort();
+	return merged.length > 0 ? merged.join(" | ") : null;
+}
+
+// Mirrors `delete_finance_project` from
+// 20260911120000_finance_project_delete_target_fold.sql: fold every target that
+// would become a duplicate once `project_id` goes NULL, then detach the rest
+// through the ON DELETE SET NULL foreign keys.
+function foldMockFinanceTargets(
+	rows: Array<Record<string, unknown>>,
+	projectId: string,
+	projectDepartment: string,
+	scopeKey: "posting_external_id" | "request_id",
+): void {
+	const scoped = rows.filter((row) => row.project_id === projectId);
+	const groups = new Map<string, Array<Record<string, unknown>>>();
+
+	for (const row of scoped) {
+		const department = (row.department ?? projectDepartment) as string;
+		const key = JSON.stringify([
+			row[scopeKey] ?? null,
+			department,
+			row.tax_area ?? null,
+		]);
+		groups.set(key, [...(groups.get(key) ?? []), row]);
+	}
+
+	for (const [key, folded] of groups) {
+		const [scopeValue, department, taxArea] = JSON.parse(key) as [
+			unknown,
+			string,
+			string | null,
+		];
+		const amount = folded.reduce(
+			(sum, row) => sum + Number(row.allocated_amount ?? 0),
+			0,
+		);
+		const percentage = folded.reduce(
+			(sum, row) => sum + Number(row.allocated_percentage ?? 0),
+			0,
+		);
+		const survivor = rows.find(
+			(row) =>
+				(row[scopeKey] ?? null) === scopeValue &&
+				(row.department ?? null) === department &&
+				(row.project_id ?? null) === null &&
+				(row.tax_area ?? null) === taxArea,
+		);
+		const keep =
+			survivor ??
+			folded.reduce((oldest, row) =>
+				String(row.created_at ?? "") < String(oldest.created_at ?? "")
+					? row
+					: oldest,
+			);
+		const absorbed = folded.filter((row) => row !== keep);
+
+		Object.assign(keep, {
+			department,
+			allocated_amount: roundMockCurrency(
+				(survivor ? Number(keep.allocated_amount ?? 0) : 0) + amount,
+			),
+			allocated_percentage: roundMockPercentage(
+				(survivor ? Number(keep.allocated_percentage ?? 0) : 0) + percentage,
+			),
+			note: mergeMockFinanceNotes([
+				survivor ? keep.note : null,
+				...folded.map((row) => row.note),
+			]),
+			updated_at: new Date().toISOString(),
+		});
+
+		for (const row of survivor ? folded : absorbed) {
+			rows.splice(rows.indexOf(row), 1);
+		}
+	}
+}
+
+function deleteMockFinanceProject(params: Record<string, unknown>) {
+	const projectId = String(params.p_id ?? "");
+	const project = mockDatabase.finance_projects.find(
+		(row) => row.id === projectId,
+	);
+	if (!project) {
+		return Promise.resolve({
+			data: null,
+			error: { message: "Finance project not found" },
+		});
+	}
+	const department = String(project.department ?? "");
+
+	foldMockFinanceTargets(
+		mockDatabase.finance_posting_allocations,
+		projectId,
+		department,
+		"posting_external_id",
+	);
+	foldMockFinanceTargets(
+		mockDatabase.finance_reallocation_request_items,
+		projectId,
+		department,
+		"request_id",
+	);
+
+	// ON DELETE SET NULL on every remaining reference, ON DELETE CASCADE for the
+	// template assignments.
+	for (const row of mockDatabase.finance_posting_allocations) {
+		if (row.project_id === projectId) row.project_id = null;
+	}
+	for (const row of mockDatabase.finance_reallocation_request_items) {
+		if (row.project_id === projectId) row.project_id = null;
+	}
+	for (const row of mockDatabase.finance_plan_items) {
+		if (row.project_id === projectId) row.project_id = null;
+	}
+	for (const row of mockDatabase.reimbursements) {
+		if (row.finance_project_id === projectId) row.finance_project_id = null;
+	}
+	for (const row of mockDatabase.finance_projects) {
+		if (row.parent_project_id === projectId) row.parent_project_id = null;
+	}
+	mockDatabase.finance_project_template_assignments =
+		mockDatabase.finance_project_template_assignments.filter(
+			(row) => row.project_id !== projectId,
+		);
+	mockDatabase.finance_projects = mockDatabase.finance_projects.filter(
+		(row) => row.id !== projectId,
+	);
+
+	return Promise.resolve({ data: null, error: null });
+}
+
 function updateMockFinanceProject(params: Record<string, unknown>) {
 	const project = mockDatabase.finance_projects.find(
 		(row) => row.id === params.p_id,
@@ -2085,6 +2232,9 @@ export function createMockSupabaseClient(): SupabaseClient {
 				}
 				if (fnName === "update_finance_project") {
 					return updateMockFinanceProject(params);
+				}
+				if (fnName === "delete_finance_project") {
+					return deleteMockFinanceProject(params);
 				}
 				if (fnName === "replace_finance_posting_allocations") {
 					return replaceMockFinancePostingAllocations(params);

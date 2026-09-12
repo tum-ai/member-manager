@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ComponentProps, ReactElement } from "react";
 import { expect, fn, screen, userEvent, within } from "storybook/test";
 import {
+	tAccountAllocation,
 	tAccountGroup,
 	tAccountLine,
 	tAccountPlanDetail,
@@ -423,6 +424,150 @@ export const PlanFromNode: Story = {
 				projectId: MAKEATHON_ID,
 			}),
 		);
+	},
+};
+
+// Regression (PR #321 review): the split editor is the only direct allocation
+// editor left since Abgleich retired (FR-O), so a reviewer has to reach it on a
+// posting that carries no allocation at all — and what opens has to be a working
+// editor, not a form waiting for rows that never existed.
+export const SplitUnsplitInvoice: Story = {
+	args: {
+		...Default.args,
+		canWrite: true,
+		canReview: true,
+		projects: [makeathonProject],
+		onAssignToProject: fn(),
+		onSplitAllocation: fn(),
+	},
+	render: (args) => <SelectableSection {...args} />,
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		const body = within(canvasElement.ownerDocument.body);
+		// The Catering invoice came straight from the import: no allocation stored,
+		// so the retired gate (`allocations.length > 1`) hid this action entirely.
+		await userEvent.click(canvas.getByRole("button", { name: /Catering/ }));
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Aufteilung bearbeiten" }),
+		);
+
+		const dialog = within(await screen.findByRole("dialog"));
+		// It says what it is about to do, and for this posting that is not
+		// "replace the existing split".
+		await expect(
+			dialog.getByText(/noch keine gespeicherte Aufteilung/),
+		).toBeVisible();
+
+		// Usable from the first render: one 100 % row on the department the
+		// T-account is showing, ready to be split further.
+		await userEvent.click(
+			dialog.getByRole("radio", { name: "Prozentuale Aufteilung" }),
+		);
+		await expect(dialog.getByLabelText("Anteil (%)")).toHaveValue(100);
+		await userEvent.click(
+			dialog.getByRole("button", { name: "Aufteilung hinzufügen" }),
+		);
+		await userEvent.click(
+			dialog.getByRole("combobox", { name: "Department für Aufteilung 2" }),
+		);
+		await userEvent.click(
+			await body.findByRole("option", { name: "Marketing" }),
+		);
+		await userEvent.click(
+			dialog.getByRole("button", { name: "Aufteilung speichern" }),
+		);
+
+		await expect(args.onSplitAllocation).toHaveBeenCalledWith({
+			postingExternalId: "BB-1",
+			allocations: [
+				expect.objectContaining({ department: "Makeathon", percentage: 50 }),
+				expect.objectContaining({ department: "Marketing", percentage: 50 }),
+			],
+		});
+	},
+};
+
+// The Catering invoice after a 50/50 split across two departments. This is the
+// shape the retired `allocations.length > 1` gate *did* offer the editor for —
+// to every writer, department members included, whose save the reviewer-only
+// endpoint then refused with a 403.
+const splitInvoiceGroups: FinanceTAccountGroup[] = [
+	tAccountGroup({
+		expense_lines: [
+			tAccountLine({
+				label: "Catering",
+				category: "Verpflegung",
+				amount: 59.5,
+				vat_amount: 9.5,
+				vat_rate: 19,
+				posting_external_id: "BB-1",
+				posting_detail: tAccountPostingDetail({
+					booking_date: "2026-03-04",
+					invoice_number: "RE-2026-0042",
+					posting_amount: -119,
+					allocations: [
+						tAccountAllocation({
+							department: "Makeathon",
+							allocated_amount: -59.5,
+							allocated_percentage: 50,
+						}),
+						tAccountAllocation({
+							id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+							department: "Marketing",
+							allocated_amount: -59.5,
+							allocated_percentage: 50,
+						}),
+					],
+				}),
+			}),
+		],
+		actual: { income: 0, expenses: 59.5, saldo: -59.5 },
+		plan: { income: 0, expenses: 0, saldo: 0 },
+		vorsteuer: { actual: 9.5, plan: 0 },
+	}),
+];
+
+// A department member may write their own department, but the split editor saves
+// through the reviewer-only replace endpoint — so that one action is withheld
+// while the rest of their write surface stays exactly as it was.
+export const DepartmentMemberWithoutReview: Story = {
+	args: {
+		...Default.args,
+		groups: splitInvoiceGroups,
+		totals: tAccountTotals({
+			actual: { income: 0, expenses: 59.5, saldo: -59.5 },
+			actual_net: { income: 0, expenses: 50, saldo: -50 },
+			vat_expenses: 9.5,
+		}),
+		canWrite: true,
+		canReview: false,
+		projects: [makeathonProject],
+		onAssignToProject: fn(),
+		onSplitAllocation: fn(),
+	},
+	render: (args) => <SelectableSection {...args} />,
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /Catering/ }));
+
+		await expect(
+			await canvas.findByRole("button", { name: "Zu Projekt hinzufügen" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("button", { name: "Planposten zuordnen" }),
+		).toBeVisible();
+		// A member cannot replace an allocation themselves, but may still ask for
+		// the posting to be moved (FR-O).
+		await expect(
+			canvas.getByRole("button", { name: "Umverteilung beantragen" }),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("checkbox", { name: /Catering/ }),
+		).toBeVisible();
+
+		await expect(
+			canvas.queryByRole("button", { name: "Aufteilung bearbeiten" }),
+		).toBeNull();
 	},
 };
 

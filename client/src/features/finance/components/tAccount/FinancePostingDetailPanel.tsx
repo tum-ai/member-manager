@@ -1,4 +1,4 @@
-import { Link2, Target } from "lucide-react";
+import { Link2, Send, Split, Target } from "lucide-react";
 import type { ReactElement } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -163,13 +163,30 @@ export function FinancePostingDetailPanel({
 						<Link2 />
 						Planposten zuordnen
 					</Button>
-					{/* A split posting cannot take the fast path without destroying its
-					    split, so say so here rather than letting the server refuse it
-					    later (FR-L5). */}
-					{line.allocations.length > 1 ? (
-						<p className="self-center text-xs text-muted-foreground">
-							Bereits aufgeteilt — im Aufteilungs-Editor bearbeiten.
-						</p>
+					<Button
+						type="button"
+						size="sm"
+						variant="ghost"
+						onClick={() => interaction?.onRequestReallocation(line)}
+					>
+						<Send />
+						Umverteilung beantragen
+					</Button>
+					{/* The only direct allocation editor left since Abgleich retired
+					    (FR-O), so it has to be reachable for a posting that is not split
+					    yet as well — otherwise a first percentage split cannot be made
+					    anywhere. Gated on the reviewer bit, not on `canWrite`: the save
+					    behind it is the reviewer-only replace endpoint (FR-L5). */}
+					{interaction?.canReview === true ? (
+						<Button
+							type="button"
+							size="sm"
+							variant="outline"
+							onClick={() => interaction?.onEditSplit(line)}
+						>
+							<Split />
+							Aufteilung bearbeiten
+						</Button>
 					) : null}
 				</div>
 			) : null}

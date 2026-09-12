@@ -134,10 +134,12 @@ const incomeInvoice = displayLine(
 function writableInteraction(): TAccountInteraction {
 	return {
 		canWrite: true,
+		canReview: true,
 		isSelected: () => false,
 		onToggleSelect: fn(),
 		onAssignPosting: fn(),
 		onCreateProject: fn(),
+		onDeleteProject: fn(),
 		onCreatePlanItem: fn(),
 		onEditPlanItem: fn(),
 		onTogglePlanItem: fn(),
@@ -145,6 +147,9 @@ function writableInteraction(): TAccountInteraction {
 		onMatchFromPlanItem: fn(),
 		onMatchFromPosting: fn(),
 		onDetachMatch: fn(),
+		onEditSplit: fn(),
+		onRequestReallocation: fn(),
+		onDeletePlanItem: fn(),
 	};
 }
 

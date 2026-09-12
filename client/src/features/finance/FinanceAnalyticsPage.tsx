@@ -2,33 +2,34 @@ import type { ReactElement } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { AccountLabelEditorSection } from "./components/AccountLabelEditorSection";
+import { FinanceApprovalsSection } from "./components/approvals/FinanceApprovalsSection";
 import { CategoryMappingEditorSection } from "./components/CategoryMappingEditorSection";
 import { DepartmentMappingEditorSection } from "./components/DepartmentMappingEditorSection";
 import { FinanceAccountBreakdownSection } from "./components/FinanceAccountBreakdownSection";
 import { FinanceAnalyticsSection } from "./components/FinanceAnalyticsSection";
 import { FinanceBudgetSection } from "./components/FinanceBudgetSection";
 import { FinanceCategoryBreakdownSection } from "./components/FinanceCategoryBreakdownSection";
-import { FinancePlanSection } from "./components/FinancePlanSection";
-import { FinanceProjectsSection } from "./components/FinanceProjectsSection";
-import { FinanceReconciliationSection } from "./components/FinanceReconciliationSection";
 import { FinanceReportSection } from "./components/FinanceReportSection";
+import { FinanceTemplateManager } from "./components/FinanceTemplateManager";
 import { FinanceVatSummarySection } from "./components/FinanceVatSummarySection";
+import { FinancePlanTemplateAssignForm } from "./components/settings/FinancePlanTemplateAssignForm";
 import { FinanceTAccountSection } from "./components/tAccount/FinanceTAccountSection";
 import { useFinanceAnalyticsPage } from "./hooks/useFinanceAnalyticsPage";
 
+// Six tabs, down from ten (FR-O1). Übersicht absorbed the category, account and
+// VAT breakdowns; the T-Konto absorbed planning, project creation, allocation
+// and matching; what is left of the old Abgleich tab is an approval inbox.
 export default function FinanceAnalyticsPage(): ReactElement {
 	const {
 		activeTab,
 		setActiveTab,
 		canManage,
 		openDepartmentTAccount,
-		department,
 		analytics,
 		mappings,
 		categories,
 		accounts,
 		budgets,
-		plans,
 		tAccount,
 		tAccountWorkbench,
 		management,
@@ -43,17 +44,14 @@ export default function FinanceAnalyticsPage(): ReactElement {
 				<TabsList className="w-full justify-start overflow-x-auto">
 					<TabsTrigger value="overview">Übersicht</TabsTrigger>
 					<TabsTrigger value="budget">Budget</TabsTrigger>
-					<TabsTrigger value="planning">Planung</TabsTrigger>
 					<TabsTrigger value="t-account">T-Konto</TabsTrigger>
-					<TabsTrigger value="projects">Projekte</TabsTrigger>
-					<TabsTrigger value="reconciliation">Abgleich</TabsTrigger>
+					<TabsTrigger value="approvals">Anträge</TabsTrigger>
 					<TabsTrigger value="report">Berichte</TabsTrigger>
-					<TabsTrigger value="categories">Kategorien</TabsTrigger>
-					<TabsTrigger value="accounts">Konten</TabsTrigger>
 					{canManage ? (
-						<TabsTrigger value="mapping">Zuordnung</TabsTrigger>
+						<TabsTrigger value="settings">Einstellungen</TabsTrigger>
 					) : null}
 				</TabsList>
+
 				<TabsContent value="overview" className="mt-5 flex flex-col gap-5">
 					<FinanceAnalyticsSection
 						analytics={analytics.analytics}
@@ -72,7 +70,16 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						byVatRate={analytics.analytics?.by_vat_rate}
 						isLoading={analytics.isLoading}
 					/>
+					<FinanceCategoryBreakdownSection
+						categories={analytics.analytics?.by_category}
+						isLoading={analytics.isLoading}
+					/>
+					<FinanceAccountBreakdownSection
+						accounts={analytics.analytics?.by_account}
+						isLoading={analytics.isLoading}
+					/>
 				</TabsContent>
+
 				<TabsContent value="budget" className="mt-5">
 					<FinanceBudgetSection
 						period={budgets.period}
@@ -88,22 +95,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						onSave={budgets.saveBudget}
 					/>
 				</TabsContent>
-				<TabsContent value="planning" className="mt-5">
-					<FinancePlanSection
-						period={plans.period}
-						items={plans.items}
-						totals={plans.totals}
-						isLoading={plans.isLoading}
-						error={plans.error}
-						canChooseDepartment={canManage}
-						department={department}
-						onPeriodTypeChange={plans.setPeriodType}
-						onPeriodKeyChange={plans.setPeriodKey}
-						onCreate={plans.createItem}
-						onUpdate={plans.updateItem}
-						onDelete={plans.deleteItem}
-					/>
-				</TabsContent>
+
 				<TabsContent value="t-account" className="mt-5">
 					<FinanceTAccountSection
 						period={tAccount.period}
@@ -120,29 +112,17 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						{...tAccountWorkbench}
 					/>
 				</TabsContent>
-				<TabsContent value="projects" className="mt-5">
-					<FinanceProjectsSection {...management.projectSection} />
+
+				<TabsContent value="approvals" className="mt-5">
+					<FinanceApprovalsSection {...management.approvalsSection} />
 				</TabsContent>
-				<TabsContent value="reconciliation" className="mt-5">
-					<FinanceReconciliationSection {...management.reconciliationSection} />
-				</TabsContent>
+
 				<TabsContent value="report" className="mt-5">
 					<FinanceReportSection {...management.reportSection} />
 				</TabsContent>
-				<TabsContent value="categories" className="mt-5">
-					<FinanceCategoryBreakdownSection
-						categories={analytics.analytics?.by_category}
-						isLoading={analytics.isLoading}
-					/>
-				</TabsContent>
-				<TabsContent value="accounts" className="mt-5">
-					<FinanceAccountBreakdownSection
-						accounts={analytics.analytics?.by_account}
-						isLoading={analytics.isLoading}
-					/>
-				</TabsContent>
+
 				{canManage ? (
-					<TabsContent value="mapping" className="mt-5 flex flex-col gap-5">
+					<TabsContent value="settings" className="mt-5 flex flex-col gap-5">
 						<DepartmentMappingEditorSection
 							rows={mappings.rows}
 							isLoading={mappings.isLoading}
@@ -164,6 +144,8 @@ export default function FinanceAnalyticsPage(): ReactElement {
 							savingAccount={accounts.savingAccount}
 							onSave={accounts.saveAccount}
 						/>
+						<FinancePlanTemplateAssignForm {...management.templateAssignForm} />
+						<FinanceTemplateManager {...management.templateManager} />
 					</TabsContent>
 				) : null}
 			</Tabs>

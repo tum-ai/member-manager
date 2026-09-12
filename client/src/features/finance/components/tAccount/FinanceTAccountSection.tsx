@@ -142,6 +142,7 @@ function TAccountBody({
 	totals,
 	isLoading,
 	canWrite = false,
+	canReview = false,
 	projects = [],
 	isCreatingProject = false,
 	isAssigning = false,
@@ -193,6 +194,7 @@ function TAccountBody({
 				tree={tree}
 				department={department}
 				canWrite={canWrite}
+				canReview={canReview}
 				projects={projects}
 				subTeamOptions={subTeamOptions}
 				isCreatingProject={isCreatingProject}

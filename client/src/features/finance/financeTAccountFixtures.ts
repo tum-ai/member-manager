@@ -1,3 +1,7 @@
+import {
+	buildTAccountTree,
+	type TAccountDisplayLine,
+} from "@/features/finance/financeTAccountUtils";
 import type {
 	FinancePlanItemPostingMatch,
 	FinancePostingAllocation,
@@ -133,6 +137,34 @@ export function tAccountGroup(
 		umsatzsteuer: { actual: 0, plan: 0 },
 		...overrides,
 	};
+}
+
+// The id the display-line builder files its lines under, exported so a spec can
+// assert on the owning project without restating the literal.
+export const TACCOUNT_FIXTURE_PROJECT_ID =
+	"22222222-2222-4222-8222-222222222222";
+
+// A single line as the T-view actually renders it. The row components take a
+// `TAccountDisplayLine`, not the raw API line — allocations and matches are
+// resolved against the other lines of the same group — so building one by hand
+// would let a fixture drift from the real mapping. Passing the line through
+// `buildTAccountTree` keeps that impossible. `extraLines` are the siblings a
+// match resolves its counterpart label against.
+export function tAccountDisplayLine(
+	line: FinanceTAccountLine,
+	extraLines: FinanceTAccountLine[] = [],
+): TAccountDisplayLine {
+	const isIncome = line.direction === "income";
+	const lines = [line, ...extraLines];
+	const [node] = buildTAccountTree([
+		tAccountGroup({
+			project_id: TACCOUNT_FIXTURE_PROJECT_ID,
+			project_name: "Hackathon",
+			expense_lines: isIncome ? [] : lines,
+			income_lines: isIncome ? lines : [],
+		}),
+	]);
+	return (isIncome ? node.incomeLines : node.expenseLines)[0];
 }
 
 export function tAccountTotals(

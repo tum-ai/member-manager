@@ -3,9 +3,6 @@ import type {
 	FinanceBudgetTransferRequestCreate,
 	FinanceBudgetTransferRequestsResponse,
 	FinancePeriodReportResponse,
-	FinancePlanItemPostingMatch,
-	FinancePlanItemPostingMatchCreate,
-	FinancePlanItemsResponse,
 	FinancePlanTemplate,
 	FinancePlanTemplateAssignmentResponse,
 	FinancePlanTemplateCreate,
@@ -13,15 +10,11 @@ import type {
 	FinancePlanTemplateItemCreate,
 	FinancePlanTemplatesResponse,
 	FinancePostingAllocationInput,
-	FinancePostingAllocationsResponse,
-	FinanceProject,
-	FinanceProjectCreate,
 	FinanceProjectsResponse,
 	FinanceReallocationRequest,
 	FinanceReallocationRequestCreate,
 	FinanceReallocationRequestsResponse,
 	FinanceReallocationReview,
-	FinanceReconciliationResponse,
 } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -37,7 +30,9 @@ import {
 } from "@/features/finance/financeUtils";
 import { apiClient } from "@/lib/apiClient";
 
-export type FinanceManagementSection = "projects" | "reconciliation" | "report";
+// The tabs this hook still serves after the consolidation (FR-O1). Allocation
+// and matching moved to the T-view and bring their own hooks.
+export type FinanceManagementSection = "approvals" | "settings" | "report";
 
 export interface UseFinanceManagementOptions {
 	activeSection: FinanceManagementSection | null;
@@ -89,7 +84,9 @@ export const FINANCE_MANAGEMENT_QUERY_KEYS = {
 	report: "finance-management-report",
 } as const;
 
-const PLAN_ITEMS_QUERY_KEY = "finance-plan-items";
+// Plan items are read by the T-view and written from several places, so the key
+// lives with the other finance query keys rather than in one hook.
+export const FINANCE_PLAN_ITEMS_QUERY_KEY = "finance-plan-items";
 
 function buildPeriodParams(
 	period: FinancePeriod,
@@ -110,25 +107,6 @@ function buildProjectsEndpoint(
 	department: string | null,
 ): string {
 	return `/api/finance/projects?${buildPeriodParams(period, department).toString()}`;
-}
-
-function buildPlanItemsEndpoint(
-	period: FinancePeriod,
-	department: string | null,
-): string {
-	return `/api/finance/plan-items?${buildPeriodParams(period, department).toString()}`;
-}
-
-function buildReconciliationEndpoint(
-	period: FinancePeriod,
-	department: string | null,
-	projectId: string | null,
-): string {
-	const params = buildPeriodParams(period, department);
-	if (projectId) {
-		params.set("project_id", projectId);
-	}
-	return `/api/finance/reconciliation?${params.toString()}`;
 }
 
 function buildReallocationsEndpoint(department: string | null): string {
@@ -266,13 +244,11 @@ export function useFinanceManagement({
 	const queryClient = useQueryClient();
 	const defaultPeriod = useMemo(() => getDefaultFinancePeriod(), []);
 	const [period, setPeriod] = useState<FinancePeriod>(defaultPeriod);
-	const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-		null,
-	);
 	const accessReady = canManage || Boolean(department);
-	const projectsActive =
-		activeSection === "projects" || activeSection === "reconciliation";
-	const reconciliationActive = activeSection === "reconciliation";
+	// Settings needs the projects only to offer them as template targets;
+	// approvals needs neither projects nor plan items.
+	const settingsActive = activeSection === "settings";
+	const approvalsActive = activeSection === "approvals";
 
 	const projectsQuery = useQuery<FinanceProjectsResponse>({
 		queryKey: [
@@ -283,35 +259,13 @@ export function useFinanceManagement({
 		],
 		queryFn: async () =>
 			await apiClient(buildProjectsEndpoint(period, department)),
-		enabled: accessReady && projectsActive,
+		enabled: accessReady && settingsActive,
 	});
 
 	const templatesQuery = useQuery<FinancePlanTemplatesResponse>({
 		queryKey: [FINANCE_MANAGEMENT_QUERY_KEYS.templates],
 		queryFn: async () => await apiClient("/api/finance/plan-templates"),
-		enabled: accessReady && activeSection === "projects",
-	});
-
-	const planItemsQuery = useQuery<FinancePlanItemsResponse>({
-		queryKey: [PLAN_ITEMS_QUERY_KEY, period.type, period.key, department],
-		queryFn: async () =>
-			await apiClient(buildPlanItemsEndpoint(period, department)),
-		enabled: accessReady && reconciliationActive,
-	});
-
-	const reconciliationQuery = useQuery<FinanceReconciliationResponse>({
-		queryKey: [
-			FINANCE_MANAGEMENT_QUERY_KEYS.reconciliation,
-			period.type,
-			period.key,
-			department,
-			selectedProjectId,
-		],
-		queryFn: async () =>
-			await apiClient(
-				buildReconciliationEndpoint(period, department, selectedProjectId),
-			),
-		enabled: accessReady && reconciliationActive,
+		enabled: accessReady && settingsActive,
 	});
 
 	const reallocationsQuery = useQuery<FinanceReallocationRequestsResponse>({
@@ -322,7 +276,7 @@ export function useFinanceManagement({
 		],
 		queryFn: async () =>
 			await apiClient(buildReallocationsEndpoint(department)),
-		enabled: accessReady && reconciliationActive,
+		enabled: accessReady && approvalsActive,
 	});
 
 	const budgetTransfersQuery = useQuery<FinanceBudgetTransferRequestsResponse>({
@@ -333,7 +287,7 @@ export function useFinanceManagement({
 		],
 		queryFn: async () =>
 			await apiClient(buildBudgetTransfersEndpoint(department)),
-		enabled: accessReady && reconciliationActive,
+		enabled: accessReady && approvalsActive,
 	});
 
 	const reportQuery = useQuery<FinancePeriodReportResponse>({
@@ -357,26 +311,6 @@ export function useFinanceManagement({
 	function reportError(error: unknown, fallback: string): void {
 		showToast(error instanceof Error ? error.message : fallback, "error");
 	}
-
-	const createProjectMutation = useMutation<
-		FinanceProject,
-		Error,
-		FinanceProjectCreate
-	>({
-		mutationFn: async (input) =>
-			await apiClient("/api/finance/projects", {
-				method: "POST",
-				body: JSON.stringify(input),
-			}),
-		onSuccess: () => {
-			showToast("Finance project created.", "success");
-			invalidate(
-				FINANCE_MANAGEMENT_QUERY_KEYS.projects,
-				FINANCE_MANAGEMENT_QUERY_KEYS.report,
-			);
-		},
-		onError: (error) => reportError(error, "Could not create finance project."),
-	});
 
 	const createTemplateMutation = useMutation<
 		FinancePlanTemplate,
@@ -455,40 +389,13 @@ export function useFinanceManagement({
 				"success",
 			);
 			invalidate(
-				PLAN_ITEMS_QUERY_KEY,
+				FINANCE_PLAN_ITEMS_QUERY_KEY,
 				FINANCE_MANAGEMENT_QUERY_KEYS.reconciliation,
 				FINANCE_MANAGEMENT_QUERY_KEYS.report,
 			);
 		},
 		onError: (error) =>
 			reportError(error, "Could not apply the plan template."),
-	});
-
-	const replaceAllocationsMutation = useMutation<
-		FinancePostingAllocationsResponse,
-		Error,
-		PostingAllocationInput
-	>({
-		mutationFn: async ({ postingExternalId, allocations }) =>
-			await apiClient(
-				`/api/finance/posting-allocations/${encodeURIComponent(
-					postingExternalId,
-				)}`,
-				{
-					method: "PUT",
-					body: JSON.stringify({ allocations }),
-				},
-			),
-		onSuccess: () => {
-			showToast("Posting allocation saved.", "success");
-			invalidate(
-				FINANCE_MANAGEMENT_QUERY_KEYS.reconciliation,
-				FINANCE_MANAGEMENT_QUERY_KEYS.reallocations,
-				FINANCE_MANAGEMENT_QUERY_KEYS.report,
-			);
-		},
-		onError: (error) =>
-			reportError(error, "Could not save the posting allocation."),
 	});
 
 	const createReallocationMutation = useMutation<
@@ -590,40 +497,7 @@ export function useFinanceManagement({
 			reportError(error, "Could not review the budget transfer request."),
 	});
 
-	const createMatchMutation = useMutation<
-		FinancePlanItemPostingMatch,
-		Error,
-		FinancePlanItemPostingMatchCreate
-	>({
-		mutationFn: async (input) =>
-			await apiClient("/api/finance/plan-item-matches", {
-				method: "POST",
-				body: JSON.stringify(input),
-			}),
-		onSuccess: () => {
-			showToast("Posting matched to plan item.", "success");
-			invalidate(FINANCE_MANAGEMENT_QUERY_KEYS.reconciliation);
-		},
-		onError: (error) =>
-			reportError(error, "Could not match the posting to a plan item."),
-	});
-
-	const deleteMatchMutation = useMutation<void, Error, string>({
-		mutationFn: async (matchId) =>
-			await apiClient(
-				`/api/finance/plan-item-matches/${encodeURIComponent(matchId)}`,
-				{ method: "DELETE" },
-			),
-		onSuccess: () => {
-			showToast("Plan item match removed.", "success");
-			invalidate(FINANCE_MANAGEMENT_QUERY_KEYS.reconciliation);
-		},
-		onError: (error) =>
-			reportError(error, "Could not remove the plan item match."),
-	});
-
 	function setPeriodType(type: FinancePeriodType): void {
-		setSelectedProjectId(null);
 		setPeriod((current) =>
 			current.type === type
 				? current
@@ -632,18 +506,7 @@ export function useFinanceManagement({
 	}
 
 	function setPeriodKey(key: string): void {
-		setSelectedProjectId(null);
 		setPeriod((current) => ({ ...current, key }));
-	}
-
-	async function allocatePostingToProject({
-		postingExternalId,
-		projectId,
-	}: ProjectAllocationInput): Promise<void> {
-		await replaceAllocationsMutation.mutateAsync({
-			postingExternalId,
-			allocations: [{ project_id: projectId, percentage: 100 }],
-		});
 	}
 
 	async function exportReport(): Promise<void> {
@@ -674,32 +537,19 @@ export function useFinanceManagement({
 		period,
 		setPeriodType,
 		setPeriodKey,
-		projectSection: {
-			period,
-			projects: projectsQuery.data?.projects ?? [],
+		// FR-O: the Projekte and Abgleich tabs are gone. Project CRUD, allocation
+		// and matching moved into the T-view; what stayed behind is the template
+		// setup and the approval inbox, so the prop bags follow the tabs.
+		templateManager: {
 			templates: templatesQuery.data?.templates ?? [],
-			department,
 			canManage,
-			isLoading: projectsQuery.isLoading || templatesQuery.isLoading,
-			error:
-				(projectsQuery.error as Error | null) ??
-				(templatesQuery.error as Error | null),
-			isCreatingProject: createProjectMutation.isPending,
 			isCreatingTemplate: createTemplateMutation.isPending,
 			pendingTemplateItemId: createTemplateItemMutation.isPending
 				? (createTemplateItemMutation.variables?.templateId ?? null)
 				: null,
-			pendingAssignmentProjectId: assignTemplateMutation.isPending
-				? (assignTemplateMutation.variables?.projectId ?? null)
-				: null,
 			deletingTemplateItemId: deleteTemplateItemMutation.isPending
 				? (deleteTemplateItemMutation.variables?.itemId ?? null)
 				: null,
-			onPeriodTypeChange: setPeriodType,
-			onPeriodKeyChange: setPeriodKey,
-			onCreateProject: async (input: FinanceProjectCreate) => {
-				await createProjectMutation.mutateAsync(input);
-			},
 			onCreateTemplate: async (input: FinancePlanTemplateCreate) => {
 				await createTemplateMutation.mutateAsync(input);
 			},
@@ -709,44 +559,35 @@ export function useFinanceManagement({
 			onDeleteTemplateItem: async (input: DeleteTemplateItemInput) => {
 				await deleteTemplateItemMutation.mutateAsync(input);
 			},
-			onAssignTemplate: async (input: TemplateAssignmentInput) => {
-				await assignTemplateMutation.mutateAsync(input);
-			},
 		},
-		reconciliationSection: {
+		templateAssignForm: {
 			period,
 			projects: projectsQuery.data?.projects ?? [],
-			planItems: planItemsQuery.data?.items ?? [],
-			selectedProjectId,
-			reconciliation: reconciliationQuery.data,
+			templates: templatesQuery.data?.templates ?? [],
+			pendingProjectId: assignTemplateMutation.isPending
+				? (assignTemplateMutation.variables?.projectId ?? null)
+				: null,
+			onAssign: async (projectId: string, templateId: string) => {
+				await assignTemplateMutation.mutateAsync({ projectId, templateId });
+			},
+		},
+		// The T-view raises these from an invoice row; the queue above reviews
+		// them (FR-O).
+		reallocationRequest: {
+			isPending: createReallocationMutation.isPending,
+			onSubmit: async (input: FinanceReallocationRequestCreate) => {
+				await createReallocationMutation.mutateAsync(input);
+			},
+		},
+		approvalsSection: {
+			period,
 			reallocationRequests: reallocationsQuery.data?.requests ?? [],
 			budgetTransferRequests: budgetTransfersQuery.data?.requests ?? [],
 			department,
 			canManage,
-			isLoading:
-				projectsQuery.isLoading ||
-				planItemsQuery.isLoading ||
-				reconciliationQuery.isLoading ||
-				reallocationsQuery.isLoading ||
-				budgetTransfersQuery.isLoading,
 			error:
-				(projectsQuery.error as Error | null) ??
-				(planItemsQuery.error as Error | null) ??
-				(reconciliationQuery.error as Error | null) ??
 				(reallocationsQuery.error as Error | null) ??
 				(budgetTransfersQuery.error as Error | null),
-			pendingAllocationExternalId: replaceAllocationsMutation.isPending
-				? (replaceAllocationsMutation.variables?.postingExternalId ?? null)
-				: null,
-			pendingReallocationExternalId: createReallocationMutation.isPending
-				? (createReallocationMutation.variables?.posting_external_id ?? null)
-				: null,
-			pendingMatchExternalId: createMatchMutation.isPending
-				? (createMatchMutation.variables?.posting_external_id ?? null)
-				: null,
-			deletingMatchId: deleteMatchMutation.isPending
-				? (deleteMatchMutation.variables ?? null)
-				: null,
 			reviewingRequestId: reviewReallocationMutation.isPending
 				? (reviewReallocationMutation.variables?.requestId ?? null)
 				: null,
@@ -756,14 +597,6 @@ export function useFinanceManagement({
 				: null,
 			onPeriodTypeChange: setPeriodType,
 			onPeriodKeyChange: setPeriodKey,
-			onProjectChange: setSelectedProjectId,
-			onAllocateToProject: allocatePostingToProject,
-			onSplitAllocation: async (input: PostingAllocationInput) => {
-				await replaceAllocationsMutation.mutateAsync(input);
-			},
-			onCreateReallocation: async (input: FinanceReallocationRequestCreate) => {
-				await createReallocationMutation.mutateAsync(input);
-			},
 			onReviewReallocation: async (input: ReallocationReviewInput) => {
 				await reviewReallocationMutation.mutateAsync(input);
 			},
@@ -774,12 +607,6 @@ export function useFinanceManagement({
 			},
 			onReviewBudgetTransfer: async (input: BudgetTransferReviewInput) => {
 				await reviewBudgetTransferMutation.mutateAsync(input);
-			},
-			onMatchPlanItem: async (input: FinancePlanItemPostingMatchCreate) => {
-				await createMatchMutation.mutateAsync(input);
-			},
-			onDeleteMatch: async (matchId: string) => {
-				await deleteMatchMutation.mutateAsync(matchId);
 			},
 		},
 		reportSection: {
