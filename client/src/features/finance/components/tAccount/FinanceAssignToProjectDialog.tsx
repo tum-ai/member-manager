@@ -33,9 +33,9 @@ interface FinanceAssignToProjectDialogProps {
 	onSubmit: (projectId: string, postingExternalIds: string[]) => Promise<void>;
 }
 
-// FR-L2: file invoices into a project that already exists — from the selection
-// bar for many, or from one expanded row for a single invoice. Both go through
-// the same endpoint, so both refuse the same things.
+// File invoices into a project that already exists — from the selection bar for
+// many, or from one expanded row for a single invoice. Both go through the same
+// endpoint, so both refuse the same things.
 export function FinanceAssignToProjectDialog({
 	preset,
 	projects,

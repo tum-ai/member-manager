@@ -5,7 +5,7 @@ import { toast } from "sonner";
 type ToastSeverity = "success" | "error" | "info" | "warning";
 
 // An optional button on the toast. Used for actions that are cheap to reverse
-// and easy to trigger by accident — parking a Planposten, say — where the undo
+// and easy to trigger by accident — parking a plan item, say — where the undo
 // belongs next to the confirmation rather than somewhere on the page.
 interface ToastOptions {
 	action?: { label: string; onClick: () => void };

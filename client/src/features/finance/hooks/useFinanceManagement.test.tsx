@@ -239,8 +239,8 @@ describe("useFinanceManagement", () => {
 			await result.current.templateAssignForm.onAssign(PROJECT_ID, TEMPLATE_ID);
 		});
 
-		// Projects are created in the T-view now, so this tab only writes
-		// templates and their items (FR-O).
+		// Projects are created in the T-view now, so this tab only writes templates
+		// and their items.
 		expect(requests.map((request) => request.method)).toEqual([
 			"template",
 			"template-item",
@@ -252,8 +252,8 @@ describe("useFinanceManagement", () => {
 	});
 
 	it("raises a reallocation request and reviews both kinds of approval", async () => {
-		// Allocation and matching moved to the T-view with their own hooks (FR-O);
-		// what this hook still writes is the request and the two reviews.
+		// Allocation and matching moved to the T-view with their own hooks; what
+		// this hook still writes is the request and the two reviews.
 		const methods: string[] = [];
 		server.use(
 			...financeGetHandlers(),

@@ -16,8 +16,8 @@ import { FINANCE_MANAGEMENT_QUERY_KEYS } from "./useFinanceManagement";
 import { FINANCE_T_ACCOUNT_QUERY_KEY } from "./useFinanceTAccount";
 
 // Everything the two project dialogs collect. `postingExternalIds` empty means
-// "just create the folder" (FR-L3); non-empty means "create it from this
-// selection" (FR-L1), which is one atomic server call, never an N+1 loop.
+// "just create the folder"; non-empty means "create it from this selection",
+// which is one atomic server call, never an N+1 loop.
 export interface TAccountProjectInput {
 	name: string;
 	parentProjectId: string | null;
@@ -40,8 +40,8 @@ export function useFinanceTAccountActions({
 }: {
 	department: string | null;
 	period: { type: FinancePeriodType; key: string };
-	// Called after a write that consumed the selection, so the caller can clear it
-	// (FR-K7). Not called when nothing was applied.
+	// Called after a write that consumed the selection, so the caller can clear
+	// it. Not called when nothing was applied.
 	onApplied?: () => void;
 }) {
 	const { showToast } = useToast();
@@ -62,14 +62,14 @@ export function useFinanceTAccountActions({
 
 	// Every business refusal comes back as a successful HTTP response, so "the
 	// request worked" is not the same as "the selection was consumed". Only a
-	// write that applied at least one posting may clear it (FR-K7); a partial
-	// success still clears, because those postings are now filed.
+	// write that applied at least one posting may clear it; a partial success
+	// still clears, because those postings are now filed.
 	function consumedSelection(results: FinanceAllocationResult[]): boolean {
 		return results.some((result) => result.applied);
 	}
 
 	// A partial success is still a success: the applied postings stay applied and
-	// the skips are named rather than swallowed (FR-L6).
+	// the skips are named rather than swallowed.
 	function reportResults(
 		results: FinanceAllocationResult[],
 		prefix?: string,
@@ -123,7 +123,7 @@ export function useFinanceTAccountActions({
 			}
 			// The project exists either way, but the selection is only consumed by
 			// the postings that actually landed: an all-skipped attempt leaves the
-			// ticks in place so the user can fix the cause and retry (FR-K7).
+			// ticks in place so the user can fix the cause and retry.
 			if (consumedSelection(data.results)) {
 				onApplied?.();
 			}
@@ -176,7 +176,7 @@ export function useFinanceTAccountActions({
 	// The split editor writes through the replace endpoint, which is
 	// reviewer-only and replaces *every* allocation of the posting — which is
 	// exactly why the bulk assign refuses split postings and sends them here
-	// instead (FR-L5).
+	// instead.
 	const splitMutation = useMutation({
 		mutationFn: async (input: {
 			postingExternalId: string;

@@ -16,9 +16,9 @@ import { FinancePlanTemplateAssignForm } from "./components/settings/FinancePlan
 import { FinanceTAccountSection } from "./components/tAccount/FinanceTAccountSection";
 import { useFinanceAnalyticsPage } from "./hooks/useFinanceAnalyticsPage";
 
-// Six tabs, down from ten (FR-O1). Übersicht absorbed the category, account and
-// VAT breakdowns; the T-Konto absorbed planning, project creation, allocation
-// and matching; what is left of the old Abgleich tab is an approval inbox.
+// Six tabs, down from ten. Übersicht absorbed the category, account and VAT
+// breakdowns; the T-Konto absorbed planning, project creation, allocation and
+// matching; what is left of the old Abgleich tab is an approval inbox.
 export default function FinanceAnalyticsPage(): ReactElement {
 	const {
 		activeTab,

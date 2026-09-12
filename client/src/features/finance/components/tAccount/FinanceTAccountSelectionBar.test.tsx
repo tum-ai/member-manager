@@ -21,7 +21,7 @@ function renderBar(count: number) {
 }
 
 describe("FinanceTAccountSelectionBar", () => {
-	// The bar appears as soon as one invoice is ticked (FR-K5) — and not before.
+	// The bar appears as soon as one invoice is ticked — and not before.
 	it("renders nothing while nothing is selected", () => {
 		renderBar(0);
 

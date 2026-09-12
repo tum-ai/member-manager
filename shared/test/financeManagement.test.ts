@@ -273,7 +273,7 @@ describe("finance management contracts", () => {
 			totals: {
 				actual: { income: 0, expenses: 119, saldo: -119 },
 				plan: { income: 15420, expenses: 119, saldo: 15301 },
-				// The same saldi net of VAT, for the Netto mode (FR-N4).
+				// The same balances net of VAT, for the net amount mode.
 				actual_net: { income: 0, expenses: 100, saldo: -100 },
 				plan_net: { income: 15420, expenses: 100, saldo: 15320 },
 				vat_income: 0,
@@ -283,7 +283,7 @@ describe("finance management contracts", () => {
 				vat_payload: -19,
 				vat_payload_forecast: -19,
 			},
-			// Every Planposten of the department by id, so an invoice can name what
+			// Every plan item of the department by id, so an invoice can name what
 			// it funds — and whose share it spends — even when the item has no line
 			// of its own.
 			plan_items: {

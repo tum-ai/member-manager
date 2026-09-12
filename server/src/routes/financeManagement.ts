@@ -219,11 +219,11 @@ async function validateProjectParent(
 
 // Everything the planner needs about the selected postings, read before any
 // write happens. Kept separate from the writing half so "create project from
-// selection" can do all of its IO *before* the project row exists (FR-L1): a BB
+// selection" can do all of its IO *before* the project row exists: a BB
 // outage or a mapping read that fails must not leave an orphaned project behind.
 async function loadAssignmentContext(postingExternalIds: string[]) {
 	// Deliberately unfiltered by period: a posting outside the project's period
-	// must be reported as a period mismatch, not as a missing posting (FR-L8).
+	// must be reported as a period mismatch, not as a missing posting.
 	const [{ transactions }, mappings, allocations, matches] = await Promise.all([
 		loadTransactions({}),
 		loadDepartmentMappings(),
@@ -246,8 +246,8 @@ async function loadAssignmentContext(postingExternalIds: string[]) {
 
 type AssignmentContext = Awaited<ReturnType<typeof loadAssignmentContext>>;
 
-// Which skip reason a write refusal earns. A bulk assign is atomic *per posting*
-// (FR-L6): once the first write has landed, throwing would hide both what was
+// Which skip reason a write refusal earns. A bulk assign is atomic *per
+// posting*: once the first write has landed, throwing would hide both what was
 // applied and what was refused behind a 500, so every failure is reported
 // against its own posting instead.
 function writeFailureReason(error: unknown): FinanceAllocationSkipReason {
@@ -261,7 +261,7 @@ function writeFailureReason(error: unknown): FinanceAllocationSkipReason {
 
 // Assign whole postings to one project, one row each at 100 %. Shared by the
 // bulk endpoint and by "create project from selection", so both refuse exactly
-// the same things for exactly the same reasons (FR-L5–L8).
+// the same things for exactly the same reasons.
 async function assignPostingsToProject(input: {
 	project: FinanceProject;
 	postingExternalIds: string[];
@@ -367,9 +367,9 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 		},
 	);
 
-	// FR-L1: create the project and file the selected invoices into it in one
-	// call, so a failed second request can never leave a half-filled project
-	// behind. The project is created either way; per-posting skips are reported.
+	// Create the project and file the selected invoices into it in one call, so
+	// a failed second request can never leave a half-filled project behind. The
+	// project is created either way; per-posting skips are reported.
 	server.post(
 		"/finance/projects/from-postings",
 		{ preHandler: [authenticate, requireFinanceViewer] },
@@ -388,7 +388,7 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 			// Every read the assignment needs happens first: from here on nothing
 			// but the writes themselves can fail, and those are reported per posting
 			// rather than thrown, so the project can never be orphaned by a failed
-			// assignment (FR-L1).
+			// assignment.
 			const context = await loadAssignmentContext(postingExternalIds);
 			const project = await createFinanceProject(projectInput, actor);
 			const assignment = await assignPostingsToProject({
@@ -463,9 +463,9 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 		},
 	);
 
-	// FR-O follow-up: projects are created in the T-view, so they have to be
-	// removable there too. Every foreign key to a project is ON DELETE SET NULL,
-	// so this detaches its invoices and Planposten rather than destroying them —
+	// Projects are created in the T-view, so they have to be removable there
+	// too. Every foreign key to a project is ON DELETE SET NULL, so this
+	// detaches its invoices and plan items rather than destroying them —
 	// they fall back to the department, and sub-projects become top-level.
 	server.delete(
 		"/finance/projects/:projectId",
@@ -707,10 +707,10 @@ export async function financeManagementRoutes(server: FastifyInstance) {
 		},
 	);
 
-	// FR-K5 / FR-L2: file many selected invoices into one project at once. Unlike
-	// the replace endpoint above this is open to department-scoped members, so it
-	// only ever writes whole-posting allocations and refuses anything it cannot
-	// do without destroying data (FR-L5–L8), reporting each skip by name.
+	// File many selected invoices into one project at once. Unlike the replace
+	// endpoint above this is open to department-scoped members, so it only ever
+	// writes whole-posting allocations and refuses anything it cannot do without
+	// destroying data, reporting each skip by name.
 	server.post(
 		"/finance/posting-allocations/bulk",
 		{ preHandler: [authenticate, requireFinanceViewer] },

@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
 import { FinanceTAccountLineRow } from "./FinanceTAccountLineRow";
 import type { TAccountInteraction } from "./tAccountInteraction";
 
-// Colour a saldo the way the mockup reads it: profit (>= 0) positive, deficit
+// Colour a balance the way the mockup reads it: profit (>= 0) positive, deficit
 // negative. Colour is always backed by an explicit sign in the number, never
 // colour alone, so it survives dark mode and colour-blind users (a11y).
 function saldoClass(value: number): string {
@@ -32,8 +32,9 @@ function saldoClass(value: number): string {
 	return "text-foreground";
 }
 
-// Ist / Plan and the VAT embedded in each, named by the column's direction so
-// reclaimable Vorsteuer is never confused with Umsatzsteuer owed (FR-N3).
+// Actual and planned figures and the VAT embedded in each, named by the
+// column's direction so reclaimable input tax is never confused with output tax
+// owed.
 function ColumnSubtotals({
 	summary,
 	direction,
@@ -107,9 +108,9 @@ function Column({
 					))}
 				</div>
 			)}
-			{/* A Planposten whose invoices have all arrived is done, but still
-			    editable — and since the plan tab retired (FR-O) this is the only
-			    place it can be reached from. */}
+			{/* A plan item whose invoices have all arrived is done, but still
+			    editable — and since the plan tab retired this is the only place it
+			    can be reached from. */}
 			{settled.length > 0 ? (
 				<Collapsible open={showSettled} onOpenChange={setShowSettled}>
 					<CollapsibleTrigger className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
@@ -133,8 +134,8 @@ function Column({
 					</CollapsibleContent>
 				</Collapsible>
 			) : null}
-			{/* A parked Planposten stays reachable — it can be revived from here —
-			    but it is out of the way and out of every subtotal (FR-M3). */}
+			{/* A parked plan item stays reachable — it can be revived from here —
+			    but it is out of the way and out of every subtotal. */}
 			{parked.length > 0 ? (
 				<Collapsible open={showParked} onOpenChange={setShowParked}>
 					<CollapsibleTrigger className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
@@ -206,8 +207,8 @@ function SaldoFooter({ node }: { node: TAccountNode }): ReactElement {
 	);
 }
 
-// FR-L3: every folder can grow a project in place. A department or sub-team
-// folder creates a project; a project creates a sub-project under itself.
+// Every folder can grow a project in place. A department or sub-team folder
+// creates a project; a project creates a sub-project under itself.
 function NodeActions({
 	node,
 	interaction,
@@ -230,8 +231,8 @@ function NodeActions({
 				<FolderPlus />
 				{isProject ? "Neues Teilprojekt" : "Neues Projekt"}
 			</Button>
-			{/* FR-M1: a Planposten is planned where the money will be spent, with
-			    this node's project already filled in. */}
+			{/* A plan item is planned where the money will be spent, with this
+			    node's project already filled in. */}
 			<Button
 				type="button"
 				size="sm"

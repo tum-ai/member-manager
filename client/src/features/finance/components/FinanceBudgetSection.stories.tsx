@@ -82,7 +82,7 @@ export const Loading: Story = {
 	},
 };
 
-// The overview offers a drill-down into each department's T-account (FR-H2).
+// The overview offers a drill-down into each department's T-account.
 export const WithDrilldown: Story = {
 	args: {
 		period,

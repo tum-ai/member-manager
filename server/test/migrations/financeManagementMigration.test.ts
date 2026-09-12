@@ -412,7 +412,7 @@ describe("finance management migrations", () => {
 		);
 	});
 
-	test("keeps disabled Planposten out of new matches and single-arity updates", () => {
+	test("keeps disabled plan items out of new matches and single-arity updates", () => {
 		assert.match(
 			planItemLifecycleMigration,
 			/add column if not exists "is_active" boolean not null default true/i,
@@ -430,9 +430,9 @@ describe("finance management migrations", () => {
 			/drop function if exists "public"\."update_finance_plan_item"\(\s*uuid,(?:\s*(?:text|numeric),){6}\s*text\s*\)/i,
 		);
 	});
-	// A department-level Planposten must survive its invoice being filed into a
+	// A department-level plan item must survive its invoice being filed into a
 	// project of the same department: the money never leaves the department, so
-	// the match is still funded (FR-L7).
+	// the match is still funded.
 	test("funds a department-level match from any project of that department", () => {
 		assert.match(
 			departmentMatchCapacityMigration,
