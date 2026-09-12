@@ -9,13 +9,231 @@ import {
 } from "@/features/finance/financeTAccountFixtures";
 import {
 	buildTAccountTree,
+	collectMatchCandidates,
 	collectSubTeamOptions,
+	openPostingAmount,
 	summarizeAllocationResults,
 	vatLabel,
 } from "./financeTAccountUtils";
 
 const MAKEATHON = "11111111-1111-4111-8111-111111111111";
 const HACKATHON = "22222222-2222-4222-8222-222222222222";
+
+describe("collectMatchCandidates", () => {
+	function tree() {
+		return buildTAccountTree([
+			group({
+				expense_lines: [
+					// Fully open invoice.
+					line({
+						kind: "actual",
+						amount: 500,
+						label: "Catering",
+						posting_external_id: "BB-1",
+					}),
+					// Partly matched: only the rest is still on offer.
+					line({
+						kind: "actual",
+						amount: 400,
+						label: "Venue",
+						posting_external_id: "BB-2",
+						posting_detail: postingDetail({
+							matches: [
+								match({
+									id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1",
+									posting_external_id: "BB-2",
+									plan_item_id: "plan-venue",
+									matched_amount: 300,
+								}),
+							],
+						}),
+					}),
+					line({
+						kind: "plan",
+						amount: 800,
+						label: "Recruiting",
+						plan_item_id: "plan-recruiting",
+					}),
+					// Parked: refuses matches server-side (FR-M8), so never offered.
+					line({
+						kind: "plan",
+						amount: 500,
+						label: "Gestrichen",
+						plan_item_id: "plan-cancelled",
+						plan_detail: planDetail({ planned_amount: 500, is_active: false }),
+					}),
+				],
+				income_lines: [
+					line({
+						kind: "plan",
+						direction: "income",
+						amount: 1000,
+						label: "Sponsoring (offen)",
+						plan_item_id: "plan-sponsoring",
+					}),
+				],
+			}),
+		]);
+	}
+
+	it("offers open invoices and active Planposten with their open amounts", () => {
+		const { planItems, postings } = collectMatchCandidates(tree());
+
+		expect(postings.map((entry) => [entry.label, entry.openAmount])).toEqual([
+			["Catering", 500],
+			// 400 booked − 300 already matched.
+			["Venue", 100],
+		]);
+		expect(planItems.map((entry) => [entry.label, entry.direction])).toEqual([
+			["Recruiting", "expense"],
+			["Sponsoring (offen)", "income"],
+		]);
+		// The parked Planposten is not on offer.
+		expect(planItems.some((entry) => entry.label === "Gestrichen")).toBe(false);
+	});
+
+	it("carries the scope a match has to share (FR-M5)", () => {
+		// A Planposten can only absorb the share of a posting allocated to its own
+		// project, so both sides carry the project they belong to and the caller
+		// pairs like with like.
+		const candidates = collectMatchCandidates(
+			buildTAccountTree([
+				group({
+					expense_lines: [
+						line({
+							kind: "actual",
+							amount: 100,
+							label: "Department-Rechnung",
+							posting_external_id: "BB-dept",
+						}),
+					],
+				}),
+				group({
+					project_id: MAKEATHON,
+					project_name: "Makeathon",
+					expense_lines: [
+						line({
+							kind: "plan",
+							amount: 900,
+							label: "Projekt-Plan",
+							plan_item_id: "plan-project",
+							project_id: MAKEATHON,
+						}),
+					],
+				}),
+			]),
+		);
+
+		expect(candidates.postings[0]?.projectId).toBeNull();
+		expect(candidates.planItems[0]?.projectId).toBe(MAKEATHON);
+	});
+
+	it("computes what is left of a partly matched invoice", () => {
+		const [node] = tree();
+		const venue = node.expenseLines.find((l) => l.label === "Venue");
+		const catering = node.expenseLines.find((l) => l.label === "Catering");
+
+		expect(venue && openPostingAmount(venue)).toBe(100);
+		expect(catering && openPostingAmount(catering)).toBe(500);
+	});
+
+	it("keeps a split invoice open in the project that has not matched it", () => {
+		// A €100 invoice split €50/€50 over two projects appears as one line per
+		// project, but each line carries *every* match on the posting. The database
+		// counts capacity per (department, project), so matching the Makeathon half
+		// must leave the Hackathon half fully open — it used to disappear from the
+		// candidate list together with its sibling.
+		const splitLine = (projectId: string) =>
+			line({
+				kind: "actual",
+				amount: 50,
+				label: `Sammelrechnung (${projectId === MAKEATHON ? "M" : "H"})`,
+				posting_external_id: "BB-split",
+				project_id: projectId,
+				posting_detail: postingDetail({
+					posting_amount: -100,
+					matches: [
+						match({
+							id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb2",
+							posting_external_id: "BB-split",
+							plan_item_id: "plan-makeathon",
+							matched_amount: 50,
+						}),
+					],
+				}),
+			});
+		const tree = buildTAccountTree(
+			[
+				group({
+					project_id: MAKEATHON,
+					project_name: "Makeathon",
+					expense_lines: [splitLine(MAKEATHON)],
+				}),
+				group({
+					project_id: HACKATHON,
+					project_name: "Hackathon",
+					expense_lines: [
+						splitLine(HACKATHON),
+						line({
+							kind: "plan",
+							amount: 50,
+							label: "Hackathon-Plan",
+							plan_item_id: "plan-hackathon",
+							project_id: HACKATHON,
+						}),
+					],
+				}),
+			],
+			// The Makeathon Planposten is fully matched, so it has no line of its
+			// own: only the response-level map says which share its match spends.
+			{ "plan-makeathon": { label: "Makeathon-Plan", project_id: MAKEATHON } },
+		);
+		const [makeathon, hackathon] = tree;
+
+		expect(openPostingAmount(makeathon.expenseLines[0])).toBe(0);
+		expect(openPostingAmount(hackathon.expenseLines[0])).toBe(50);
+		expect(
+			collectMatchCandidates(tree).postings.map((entry) => [
+				entry.projectId,
+				entry.openAmount,
+			]),
+		).toEqual([[HACKATHON, 50]]);
+	});
+
+	it("never offers more than the posting itself still has open", () => {
+		// An unallocated invoice matched from a project (only the automatic
+		// reconciliation can produce that pairing) is spent all the same: the
+		// department-level line must not re-offer the €40 that already went.
+		const [node] = buildTAccountTree(
+			[
+				group({
+					expense_lines: [
+						line({
+							kind: "actual",
+							amount: 100,
+							label: "Sammelrechnung",
+							posting_external_id: "BB-loose",
+							posting_detail: postingDetail({
+								posting_amount: -100,
+								matches: [
+									match({
+										id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb3",
+										posting_external_id: "BB-loose",
+										plan_item_id: "plan-makeathon",
+										matched_amount: 40,
+									}),
+								],
+							}),
+						}),
+					],
+				}),
+			],
+			{ "plan-makeathon": { label: "Makeathon-Plan", project_id: MAKEATHON } },
+		);
+
+		expect(openPostingAmount(node.expenseLines[0])).toBe(60);
+	});
+});
 
 describe("summarizeAllocationResults", () => {
 	it("reports a clean run without a skip clause", () => {
@@ -412,6 +630,39 @@ describe("buildTAccountTree", () => {
 		// the parked amount cannot sneak into the parent's forecast.
 		expect(makeathon.expenseLines).toHaveLength(0);
 		expect(makeathon.planSaldo).toBe(0);
+	});
+
+	it("names a Planposten that has no line of its own", () => {
+		// Fully matched, so the server emits no plan line for it — the invoice that
+		// funds it must still show its name rather than a bare "Planposten".
+		const [node] = buildTAccountTree(
+			[
+				group({
+					expense_lines: [
+						line({
+							kind: "actual",
+							label: "Venue-Anzahlung",
+							amount: 100,
+							posting_external_id: "BB-settled",
+							posting_detail: postingDetail({
+								matches: [
+									match({
+										plan_item_id: "plan-venue",
+										posting_external_id: "BB-settled",
+										matched_amount: 100,
+									}),
+								],
+							}),
+						}),
+					],
+				}),
+			],
+			{ "plan-venue": { label: "Venue", project_id: null } },
+		);
+
+		expect(node.expenseLines[0]?.matches.map((m) => m.label)).toEqual([
+			"Venue",
+		]);
 	});
 
 	it("resolves allocation projects and match counterparts to names (FR-K2)", () => {

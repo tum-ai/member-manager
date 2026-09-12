@@ -1,4 +1,9 @@
-import { ChevronDown, FolderClosed, FolderPlus } from "lucide-react";
+import {
+	CalendarPlus,
+	ChevronDown,
+	FolderClosed,
+	FolderPlus,
+} from "lucide-react";
 import { type ReactElement, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -77,16 +82,20 @@ function Column({
 	summary: TAccountColumnSummary;
 	interaction?: TAccountInteraction;
 }): ReactElement {
+	const [showParked, setShowParked] = useState(false);
+	const active = lines.filter((line) => line.isActive);
+	const parked = lines.filter((line) => !line.isActive);
+
 	return (
 		<div className="min-w-0 flex-1">
 			<h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
 				{title}
 			</h4>
-			{lines.length === 0 ? (
+			{active.length === 0 && parked.length === 0 ? (
 				<p className="py-1 text-sm text-muted-foreground">—</p>
 			) : (
 				<div className="divide-y divide-border/60">
-					{lines.map((line) => (
+					{active.map((line) => (
 						<FinanceTAccountLineRow
 							key={line.key}
 							line={line}
@@ -95,6 +104,31 @@ function Column({
 					))}
 				</div>
 			)}
+			{/* A parked Planposten stays reachable — it can be revived from here —
+			    but it is out of the way and out of every subtotal (FR-M3). */}
+			{parked.length > 0 ? (
+				<Collapsible open={showParked} onOpenChange={setShowParked}>
+					<CollapsibleTrigger className="mt-1 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+						<ChevronDown
+							className={cn(
+								"size-3.5 transition-transform",
+								showParked ? "rotate-0" : "-rotate-90",
+							)}
+							aria-hidden
+						/>
+						Deaktiviert ({parked.length})
+					</CollapsibleTrigger>
+					<CollapsibleContent className="divide-y divide-border/60">
+						{parked.map((line) => (
+							<FinanceTAccountLineRow
+								key={line.key}
+								line={line}
+								interaction={interaction}
+							/>
+						))}
+					</CollapsibleContent>
+				</Collapsible>
+			) : null}
 			<ColumnSubtotals summary={summary} direction={direction} />
 		</div>
 	);
@@ -157,15 +191,28 @@ function NodeActions({
 	}
 	const isProject = node.projectId !== null;
 	return (
-		<Button
-			type="button"
-			size="sm"
-			variant="outline"
-			onClick={() => interaction.onCreateProject(node)}
-		>
-			<FolderPlus />
-			{isProject ? "Neues Teilprojekt" : "Neues Projekt"}
-		</Button>
+		<>
+			<Button
+				type="button"
+				size="sm"
+				variant="outline"
+				onClick={() => interaction.onCreateProject(node)}
+			>
+				<FolderPlus />
+				{isProject ? "Neues Teilprojekt" : "Neues Projekt"}
+			</Button>
+			{/* FR-M1: a Planposten is planned where the money will be spent, with
+			    this node's project already filled in. */}
+			<Button
+				type="button"
+				size="sm"
+				variant="outline"
+				onClick={() => interaction.onCreatePlanItem(node)}
+			>
+				<CalendarPlus />
+				Neuer Planposten
+			</Button>
+		</>
 	);
 }
 
@@ -226,7 +273,10 @@ export function FinanceTAccountGroup({
 	// Makeathon") and projects both render as expandable folders.
 	if (node.projectId === null && node.projectName === null) {
 		return (
-			<section className="rounded-lg border border-border bg-card p-4">
+			<section
+				aria-label="Direkt zugeordnet"
+				className="rounded-lg border border-border bg-card p-4"
+			>
 				<h3 className="mb-2 text-sm font-semibold">Direkt zugeordnet</h3>
 				<NodeBody node={node} interaction={interaction} />
 			</section>
@@ -247,6 +297,11 @@ function ProjectGroup({
 		<Collapsible
 			open={open}
 			onOpenChange={setOpen}
+			// A named group, so the folder can be addressed as a whole — by a screen
+			// reader moving between folders, and by anything that needs to act
+			// inside one particular folder rather than the whole department.
+			role="group"
+			aria-label={node.projectName ?? "Projekt"}
 			className="rounded-lg border border-border bg-card"
 		>
 			<CollapsibleTrigger className="flex w-full items-center gap-3 p-4 text-left">

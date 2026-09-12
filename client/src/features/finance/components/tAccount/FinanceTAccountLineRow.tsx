@@ -143,6 +143,7 @@ export function FinanceTAccountLineRow({
 						<FinancePostingDetailPanel
 							line={line}
 							detail={line.postingDetail}
+							interaction={interaction}
 							onAssignToProject={
 								selectable
 									? () =>
@@ -155,7 +156,11 @@ export function FinanceTAccountLineRow({
 						/>
 					) : null}
 					{line.planDetail !== null ? (
-						<FinancePlanItemDetailPanel line={line} detail={line.planDetail} />
+						<FinancePlanItemDetailPanel
+							line={line}
+							detail={line.planDetail}
+							interaction={interaction}
+						/>
 					) : null}
 				</CollapsibleContent>
 			</Collapsible>

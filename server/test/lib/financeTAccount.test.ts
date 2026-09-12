@@ -350,6 +350,80 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(result.totals.plan.saldo, -100);
 	});
 
+	test("names the project each Planposten draws on (split-invoice capacity)", () => {
+		// A 100 EUR invoice split 50/50 over two projects becomes one line per
+		// project, and both carry every match on the posting. `plan_items` is what
+		// lets the client tell them apart: the Hackathon half stays open after the
+		// Makeathon half is matched, and the fully matched Makeathon Planposten has
+		// no line of its own to say where it sits.
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-split",
+					cost_location: "120",
+					transaction_amount: -100,
+					postingtext: "Sammelrechnung",
+				}),
+			],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [
+				allocation({
+					id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1",
+					posting_external_id: "BB-split",
+					department: "Makeathon",
+					project_id: HACKATHON_ID,
+					allocated_amount: -50,
+					allocated_percentage: 50,
+				}),
+				allocation({
+					id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2",
+					posting_external_id: "BB-split",
+					department: "Makeathon",
+					project_id: EMPTY_ID,
+					allocated_amount: -50,
+					allocated_percentage: 50,
+				}),
+			],
+			planItems: [
+				planItem({
+					id: VENUE_PLAN_ID,
+					label: "Venue",
+					planned_amount: 50,
+					project_id: HACKATHON_ID,
+				}),
+			],
+			matches: [
+				match({
+					plan_item_id: VENUE_PLAN_ID,
+					posting_external_id: "BB-split",
+					matched_amount: 50,
+				}),
+			],
+			projects: [
+				project({ id: HACKATHON_ID, name: "Hackathon" }),
+				project({ id: EMPTY_ID, name: "Empty" }),
+			],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+
+		assert.deepStrictEqual(result.plan_items[VENUE_PLAN_ID], {
+			label: "Venue",
+			project_id: HACKATHON_ID,
+		});
+		// Both halves are still one posting with all of its matches attached, so
+		// the scope carried by `plan_items` is the only thing separating them.
+		const other = result.groups.find((g) => g.project_id === EMPTY_ID);
+		assert.strictEqual(other?.expense_lines[0]?.amount, 50);
+		assert.strictEqual(
+			other?.expense_lines[0]?.posting_detail?.matches.length,
+			1,
+		);
+	});
+
 	test("a partially matched plan item only carries the open remainder", () => {
 		// 40 EUR booked against a 100 EUR plan → 40 realised + 60 still planned.
 		const result = buildFinanceTAccount({
@@ -432,6 +506,51 @@ describe("buildFinanceTAccount", () => {
 			(g) => g.project_id === null && g.project_name === null,
 		);
 		assert.strictEqual(ungrouped?.actual.saldo, -300);
+	});
+
+	test("names every Planposten, including one with no line of its own", () => {
+		// A fully matched Planposten carries no open remainder and is therefore not
+		// emitted as a line — but an invoice still references it, and that
+		// reference has to be nameable.
+		const result = buildFinanceTAccount({
+			periodType: "year",
+			periodKey: "2026",
+			department: "Makeathon",
+			transactions: [
+				tx({
+					external_id: "BB-settled",
+					cost_location: "120",
+					transaction_amount: -100,
+					postingtext: "Venue deposit",
+				}),
+			],
+			mappings: [mapping("120", "Makeathon")],
+			allocations: [],
+			planItems: [
+				planItem({ id: VENUE_PLAN_ID, label: "Venue", planned_amount: 100 }),
+			],
+			matches: [
+				match({
+					plan_item_id: VENUE_PLAN_ID,
+					posting_external_id: "BB-settled",
+					matched_amount: 100,
+				}),
+			],
+			projects: [],
+			source: "mock",
+			generatedAt: GENERATED_AT,
+		});
+
+		assert.strictEqual(
+			result.groups
+				.flatMap((group) => group.expense_lines)
+				.filter((line) => line.kind === "plan").length,
+			0,
+		);
+		assert.deepStrictEqual(result.plan_items[VENUE_PLAN_ID], {
+			label: "Venue",
+			project_id: null,
+		});
 	});
 
 	test("carries the posting detail inline on the actual line (FR-K2/FR-K3)", () => {

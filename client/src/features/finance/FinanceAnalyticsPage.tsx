@@ -110,6 +110,7 @@ export default function FinanceAnalyticsPage(): ReactElement {
 						canChooseDepartment={tAccount.canChooseDepartment}
 						department={tAccount.department}
 						groups={tAccount.groups}
+						planItems={tAccount.planItems}
 						totals={tAccount.totals}
 						isLoading={tAccount.isLoading}
 						error={tAccount.error}

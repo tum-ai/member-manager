@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import {
 	tAccountAllocation,
 	tAccountGroup,
@@ -14,6 +14,7 @@ import {
 } from "@/features/finance/financeTAccountUtils";
 import type { FinanceTAccountLine } from "@/features/finance/financeTypes";
 import { FinanceTAccountLineRow } from "./FinanceTAccountLineRow";
+import type { TAccountInteraction } from "./tAccountInteraction";
 
 const HACKATHON_ID = "22222222-2222-4222-8222-222222222222";
 
@@ -128,6 +129,25 @@ const incomeInvoice = displayLine(
 	}),
 );
 
+// A writable interaction whose handlers are all spies, so a story can assert
+// which action a button actually triggers.
+function writableInteraction(): TAccountInteraction {
+	return {
+		canWrite: true,
+		isSelected: () => false,
+		onToggleSelect: fn(),
+		onAssignPosting: fn(),
+		onCreateProject: fn(),
+		onCreatePlanItem: fn(),
+		onEditPlanItem: fn(),
+		onTogglePlanItem: fn(),
+		onCorrectPlanToActual: fn(),
+		onMatchFromPlanItem: fn(),
+		onMatchFromPosting: fn(),
+		onDetachMatch: fn(),
+	};
+}
+
 const meta = {
 	title: "Features/Finance/FinanceTAccountLineRow",
 	component: FinanceTAccountLineRow,
@@ -189,6 +209,87 @@ export const PlannedItem: Story = {
 		).toBeVisible();
 		// Planned VAT is labelled by direction too.
 		await expect(canvas.getByText("Vorsteuer (geplant)")).toBeVisible();
+	},
+};
+
+// The Planposten as a working object (FR-M2/M5/M6/M7): edit it, match an
+// invoice to it, correct the plan to what arrived, park it, detach a match.
+export const PlannedItemWritable: Story = {
+	args: { line: plannedItem, interaction: writableInteraction() },
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(canvas.getByRole("button", { name: /Venue-Miete/ }));
+
+		// Plan 3.570 vs Ist 2.380 — the correction offer only appears because the
+		// two disagree.
+		const correct = await canvas.findByRole("button", {
+			name: /Plan auf Ist korrigieren/,
+		});
+		await userEvent.click(correct);
+		await expect(args.interaction?.onCorrectPlanToActual).toHaveBeenCalledWith(
+			"plan-venue",
+			2380,
+		);
+
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Buchung zuordnen/ }),
+		);
+		await expect(args.interaction?.onMatchFromPlanItem).toHaveBeenCalled();
+
+		await userEvent.click(canvas.getByRole("button", { name: /Bearbeiten/ }));
+		await expect(args.interaction?.onEditPlanItem).toHaveBeenCalled();
+
+		// Detaching is offered per match, named after the counterpart.
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Zuordnung .* entfernen/ }),
+		);
+		await expect(args.interaction?.onDetachMatch).toHaveBeenCalled();
+
+		// Parking asks for the flag it is moving to, not the one it is leaving.
+		await userEvent.click(canvas.getByRole("button", { name: "Deaktivieren" }));
+		await expect(args.interaction?.onTogglePlanItem).toHaveBeenCalledWith(
+			"plan-venue",
+			false,
+		);
+	},
+};
+
+// A parked Planposten offers the way back and stops offering matches, because
+// the server refuses them anyway (FR-M8).
+export const ParkedPlanItem: Story = {
+	args: {
+		line: displayLine(
+			tAccountLine({
+				kind: "plan",
+				label: "Merch-Nachdruck",
+				amount: 2500,
+				plan_item_id: "plan-merch",
+				plan_detail: tAccountPlanDetail({
+					planned_amount: 2500,
+					is_active: false,
+					note: "Auf Eis gelegt, Budget knapp",
+				}),
+			}),
+		),
+		interaction: writableInteraction(),
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Deaktiviert")).toBeVisible();
+		await userEvent.click(
+			canvas.getByRole("button", { name: /Merch-Nachdruck/ }),
+		);
+
+		await expect(
+			canvas.queryByRole("button", { name: /Buchung zuordnen/ }),
+		).toBeNull();
+		await userEvent.click(
+			await canvas.findByRole("button", { name: "Aktivieren" }),
+		);
+		await expect(args.interaction?.onTogglePlanItem).toHaveBeenCalledWith(
+			"plan-merch",
+			true,
+		);
 	},
 };
 

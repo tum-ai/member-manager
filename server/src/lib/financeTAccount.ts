@@ -10,6 +10,7 @@ import type {
 	FinanceTAccountGroup,
 	FinanceTAccountLine,
 	FinanceTAccountPlanDetail,
+	FinanceTAccountPlanItemRef,
 	FinanceTAccountPostingDetail,
 	FinanceTAccountResponse,
 	FinanceTAccountSaldo,
@@ -508,11 +509,26 @@ export function buildFinanceTAccount(input: {
 		vatExpenses += group.vorsteuer.actual;
 	}
 
+	// Every Planposten of the department, including the fully matched ones that
+	// carry no open remainder and therefore no line, so an expanded invoice can
+	// still name what it funds — and so a match can be attributed to the project
+	// whose share of the invoice it spends.
+	const planItems: Record<string, FinanceTAccountPlanItemRef> = {};
+	for (const item of input.planItems) {
+		if (item.department === input.department) {
+			planItems[item.id] = {
+				label: item.label,
+				project_id: item.project_id ?? null,
+			};
+		}
+	}
+
 	return FinanceTAccountResponseSchema.parse({
 		period_type: input.periodType,
 		period_key: input.periodKey,
 		department: input.department,
 		groups: built,
+		plan_items: planItems,
 		totals: {
 			actual: saldo(totals.actualIncome, totals.actualExpenses),
 			plan: saldo(totals.planIncome, totals.planExpenses),

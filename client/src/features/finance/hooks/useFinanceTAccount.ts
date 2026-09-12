@@ -105,6 +105,7 @@ export function useFinanceTAccount({
 		department: activeDepartment,
 		response: data ?? null,
 		groups: data?.groups ?? [],
+		planItems: data?.plan_items ?? {},
 		projects: projectsQuery.data?.projects ?? [],
 		totals: data?.totals,
 		source: data?.source,

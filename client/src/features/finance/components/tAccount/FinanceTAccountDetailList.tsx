@@ -1,4 +1,6 @@
+import { Unlink } from "lucide-react";
 import type { ReactElement, ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 import type { TAccountMatchView } from "@/features/finance/financeTAccountUtils";
 import { formatFinanceAmount } from "@/features/finance/financeUtils";
 
@@ -54,9 +56,13 @@ export function DetailBlock({
 export function TAccountMatchList({
 	matches,
 	emptyLabel,
+	onDetach,
 }: {
 	matches: TAccountMatchView[];
 	emptyLabel: string;
+	// Detaching restores the open remainder and walks the Planposten's status
+	// back (FR-M7). Absent for a read-only viewer.
+	onDetach?: (matchId: string) => void;
 }): ReactElement {
 	if (matches.length === 0) {
 		return <p className="mt-2 text-sm text-muted-foreground">{emptyLabel}</p>;
@@ -66,11 +72,24 @@ export function TAccountMatchList({
 			{matches.map((match) => (
 				<li
 					key={match.key}
-					className="flex flex-wrap items-baseline justify-between gap-2"
+					className="flex flex-wrap items-center justify-between gap-2"
 				>
 					<span className="min-w-0 truncate">{match.label}</span>
-					<span className="tabular-nums">
-						{formatFinanceAmount(match.amount)}
+					<span className="flex items-center gap-1">
+						<span className="tabular-nums">
+							{formatFinanceAmount(match.amount)}
+						</span>
+						{onDetach ? (
+							<Button
+								type="button"
+								variant="ghost"
+								size="icon-xs"
+								aria-label={`Zuordnung ${match.label} entfernen`}
+								onClick={() => onDetach(match.key)}
+							>
+								<Unlink />
+							</Button>
+						) : null}
 					</span>
 				</li>
 			))}
