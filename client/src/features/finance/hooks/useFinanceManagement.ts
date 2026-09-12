@@ -30,8 +30,8 @@ import {
 } from "@/features/finance/financeUtils";
 import { apiClient } from "@/lib/apiClient";
 
-// The tabs this hook still serves after the consolidation (FR-O1). Allocation
-// and matching moved to the T-view and bring their own hooks.
+// The tabs this hook still serves after the consolidation. Allocation and
+// matching moved to the T-view and bring their own hooks.
 export type FinanceManagementSection = "approvals" | "settings" | "report";
 
 export interface UseFinanceManagementOptions {
@@ -537,9 +537,9 @@ export function useFinanceManagement({
 		period,
 		setPeriodType,
 		setPeriodKey,
-		// FR-O: the Projekte and Abgleich tabs are gone. Project CRUD, allocation
-		// and matching moved into the T-view; what stayed behind is the template
-		// setup and the approval inbox, so the prop bags follow the tabs.
+		// The Projekte and Abgleich tabs are gone. Project CRUD, allocation and
+		// matching moved into the T-view; what stayed behind is the template setup
+		// and the approval inbox, so the prop bags follow the tabs.
 		templateManager: {
 			templates: templatesQuery.data?.templates ?? [],
 			canManage,
@@ -571,8 +571,7 @@ export function useFinanceManagement({
 				await assignTemplateMutation.mutateAsync({ projectId, templateId });
 			},
 		},
-		// The T-view raises these from an invoice row; the queue above reviews
-		// them (FR-O).
+		// The T-view raises these from an invoice row; the queue above reviews them.
 		reallocationRequest: {
 			isPending: createReallocationMutation.isPending,
 			onSubmit: async (input: FinanceReallocationRequestCreate) => {

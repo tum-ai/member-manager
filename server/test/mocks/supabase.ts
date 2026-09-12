@@ -1202,7 +1202,7 @@ function replaceMockFinancePostingAllocations(params: Record<string, unknown>) {
 			.filter(
 				(allocation) =>
 					String(allocation.department ?? "") === department &&
-					// Mirrors 20260825120000: a department-level Planposten (empty
+					// Mirrors 20260825120000: a department-level plan item (empty
 					// project scope) is funded by any allocation of that department,
 					// including one into a project inside it.
 					(projectId === "" ||
@@ -1435,7 +1435,7 @@ function assignMockFinancePlanTemplate(params: Record<string, unknown>) {
 				project_id: projectId,
 				template_item_id: templateItem.id,
 				// Column defaults from 20260808120100_finance_plan_item_lifecycle:
-				// a template-assigned Planposten starts active with no planned VAT.
+				// a template-assigned plan item starts active with no planned VAT.
 				is_active: true,
 				vat_rate: null,
 				created_at: now,

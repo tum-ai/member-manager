@@ -44,9 +44,8 @@ function deltaClass(delta: number): string {
 	return "text-foreground";
 }
 
-// The expanded detail of a Planposten (FR-K4), and the place it is worked on:
-// edit, park, match, detach, and correct the plan to what actually arrived
-// (FR-M2/M3/M5/M6/M7).
+// The expanded detail of a plan item, and the place it is worked on: edit,
+// park, match, detach, and correct the plan to what actually arrived.
 export function FinancePlanItemDetailPanel({
 	line,
 	detail,
@@ -198,7 +197,7 @@ export function FinancePlanItemDetailPanel({
 						{detail.is_active ? "Deaktivieren" : "Aktivieren"}
 					</Button>
 					{/* Only offered while nothing is matched: money that already
-					    arrived should be detached deliberately first (FR-M7). */}
+					    arrived should be detached deliberately first. */}
 					{detail.matched_amount === 0 ? (
 						<Button
 							type="button"

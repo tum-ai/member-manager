@@ -36,7 +36,7 @@ function round(value: number): number {
 // department. `buildEffectivePostingSplits` doubles gemischt postings into
 // ideell + wirtschaftlich; those share a posting/department/project, so we sum
 // their amounts back together to avoid duplicate-looking rows. The net is
-// preserved, keeping the actual saldo equal to `aggregateByDepartment` (FR-G5).
+// preserved, keeping the actual balance equal to `aggregateByDepartment`.
 interface MergedSplit {
 	posting: BuchhaltungsButlerTransaction;
 	projectId: string | null;
@@ -88,9 +88,9 @@ function blankOrNull(value: string | undefined): string | null {
 	return trimmed === "" ? null : trimmed;
 }
 
-// Everything the expanded row of a booked invoice shows (FR-K2). Built inline
-// here because the postings, allocations, matches and labels are all already in
-// memory — opening a row must not cost a round-trip (FR-K3).
+// Everything the expanded row of a booked invoice shows. Built inline here
+// because the postings, allocations, matches and labels are all already in
+// memory — opening a row must not cost a round-trip.
 function postingDetail(
 	split: MergedSplit,
 	context: LineContext,
@@ -174,7 +174,7 @@ function planLine(
 	matches: FinancePlanItemPostingMatch[],
 ): FinanceTAccountLine {
 	const amount = round(plannedAmount);
-	// A planned VAT rate is optional (FR-N5); without one the planned VAT stays
+	// A planned VAT rate is optional; without one the planned VAT stays
 	// null rather than pretending the item is zero-rated.
 	const vatRate = item.vat_rate ?? null;
 	const vatAmount =
@@ -241,9 +241,9 @@ function saldo(income: number, expenses: number): FinanceTAccountSaldo {
 	};
 }
 
-// Σ VAT for one column, split booked vs still-planned (FR-N3). Expenses carry
-// Vorsteuer, income Umsatzsteuer — the caller decides which column it is asking
-// about, so this stays direction-agnostic.
+// Σ VAT for one column, split booked vs still-planned. Expenses carry input
+// tax, income output tax — the caller decides which column it is asking about,
+// so this stays direction-agnostic.
 function columnVat(lines: FinanceTAccountLine[]): FinanceTAccountVat {
 	let actual = 0;
 	let plan = 0;
@@ -258,15 +258,15 @@ function columnVat(lines: FinanceTAccountLine[]): FinanceTAccountVat {
 	return { actual: round(actual), plan: round(plan) };
 }
 
-// A disabled Planposten is parked, not planned: it stays on screen but must not
-// move the Plan-Saldo or the forecast (FR-M3). Booked lines are never affected.
+// A disabled plan item is parked, not planned: it stays on screen but must not
+// move the planned balance or the forecast. Booked lines are never affected.
 function countsTowardPlan(line: FinanceTAccountLine): boolean {
 	return line.kind === "actual" || line.plan_detail?.is_active !== false;
 }
 
-// Both saldi in both amount modes. `net` sums the lines' precomputed net
+// Both balances in both amount modes. `net` sums the lines' precomputed net
 // amounts rather than subtracting VAT again, so gross and net can never drift
-// apart by a rounding step (FR-N6).
+// apart by a rounding step.
 function groupSaldi(group: GroupAccumulator): {
 	actual: FinanceTAccountSaldo;
 	plan: FinanceTAccountSaldo;
@@ -303,7 +303,7 @@ function groupSaldi(group: GroupAccumulator): {
 	}
 	return {
 		// `plan` deliberately includes the actual lines: it is the projected
-		// end-state (booked + still planned), so its saldo is the Plan-Saldo.
+		// end-state (booked + still planned), so its balance is the planned one.
 		actual: saldo(actualIncome, actualExpenses),
 		plan: saldo(planIncome, planExpenses),
 		actualNet: saldo(actualIncomeNet, actualExpensesNet),
@@ -313,7 +313,7 @@ function groupSaldi(group: GroupAccumulator): {
 
 // Build the single-department T-account: expenses vs income, actual vs plan,
 // grouped by project. Empty projects for the department are still emitted as
-// folders so a freshly created project (e.g. Makeathon) shows up (FR-I3).
+// folders so a freshly created project (e.g. Makeathon) shows up.
 export function buildFinanceTAccount(input: {
 	periodType: FinancePeriodType;
 	periodKey: string;
@@ -419,7 +419,7 @@ export function buildFinanceTAccount(input: {
 		}
 		// A project that declares a sub-team needs that sub-team folder to exist
 		// even when no posting maps into it directly, or the project would have
-		// nowhere to hang (FR-L4).
+		// nowhere to hang.
 		if (project.sub_team) {
 			ensureGroup(null, project.sub_team);
 		}
@@ -446,7 +446,7 @@ export function buildFinanceTAccount(input: {
 
 	// Postings matched to a plan item are already booked and appear as actual
 	// lines, so the plan line only carries the still-open remainder to avoid
-	// double-counting the realised amount in the Plan-Saldo.
+	// double-counting the realised amount in the planned balance.
 	const matchedByPlanItem = new Map<string, number>();
 	for (const match of input.matches) {
 		matchedByPlanItem.set(
@@ -460,10 +460,10 @@ export function buildFinanceTAccount(input: {
 		}
 		const matched = matchedByPlanItem.get(item.id) ?? 0;
 		const remaining = round(item.planned_amount - matched);
-		// Every Planposten of the department is emitted, whatever state it is in:
-		// a disabled one so it can be re-enabled (FR-M3), a fully matched one so
-		// it can still be edited, corrected or detached from — the T-view is the
-		// only surface left that lists them. A line with nothing open contributes
+		// Every plan item of the department is emitted, whatever state it is in:
+		// a disabled one so it can be re-enabled, a fully matched one so it can
+		// still be edited, corrected or detached from — the T-view is the only
+		// surface left that lists them. A line with nothing open contributes
 		// its zero to the plan column, so none of this double-counts money that
 		// has already arrived as an actual line.
 		addLine(
@@ -555,7 +555,7 @@ export function buildFinanceTAccount(input: {
 		vatExpensesPlan += group.vorsteuer.plan;
 	}
 
-	// Every Planposten of the department, including the fully matched ones that
+	// Every plan item of the department, including the fully matched ones that
 	// carry no open remainder and therefore no line, so an expanded invoice can
 	// still name what it funds — and so a match can be attributed to the project
 	// whose share of the invoice it spends.
@@ -585,11 +585,11 @@ export function buildFinanceTAccount(input: {
 			vat_income_plan: round(vatIncomePlan),
 			vat_expenses_plan: round(vatExpensesPlan),
 			// What the department owes the tax office: output tax collected on
-			// income minus reclaimable input tax on expenses (FR-N3).
+			// income minus reclaimable input tax on expenses.
 			vat_payload: round(vatIncome - vatExpenses),
-			// The same once the still-open Planposten have arrived. Planned lines
+			// The same once the still-open plan items have arrived. Planned lines
 			// without a VAT rate contribute nothing, so this equals `vat_payload`
-			// until someone plans with a rate (FR-N5).
+			// until someone plans with a rate.
 			vat_payload_forecast: round(
 				vatIncome + vatIncomePlan - (vatExpenses + vatExpensesPlan),
 			),
