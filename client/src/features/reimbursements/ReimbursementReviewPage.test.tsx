@@ -13,6 +13,7 @@ const {
 	downloadReceiptAsync,
 	syncBuchhaltungsButlerAsync,
 	updateFinanceLinksAsync,
+	capture,
 } = vi.hoisted(() => ({
 	reviewRequestAsync: vi.fn(),
 	updateDepartmentAsync: vi.fn(),
@@ -20,6 +21,7 @@ const {
 	downloadReceiptAsync: vi.fn(),
 	syncBuchhaltungsButlerAsync: vi.fn(),
 	updateFinanceLinksAsync: vi.fn(),
+	capture: vi.fn(),
 	hookState: {
 		requests: [
 			{
@@ -175,6 +177,10 @@ vi.mock("../../contexts/ToastContext", () => ({
 	}),
 }));
 
+vi.mock("../../hooks/useAnalytics", () => ({
+	useAnalytics: () => ({ capture }),
+}));
+
 vi.mock("../../hooks/useReimbursementRequests", () => ({
 	useReimbursementReview: () => ({
 		requests: hookState.requests,
@@ -214,6 +220,7 @@ function renderPage() {
 
 describe("ReimbursementReviewPage", () => {
 	beforeEach(() => {
+		capture.mockReset();
 		reviewRequestAsync.mockReset();
 		reviewRequestAsync.mockResolvedValue({});
 		updateDepartmentAsync.mockReset();
@@ -278,6 +285,9 @@ describe("ReimbursementReviewPage", () => {
 				action: "approve",
 			}),
 		);
+		expect(capture).toHaveBeenCalledWith("reimbursement_reviewed", {
+			action: "approve",
+		});
 	}, 30_000);
 
 	it("lets finance reviewers click the amount to select/copy it without toggling the row", async () => {
@@ -502,6 +512,27 @@ describe("ReimbursementReviewPage", () => {
 				"request-1",
 			]),
 		);
+	});
+
+	it("tracks a successful BuchhaltungsButler sync", async () => {
+		const user = userEvent.setup();
+		renderPage();
+
+		await user.click(
+			screen.getByRole("button", {
+				name: /cloud credits for member analytics prototype/i,
+			}),
+		);
+		await user.click(
+			screen.getByRole("button", { name: /sync to buchhaltungsbutler/i }),
+		);
+
+		await waitFor(() =>
+			expect(syncBuchhaltungsButlerAsync).toHaveBeenCalledWith({
+				requestId: "request-2",
+			}),
+		);
+		expect(capture).toHaveBeenCalledWith("reimbursement_synced_to_accounting");
 	});
 
 	it("disables BuchhaltungsButler sync when the server reports it unavailable", async () => {

@@ -4,6 +4,14 @@ import { HttpResponse, http, server } from "@/test/mswServer";
 import { renderHookWithClient } from "@/test/renderWithClient";
 import { useContractBoardSignPage } from "./useContractBoardSignPage";
 
+const { capture } = vi.hoisted(() => ({
+	capture: vi.fn(),
+}));
+
+vi.mock("@/hooks/useAnalytics", () => ({
+	useAnalytics: () => ({ capture }),
+}));
+
 vi.mock("react-router-dom", () => ({
 	useParams: () => ({ token: "board-token" }),
 }));
@@ -51,6 +59,9 @@ describe("useContractBoardSignPage", () => {
 		expect(posted).toEqual({
 			signer_name: "Board Member",
 			signature_data: "data:image/png;base64,BBBB",
+		});
+		expect(capture).toHaveBeenCalledWith("contract_signed", {
+			party: "board",
 		});
 	});
 });

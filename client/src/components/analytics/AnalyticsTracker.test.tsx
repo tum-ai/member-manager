@@ -32,10 +32,21 @@ describe("AnalyticsTracker", () => {
 		vi.clearAllMocks();
 	});
 
-	it("captures a pageview on mount", () => {
+	it("captures a pageview tagged with its feature name on mount", () => {
 		renderTracker(null);
 
 		expect(mocks.captureAnalyticsPageview).toHaveBeenCalledTimes(1);
+		expect(mocks.captureAnalyticsPageview).toHaveBeenCalledWith({
+			feature: "members",
+		});
+	});
+
+	it("tags the reimbursement review route with its own feature name", () => {
+		renderTracker(null, "/tools/reimbursement/review");
+
+		expect(mocks.captureAnalyticsPageview).toHaveBeenCalledWith({
+			feature: "reimbursements-review",
+		});
 	});
 
 	it("does not re-capture a pageview when the path is unchanged", () => {

@@ -8,14 +8,19 @@ import { renderHookWithClient } from "@/test/renderWithClient";
 
 import { useEngagementCertificateForm } from "./useEngagementCertificateForm";
 
-const { showToast, generatePdf, downloadPdfBlob } = vi.hoisted(() => ({
+const { showToast, generatePdf, downloadPdfBlob, capture } = vi.hoisted(() => ({
 	showToast: vi.fn(),
 	generatePdf: vi.fn(),
 	downloadPdfBlob: vi.fn(),
+	capture: vi.fn(),
 }));
 
 vi.mock("@/contexts/ToastContext", () => ({
 	useToast: () => ({ showToast }),
+}));
+
+vi.mock("@/hooks/useAnalytics", () => ({
+	useAnalytics: () => ({ capture }),
 }));
 
 vi.mock("@/lib/pdfUtils", () => ({
@@ -75,6 +80,7 @@ describe("useEngagementCertificateForm", () => {
 		showToast.mockClear();
 		generatePdf.mockReset();
 		downloadPdfBlob.mockClear();
+		capture.mockClear();
 	});
 
 	it("submits the form and resets it, showing a success toast", async () => {
@@ -104,6 +110,9 @@ describe("useEngagementCertificateForm", () => {
 			"Certificate request submitted for admin approval.",
 			"success",
 		);
+		expect(capture).toHaveBeenCalledWith("certificate_submitted", {
+			engagement_count: 1,
+		});
 	});
 
 	it("surfaces an error toast when submission fails", async () => {
@@ -206,6 +215,7 @@ describe("useEngagementCertificateForm", () => {
 			"Approved certificate downloaded successfully!",
 			"success",
 		);
+		expect(capture).toHaveBeenCalledWith("certificate_downloaded");
 	});
 
 	it("shows an error toast when PDF generation fails", async () => {

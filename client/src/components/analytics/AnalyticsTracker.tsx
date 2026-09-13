@@ -6,6 +6,7 @@ import {
 	identifyAnalyticsUser,
 	resetAnalytics,
 } from "@/lib/analytics";
+import { getFeatureNameForPath } from "@/lib/analyticsRoutes";
 
 interface AnalyticsTrackerProps {
 	user: User | null;
@@ -46,7 +47,11 @@ export function AnalyticsTracker({ user }: AnalyticsTrackerProps): null {
 			return;
 		}
 		lastTrackedPath.current = location.pathname;
-		captureAnalyticsPageview();
+		// Tag with a coarse feature name (e.g. "reimbursements-review") so
+		// adoption can be sliced per feature instead of per raw, redacted path.
+		captureAnalyticsPageview({
+			feature: getFeatureNameForPath(location.pathname),
+		});
 	}, [location.pathname]);
 
 	return null;

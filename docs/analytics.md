@@ -88,6 +88,9 @@ Enabled by default:
 - **Pageviews** — one `$pageview` per React Router navigation, plus `$pageleave`.
   Captured by `client/src/components/analytics/AnalyticsTracker.tsx`, which sits inside
   `BrowserRouter` and *above* the auth gate, so the public contract-signing pages count too.
+  Tagged with a `feature` property from `getFeatureNameForPath` (`client/src/lib/analyticsRoutes.ts`)
+  so adoption can be sliced per feature ("reimbursements", "contracts-partner-sign", …) instead of
+  per raw (and redacted) path.
 - **Identity** — on login, `posthog.identify(<supabase user id>)`. On logout,
   `posthog.reset()` so the next person on that browser isn't attributed to the previous member.
 - **Person properties** — `department`, `is_admin`, `is_board_member`, written from
@@ -137,6 +140,21 @@ deliberately left to a decision by whoever owns data protection at TUM.ai:
   revisit this — `posthog.opt_out_capturing()` / `opt_in_capturing()` exist for wiring a
   banner, and `opt_out_capturing_by_default` can flip the default in `analytics.ts`.
 - **Mention PostHog in the privacy notice** before enabling this in production.
+
+## Events currently captured
+
+Beyond pageviews/identity, these funnel steps are wired up — each named
+`noun_verbed`, with only non-identifying properties (see "Adding events" below):
+
+| Flow | Events | Where |
+| --- | --- | --- |
+| Reimbursements | `reimbursement_submitted` / `reimbursement_submit_failed` → `reimbursement_reviewed` (`action: approve\|reject`) → `reimbursement_synced_to_accounting` | `features/reimbursements/hooks/useReimbursementForm.ts`, `features/reimbursements/ReimbursementReviewPage.tsx` |
+| Engagement certificates | `certificate_submitted` → `certificate_downloaded` | `features/certificate/hooks/useEngagementCertificateForm.ts` |
+| Contracts | `contract_draft_saved` / `contract_submitted` → `contract_signed` (`party: partner\|board`) | `features/contracts/ContractFormPage.tsx`, `features/contracts/hooks/useContractSignPage.ts`, `useContractBoardSignPage.ts` |
+
+`contract_signed` fires from the public signing pages, so it's captured against an
+anonymous `distinct_id` (no `identify()` call there) — consistent with
+`person_profiles: "identified_only"`.
 
 ## Adding events
 

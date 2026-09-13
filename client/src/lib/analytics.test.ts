@@ -286,6 +286,17 @@ describe("analytics lifecycle", () => {
 		expect(mocks.client.capture).toHaveBeenCalledWith("$pageview", undefined);
 	});
 
+	it("attaches non-URL context properties to a pageview", async () => {
+		const analytics = await importAnalytics();
+		await analytics.initAnalytics(KEY_ENV);
+
+		analytics.captureAnalyticsPageview({ feature: "reimbursements" });
+
+		expect(mocks.client.capture).toHaveBeenCalledWith("$pageview", {
+			feature: "reimbursements",
+		});
+	});
+
 	it("identifies without the email unless the deployment opts in", async () => {
 		const analytics = await importAnalytics();
 		await analytics.initAnalytics(KEY_ENV);

@@ -399,10 +399,13 @@ export function captureAnalyticsEvent(
 	});
 }
 
-export function captureAnalyticsPageview(): void {
+export function captureAnalyticsPageview(properties?: Properties): void {
 	// `$current_url` / `$pathname` are filled in by posthog-js from
-	// `window.location` and redacted by `before_send`.
-	captureAnalyticsEvent("$pageview");
+	// `window.location` and redacted by `before_send`. `properties` is for
+	// non-URL context only (e.g. a coarse `feature` name from
+	// `getFeatureNameForPath`) - never pass anything URL- or token-shaped here,
+	// since it skips path redaction.
+	captureAnalyticsEvent("$pageview", properties);
 }
 
 export function identifyAnalyticsUser(identity: AnalyticsIdentity): void {
