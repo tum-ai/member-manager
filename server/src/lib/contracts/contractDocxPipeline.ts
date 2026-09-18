@@ -445,6 +445,14 @@ export function dispatchContractRenderJobs(
 		request,
 	)
 		.then((result) => {
+			// The local retry branch used to be the only reader of `failed`, so on
+			// Vercel a batch where every job failed produced no output whatsoever.
+			if (result.failed > 0) {
+				request.log.warn(
+					{ ...result },
+					"Background contract rendering finished with failures",
+				);
+			}
 			if (process.env.VERCEL !== "1" && result.failed > 0) {
 				scheduleLocalContractRenderRetry(request);
 			}

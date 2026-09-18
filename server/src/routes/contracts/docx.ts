@@ -442,6 +442,15 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 
 	server.get("/contracts/render-jobs", async (request) => {
 		requireCronSecret(request.headers.authorization);
-		return runContractRenderJobs(CONTRACT_RENDER_JOBS_PER_INVOCATION, request);
+		const result = await runContractRenderJobs(
+			CONTRACT_RENDER_JOBS_PER_INVOCATION,
+			request,
+		);
+		// Nothing reads the cron response body, so a drained batch that failed has
+		// to say so here or the tick looks identical to an idle one.
+		if (result.failed > 0) {
+			request.log.warn({ ...result }, "Contract render cron drained failures");
+		}
+		return result;
 	});
 }

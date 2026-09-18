@@ -230,6 +230,44 @@ function safeJobFailure(error: unknown): {
 	};
 }
 
+export interface ContractRenderJobLog {
+	warn: (value: unknown, message: string) => void;
+	error?: (value: unknown, message: string) => void;
+}
+
+/**
+ * A render failure used to be written only to `contract_render_jobs`, so a job
+ * that failed on every attempt produced a 200 and no log line at all. That is
+ * how "DOMMatrix is not defined" stayed invisible in production for three weeks.
+ */
+function describeJob(job: ClaimedContractRenderJob) {
+	return {
+		jobId: job.id,
+		operation: job.operation,
+		templateDocumentId: job.template_document_id,
+		documentVersionId: job.document_version_id,
+		attempt: job.attempt_count,
+		maxAttempts: job.max_attempts,
+	};
+}
+
+function logFailure(
+	log: ContractRenderJobLog | undefined,
+	job: ReturnType<typeof describeJob>,
+	failure: { code: string; message: string; terminal: boolean },
+	error?: unknown,
+): void {
+	const details = {
+		...job,
+		errorCode: failure.code,
+		errorMessage: failure.message,
+		terminal: failure.terminal,
+		err: error,
+	};
+	const write = log?.error ?? log?.warn;
+	write?.(details, "Contract render job failed");
+}
+
 export async function processContractRenderJobs(args: {
 	workerId: string;
 	handlers: Partial<Record<ContractRenderOperation, ContractRenderJobHandler>>;
@@ -240,7 +278,7 @@ export async function processContractRenderJobs(args: {
 	maxJobs?: number;
 	leaseSeconds?: number;
 	store?: ContractRenderJobStore;
-	log?: { warn: (value: unknown, message: string) => void };
+	log?: ContractRenderJobLog;
 }): Promise<ContractRenderJobProcessResult> {
 	const maxJobs = Math.max(1, Math.min(args.maxJobs ?? 3, 10));
 	const leaseSeconds = Math.max(30, Math.min(args.leaseSeconds ?? 300, 900));
@@ -256,6 +294,11 @@ export async function processContractRenderJobs(args: {
 		result.claimed++;
 		const handler = args.handlers[job.operation];
 		if (!handler) {
+			logFailure(args.log, describeJob(job), {
+				code: "CONTRACT_RENDER_HANDLER_MISSING",
+				message: "No handler is configured for this render operation",
+				terminal: false,
+			});
 			try {
 				await store.finalize({
 					job,
@@ -279,10 +322,19 @@ export async function processContractRenderJobs(args: {
 				succeeded: true,
 				output,
 			});
-			await args.onSucceeded?.(job, output).catch(() => undefined);
+			// The job itself is already finalized, so a failing side effect must not
+			// fail the job — but it must not vanish either: this is where the status
+			// event and the "contract signed" emails are sent from.
+			await args.onSucceeded?.(job, output).catch((error: unknown) => {
+				args.log?.warn?.(
+					{ err: error, ...describeJob(job) },
+					"Contract render job succeeded but its follow-up failed",
+				);
+			});
 			result.succeeded++;
 		} catch (error) {
 			const failure = safeJobFailure(error);
+			logFailure(args.log, describeJob(job), failure, error);
 			try {
 				await store.finalize({
 					job,

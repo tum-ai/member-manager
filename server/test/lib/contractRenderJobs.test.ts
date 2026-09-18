@@ -221,6 +221,71 @@ describe("contract render job processor", () => {
 		assert.equal(finalized?.terminal, false);
 	});
 
+	it("logs a render failure instead of leaving it only in the database", async () => {
+		// The production "DOMMatrix is not defined" failure returned 200 with no log
+		// line at all, because the error was written only to contract_render_jobs.
+		const queue = [job()];
+		const logged: { details: unknown; message: string }[] = [];
+		const store: ContractRenderJobStore = {
+			async claim() {
+				return queue.shift() ?? null;
+			},
+			async finalize() {},
+		};
+		await processContractRenderJobs({
+			workerId: "worker-1",
+			store,
+			handlers: {
+				submission_render: async () => {
+					throw new Error("DOMMatrix is not defined");
+				},
+			},
+			log: {
+				warn: (details, message) => logged.push({ details, message }),
+				error: (details, message) => logged.push({ details, message }),
+			},
+		});
+		assert.equal(logged.length, 1);
+		assert.match(logged[0].message, /render job failed/i);
+		const details = logged[0].details as Record<string, unknown>;
+		assert.equal(details.errorCode, "CONTRACT_RENDER_FAILED");
+		assert.equal(details.errorMessage, "DOMMatrix is not defined");
+		assert.equal(details.operation, "submission_render");
+		assert.equal(details.terminal, false);
+	});
+
+	it("logs a follow-up failure without failing the finished job", async () => {
+		// onSucceeded sends the status event and the signed-contract emails; it used
+		// to be swallowed with `.catch(() => undefined)`.
+		const queue = [job()];
+		const logged: string[] = [];
+		const store: ContractRenderJobStore = {
+			async claim() {
+				return queue.shift() ?? null;
+			},
+			async finalize() {},
+		};
+		const result = await processContractRenderJobs({
+			workerId: "worker-1",
+			store,
+			handlers: {
+				submission_render: async () => ({
+					converterVersion: "libreoffice-test",
+				}),
+			},
+			onSucceeded: async () => {
+				throw new Error("email provider rejected the request");
+			},
+			log: {
+				warn: (_details, message) => logged.push(message),
+			},
+		});
+		assert.equal(result.succeeded, 1);
+		assert.equal(result.failed, 0);
+		assert.equal(logged.length, 1);
+		assert.match(logged[0], /follow-up failed/i);
+	});
+
 	it("fails a claimed job when its operation has no handler", async () => {
 		const queue = [job({ operation: "opensign_ingest" })];
 		let errorCode: string | null | undefined;
