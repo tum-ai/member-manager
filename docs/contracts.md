@@ -60,8 +60,8 @@ embedded files, active Word fields, external relationships, unknown commands,
 and malformed placeholders are rejected.
 
 The server fills the document, creates the two invisible signature images,
-converts it with LibreOffice in a temporary Vercel Sandbox, and stores encrypted
-DOCX and PDF artifacts in private Supabase buckets. The stored PDF is the source
+converts it with LibreOffice in a temporary Vercel Sandbox, and stores the DOCX
+and PDF artifacts in private Supabase buckets. The stored PDF is the source
 for preview and signing. Partner and board signatures replace the matching
 invisible image positions.
 
@@ -73,8 +73,20 @@ DOCX version.
 ## Document Rendering
 
 The server fills the uploaded Word document, starts a temporary Vercel Sandbox,
-runs LibreOffice, and stores encrypted DOCX and PDF artifacts in private
-Supabase buckets. The stored PDF is used for preview and signing.
+runs LibreOffice, and stores the DOCX and PDF artifacts in private Supabase
+buckets. The stored PDF is used for preview and signing. Artifacts are stored as
+they are, not encrypted: they reach the browser through short-lived signed URLs,
+which have to serve bytes the browser can open. Reads still detect the encrypted
+format written by earlier builds. `form_data_encrypted` and the render job
+payloads remain encrypted.
+
+Anchor detection runs pdf.js in Node, which needs a `DOMMatrix` the runtime does
+not provide. pdf.js borrows one from `@napi-rs/canvas`, an optional dependency
+loaded through a `require()` that Vercel file tracing cannot follow, so it is
+absent from the deployed function. `lib/contracts/domMatrix.ts` installs a
+pure-JS implementation before pdf.js loads, and the pdf.js worker is imported by
+its literal path for the same reason — its own loader resolves the worker from a
+runtime variable that cannot be traced either.
 
 Submissions keep immutable rendered snapshots in `contract_document_versions`:
 
@@ -85,6 +97,27 @@ Submissions keep immutable rendered snapshots in `contract_document_versions`:
 
 Historical text columns remain in the database so old records can still be
 read, but the application no longer creates or edits text-engine documents.
+
+### Render failures and recovery
+
+A render job retries with backoff up to five times. The failure is logged and
+kept on the row while it waits for the next attempt, so a document that reads
+`Queued` with an error message is between attempts, not waiting its turn — the
+template list shows that as **Retrying**. Only an exhausted or deterministic
+failure ends as `Failed`.
+
+An attempt is consumed when a job is claimed, so a worker killed mid-render
+burns one without recording an error. `expire_contract_render_jobs()` runs on
+every claim and fails such a job terminally once no attempts remain, instead of
+leaving it `processing` forever. Leases are 120 seconds, below the 300 second
+function limit.
+
+Retry is available from the template list for a document that is `queued` or
+`failed`, and `POST /api/contracts/submissions/:id/render/retry` does the same
+for a submission's active document version. A job still holding a live lease is
+left alone. Submission retries revive the existing job rather than enqueueing a
+new one, because its stored payload is the only pointer to the DOCX Legal
+uploaded.
 
 ## Partner Comments
 
