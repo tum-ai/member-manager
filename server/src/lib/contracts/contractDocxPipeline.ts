@@ -48,6 +48,13 @@ type ContractSignatureAnchors = {
 
 export const CONTRACT_RENDER_JOBS_PER_INVOCATION = 2;
 
+/**
+ * Comfortably above the 90s sandbox conversion timeout and well below the 300s
+ * `maxDuration` in vercel.json, so a lease cannot outlive the invocation holding
+ * it by more than one cron tick.
+ */
+export const CONTRACT_RENDER_LEASE_SECONDS = 120;
+
 let localRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
 type RenderPayload =
@@ -392,6 +399,10 @@ export async function runContractRenderJobs(
 		workerId: `contract-worker-${randomUUID()}`,
 		handlers: contractRenderJobHandlers,
 		maxJobs,
+		// Stay below the function's own 300s limit so a job that dies with the
+		// invocation is reclaimable on the next cron tick rather than holding a
+		// lease nobody can steal for five more minutes.
+		leaseSeconds: CONTRACT_RENDER_LEASE_SECONDS,
 		log: request?.log,
 		onSucceeded: async (job) => {
 			const transition =
@@ -474,6 +485,73 @@ function scheduleLocalContractRenderRetry(
 		dispatchContractRenderJobs(request);
 	}, 6_000);
 	localRetryTimer.unref?.();
+}
+
+/**
+ * - `live`: a job still holds an unexpired lease, so it is genuinely in flight.
+ * - `revived`: abandoned work no claim would ever pick up, now queued again.
+ * - `missing`: no job matched, so the caller has to enqueue a fresh one. A row
+ *   can reach this state if the enqueue failed right after it was created, which
+ *   otherwise leaves it showing `queued` with nothing behind it forever.
+ */
+export type ContractRenderJobRevival = "live" | "revived" | "missing";
+
+/**
+ * Requeues the render job behind a target that is stuck, which is the state an
+ * operator pressing Retry is actually looking at.
+ */
+export async function reviveStaleContractRenderJob(target: {
+	templateDocumentId?: string;
+	documentVersionId?: string;
+	/**
+	 * Submission renders also revive `failed` jobs, because the existing row still
+	 * holds the encrypted payload — and for a version Legal uploaded, that payload
+	 * is the only pointer to their edited DOCX. Rebuilding it would silently
+	 * re-render from the template instead.
+	 */
+	statuses?: string[];
+}): Promise<ContractRenderJobRevival> {
+	const column = target.templateDocumentId
+		? "template_document_id"
+		: "document_version_id";
+	const value = target.templateDocumentId ?? target.documentVersionId;
+	if (!value) return "missing";
+	const { data, error } = await getSupabase()
+		.from("contract_render_jobs")
+		.select("id, status, lease_expires_at")
+		.eq(column, value)
+		.in("status", target.statuses ?? ["queued", "processing"])
+		.order("created_at", { ascending: false })
+		.limit(1)
+		.maybeSingle();
+	if (error) throw error;
+	if (!data) return "missing";
+	const leaseExpiresAt = data.lease_expires_at
+		? new Date(String(data.lease_expires_at)).getTime()
+		: 0;
+	if (data.status === "processing" && leaseExpiresAt > Date.now())
+		return "live";
+
+	// A fresh attempt budget is the point of an operator-initiated retry, and the
+	// lease columns have to be cleared for `contract_render_jobs_lease_check` to
+	// accept a queued row.
+	const { error: updateError } = await getSupabase()
+		.from("contract_render_jobs")
+		.update({
+			status: "queued",
+			attempt_count: 0,
+			run_after: new Date().toISOString(),
+			leased_by: null,
+			lease_token: null,
+			lease_expires_at: null,
+			finished_at: null,
+			last_error_code: null,
+			last_error_message: null,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", data.id);
+	if (updateError) throw updateError;
+	return "revived";
 }
 
 export async function enqueueContractRenderJob(args: {

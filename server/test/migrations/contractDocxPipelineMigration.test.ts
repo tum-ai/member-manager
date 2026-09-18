@@ -23,6 +23,13 @@ const terminalFailureMigration = readFileSync(
 	),
 	"utf8",
 );
+const failureVisibilityMigration = readFileSync(
+	new URL(
+		"../../../supabase/migrations/20260918120000_contract_render_failure_visibility.sql",
+		import.meta.url,
+	),
+	"utf8",
+);
 
 describe("contract DOCX pipeline migration", () => {
 	test("creates only private encrypted artifact buckets", () => {
@@ -184,6 +191,53 @@ describe("contract DOCX pipeline migration", () => {
 		assert.match(
 			terminalFailureMigration,
 			/grant execute on function "public"\."finalize_contract_render_job"[\s\S]*?to "service_role"/i,
+		);
+	});
+
+	test("keeps the last error on a row that is waiting for another attempt", () => {
+		// Clearing it here is what made a converter failing on every attempt look
+		// like an ordinary queue instead of a broken one.
+		assert.match(
+			failureVisibilityMigration,
+			/set status = 'queued', error_code = p_error_code,\s*\n\s*error_message = p_error_message/i,
+		);
+		assert.match(
+			failureVisibilityMigration,
+			/set artifact_status = 'queued', artifact_error_code = p_error_code,\s*\n\s*artifact_error_message = p_error_message/i,
+		);
+		assert.doesNotMatch(
+			failureVisibilityMigration,
+			/set status = 'queued', error_code = null/i,
+		);
+	});
+
+	test("reaps a job abandoned with no attempts left", () => {
+		assert.match(
+			failureVisibilityMigration,
+			/create or replace function "public"\."expire_contract_render_jobs"\(\)/i,
+		);
+		// Exactly the rows the claim filter can never pick up again.
+		assert.match(
+			failureVisibilityMigration,
+			/where status = 'processing'[\s\S]*?lease_expires_at < now\(\)[\s\S]*?attempt_count >= max_attempts/i,
+		);
+		assert.match(failureVisibilityMigration, /CONTRACT_RENDER_LEASE_LOST/);
+		// The reaper is useless unless something calls it; the claim path runs
+		// every cron tick.
+		assert.match(
+			failureVisibilityMigration,
+			/perform public\.expire_contract_render_jobs\(\);/i,
+		);
+	});
+
+	test("grants the reaper to service_role only", () => {
+		assert.match(
+			failureVisibilityMigration,
+			/revoke all on function "public"\."expire_contract_render_jobs"\(\) from "public", "anon", "authenticated"/i,
+		);
+		assert.match(
+			failureVisibilityMigration,
+			/grant execute on function "public"\."expire_contract_render_jobs"\(\) to "service_role"/i,
 		);
 	});
 });

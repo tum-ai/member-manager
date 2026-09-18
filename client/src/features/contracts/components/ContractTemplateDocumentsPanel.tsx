@@ -143,6 +143,13 @@ export function ContractTemplateDocumentsPanel({
 						const status = STATUS_DETAILS[document.status];
 						const StatusIcon = status.icon;
 						const isActive = document.id === model.activeDocumentId;
+						// A queued row that carries an error is between attempts, not
+						// waiting its turn. Reading it as plain "Queued" is what made a
+						// converter failing on every attempt look like a slow queue.
+						const isRetrying =
+							document.status === "queued" && Boolean(document.error_message);
+						const canRetry =
+							document.status === "failed" || document.status === "queued";
 						return (
 							<li
 								key={document.id}
@@ -154,7 +161,7 @@ export function ContractTemplateDocumentsPanel({
 											<p className="truncate font-medium">
 												Version {document.version}: {document.original_filename}
 											</p>
-											<Badge variant={status.variant}>
+											<Badge variant={isRetrying ? "danger" : status.variant}>
 												<StatusIcon
 													className={
 														document.status === "processing"
@@ -162,7 +169,7 @@ export function ContractTemplateDocumentsPanel({
 															: undefined
 													}
 												/>
-												{status.label}
+												{isRetrying ? "Retrying" : status.label}
 											</Badge>
 											{isActive ? <Badge variant="brand">Active</Badge> : null}
 										</div>
@@ -207,7 +214,7 @@ export function ContractTemplateDocumentsPanel({
 												Preview
 											</Button>
 										) : null}
-										{document.status === "failed" ? (
+										{canRetry ? (
 											<Button
 												variant="outline"
 												size="sm"

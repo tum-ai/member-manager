@@ -28,6 +28,7 @@ import {
 	insertDocxDocumentVersion,
 	readyVersionDocxUrl,
 	readyVersionPdfUrl,
+	reviveStaleContractRenderJob,
 	runContractRenderJobs,
 	templatePreviewPdfUrl,
 } from "../../lib/contracts/contractDocxPipeline.js";
@@ -84,6 +85,33 @@ function requireCronSecret(authorization: string | undefined): void {
 	if (!secret || authorization !== `Bearer ${secret}`) {
 		throw new UnauthorizedError("Invalid cron authorization");
 	}
+}
+
+async function resetTemplateDocumentToQueued(
+	documentId: string,
+): Promise<void> {
+	const { error } = await getSupabase()
+		.from("contract_template_documents")
+		.update({
+			status: "queued",
+			error_code: null,
+			error_message: null,
+			updated_at: new Date().toISOString(),
+		})
+		.eq("id", documentId);
+	if (error) throw error;
+}
+
+async function resetDocumentVersionToQueued(versionId: string): Promise<void> {
+	const { error } = await getSupabase()
+		.from("contract_document_versions")
+		.update({
+			artifact_status: "queued",
+			artifact_error_code: null,
+			artifact_error_message: null,
+		})
+		.eq("id", versionId);
+	if (error) throw error;
 }
 
 /**
@@ -219,18 +247,26 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 			if (!document) throw new NotFoundError("Template document not found");
 			if (document.status === "ready") return document;
 			if (document.status === "queued" || document.status === "processing") {
-				return document;
+				// Retry used to be inert in exactly the state that needs it: a job
+				// abandoned by a killed worker sits here forever and the button did
+				// nothing. Only a live lease is left alone now, and a row with no job
+				// behind it at all falls through to the enqueue below.
+				const revival = await reviveStaleContractRenderJob({
+					templateDocumentId: params.documentId,
+				});
+				if (revival === "live") return document;
+				if (revival === "revived") {
+					await resetTemplateDocumentToQueued(params.documentId);
+					dispatchContractRenderJobs(request);
+					return {
+						...document,
+						status: "queued",
+						error_code: null,
+						error_message: null,
+					};
+				}
 			}
-			const { error: updateError } = await getSupabase()
-				.from("contract_template_documents")
-				.update({
-					status: "queued",
-					error_code: null,
-					error_message: null,
-					updated_at: new Date().toISOString(),
-				})
-				.eq("id", params.documentId);
-			if (updateError) throw updateError;
+			await resetTemplateDocumentToQueued(params.documentId);
 			await enqueueContractRenderJob({
 				operation: "template_preview",
 				templateDocumentId: params.documentId,
@@ -381,6 +417,42 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 				},
 				idempotencyKey: `submission-render:${versionId}`,
 			});
+			dispatchContractRenderJobs(request);
+			return hydrateDocxSubmission(await fetchSubmission(id));
+		},
+	);
+
+	/**
+	 * A stuck submission render had no recovery path at all — only template
+	 * documents had a retry route, so anything else needed direct SQL.
+	 */
+	server.post<{ Params: { id: string } }>(
+		"/contracts/submissions/:id/render/retry",
+		{ preHandler: [authenticate, requireContractsAdmin] },
+		async (request) => {
+			const { id } = ContractSubmissionParamsSchema.parse(request.params);
+			ContractDocumentRetryBodySchema.parse(request.body);
+			const submission = await fetchSubmission(id);
+			if (submission.renderer_engine !== "docx") {
+				throw new ConflictError(
+					"This submission uses a retired document format",
+				);
+			}
+			const versionId = submission.active_document_version_id;
+			if (typeof versionId !== "string") {
+				throw new ConflictError("This submission has no document to render");
+			}
+			const revival = await reviveStaleContractRenderJob({
+				documentVersionId: versionId,
+				statuses: ["queued", "processing", "failed"],
+			});
+			if (revival === "live") {
+				throw new ConflictError("This document is already being rendered");
+			}
+			if (revival === "missing") {
+				throw new ConflictError("There is no render job to retry");
+			}
+			await resetDocumentVersionToQueued(versionId);
 			dispatchContractRenderJobs(request);
 			return hydrateDocxSubmission(await fetchSubmission(id));
 		},
