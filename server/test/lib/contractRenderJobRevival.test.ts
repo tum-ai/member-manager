@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { ValidationError } from "../../src/lib/errors.js";
 
 process.env.SUPABASE_URL ??= "http://127.0.0.1:54321";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-service-role-key";
@@ -13,133 +14,116 @@ const { getSupabase, setSupabaseClient } = await import(
 );
 
 const originalClient = getSupabase();
-const FUTURE = new Date(Date.now() + 120_000).toISOString();
-const PAST = new Date(Date.now() - 120_000).toISOString();
 
 interface Recorded {
-	statuses?: string[];
-	update?: Record<string, unknown>;
+	name?: string;
+	params?: Record<string, unknown>;
+	calls: number;
 }
 
 /**
- * A stub for the one query chain the revival uses, recording what it was asked
- * for so the test can assert the filter as well as the write.
+ * Eligibility and both resets live in `requeue_contract_render_job` so they share
+ * one locked transaction. What is worth asserting here is the call it makes and how
+ * the answer is read; the concurrency guarantee itself is in the SQL, covered by
+ * contractDocxPipelineMigration.test.ts and by a live-database interleaving check
+ * that cannot run in this database-free suite.
  */
-function jobsClient(
-	row: Record<string, unknown> | null,
+function rpcClient(
+	result: { data?: unknown; error?: { message: string } },
 	recorded: Recorded,
 ): SupabaseClient {
-	const selectChain = {
-		eq: () => selectChain,
-		in: (_column: string, statuses: string[]) => {
-			recorded.statuses = statuses;
-			return selectChain;
-		},
-		order: () => selectChain,
-		limit: () => selectChain,
-		maybeSingle: async () => ({ data: row, error: null }),
-	};
 	return {
-		from: () => ({
-			select: () => selectChain,
-			update: (values: Record<string, unknown>) => {
-				recorded.update = values;
-				return { eq: async () => ({ error: null }) };
-			},
-		}),
+		rpc: async (name: string, params: Record<string, unknown>) => {
+			recorded.name = name;
+			recorded.params = params;
+			recorded.calls += 1;
+			return { data: result.data ?? null, error: result.error ?? null };
+		},
 	} as unknown as SupabaseClient;
 }
 
 describe("reviving a stale contract render job", () => {
 	afterEach(() => setSupabaseClient(originalClient));
 
-	it("leaves a job that still holds a live lease alone", async () => {
-		const recorded: Recorded = {};
-		setSupabaseClient(
-			jobsClient(
-				{ id: "job-1", status: "processing", lease_expires_at: FUTURE },
-				recorded,
-			),
-		);
+	it("asks the database to requeue a template document", async () => {
+		const recorded: Recorded = { calls: 0 };
+		setSupabaseClient(rpcClient({ data: "revived" }, recorded));
 		assert.equal(
 			await reviveStaleContractRenderJob({ templateDocumentId: "doc-1" }),
-			"live",
-		);
-		assert.equal(recorded.update, undefined);
-	});
-
-	it("revives a job abandoned by a killed worker", async () => {
-		// The attempt is consumed at claim time, so five kills leave the job
-		// unclaimable at max_attempts while still 'processing'. A fresh attempt
-		// budget is the point of an operator-initiated retry.
-		const recorded: Recorded = {};
-		setSupabaseClient(
-			jobsClient(
-				{ id: "job-2", status: "processing", lease_expires_at: PAST },
-				recorded,
-			),
-		);
-		assert.equal(
-			await reviveStaleContractRenderJob({ documentVersionId: "version-1" }),
 			"revived",
 		);
-		assert.equal(recorded.update?.status, "queued");
-		assert.equal(recorded.update?.attempt_count, 0);
-		// contract_render_jobs_lease_check rejects a queued row that still carries
-		// lease columns.
-		assert.equal(recorded.update?.leased_by, null);
-		assert.equal(recorded.update?.lease_token, null);
-		assert.equal(recorded.update?.lease_expires_at, null);
-		assert.equal(recorded.update?.finished_at, null);
+		assert.equal(recorded.name, "requeue_contract_render_job");
+		assert.deepEqual(recorded.params, {
+			p_template_document_id: "doc-1",
+			p_document_version_id: null,
+			p_include_failed: false,
+		});
 	});
 
-	it("revives a queued job that no claim will pick up", async () => {
-		const recorded: Recorded = {};
-		setSupabaseClient(
-			jobsClient(
-				{ id: "job-3", status: "queued", lease_expires_at: null },
-				recorded,
-			),
-		);
+	it("includes failed jobs only when asked, so a submission keeps its payload", async () => {
+		const recorded: Recorded = { calls: 0 };
+		setSupabaseClient(rpcClient({ data: "revived" }, recorded));
+		await reviveStaleContractRenderJob({
+			documentVersionId: "version-1",
+			includeFailed: true,
+		});
+		assert.deepEqual(recorded.params, {
+			p_template_document_id: null,
+			p_document_version_id: "version-1",
+			p_include_failed: true,
+		});
+	});
+
+	it("reports a job that is genuinely in flight", async () => {
+		const recorded: Recorded = { calls: 0 };
+		setSupabaseClient(rpcClient({ data: "live" }, recorded));
 		assert.equal(
 			await reviveStaleContractRenderJob({ templateDocumentId: "doc-2" }),
-			"revived",
+			"live",
 		);
-		assert.deepEqual(recorded.statuses, ["queued", "processing"]);
-	});
-
-	it("can include failed jobs so a submission keeps its stored payload", async () => {
-		const recorded: Recorded = {};
-		setSupabaseClient(
-			jobsClient(
-				{ id: "job-4", status: "failed", lease_expires_at: PAST },
-				recorded,
-			),
-		);
-		assert.equal(
-			await reviveStaleContractRenderJob({
-				documentVersionId: "version-2",
-				statuses: ["queued", "processing", "failed"],
-			}),
-			"revived",
-		);
-		assert.deepEqual(recorded.statuses, ["queued", "processing", "failed"]);
 	});
 
 	it("reports a missing job so the caller can enqueue a fresh one", async () => {
-		const recorded: Recorded = {};
-		setSupabaseClient(jobsClient(null, recorded));
+		const recorded: Recorded = { calls: 0 };
+		setSupabaseClient(rpcClient({ data: "missing" }, recorded));
 		assert.equal(
-			await reviveStaleContractRenderJob({ templateDocumentId: "doc-3" }),
+			await reviveStaleContractRenderJob({ documentVersionId: "version-2" }),
 			"missing",
 		);
-		assert.equal(recorded.update, undefined);
 	});
 
-	it("does nothing without a target", async () => {
-		const recorded: Recorded = {};
-		setSupabaseClient(jobsClient(null, recorded));
+	it("does not call the database without a target", async () => {
+		const recorded: Recorded = { calls: 0 };
+		setSupabaseClient(rpcClient({ data: "revived" }, recorded));
 		assert.equal(await reviveStaleContractRenderJob({}), "missing");
-		assert.equal(recorded.statuses, undefined);
+		assert.equal(recorded.calls, 0);
+	});
+
+	it("refuses to read an unknown result as success", async () => {
+		const recorded: Recorded = { calls: 0 };
+		setSupabaseClient(rpcClient({ data: "something-else" }, recorded));
+		await assert.rejects(
+			() => reviveStaleContractRenderJob({ templateDocumentId: "doc-3" }),
+			ValidationError,
+		);
+	});
+
+	it("surfaces a database error rather than reporting nothing to do", async () => {
+		const recorded: Recorded = { calls: 0 };
+		setSupabaseClient(
+			rpcClient({ error: { message: "deadlock detected" } }, recorded),
+		);
+		// Supabase errors are thrown as-is here, matching the rest of the server, so
+		// the assertion reads the message rather than expecting an Error subclass.
+		await assert.rejects(
+			() => reviveStaleContractRenderJob({ templateDocumentId: "doc-4" }),
+			(error: unknown) => {
+				assert.match(
+					String((error as { message?: string }).message),
+					/deadlock detected/,
+				);
+				return true;
+			},
+		);
 	});
 });

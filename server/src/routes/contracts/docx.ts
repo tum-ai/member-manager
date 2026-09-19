@@ -102,18 +102,6 @@ async function resetTemplateDocumentToQueued(
 	if (error) throw error;
 }
 
-async function resetDocumentVersionToQueued(versionId: string): Promise<void> {
-	const { error } = await getSupabase()
-		.from("contract_document_versions")
-		.update({
-			artifact_status: "queued",
-			artifact_error_code: null,
-			artifact_error_message: null,
-		})
-		.eq("id", versionId);
-	if (error) throw error;
-}
-
 /**
  * Both upload paths are `{recordId}/{documentId}/{name}.docx`, minted server-side
  * when the ticket was issued. Reading the id back out keeps the row and the
@@ -256,7 +244,7 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 				});
 				if (revival === "live") return document;
 				if (revival === "revived") {
-					await resetTemplateDocumentToQueued(params.documentId);
+					// The requeue resets this document row in the same transaction.
 					dispatchContractRenderJobs(request);
 					return {
 						...document,
@@ -444,7 +432,7 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 			}
 			const revival = await reviveStaleContractRenderJob({
 				documentVersionId: versionId,
-				statuses: ["queued", "processing", "failed"],
+				includeFailed: true,
 			});
 			if (revival === "live") {
 				throw new ConflictError("This document is already being rendered");
@@ -452,7 +440,7 @@ export async function contractDocxRoutes(server: FastifyInstance) {
 			if (revival === "missing") {
 				throw new ConflictError("There is no render job to retry");
 			}
-			await resetDocumentVersionToQueued(versionId);
+			// The requeue resets the document version in the same transaction.
 			dispatchContractRenderJobs(request);
 			return hydrateDocxSubmission(await fetchSubmission(id));
 		},

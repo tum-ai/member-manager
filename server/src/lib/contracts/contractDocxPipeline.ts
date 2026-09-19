@@ -496,9 +496,24 @@ function scheduleLocalContractRenderRetry(
  */
 export type ContractRenderJobRevival = "live" | "revived" | "missing";
 
+function asRevival(value: unknown): ContractRenderJobRevival {
+	if (value === "live" || value === "revived" || value === "missing") {
+		return value;
+	}
+	throw new ValidationError(
+		"Contract render job requeue returned an unknown result",
+	);
+}
+
 /**
  * Requeues the render job behind a target that is stuck, which is the state an
  * operator pressing Retry is actually looking at.
+ *
+ * The eligibility check, the job reset and the dependent row reset all happen
+ * inside `requeue_contract_render_job` so they share one locked transaction. Read
+ * the lease here and reset it in a second request, and a worker claiming in
+ * between loses the lease it just took while a second worker claims the same
+ * render.
  */
 export async function reviveStaleContractRenderJob(target: {
 	templateDocumentId?: string;
@@ -509,49 +524,19 @@ export async function reviveStaleContractRenderJob(target: {
 	 * is the only pointer to their edited DOCX. Rebuilding it would silently
 	 * re-render from the template instead.
 	 */
-	statuses?: string[];
+	includeFailed?: boolean;
 }): Promise<ContractRenderJobRevival> {
-	const column = target.templateDocumentId
-		? "template_document_id"
-		: "document_version_id";
-	const value = target.templateDocumentId ?? target.documentVersionId;
-	if (!value) return "missing";
-	const { data, error } = await getSupabase()
-		.from("contract_render_jobs")
-		.select("id, status, lease_expires_at")
-		.eq(column, value)
-		.in("status", target.statuses ?? ["queued", "processing"])
-		.order("created_at", { ascending: false })
-		.limit(1)
-		.maybeSingle();
+	if (!target.templateDocumentId && !target.documentVersionId) return "missing";
+	const { data, error } = await getSupabase().rpc(
+		"requeue_contract_render_job",
+		{
+			p_template_document_id: target.templateDocumentId ?? null,
+			p_document_version_id: target.documentVersionId ?? null,
+			p_include_failed: target.includeFailed ?? false,
+		},
+	);
 	if (error) throw error;
-	if (!data) return "missing";
-	const leaseExpiresAt = data.lease_expires_at
-		? new Date(String(data.lease_expires_at)).getTime()
-		: 0;
-	if (data.status === "processing" && leaseExpiresAt > Date.now())
-		return "live";
-
-	// A fresh attempt budget is the point of an operator-initiated retry, and the
-	// lease columns have to be cleared for `contract_render_jobs_lease_check` to
-	// accept a queued row.
-	const { error: updateError } = await getSupabase()
-		.from("contract_render_jobs")
-		.update({
-			status: "queued",
-			attempt_count: 0,
-			run_after: new Date().toISOString(),
-			leased_by: null,
-			lease_token: null,
-			lease_expires_at: null,
-			finished_at: null,
-			last_error_code: null,
-			last_error_message: null,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("id", data.id);
-	if (updateError) throw updateError;
-	return "revived";
+	return asRevival(data);
 }
 
 export async function enqueueContractRenderJob(args: {

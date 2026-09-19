@@ -23,6 +23,13 @@ const terminalFailureMigration = readFileSync(
 	),
 	"utf8",
 );
+const requeueMigration = readFileSync(
+	new URL(
+		"../../../supabase/migrations/20260919090000_contract_render_job_requeue.sql",
+		import.meta.url,
+	),
+	"utf8",
+);
 const failureVisibilityMigration = readFileSync(
 	new URL(
 		"../../../supabase/migrations/20260918120000_contract_render_failure_visibility.sql",
@@ -227,6 +234,50 @@ describe("contract DOCX pipeline migration", () => {
 		assert.match(
 			failureVisibilityMigration,
 			/perform public\.expire_contract_render_jobs\(\);/i,
+		);
+	});
+
+	test("requeues a job under one lock instead of a read then a write", () => {
+		// Retry used to read the lease in one request and reset it in another. A
+		// worker claiming in between lost the lease it had just taken, and a second
+		// worker could claim the same render.
+		assert.match(
+			requeueMigration,
+			/create or replace function "public"\."requeue_contract_render_job"/i,
+		);
+		// `for update` is what serialises this against the claim path, whose
+		// candidate query uses `for update skip locked`.
+		assert.match(requeueMigration, /limit 1\s*\n\s*for update;/i);
+		// A live lease must be reported, never overwritten.
+		assert.match(
+			requeueMigration,
+			/if v_job\.status = 'processing'[\s\S]*?lease_expires_at > now\(\)[\s\S]*?return 'live';/i,
+		);
+		// The dependent row is reset inside the same function, so it cannot end up
+		// disagreeing with its job.
+		assert.match(
+			requeueMigration,
+			/update public\.contract_template_documents[\s\S]*?status = 'queued'[\s\S]*?status <> 'ready'/i,
+		);
+		assert.match(
+			requeueMigration,
+			/update public\.contract_document_versions[\s\S]*?artifact_status = 'queued'[\s\S]*?artifact_status <> 'ready'/i,
+		);
+		// A queued row may not keep lease columns, per contract_render_jobs_lease_check.
+		assert.match(
+			requeueMigration,
+			/set status = 'queued',[\s\S]*?lease_token = null,[\s\S]*?finished_at = null/i,
+		);
+	});
+
+	test("grants the requeue function to service_role only", () => {
+		assert.match(
+			requeueMigration,
+			/revoke all on function "public"\."requeue_contract_render_job"\(uuid, uuid, boolean\) from "public", "anon", "authenticated"/i,
+		);
+		assert.match(
+			requeueMigration,
+			/grant execute on function "public"\."requeue_contract_render_job"\(uuid, uuid, boolean\) to "service_role"/i,
 		);
 	});
 

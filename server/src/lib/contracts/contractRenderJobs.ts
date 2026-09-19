@@ -251,6 +251,8 @@ function describeJob(job: ClaimedContractRenderJob) {
 	};
 }
 
+const RENDER_FAILURE_MESSAGE = "Contract render job failed";
+
 function logFailure(
 	log: ContractRenderJobLog | undefined,
 	job: ReturnType<typeof describeJob>,
@@ -264,8 +266,17 @@ function logFailure(
 		terminal: failure.terminal,
 		err: error,
 	};
-	const write = log?.error ?? log?.warn;
-	write?.(details, "Contract render job failed");
+	// Pino needs its receiver: extracting `log.error` into a local and calling it
+	// unbound throws on the logger's own state. This runs before the job is
+	// finalized, so such a throw would abort the batch and leave the job leased
+	// until it expires — worse than the silence it replaced. Hence both the
+	// method call on the logger and the guard.
+	try {
+		if (log?.error) log.error(details, RENDER_FAILURE_MESSAGE);
+		else log?.warn(details, RENDER_FAILURE_MESSAGE);
+	} catch {
+		// Reporting a failure must never stop it from being recorded.
+	}
 }
 
 export async function processContractRenderJobs(args: {

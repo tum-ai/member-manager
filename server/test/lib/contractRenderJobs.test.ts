@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import Fastify from "fastify";
 import {
 	ConflictError,
 	DatabaseError,
@@ -252,6 +253,58 @@ describe("contract render job processor", () => {
 		assert.equal(details.errorMessage, "DOMMatrix is not defined");
 		assert.equal(details.operation, "submission_render");
 		assert.equal(details.terminal, false);
+	});
+
+	it("finalizes and keeps draining when a real Pino logger reports the failure", async () => {
+		// Regression: `logFailure` used to extract `log.error` into a local and call
+		// it unbound. Pino needs its receiver, so with a real logger that threw
+		// before `store.finalize` ran, aborting the batch and leaving the job leased
+		// until expiry. Object-literal stubs with arrow functions cannot catch this,
+		// so this case uses the logger Fastify actually gives the route.
+		const lines: string[] = [];
+		const app = Fastify({
+			logger: {
+				level: "info",
+				stream: {
+					write: (line: string) => {
+						lines.push(line);
+					},
+				},
+			},
+		});
+		const queue = [job(), job()];
+		const finalized: Parameters<ContractRenderJobStore["finalize"]>[0][] = [];
+		const store: ContractRenderJobStore = {
+			async claim() {
+				return queue.shift() ?? null;
+			},
+			async finalize(args) {
+				finalized.push(args);
+			},
+		};
+		const result = await processContractRenderJobs({
+			workerId: "worker-1",
+			store,
+			maxJobs: 2,
+			handlers: {
+				submission_render: async () => {
+					throw new Error("DOMMatrix is not defined");
+				},
+			},
+			log: app.log,
+		});
+		await app.close();
+
+		assert.equal(result.claimed, 2);
+		assert.equal(result.failed, 2, "both jobs must be processed");
+		assert.equal(finalized.length, 2, "each failure must be finalized");
+		assert.equal(finalized[0].succeeded, false);
+		assert.equal(finalized[0].errorCode, "CONTRACT_RENDER_FAILED");
+		const logged = lines.filter((line) =>
+			line.includes("Contract render job failed"),
+		);
+		assert.equal(logged.length, 2);
+		assert.match(logged[0], /DOMMatrix is not defined/);
 	});
 
 	it("logs a follow-up failure without failing the finished job", async () => {
