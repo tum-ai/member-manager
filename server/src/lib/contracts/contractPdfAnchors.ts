@@ -5,13 +5,17 @@ import {
 	CONTRACT_SIGNATURE_SENTINELS,
 	type ContractSignatureAnchorRole,
 } from "./contractDocx.js";
+import {
+	IDENTITY_MATRIX,
+	installDomMatrixPolyfill,
+	type Matrix,
+	multiply,
+} from "./domMatrix.js";
 
 const PNG_MAGIC = Buffer.from("89504e470d0a1a0a", "hex");
 const MAX_SIGNATURE_BYTES = 1_500_000;
 const MAX_SIGNATURE_DIMENSION = 4_096;
 const PNG_DATA_URL = /^data:image\/png;base64,([A-Za-z0-9+/]+={0,2})$/;
-
-type Matrix = [number, number, number, number, number, number];
 
 export type ContractPdfSignatureAnchor = ContractPdfAnchor;
 
@@ -32,17 +36,6 @@ interface PdfJsImage {
 	width: number;
 	height: number;
 	data?: ArrayLike<number>;
-}
-
-function multiply(left: Matrix, right: Matrix): Matrix {
-	return [
-		left[0] * right[0] + left[2] * right[1],
-		left[1] * right[0] + left[3] * right[1],
-		left[0] * right[2] + left[2] * right[3],
-		left[1] * right[2] + left[3] * right[3],
-		left[0] * right[4] + left[2] * right[5] + left[4],
-		left[1] * right[4] + left[3] * right[5] + left[5],
-	];
 }
 
 function asMatrix(value: unknown): Matrix | null {
@@ -144,6 +137,7 @@ function boxFromMatrix(
 function resolveOperatorImage(
 	page: unknown,
 	value: unknown,
+	onSkipped: (error: unknown) => void,
 ): PdfJsImage | null {
 	const inline = asPdfJsImage(value);
 	if (inline) return inline;
@@ -156,18 +150,42 @@ function resolveOperatorImage(
 	if (typeof get !== "function") return null;
 	try {
 		return asPdfJsImage(get.call(objects, value));
-	} catch {
+	} catch (error) {
+		// A decoder that cannot resolve an image leaves the anchor count wrong,
+		// which reads as "the document has no anchors" unless the real cause is
+		// carried forward. See the reporting in findContractPdfSignatureAnchors.
+		onSkipped(error);
 		return null;
 	}
+}
+
+/**
+ * pdf.js must not be imported before the `DOMMatrix` polyfill is installed, and
+ * its Node fake worker is loaded through `import(this.workerSrc)` — a runtime
+ * specifier behind `webpackIgnore`/`@vite-ignore` comments that Vercel file
+ * tracing cannot follow. Importing the worker here by its literal path both
+ * forces it into the deployed bundle and short-circuits that lookup, because the
+ * module assigns the `globalThis.pdfjsWorker` pdf.js checks first.
+ */
+async function loadPdfJs() {
+	installDomMatrixPolyfill();
+	await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+	return import("pdfjs-dist/legacy/build/pdf.mjs");
 }
 
 export async function findContractPdfSignatureAnchors(
 	pdf: Buffer,
 ): Promise<ContractPdfSignatureAnchors> {
-	const { getDocument, OPS } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+	const { getDocument, OPS } = await loadPdfJs();
+	const skipped: unknown[] = [];
 	const loadingTask = getDocument({
 		data: Uint8Array.from(pdf),
 		useSystemFonts: false,
+		// The WASM decoders, CMaps and standard fonts live in pdfjs-dist data
+		// directories that are resolved at runtime and therefore never traced into
+		// the function bundle. Walking the operator list for image placements does
+		// not need them, so do not let pdf.js reach for files that are not there.
+		useWasm: false,
 	});
 	const document = await loadingTask.promise;
 	const found: Record<
@@ -181,7 +199,7 @@ export async function findContractPdfSignatureAnchors(
 		for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
 			const page = await document.getPage(pageNumber);
 			const operators = await page.getOperatorList();
-			let matrix: Matrix = [1, 0, 0, 1, 0, 0];
+			let matrix: Matrix = [...IDENTITY_MATRIX];
 			const stack: Matrix[] = [];
 			for (let index = 0; index < operators.fnArray.length; index++) {
 				const operation = operators.fnArray[index];
@@ -189,7 +207,7 @@ export async function findContractPdfSignatureAnchors(
 				if (operation === OPS.save) {
 					stack.push([...matrix]);
 				} else if (operation === OPS.restore) {
-					matrix = stack.pop() ?? [1, 0, 0, 1, 0, 0];
+					matrix = stack.pop() ?? [...IDENTITY_MATRIX];
 				} else if (operation === OPS.transform) {
 					const next = asMatrix(args);
 					if (next) matrix = multiply(matrix, next);
@@ -198,7 +216,9 @@ export async function findContractPdfSignatureAnchors(
 					operation === OPS.paintInlineImageXObject
 				) {
 					const image =
-						resolveOperatorImage(page, args[0]) ??
+						resolveOperatorImage(page, args[0], (error) =>
+							skipped.push(error),
+						) ??
 						(typeof args[1] === "number" && typeof args[2] === "number"
 							? { width: args[1], height: args[2] }
 							: null);
@@ -213,12 +233,19 @@ export async function findContractPdfSignatureAnchors(
 	}
 	for (const role of ["partner", "board"] as const) {
 		if (found[role].length !== 1) {
+			// An image pdf.js could not resolve is the usual reason a real document
+			// reports zero anchors, so name it here rather than leaving the operator
+			// with a count and no cause.
+			const cause = skipped[0];
 			throw new ValidationError(
 				`PDF must contain exactly one ${role} signature anchor`,
 				{
 					code: "PDF_SIGNATURE_ANCHOR_COUNT_INVALID",
 					role,
 					count: found[role].length,
+					unresolvedImages: skipped.length,
+					unresolvedImageError:
+						cause instanceof Error ? cause.message : undefined,
 				},
 			);
 		}

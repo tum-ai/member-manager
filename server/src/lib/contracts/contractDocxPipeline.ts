@@ -48,6 +48,13 @@ type ContractSignatureAnchors = {
 
 export const CONTRACT_RENDER_JOBS_PER_INVOCATION = 2;
 
+/**
+ * Comfortably above the 90s sandbox conversion timeout and well below the 300s
+ * `maxDuration` in vercel.json, so a lease cannot outlive the invocation holding
+ * it by more than one cron tick.
+ */
+export const CONTRACT_RENDER_LEASE_SECONDS = 120;
+
 let localRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
 type RenderPayload =
@@ -392,6 +399,10 @@ export async function runContractRenderJobs(
 		workerId: `contract-worker-${randomUUID()}`,
 		handlers: contractRenderJobHandlers,
 		maxJobs,
+		// Stay below the function's own 300s limit so a job that dies with the
+		// invocation is reclaimable on the next cron tick rather than holding a
+		// lease nobody can steal for five more minutes.
+		leaseSeconds: CONTRACT_RENDER_LEASE_SECONDS,
 		log: request?.log,
 		onSucceeded: async (job) => {
 			const transition =
@@ -445,6 +456,14 @@ export function dispatchContractRenderJobs(
 		request,
 	)
 		.then((result) => {
+			// The local retry branch used to be the only reader of `failed`, so on
+			// Vercel a batch where every job failed produced no output whatsoever.
+			if (result.failed > 0) {
+				request.log.warn(
+					{ ...result },
+					"Background contract rendering finished with failures",
+				);
+			}
 			if (process.env.VERCEL !== "1" && result.failed > 0) {
 				scheduleLocalContractRenderRetry(request);
 			}
@@ -466,6 +485,58 @@ function scheduleLocalContractRenderRetry(
 		dispatchContractRenderJobs(request);
 	}, 6_000);
 	localRetryTimer.unref?.();
+}
+
+/**
+ * - `live`: a job still holds an unexpired lease, so it is genuinely in flight.
+ * - `revived`: abandoned work no claim would ever pick up, now queued again.
+ * - `missing`: no job matched, so the caller has to enqueue a fresh one. A row
+ *   can reach this state if the enqueue failed right after it was created, which
+ *   otherwise leaves it showing `queued` with nothing behind it forever.
+ */
+export type ContractRenderJobRevival = "live" | "revived" | "missing";
+
+function asRevival(value: unknown): ContractRenderJobRevival {
+	if (value === "live" || value === "revived" || value === "missing") {
+		return value;
+	}
+	throw new ValidationError(
+		"Contract render job requeue returned an unknown result",
+	);
+}
+
+/**
+ * Requeues the render job behind a target that is stuck, which is the state an
+ * operator pressing Retry is actually looking at.
+ *
+ * The eligibility check, the job reset and the dependent row reset all happen
+ * inside `requeue_contract_render_job` so they share one locked transaction. Read
+ * the lease here and reset it in a second request, and a worker claiming in
+ * between loses the lease it just took while a second worker claims the same
+ * render.
+ */
+export async function reviveStaleContractRenderJob(target: {
+	templateDocumentId?: string;
+	documentVersionId?: string;
+	/**
+	 * Submission renders also revive `failed` jobs, because the existing row still
+	 * holds the encrypted payload — and for a version Legal uploaded, that payload
+	 * is the only pointer to their edited DOCX. Rebuilding it would silently
+	 * re-render from the template instead.
+	 */
+	includeFailed?: boolean;
+}): Promise<ContractRenderJobRevival> {
+	if (!target.templateDocumentId && !target.documentVersionId) return "missing";
+	const { data, error } = await getSupabase().rpc(
+		"requeue_contract_render_job",
+		{
+			p_template_document_id: target.templateDocumentId ?? null,
+			p_document_version_id: target.documentVersionId ?? null,
+			p_include_failed: target.includeFailed ?? false,
+		},
+	);
+	if (error) throw error;
+	return asRevival(data);
 }
 
 export async function enqueueContractRenderJob(args: {

@@ -72,3 +72,39 @@ export const VersionHistory: Story = {
 		await expect(args.model.uploadDocument).toHaveBeenCalled();
 	},
 };
+
+/**
+ * A conversion that fails on every attempt. The row is back to `queued` waiting
+ * for the next one, and reading that as a plain "Queued" badge is what made a
+ * broken converter look like a slow queue for three weeks in production.
+ */
+export const RetryingAfterFailure: Story = {
+	args: {
+		model: {
+			...model,
+			documents: [
+				{
+					...readyDocument,
+					id: "doc-3",
+					version: 3,
+					status: "queued" as const,
+					preview_path: null,
+					error_code: "CONTRACT_RENDER_FAILED",
+					error_message: "DOMMatrix is not defined",
+				},
+			],
+			activeDocumentId: null,
+		} as unknown as ContractTemplateEditorViewModel,
+	},
+	play: async ({ args, canvasElement }) => {
+		const canvas = within(canvasElement);
+		await expect(canvas.getByText("Retrying")).toBeInTheDocument();
+		await expect(
+			canvas.getByText("DOMMatrix is not defined"),
+		).toBeInTheDocument();
+		// Retry has to work while the row says queued: that is the state an
+		// abandoned job sits in, and the button used to be absent here.
+		await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+		await expect(args.model.retryDocument).toHaveBeenCalledWith("doc-3");
+	},
+};

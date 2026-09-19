@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import Fastify from "fastify";
 import {
 	ConflictError,
 	DatabaseError,
@@ -219,6 +220,123 @@ describe("contract render job processor", () => {
 			},
 		});
 		assert.equal(finalized?.terminal, false);
+	});
+
+	it("logs a render failure instead of leaving it only in the database", async () => {
+		// The production "DOMMatrix is not defined" failure returned 200 with no log
+		// line at all, because the error was written only to contract_render_jobs.
+		const queue = [job()];
+		const logged: { details: unknown; message: string }[] = [];
+		const store: ContractRenderJobStore = {
+			async claim() {
+				return queue.shift() ?? null;
+			},
+			async finalize() {},
+		};
+		await processContractRenderJobs({
+			workerId: "worker-1",
+			store,
+			handlers: {
+				submission_render: async () => {
+					throw new Error("DOMMatrix is not defined");
+				},
+			},
+			log: {
+				warn: (details, message) => logged.push({ details, message }),
+				error: (details, message) => logged.push({ details, message }),
+			},
+		});
+		assert.equal(logged.length, 1);
+		assert.match(logged[0].message, /render job failed/i);
+		const details = logged[0].details as Record<string, unknown>;
+		assert.equal(details.errorCode, "CONTRACT_RENDER_FAILED");
+		assert.equal(details.errorMessage, "DOMMatrix is not defined");
+		assert.equal(details.operation, "submission_render");
+		assert.equal(details.terminal, false);
+	});
+
+	it("finalizes and keeps draining when a real Pino logger reports the failure", async () => {
+		// Regression: `logFailure` used to extract `log.error` into a local and call
+		// it unbound. Pino needs its receiver, so with a real logger that threw
+		// before `store.finalize` ran, aborting the batch and leaving the job leased
+		// until expiry. Object-literal stubs with arrow functions cannot catch this,
+		// so this case uses the logger Fastify actually gives the route.
+		const lines: string[] = [];
+		const app = Fastify({
+			logger: {
+				level: "info",
+				stream: {
+					write: (line: string) => {
+						lines.push(line);
+					},
+				},
+			},
+		});
+		const queue = [job(), job()];
+		const finalized: Parameters<ContractRenderJobStore["finalize"]>[0][] = [];
+		const store: ContractRenderJobStore = {
+			async claim() {
+				return queue.shift() ?? null;
+			},
+			async finalize(args) {
+				finalized.push(args);
+			},
+		};
+		const result = await processContractRenderJobs({
+			workerId: "worker-1",
+			store,
+			maxJobs: 2,
+			handlers: {
+				submission_render: async () => {
+					throw new Error("DOMMatrix is not defined");
+				},
+			},
+			log: app.log,
+		});
+		await app.close();
+
+		assert.equal(result.claimed, 2);
+		assert.equal(result.failed, 2, "both jobs must be processed");
+		assert.equal(finalized.length, 2, "each failure must be finalized");
+		assert.equal(finalized[0].succeeded, false);
+		assert.equal(finalized[0].errorCode, "CONTRACT_RENDER_FAILED");
+		const logged = lines.filter((line) =>
+			line.includes("Contract render job failed"),
+		);
+		assert.equal(logged.length, 2);
+		assert.match(logged[0], /DOMMatrix is not defined/);
+	});
+
+	it("logs a follow-up failure without failing the finished job", async () => {
+		// onSucceeded sends the status event and the signed-contract emails; it used
+		// to be swallowed with `.catch(() => undefined)`.
+		const queue = [job()];
+		const logged: string[] = [];
+		const store: ContractRenderJobStore = {
+			async claim() {
+				return queue.shift() ?? null;
+			},
+			async finalize() {},
+		};
+		const result = await processContractRenderJobs({
+			workerId: "worker-1",
+			store,
+			handlers: {
+				submission_render: async () => ({
+					converterVersion: "libreoffice-test",
+				}),
+			},
+			onSucceeded: async () => {
+				throw new Error("email provider rejected the request");
+			},
+			log: {
+				warn: (_details, message) => logged.push(message),
+			},
+		});
+		assert.equal(result.succeeded, 1);
+		assert.equal(result.failed, 0);
+		assert.equal(logged.length, 1);
+		assert.match(logged[0], /follow-up failed/i);
 	});
 
 	it("fails a claimed job when its operation has no handler", async () => {
