@@ -126,8 +126,9 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		},
 	});
 
-	// Bank details are optional as a group (profileSepaSchema only validates
-	// them once a bank field is filled); agreements are saved on their own.
+	// Bank details are optional as a group. Once a bank field is filled,
+	// profileSepaSchema requires a valid IBAN, a bank name and all three
+	// agreements; without bank details the agreements can be saved alone.
 	const sepaForm = useForm<ProfileSepaInput>({
 		resolver: zodResolver(profileSepaSchema),
 		defaultValues: {

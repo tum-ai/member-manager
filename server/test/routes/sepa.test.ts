@@ -383,14 +383,14 @@ describe("SEPA Routes", async () => {
 			assert.strictEqual(response.statusCode, 400);
 		});
 
-		test("saves bank details without requiring the privacy agreements", async () => {
+		test("rejects update without Privacy Policy agreement", async () => {
 			resetDatabase();
 			const updatePayload = {
 				iban: "GB82WEST12345698765432",
 				bank_name: "Updated Bank",
 				mandate_agreed: true,
 				privacy_agreed: false,
-				data_privacy_notice_agreed: false,
+				data_privacy_notice_agreed: true,
 			};
 
 			const response = await app.inject({
@@ -403,12 +403,45 @@ describe("SEPA Routes", async () => {
 				payload: JSON.stringify(updatePayload),
 			});
 
-			assert.strictEqual(response.statusCode, 200);
-			const agreements = mockDatabase.member_agreements.find(
-				(row) => row.user_id === testUserIds.user,
+			assert.strictEqual(response.statusCode, 400);
+			const data = JSON.parse(response.payload);
+			assert.deepStrictEqual(data.details, [
+				{
+					field: "privacy_agreed",
+					message: "You must agree to the Privacy Policy",
+				},
+			]);
+		});
+
+		test("rejects new bank details without the Data Privacy Notice agreement", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.otherUser}`,
+				headers: {
+					...authHeaders(testTokens.otherUser),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					iban: "DE89370400440532013000",
+					bank_name: "New Bank",
+					mandate_agreed: true,
+					privacy_agreed: true,
+					data_privacy_notice_agreed: false,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			assert.deepStrictEqual(JSON.parse(response.payload).details, [
+				{
+					field: "data_privacy_notice_agreed",
+					message: "You must agree to the Data Privacy Notice",
+				},
+			]);
+			assert.strictEqual(
+				mockDatabase.sepa.some((row) => row.user_id === testUserIds.otherUser),
+				false,
 			);
-			assert.strictEqual(agreements?.privacy_policy_agreed, false);
-			assert.strictEqual(agreements?.data_privacy_notice_agreed, false);
 		});
 
 		test("rejects bank details without the SEPA mandate", async () => {
@@ -625,8 +658,8 @@ describe("SEPA Routes", async () => {
 					bic: "COBADEFFXXX",
 					bank_name: "New Bank",
 					mandate_agreed: true,
-					privacy_agreed: false,
-					data_privacy_notice_agreed: false,
+					privacy_agreed: true,
+					data_privacy_notice_agreed: true,
 				}),
 			});
 

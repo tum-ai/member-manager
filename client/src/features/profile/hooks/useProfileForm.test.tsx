@@ -258,24 +258,61 @@ describe("useProfileForm", () => {
 			);
 		});
 
-		it("sends normalized bank details when a member adds them", async () => {
+		function agreeToAll(result: { current: UseProfileFormResult }) {
+			result.current.sepaForm.setValue("mandate_agreed", true);
+			result.current.sepaForm.setValue("privacy_agreed", true);
+			result.current.sepaForm.setValue("data_privacy_notice_agreed", true);
+		}
+
+		it("sends normalized bank details once all three agreements are given", async () => {
 			sepaData = { ...noBankDetails };
 			const { result } = await renderLoaded();
 
 			act(() => {
 				result.current.sepaForm.setValue("iban", "de89 3704 0044 0532 0130 00");
 				result.current.sepaForm.setValue("bank_name", "Test Bank");
+				agreeToAll(result);
+			});
+			await submit(result);
+
+			expect(updateMemberAsync).toHaveBeenCalledTimes(1);
+			expect(updateSepaAsync).toHaveBeenCalledWith({
+				iban: "DE89370400440532013000",
+				bic: "",
+				bank_name: "Test Bank",
+				mandate_agreed: true,
+				privacy_agreed: true,
+				data_privacy_notice_agreed: true,
+			});
+			expect(showToast).toHaveBeenCalledWith(
+				"Profile saved successfully!",
+				"success",
+			);
+		});
+
+		it("blocks bank details agreed to the SEPA mandate only", async () => {
+			sepaData = { ...noBankDetails };
+			const { result } = await renderLoaded();
+
+			act(() => {
+				result.current.sepaForm.setValue("iban", "DE89370400440532013000");
+				result.current.sepaForm.setValue("bank_name", "Test Bank");
 				result.current.sepaForm.setValue("mandate_agreed", true);
 			});
 			await submit(result);
 
-			expect(updateSepaAsync).toHaveBeenCalledWith(
-				expect.objectContaining({
-					iban: "DE89370400440532013000",
-					bank_name: "Test Bank",
-					mandate_agreed: true,
-					privacy_agreed: false,
-				}),
+			expect(updateMemberAsync).not.toHaveBeenCalled();
+			expect(updateSepaAsync).not.toHaveBeenCalled();
+			expect(fieldError(result, "mandate_agreed")).toBeUndefined();
+			expect(fieldError(result, "privacy_agreed")).toBe(
+				"You must agree to the Privacy Policy",
+			);
+			expect(fieldError(result, "data_privacy_notice_agreed")).toBe(
+				"You must agree to the Data Privacy Notice",
+			);
+			expect(showToast).toHaveBeenCalledWith(
+				"Please complete all required fields and agreements before saving.",
+				"error",
 			);
 		});
 
@@ -289,7 +326,7 @@ describe("useProfileForm", () => {
 			act(() => {
 				result.current.sepaForm.setValue("iban", iban);
 				result.current.sepaForm.setValue("bank_name", "Test Bank");
-				result.current.sepaForm.setValue("mandate_agreed", true);
+				agreeToAll(result);
 			});
 			await submit(result);
 
@@ -302,7 +339,7 @@ describe("useProfileForm", () => {
 			);
 		});
 
-		it("requires IBAN, bank name and mandate once any bank field is filled", async () => {
+		it("requires IBAN, bank name and all agreements once any bank field is filled", async () => {
 			sepaData = { ...noBankDetails };
 			const { result } = await renderLoaded();
 
@@ -316,6 +353,12 @@ describe("useProfileForm", () => {
 			expect(fieldError(result, "bank_name")).toBe("Bank name is required");
 			expect(fieldError(result, "mandate_agreed")).toBe(
 				"You must agree to the SEPA mandate",
+			);
+			expect(fieldError(result, "privacy_agreed")).toBe(
+				"You must agree to the Privacy Policy",
+			);
+			expect(fieldError(result, "data_privacy_notice_agreed")).toBe(
+				"You must agree to the Data Privacy Notice",
 			);
 		});
 
@@ -363,6 +406,27 @@ describe("useProfileForm", () => {
 					iban: "GB82WEST12345698765432",
 					bank_name: "New Bank",
 				}),
+			);
+		});
+
+		it("blocks withdrawing an agreement while bank details are saved", async () => {
+			sepaData = { ...savedBankDetails };
+			const { result } = await renderLoaded();
+			await waitFor(() =>
+				expect(result.current.sepaForm.getValues("privacy_agreed")).toBe(true),
+			);
+
+			act(() => {
+				result.current.sepaForm.setValue("privacy_agreed", false, {
+					shouldDirty: true,
+				});
+			});
+			await submit(result);
+
+			expect(updateMemberAsync).not.toHaveBeenCalled();
+			expect(updateSepaAsync).not.toHaveBeenCalled();
+			expect(fieldError(result, "privacy_agreed")).toBe(
+				"You must agree to the Privacy Policy",
 			);
 		});
 	});

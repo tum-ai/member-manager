@@ -14,9 +14,9 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 // and because bank details are present every profile save includes a
 // PUT /api/sepa/<member>. Bank details are optional as a group, but once any
 // bank field is filled the shared schema requires a valid IBAN (checksum
-// checked on client and server), a bank name and the SEPA mandate. These tests
-// overwrite the fields and assert via reload rather than a pristine empty
-// state, so they stay re-runnable.
+// checked on client and server), a bank name and all three agreements. These
+// tests overwrite the fields and assert via reload rather than a pristine
+// empty state, so they stay re-runnable.
 //
 // A valid German IBAN whose check digits pass `isValidIBAN` (matches the seed
 // fixtures used elsewhere). Reused deterministically; we assert persistence via
@@ -43,11 +43,11 @@ async function resetAgreementUnchecked(
 	}
 }
 
-// Opens the three agreement modals in turn and confirms each. Only the SEPA
-// mandate is required alongside bank details; the privacy / data-privacy notice
-// agreements are saved independently and have their own deep coverage in the
-// sibling legal spec (#222). Agreeing to all three keeps IBAN validation the
-// only thing under test.
+// Opens the three required agreement modals in turn and confirms each, so a
+// SEPA save can succeed server-side. The privacy / data-privacy notice modals
+// have their own deep coverage in the sibling legal spec (#222); here they are
+// driven only as the minimum prerequisite for a real save, while the assertions
+// stay focused on the SEPA mandate.
 async function agreeAllAgreements(page: Page) {
 	// SEPA mandate.
 	await resetAgreementUnchecked(page, /SEPA mandate/i);
@@ -120,9 +120,9 @@ test.describe("SEPA mandate setup", () => {
 			page.getByRole("checkbox", { name: /SEPA mandate/i }),
 		).toBeChecked();
 
-		// Re-accept the privacy + data-privacy notice agreements too so the save
-		// writes a known state. They are not required for bank details; their
-		// deep coverage lives in the legal spec.
+		// The remaining required agreements (privacy + data-privacy notice) must
+		// also be satisfied for the SEPA save to pass server-side. Drive them
+		// minimally (their deep coverage lives in the legal spec).
 		await resetAgreementUnchecked(page, /Privacy Policy/i);
 		await page.getByRole("checkbox", { name: /Privacy Policy/i }).click();
 		const privacyDialog = page.getByRole("dialog");

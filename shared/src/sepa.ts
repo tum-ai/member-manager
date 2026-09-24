@@ -1,18 +1,25 @@
 import { z } from "zod";
 import { INVALID_IBAN_MESSAGE, ibanSchema, normalizeIban } from "./iban.js";
 
+/** Every agreement required whenever bank details are saved. */
+const SEPA_AGREEMENT_MESSAGES = {
+	mandate_agreed: "You must agree to the SEPA mandate",
+	privacy_agreed: "You must agree to the Privacy Policy",
+	data_privacy_notice_agreed: "You must agree to the Data Privacy Notice",
+} as const;
+
 export const sepaSchema = z.object({
 	iban: ibanSchema,
 	bic: z.string().optional(),
 	bank_name: z.string().trim().min(1, "Bank name is required"),
 	mandate_agreed: z.boolean().refine((value) => value, {
-		message: "You must agree to the SEPA mandate",
+		message: SEPA_AGREEMENT_MESSAGES.mandate_agreed,
 	}),
 	privacy_agreed: z.boolean().refine((value) => value, {
-		message: "You must agree to the Privacy Policy",
+		message: SEPA_AGREEMENT_MESSAGES.privacy_agreed,
 	}),
 	data_privacy_notice_agreed: z.boolean().refine((value) => value, {
-		message: "You must agree to the Data Privacy Notice",
+		message: SEPA_AGREEMENT_MESSAGES.data_privacy_notice_agreed,
 	}),
 	user_id: z.string(),
 });
@@ -44,10 +51,10 @@ export function hasBankDetailsInput(value: BankDetailsFields): boolean {
  * Profile-page SEPA contract (`PUT /api/sepa/:userId`).
  *
  * Bank details are optional as a group: all of IBAN, BIC and bank name may be
- * blank, in which case only the agreements are saved. As soon as any bank
- * field is filled, the group is fully validated — a valid IBAN, a bank name
- * and the SEPA mandate are required. The Privacy Policy and Data Privacy
- * Notice agreements are independent of bank details and never required here.
+ * blank, in which case only the agreements are saved, whatever their values.
+ * As soon as any bank field is filled, the group is validated like
+ * `sepaSchema`: a valid IBAN, a bank name and all three agreements (SEPA
+ * mandate, Privacy Policy, Data Privacy Notice) are required.
  *
  * Whether existing bank details may be cleared depends on stored state, so
  * that rule is enforced by the caller (see `BANK_DETAILS_REMOVAL_MESSAGE`).
@@ -79,12 +86,10 @@ export const profileSepaSchema = z
 				message: "Bank name is required",
 			});
 		}
-		if (!value.mandate_agreed) {
-			ctx.addIssue({
-				code: "custom",
-				path: ["mandate_agreed"],
-				message: "You must agree to the SEPA mandate",
-			});
+		for (const [field, message] of Object.entries(SEPA_AGREEMENT_MESSAGES)) {
+			if (!value[field as keyof typeof SEPA_AGREEMENT_MESSAGES]) {
+				ctx.addIssue({ code: "custom", path: [field], message });
+			}
 		}
 	})
 	.transform((value) => ({
