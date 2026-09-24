@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -206,5 +206,34 @@ describe("IbanInput", () => {
 		expect(onValueChange).toHaveBeenLastCalledWith(
 			"MT84MALT011000012345MTLCAST001SEXT",
 		);
+	});
+
+	// Regression: replacing the grouped text with the same IBAN in electronic
+	// form is shorter than the display but cleans to the same value, which the
+	// separator-deletion handling used to mistake for a deleted space — it then
+	// dropped the last character (Playwright `fill()` in the E2E suite hit this).
+	it("keeps the IBAN when the same value is pasted over the whole field", async () => {
+		const user = userEvent.setup();
+		const onValueChange = vi.fn();
+		render(<Harness initialValue={VALID_IBAN} onValueChange={onValueChange} />);
+
+		await user.tripleClick(getInput());
+		expect(getInput().selectionStart).toBe(0);
+		expect(getInput().selectionEnd).toBe(VALID_IBAN_GROUPED.length);
+		await user.paste(VALID_IBAN);
+
+		expect(onValueChange).toHaveBeenLastCalledWith(VALID_IBAN);
+		expect(getInput()).toHaveValue(VALID_IBAN_GROUPED);
+	});
+
+	it("keeps the IBAN when the field value is replaced wholesale", () => {
+		const onValueChange = vi.fn();
+		render(<Harness initialValue={VALID_IBAN} onValueChange={onValueChange} />);
+
+		fireEvent.change(getInput(), { target: { value: VALID_IBAN } });
+
+		expect(onValueChange).toHaveBeenLastCalledWith(VALID_IBAN);
+		expect(getInput()).toHaveValue(VALID_IBAN_GROUPED);
+		expect(getInput()).toHaveAttribute("aria-invalid", "false");
 	});
 });

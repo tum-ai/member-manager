@@ -387,6 +387,29 @@ describe("ReimbursementPage", () => {
 		expect(createRequestAsync).not.toHaveBeenCalled();
 	}, 30_000);
 
+	it("submits after the prefilled IBAN is re-entered unchanged", async () => {
+		// Mirrors e2e/reimbursement-submit-review.spec.ts, whose Playwright
+		// `fill()` selects the grouped profile IBAN and inserts the same IBAN.
+		createRequestAsync.mockResolvedValueOnce({});
+		const user = userEvent.setup();
+		const { container } = renderPage();
+
+		await uploadReceipt(user, container);
+		await fillBaseRequest(user);
+		await user.tripleClick(screen.getByLabelText(/iban/i));
+		await user.paste("DE89370400440532013000");
+		await user.click(screen.getByRole("button", { name: /submit request/i }));
+
+		await waitFor(() => expect(createRequestAsync).toHaveBeenCalledTimes(1));
+		expect(createRequestAsync).toHaveBeenCalledWith(
+			expect.objectContaining({
+				submission_type: "reimbursement",
+				payment_iban: "DE89370400440532013000",
+			}),
+		);
+		expect(screen.queryByText(/enter a valid iban/i)).not.toBeInTheDocument();
+	}, 30_000);
+
 	it("submits invoice payout details instead of profile bank details", async () => {
 		createRequestAsync.mockResolvedValueOnce({});
 		const user = userEvent.setup();

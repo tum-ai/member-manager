@@ -104,9 +104,18 @@ export function IbanInput({
 
 		// Deleting one of the display-only spaces leaves the IBAN unchanged, and
 		// the regrouping would put the space straight back. Delete the character
-		// on the far side of it instead, like a plain text field would.
-		if (next === iban && raw.length < displayValue.length) {
-			const { inputType } = event.nativeEvent as InputEvent;
+		// on the far side of it instead, like a plain text field would. Only an
+		// edit that removed exactly that one space counts: replacing the grouped
+		// text with the same IBAN (a paste over a selection, Playwright's
+		// `fill()`) is also shorter and cleans to the same value, but must be
+		// kept as-is.
+		const { inputType } = event.nativeEvent as Partial<InputEvent>;
+		const removedOneSeparator =
+			(!inputType || inputType.startsWith("delete")) &&
+			raw.length === displayValue.length - 1 &&
+			displayValue[caret] === " " &&
+			displayValue.slice(0, caret) + displayValue.slice(caret + 1) === raw;
+		if (removedOneSeparator) {
 			if (inputType === "deleteContentForward") {
 				next =
 					next.slice(0, charsBeforeCaret) + next.slice(charsBeforeCaret + 1);
