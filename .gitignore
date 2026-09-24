@@ -75,3 +75,8 @@ service-account-*.json
 # Tum.ai member data
 /data
 .vercel
+
+# Claude Code per-user state (the committed .claude/ adapter is described in AGENTS.md)
+.claude/settings.local.json
+.claude/worktrees/
+.claude/scheduled_tasks.lock
