@@ -7,7 +7,10 @@ import {
 	BuchhaltungsButlerConfigError,
 } from "../lib/buchhaltungsbutler.js";
 import { fetchWithTimeout } from "../lib/fetchWithTimeout.js";
-import { getSlackUserEmailById } from "../lib/slackNotifier.js";
+import {
+	getSlackUserEmailById,
+	REIMBURSEMENT_STATUS_LINK_ACTION_ID,
+} from "../lib/slackNotifier.js";
 import { getSupabase } from "../lib/supabase.js";
 import {
 	approveReimbursementRequest,
@@ -500,6 +503,12 @@ export async function slackInteractionRoutes(server: FastifyInstance) {
 				}
 			}
 
+			return reply.status(200).send();
+		}
+
+		// Link button in requester status DMs: Slack opens the URL client-side and
+		// only needs the 200; an ephemeral reply here would just be noise.
+		if (actionId === REIMBURSEMENT_STATUS_LINK_ACTION_ID) {
 			return reply.status(200).send();
 		}
 
