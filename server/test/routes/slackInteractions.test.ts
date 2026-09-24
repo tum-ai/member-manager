@@ -105,6 +105,66 @@ describe("Slack interaction routes", async () => {
 		assert.strictEqual(response.statusCode, 401);
 	});
 
+	test("acknowledges the requester status link button without replying", async () => {
+		resetDatabase();
+		process.env.SLACK_SIGNING_SECRET = "test-secret";
+
+		const fetchCalls: string[] = [];
+		globalThis.fetch = (async (input) => {
+			fetchCalls.push(String(input));
+			return new Response("ok", { status: 200 });
+		}) as typeof fetch;
+
+		const signed = signedSlackPayload(
+			{
+				type: "block_actions",
+				user: { id: "UREQUESTER" },
+				response_url: "https://hooks.slack.test/response",
+				actions: [{ action_id: "open_reimbursement_tool" }],
+			},
+			"test-secret",
+		);
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/slack/interactions",
+			headers: signed.headers,
+			payload: signed.body,
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(response.body, "");
+		assert.deepStrictEqual(fetchCalls, []);
+	});
+
+	test("still answers unknown Slack actions with an ephemeral acknowledgement", async () => {
+		resetDatabase();
+		process.env.SLACK_SIGNING_SECRET = "test-secret";
+
+		const signed = signedSlackPayload(
+			{
+				type: "block_actions",
+				user: { id: "UREQUESTER" },
+				actions: [{ action_id: "some_unknown_action" }],
+			},
+			"test-secret",
+		);
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/slack/interactions",
+			headers: signed.headers,
+			payload: signed.body,
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.deepStrictEqual(response.json(), {
+			response_type: "ephemeral",
+			replace_original: false,
+			text: "Action acknowledged.",
+		});
+	});
+
 	test("lets finance reviewers approve from Slack", async () => {
 		resetDatabase();
 		process.env.SLACK_SIGNING_SECRET = "test-secret";
