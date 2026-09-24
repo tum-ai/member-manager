@@ -94,6 +94,167 @@ describe("Reimbursement Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 401);
 		});
+
+		test("adds owner-scoped receipt URLs without the inline payload", async () => {
+			resetDatabase();
+			const withoutReceipt = mockDatabase.reimbursements.find(
+				(row) => row.id === "reimbursement-newer",
+			);
+			assert.ok(withoutReceipt);
+			withoutReceipt.receipt_base64 = null;
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload) as Array<
+				Record<string, unknown>
+			>;
+			const older = data.find((row) => row.id === "reimbursement-older");
+			assert.ok(older);
+			assert.strictEqual(older.receipt_has_payload, true);
+			assert.strictEqual(
+				older.receipt_view_url,
+				"/api/reimbursements/reimbursement-older/receipt",
+			);
+			assert.strictEqual(
+				older.receipt_download_url,
+				"/api/reimbursements/reimbursement-older/receipt?download=1",
+			);
+			assert.strictEqual("receipt_base64" in older, false);
+			assert.strictEqual(older.payment_iban, "DE89370400440532013000");
+
+			const newer = data.find((row) => row.id === "reimbursement-newer");
+			assert.ok(newer);
+			assert.strictEqual(newer.receipt_has_payload, false);
+			assert.strictEqual(newer.receipt_view_url, null);
+			assert.strictEqual(newer.receipt_download_url, null);
+		});
+	});
+
+	describe("GET /api/reimbursements/:requestId/receipt", () => {
+		test("lets the requester view and download their own receipt", async () => {
+			resetDatabase();
+
+			const inline = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/reimbursement-older/receipt",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(inline.statusCode, 200);
+			assert.strictEqual(inline.headers["content-type"], "application/pdf");
+			assert.strictEqual(
+				inline.headers["content-disposition"],
+				'inline; filename="older.pdf"',
+			);
+			assert.strictEqual(inline.rawPayload.toString("utf8"), "%PDF-1.4");
+
+			const download = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/reimbursement-older/receipt?download=1",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(download.statusCode, 200);
+			assert.strictEqual(
+				download.headers["content-disposition"],
+				'attachment; filename="older.pdf"',
+			);
+		});
+
+		test("redirects storage-backed own receipts to signed URLs", async () => {
+			resetDatabase();
+			const request = mockDatabase.reimbursements.find(
+				(row) => row.id === "reimbursement-older",
+			);
+			assert.ok(request);
+			request.receipt_base64 = null;
+			request.receipt_storage_bucket = "reimbursement-receipts";
+			request.receipt_storage_path = `${testUserIds.user}/older.pdf`;
+			mockStorage.set(
+				`reimbursement-receipts/${request.receipt_storage_path}`,
+				Buffer.from(PDF_BASE64, "base64"),
+			);
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/reimbursement-older/receipt?download=1",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 302);
+			assert.match(
+				String(response.headers.location),
+				/^https:\/\/mock-storage\.local\/reimbursement-receipts\//,
+			);
+			assert.match(String(response.headers.location), /download=older\.pdf/);
+		});
+
+		test("returns 404 for another member's receipt, same as a missing one", async () => {
+			resetDatabase();
+
+			const foreign = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/other-user-reimbursement/receipt",
+				headers: authHeaders(testTokens.user),
+			});
+			const missing = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/does-not-exist/receipt",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(foreign.statusCode, 404);
+			assert.strictEqual(missing.statusCode, 404);
+			assert.deepStrictEqual(
+				JSON.parse(foreign.payload),
+				JSON.parse(missing.payload),
+			);
+		});
+
+		test("does not grant reviewers access through the owner route", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/reimbursement-older/receipt",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 404);
+		});
+
+		test("returns 404 when the own request has no stored receipt", async () => {
+			resetDatabase();
+			const request = mockDatabase.reimbursements.find(
+				(row) => row.id === "reimbursement-older",
+			);
+			assert.ok(request);
+			request.receipt_base64 = null;
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/reimbursement-older/receipt",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 404);
+		});
+
+		test("rejects unauthenticated requests", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/reimbursement-older/receipt",
+			});
+
+			assert.strictEqual(response.statusCode, 401);
+		});
 	});
 
 	describe("POST /api/reimbursements", () => {

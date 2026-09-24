@@ -6,7 +6,7 @@ import {
 	reimbursementSubmissionTypeSchema,
 	VIVID_REIMBURSEMENT_SUBMISSION_TYPE,
 } from "@member-manager/shared";
-import type { FastifyInstance } from "fastify";
+import type { FastifyInstance, FastifyReply } from "fastify";
 import JSZip from "jszip";
 import { z } from "zod";
 import { checkVividReimbursementEligibility } from "../lib/auth.js";
@@ -449,13 +449,17 @@ function receiptStorageBucket(row: ReimbursementRow): string {
 	);
 }
 
-function withReviewerReceiptMetadata(row: ReimbursementRow): ReimbursementRow {
+/**
+ * Strips the inline receipt payload and adds view/download URLs pointing at
+ * `receiptPath`. `hasReceiptPayload` must see the original row, so this runs
+ * on rows that still carry `receipt_base64`.
+ */
+function withReceiptMetadata(
+	row: ReimbursementRow,
+	receiptPath: string,
+): ReimbursementRow {
 	const sanitized = withoutReceiptPayload(row);
 	const hasPayload = hasReceiptPayload(row);
-	const requestId = String(row.id ?? "");
-	const receiptPath = `/api/reimbursements/review/${encodeURIComponent(
-		requestId,
-	)}/receipt`;
 
 	return {
 		...sanitized,
@@ -463,6 +467,20 @@ function withReviewerReceiptMetadata(row: ReimbursementRow): ReimbursementRow {
 		receipt_view_url: hasPayload ? receiptPath : null,
 		receipt_download_url: hasPayload ? `${receiptPath}?download=1` : null,
 	};
+}
+
+function withReviewerReceiptMetadata(row: ReimbursementRow): ReimbursementRow {
+	const requestId = encodeURIComponent(String(row.id ?? ""));
+	return withReceiptMetadata(
+		row,
+		`/api/reimbursements/review/${requestId}/receipt`,
+	);
+}
+
+/** Receipt URLs for the requester's own list; served by the owner-scoped route. */
+function withOwnerReceiptMetadata(row: ReimbursementRow): ReimbursementRow {
+	const requestId = encodeURIComponent(String(row.id ?? ""));
+	return withReceiptMetadata(row, `/api/reimbursements/${requestId}/receipt`);
 }
 
 function wantsAttachment(value: unknown): boolean {
@@ -497,6 +515,56 @@ async function loadReceiptBuffer(row: ReimbursementRow): Promise<Buffer> {
 		String(row.receipt_base64 ?? ""),
 		normalizeMaybeString(row.receipt_mime_type),
 	);
+}
+
+/** Columns `sendReceiptResponse` needs; avoids loading the full row. */
+const RECEIPT_RESPONSE_COLUMNS =
+	"id, receipt_filename, receipt_mime_type, receipt_base64, receipt_storage_bucket, receipt_storage_path";
+
+const OwnReceiptParamsSchema = z.object({
+	requestId: z.string().trim().min(1).max(200),
+});
+
+/**
+ * Serves a reimbursement receipt: storage-backed files redirect to a
+ * short-lived signed URL, legacy inline payloads are streamed. `download`
+ * is the raw `download` query value and selects attachment vs inline.
+ *
+ * Performs no authorization; callers must only pass rows the requester may see.
+ */
+async function sendReceiptResponse(
+	reply: FastifyReply,
+	reimbursement: ReimbursementRow,
+	download: unknown,
+): Promise<FastifyReply> {
+	if (!hasReceiptPayload(reimbursement)) {
+		return reply.status(404).send({ error: "Receipt not found" });
+	}
+
+	const mimeType =
+		normalizeMaybeString(reimbursement.receipt_mime_type) ?? "application/pdf";
+	if (!ALLOWED_REIMBURSEMENT_RECEIPT_MIME_TYPES.has(mimeType)) {
+		return reply.status(415).send({ error: "Unsupported receipt type" });
+	}
+
+	const disposition = wantsAttachment(download) ? "attachment" : "inline";
+	const filename = contentDispositionFilename(reimbursement);
+
+	const storagePath = normalizeMaybeString(reimbursement.receipt_storage_path);
+	if (storagePath) {
+		const signedUrl = await createReceiptSignedUrl({
+			bucket: receiptStorageBucket(reimbursement),
+			path: storagePath,
+			download: disposition === "attachment" ? filename : undefined,
+		});
+		return reply.redirect(signedUrl);
+	}
+
+	reply
+		.type(mimeType)
+		.header("Cache-Control", "private, max-age=300")
+		.header("Content-Disposition", `${disposition}; filename="${filename}"`);
+	return reply.send(await loadReceiptBuffer(reimbursement));
 }
 
 async function loadReceiptBase64(row: ReimbursementRow): Promise<string> {
@@ -969,7 +1037,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			}
 
 			return (data ?? []).map((row) =>
-				withoutReceiptPayload(
+				withOwnerReceiptMetadata(
 					decryptRecordSafely(
 						row as ReimbursementRow,
 						SENSITIVE_REIMBURSEMENT_FIELDS,
@@ -1299,9 +1367,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			const { requestId } = request.params;
 			const { data, error } = await getSupabase()
 				.from("reimbursements")
-				.select(
-					"id, receipt_filename, receipt_mime_type, receipt_base64, receipt_storage_bucket, receipt_storage_path",
-				)
+				.select(RECEIPT_RESPONSE_COLUMNS)
 				.eq("id", requestId)
 				.single();
 
@@ -1313,43 +1379,49 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				throw createReimbursementDatabaseError(error);
 			}
 
-			const reimbursement = data as ReimbursementRow;
-			if (!hasReceiptPayload(reimbursement)) {
+			return sendReceiptResponse(
+				reply,
+				data as ReimbursementRow,
+				request.query.download,
+			);
+		},
+	);
+
+	// Owner-scoped receipt access. The row lookup is filtered by the caller's
+	// user id, so another member's request id is indistinguishable from a
+	// missing one (404) and receipts cannot be enumerated.
+	server.get<{
+		Params: { requestId: string };
+		Querystring: { download?: string | string[] };
+	}>(
+		"/reimbursements/:requestId/receipt",
+		{ preHandler: authenticate },
+		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
+			const { requestId } = OwnReceiptParamsSchema.parse(request.params);
+			const { data, error } = await getSupabase()
+				.from("reimbursements")
+				.select(RECEIPT_RESPONSE_COLUMNS)
+				.eq("id", requestId)
+				.eq("user_id", user.id)
+				.maybeSingle();
+
+			if (error) {
+				request.log.error(
+					{ err: error, userId: user.id },
+					"Failed to fetch own receipt",
+				);
+				throw createReimbursementDatabaseError(error);
+			}
+			if (!data) {
 				return reply.status(404).send({ error: "Receipt not found" });
 			}
 
-			const mimeType =
-				normalizeMaybeString(reimbursement.receipt_mime_type) ??
-				"application/pdf";
-			if (!ALLOWED_REIMBURSEMENT_RECEIPT_MIME_TYPES.has(mimeType)) {
-				return reply.status(415).send({ error: "Unsupported receipt type" });
-			}
-
-			const disposition = wantsAttachment(request.query.download)
-				? "attachment"
-				: "inline";
-			const filename = contentDispositionFilename(reimbursement);
-
-			const storagePath = normalizeMaybeString(
-				reimbursement.receipt_storage_path,
+			return sendReceiptResponse(
+				reply,
+				data as ReimbursementRow,
+				request.query.download,
 			);
-			if (storagePath) {
-				const signedUrl = await createReceiptSignedUrl({
-					bucket: receiptStorageBucket(reimbursement),
-					path: storagePath,
-					download: disposition === "attachment" ? filename : undefined,
-				});
-				return reply.redirect(signedUrl);
-			}
-
-			reply
-				.type(mimeType)
-				.header("Cache-Control", "private, max-age=300")
-				.header(
-					"Content-Disposition",
-					`${disposition}; filename="${filename}"`,
-				);
-			return reply.send(await loadReceiptBuffer(reimbursement));
 		},
 	);
 

@@ -130,8 +130,16 @@ export interface ReimbursementRequest {
 	receipt_mime_type?: string | null;
 	receipt_url?: string | null;
 	receiptUrl?: string | null;
+	/**
+	 * Authenticated API path that serves the receipt inline, scoped to the list
+	 * that returned the row: `/api/reimbursements/:id/receipt` for the owner's
+	 * own requests, `/api/reimbursements/review/:id/receipt` for reviewers.
+	 * `null` when no receipt payload is stored.
+	 */
 	receipt_view_url?: string | null;
+	/** Same endpoint as `receipt_view_url` with `?download=1` (attachment). */
 	receipt_download_url?: string | null;
+	/** Whether a receipt file (inline or in storage) is stored for the row. */
 	receipt_has_payload?: boolean;
 	status: ReimbursementStatus;
 	approval_status: ReimbursementApprovalStatus;
