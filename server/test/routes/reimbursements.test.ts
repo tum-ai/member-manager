@@ -565,6 +565,124 @@ describe("Reimbursement Routes", async () => {
 	});
 
 	describe("POST /api/reimbursements/parse-receipt", () => {
+		async function parseReceiptWithModelIban(
+			modelIban: string | null,
+		): Promise<{ payment_iban: unknown; payment_bic: unknown }> {
+			resetDatabase();
+			process.env.OPENAI_API_KEY = "test-openai-key";
+			globalThis.fetch = (async () =>
+				new Response(
+					JSON.stringify({
+						choices: [
+							{
+								message: {
+									content: JSON.stringify({
+										amount: 12,
+										date: "2026-04-12",
+										description: "Venue invoice",
+										payment_iban: modelIban,
+										payment_bic: "COBADEFFXXX",
+									}),
+								},
+							},
+						],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				)) as typeof fetch;
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements/parse-receipt",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					receipt_filename: "invoice.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_base64: PDF_BASE64,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			return JSON.parse(response.payload);
+		}
+
+		test("asks the model for the payee IBAN rather than the customer's", async () => {
+			resetDatabase();
+			process.env.OPENAI_API_KEY = "test-openai-key";
+			let prompt = "";
+			globalThis.fetch = (async (_input, init) => {
+				const body = JSON.parse(String(init?.body)) as {
+					messages: Array<{ content: Array<{ type: string; text?: string }> }>;
+				};
+				prompt =
+					body.messages[0]?.content.find((part) => part.type === "text")
+						?.text ?? "";
+				return new Response(
+					JSON.stringify({
+						choices: [{ message: { content: JSON.stringify({}) } }],
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}) as typeof fetch;
+
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/reimbursements/parse-receipt",
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					receipt_filename: "invoice.pdf",
+					receipt_mime_type: "application/pdf",
+					receipt_base64: PDF_BASE64,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			assert.match(prompt, /payment_iban: IBAN of the account .* paid to/);
+			assert.match(prompt, /payee/);
+			assert.match(prompt, /Ignore the customer's/);
+		});
+
+		test("normalizes lowercase, dashed, and labelled IBANs from the model", async () => {
+			for (const modelIban of [
+				"de89370400440532013000",
+				"DE89-3704-0044-0532-0130-00",
+				"IBAN: DE89 3704 0044 0532 0130 00",
+				"iban de89 3704 0044 0532 0130 00",
+			]) {
+				const data = await parseReceiptWithModelIban(modelIban);
+				assert.strictEqual(
+					data.payment_iban,
+					"DE89370400440532013000",
+					`expected ${JSON.stringify(modelIban)} to normalize`,
+				);
+			}
+		});
+
+		test("drops a model IBAN that fails the checksum", async () => {
+			const data = await parseReceiptWithModelIban(
+				"DE89 3704 0044 0532 0130 01",
+			);
+
+			assert.strictEqual(data.payment_iban, null);
+			assert.strictEqual(data.payment_bic, "COBADEFFXXX");
+		});
+
+		test("returns null when the model finds no usable IBAN", async () => {
+			for (const modelIban of [null, "", "n/a", "IBAN:"]) {
+				const data = await parseReceiptWithModelIban(modelIban);
+				assert.strictEqual(
+					data.payment_iban,
+					null,
+					`expected ${JSON.stringify(modelIban)} to yield null`,
+				);
+			}
+		});
+
 		test("extracts editable reimbursement fields from a receipt", async () => {
 			resetDatabase();
 			process.env.OPENAI_API_KEY = "test-openai-key";
