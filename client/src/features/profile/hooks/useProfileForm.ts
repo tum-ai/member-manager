@@ -1,4 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import {
+	BANK_DETAILS_REMOVAL_MESSAGE,
+	hasBankDetailsInput,
+} from "@member-manager/shared";
 import type { User } from "@supabase/supabase-js";
 import { useEffect } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
@@ -33,15 +37,21 @@ import {
 	linkedinSchema,
 	type MemberSchema,
 	memberSchema,
-	type SepaSchema,
-	sepaSchema,
+	type ProfileSepaInput,
+	profileSepaSchema,
 } from "@/lib/schemas";
 import type { ResearchProject } from "@/types";
+
+const AGREEMENT_FIELDS = [
+	"mandate_agreed",
+	"privacy_agreed",
+	"data_privacy_notice_agreed",
+] as const;
 
 export interface UseProfileFormResult {
 	memberForm: UseFormReturn<MemberSchema>;
 	linkedinForm: UseFormReturn<LinkedinSchema>;
-	sepaForm: UseFormReturn<SepaSchema>;
+	sepaForm: UseFormReturn<ProfileSepaInput>;
 	// biome-ignore lint/suspicious/noExplicitAny: member is untyped API data
 	memberData: any;
 	isAdmin: boolean;
@@ -116,8 +126,10 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		},
 	});
 
-	const sepaForm = useForm<SepaSchema>({
-		resolver: zodResolver(sepaSchema),
+	// Bank details are optional as a group (profileSepaSchema only validates
+	// them once a bank field is filled); agreements are saved on their own.
+	const sepaForm = useForm<ProfileSepaInput>({
+		resolver: zodResolver(profileSepaSchema),
 		defaultValues: {
 			iban: "",
 			bic: "",
@@ -125,11 +137,12 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			mandate_agreed: false,
 			privacy_agreed: false,
 			data_privacy_notice_agreed: false,
-			user_id: user.id,
 		},
 	});
 
-	const shouldSubmitSepa = Boolean(sepaData) || sepaForm.formState.isDirty;
+	// Once bank details are stored they can be edited but not cleared; the
+	// server enforces the same rule.
+	const hasSavedBankDetails = hasBankDetailsInput(sepaData ?? {});
 
 	useEffect(() => {
 		if (isLoadingMember) return;
@@ -183,24 +196,41 @@ export function useProfileForm(user: User): UseProfileFormResult {
 				privacy_agreed: sepaData.privacy_agreed || false,
 				data_privacy_notice_agreed:
 					sepaData.data_privacy_notice_agreed || false,
-				user_id: user.id,
 			});
 		}
-	}, [sepaData, sepaForm, user.id]);
+	}, [sepaData, sepaForm]);
 
 	const onSubmit = async (): Promise<void> => {
 		try {
 			const memberValid = await memberForm.trigger();
 			const linkedinValid = await linkedinForm.trigger();
-			const sepaValid = shouldSubmitSepa ? await sepaForm.trigger() : true;
+			const sepaSchemaValid = await sepaForm.trigger();
+
+			const sepaValues = sepaForm.getValues();
+			const includeBankDetails = hasBankDetailsInput(sepaValues);
+			const agreementsChanged = AGREEMENT_FIELDS.some(
+				(field) => Boolean(sepaValues[field]) !== Boolean(sepaData?.[field]),
+			);
+			const isRemovingSavedBankDetails =
+				hasSavedBankDetails && !includeBankDetails;
+			if (isRemovingSavedBankDetails) {
+				sepaForm.setError("iban", {
+					type: "manual",
+					message: BANK_DETAILS_REMOVAL_MESSAGE,
+				});
+			}
+			const sepaValid = sepaSchemaValid && !isRemovingSavedBankDetails;
 
 			if (!memberValid || !linkedinValid || !sepaValid) {
-				showToast(
-					shouldSubmitSepa
-						? "Please complete all required fields and agreements before saving."
-						: "Please complete all required profile fields before saving.",
-					"error",
-				);
+				let message =
+					"Please complete all required profile fields before saving.";
+				if (isRemovingSavedBankDetails) {
+					message = BANK_DETAILS_REMOVAL_MESSAGE;
+				} else if (!sepaValid) {
+					message =
+						"Please complete all required fields and agreements before saving.";
+				}
+				showToast(message, "error");
 				return;
 			}
 
@@ -251,8 +281,10 @@ export function useProfileForm(user: User): UseProfileFormResult {
 				delete memberPayload.research_project_id;
 			}
 			promises.push(updateMemberAsync(memberPayload));
-			if (shouldSubmitSepa) {
-				promises.push(updateSepaAsync(sepaSchema.parse(sepaForm.getValues())));
+			// With blank bank fields the PUT saves only the agreements, so it is
+			// skipped entirely when those are unchanged too.
+			if (includeBankDetails || agreementsChanged) {
+				promises.push(updateSepaAsync(profileSepaSchema.parse(sepaValues)));
 			}
 
 			await Promise.all(promises);

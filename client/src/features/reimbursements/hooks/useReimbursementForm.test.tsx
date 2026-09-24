@@ -124,6 +124,22 @@ describe("useReimbursementForm", () => {
 		expect(result.current.values.paymentBic).toBe("COBADEFFXXX");
 	});
 
+	it("leaves the payment account blank for a member without saved bank details", async () => {
+		// GET /api/sepa/:userId answers 200 with blank bank fields (not 404)
+		// when the member never saved bank details.
+		sepaState.sepa = { user_id: "user-123", iban: "", bic: "" };
+
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+
+		await waitFor(() =>
+			expect(result.current.values.department).toBe("Software Development"),
+		);
+		expect(result.current.values.paymentIban).toBe("");
+		expect(result.current.values.paymentBic).toBe("");
+	});
+
 	it("clears prefilled bank details when switching to invoice and restores them", async () => {
 		const { result } = renderHookWithClient(() =>
 			useReimbursementForm("user-123"),
