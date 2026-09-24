@@ -63,6 +63,34 @@ test("member submits a reimbursement and an admin approves it", async ({
 	// verbatim in the request card).
 	await expect(memberPage.getByText(description).first()).toBeVisible();
 
+	// The member can reopen the request and see what they entered. Each card is
+	// a button; pick ours by its description since earlier runs may have left
+	// other requests in the list.
+	await memberPage
+		.getByRole("button", { name: /view details for/i })
+		.filter({ hasText: description })
+		.click();
+	const detail = memberPage.getByRole("dialog", {
+		name: "Reimbursement request",
+	});
+	await expect(detail).toBeVisible();
+	await expect(detail.getByText(description)).toBeVisible();
+	await expect(detail.getByText("Software Development")).toBeVisible();
+	await expect(detail.getByText("COBADEFFXXX")).toBeVisible();
+	// The IBAN is masked for the member; only reviewers see the full value.
+	await expect(detail.getByText("DE89 •••• •••• 3000")).toBeVisible();
+	await expect(detail).not.toContainText("DE89370400440532013000");
+
+	// The owner-scoped receipt route serves the member's own upload.
+	const [receiptDownload] = await Promise.all([
+		memberPage.waitForEvent("download"),
+		detail.getByRole("button", { name: "Download receipt" }).click(),
+	]);
+	expect(receiptDownload.suggestedFilename()).toBe("receipt.pdf");
+
+	await memberPage.keyboard.press("Escape");
+	await expect(detail).toBeHidden();
+
 	await memberContext.close();
 
 	// --- Admin approves ----------------------------------------------------
