@@ -95,9 +95,35 @@ describe("CvPanel", () => {
 		await userEv.click(screen.getByRole("button", { name: /download/i }));
 
 		await waitFor(() => expect(fetchCvBlob).toHaveBeenCalledTimes(1));
+		expect(fetchCvBlob).toHaveBeenCalledWith("cv-1");
 		expect(downloadPdfBlob).toHaveBeenCalledWith(
 			expect.any(Blob),
 			"ada-cv.pdf",
+		);
+	});
+
+	// Regression for #303: after a replace, the download must be requested for
+	// the new version (not only labelled with the new filename).
+	it("downloads the replaced CV version after the CV changes", async () => {
+		const userEv = userEvent.setup();
+		cv = sampleCv;
+		const { rerender } = render(<CvPanel userId="user-1" />);
+
+		cv = {
+			...sampleCv,
+			id: "cv-2",
+			version: 3,
+			original_filename: "ada-cv-new.pdf",
+		};
+		rerender(<CvPanel userId="user-1" />);
+
+		await userEv.click(screen.getByRole("button", { name: /download/i }));
+
+		await waitFor(() => expect(fetchCvBlob).toHaveBeenCalledTimes(1));
+		expect(fetchCvBlob).toHaveBeenCalledWith("cv-2");
+		expect(downloadPdfBlob).toHaveBeenCalledWith(
+			expect.any(Blob),
+			"ada-cv-new.pdf",
 		);
 	});
 

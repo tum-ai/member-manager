@@ -144,9 +144,13 @@ export async function cvRoutes(server: FastifyInstance) {
 				request.query.download === "1" || request.query.download === "true";
 			const disposition = wantsAttachment ? "attachment" : "inline";
 
+			// "current" is a mutable alias: the bytes behind this URL change on every
+			// replace, so a cached copy would serve a superseded CV under the new
+			// filename (#303). Never let the browser store it. Clients may append a
+			// `v` query param as a cache key; it is ignored here.
 			reply
 				.type(current.mime_type)
-				.header("Cache-Control", "private, max-age=300")
+				.header("Cache-Control", "private, no-store")
 				.header(
 					"Content-Disposition",
 					`${disposition}; filename="${current.original_filename}"`,

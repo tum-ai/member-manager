@@ -65,13 +65,21 @@ export function useMemberCv(userId: string) {
 	});
 
 	// CV bytes are not JSON; fetch with the auth token and return a Blob.
-	const fetchCvBlob = async (): Promise<Blob> => {
+	//
+	// The download URL always resolves to whichever version is current, so it
+	// is a mutable resource: bypass the HTTP cache entirely, and key the URL by
+	// the CV id the caller is showing so no stale entry (e.g. one stored before
+	// the server sent `no-store`) can be reused after a replace (#303). The
+	// server ignores `v`; it only serves the current version.
+	const fetchCvBlob = async (cvId: string): Promise<Blob> => {
 		const {
 			data: { session },
 		} = await supabase.auth.getSession();
+		const query = new URLSearchParams({ download: "1", v: cvId });
 		const response = await fetch(
-			`/api/members/${userId}/cv/current/download?download=1`,
+			`/api/members/${userId}/cv/current/download?${query.toString()}`,
 			{
+				cache: "no-store",
 				headers: session?.access_token
 					? { Authorization: `Bearer ${session.access_token}` }
 					: {},

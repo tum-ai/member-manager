@@ -149,9 +149,40 @@ describe("useMemberCv", () => {
 		const { result } = renderHookWithClient(() => useMemberCv("user-1"));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-		const blob = await result.current.fetchCvBlob();
+		const blob = await result.current.fetchCvBlob(cvMetadata.id);
 		expect(blob).toBeInstanceOf(Blob);
 		expect(authHeader).toBe("Bearer test-token");
+	});
+
+	// Regression for #303: the download URL always resolves to the current
+	// version, so a browser-cached response served the old CV's bytes after a
+	// replace. The request must bypass the HTTP cache and be keyed by version.
+	it("fetchCvBlob bypasses the HTTP cache and keys the URL by CV version", async () => {
+		stubCvAndConsent(cvMetadata, true);
+		const requests: Array<{ url: URL; cache: RequestCache }> = [];
+		server.use(
+			http.get("/api/members/:id/cv/current/download", ({ request }) => {
+				requests.push({ url: new URL(request.url), cache: request.cache });
+				return HttpResponse.arrayBuffer(new ArrayBuffer(4));
+			}),
+		);
+
+		const { result } = renderHookWithClient(() => useMemberCv("user-1"));
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		await result.current.fetchCvBlob("cv-1");
+		await result.current.fetchCvBlob("cv-2");
+
+		expect(requests).toHaveLength(2);
+		for (const request of requests) {
+			expect(request.cache).toBe("no-store");
+			expect(request.url.pathname).toBe(
+				"/api/members/user-1/cv/current/download",
+			);
+			expect(request.url.searchParams.get("download")).toBe("1");
+		}
+		expect(requests[0]?.url.searchParams.get("v")).toBe("cv-1");
+		expect(requests[1]?.url.searchParams.get("v")).toBe("cv-2");
 	});
 
 	it("fetchCvBlob throws when the download fails", async () => {
@@ -165,7 +196,7 @@ describe("useMemberCv", () => {
 		const { result } = renderHookWithClient(() => useMemberCv("user-1"));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
-		await expect(result.current.fetchCvBlob()).rejects.toThrow(
+		await expect(result.current.fetchCvBlob(cvMetadata.id)).rejects.toThrow(
 			"Failed to download CV",
 		);
 	});
