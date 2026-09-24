@@ -1,13 +1,14 @@
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectToast, loginAsLocalMember } from "./helpers";
 
 // The member-facing role/department/status change request form lives on the
 // profile page (route "/") for non-admin users (see ProfilePage ->
-// RoleChangeRequestSection). The seeded regular member (user 006) has no
-// department and a single seeded REJECTED request, so on a fresh seed the
-// latest-request summary reads "Rejected". The assertions below are re-run-safe
-// regardless (the API returns the newest request first, so the request created
-// here keeps "Pending" on top even when a prior run's pending request persists).
+// RoleChangeRequestSection). Below the form, every request the member has
+// submitted is listed: pending ones under "Pending review", reviewed ones under
+// "Reviewed", each newest first. The seeded regular member (user 006) has no
+// department and a single seeded REJECTED Team Lead request. Assertions are
+// re-run-safe: requests created by earlier runs persist, so they only check
+// that the expected entries are present, never exact counts.
 
 async function gotoProfileRequestSection(page: Page): Promise<void> {
 	await loginAsLocalMember(page);
@@ -17,6 +18,29 @@ async function gotoProfileRequestSection(page: Page): Promise<void> {
 			name: "Request role, department, or status changes",
 		}),
 	).toBeVisible();
+}
+
+function pendingRequests(page: Page): Locator {
+	return page.getByRole("list", { name: "Pending review" });
+}
+
+async function submitRequestedRole(page: Page, role: string): Promise<void> {
+	await page.getByRole("combobox", { name: "Requested role" }).click();
+	await page.getByRole("option", { name: role, exact: true }).click();
+
+	const submitted = page.waitForResponse(
+		(response) =>
+			response.url().includes("/api/member-change-requests") &&
+			response.request().method() === "POST",
+	);
+	await page.getByRole("button", { name: "Request changes" }).click();
+	const response = await submitted;
+	expect(response.status()).toBe(201);
+	// The form resets after a successful submit; wait for it so the next
+	// selection isn't overwritten by the reset.
+	await expect(
+		page.getByRole("combobox", { name: "Requested role" }),
+	).toHaveText("No change");
 }
 
 test.describe("member change requests", () => {
@@ -68,9 +92,14 @@ test.describe("member change requests", () => {
 
 		await expectToast(page, "Change request sent to the admin and LnF team.");
 
-		// The newest request is returned first by the API, so the summary flips to
-		// "Pending".
-		await expect(page.getByText("Latest request: Pending")).toBeVisible();
+		// The new request shows up under "Pending review".
+		const pending = pendingRequests(page);
+		await expect(
+			pending.getByText("Research", { exact: true }).first(),
+		).toBeVisible();
+		await expect(
+			pending.getByText("Pending", { exact: true }).first(),
+		).toBeVisible();
 
 		// Reloading the profile re-fetches the list; the pending request persists.
 		await page.reload();
@@ -79,6 +108,45 @@ test.describe("member change requests", () => {
 				name: "Request role, department, or status changes",
 			}),
 		).toBeVisible();
-		await expect(page.getByText("Latest request: Pending")).toBeVisible();
+		await expect(
+			pendingRequests(page).getByText("Research", { exact: true }).first(),
+		).toBeVisible();
+	});
+
+	// Regression for #325: requesting two roles used to show only the newest
+	// request, so the first one looked lost.
+	test("submitting two role requests lists both of them", async ({ page }) => {
+		await gotoProfileRequestSection(page);
+
+		await submitRequestedRole(page, "President");
+		await submitRequestedRole(page, "Vice-President");
+		await expectToast(page, "Change request sent to the admin and LnF team.");
+
+		const expectBothRoleRequests = async (): Promise<void> => {
+			const pending = pendingRequests(page);
+			await expect(
+				pending.getByText("President", { exact: true }).first(),
+			).toBeVisible();
+			await expect(
+				pending.getByText("Vice-President", { exact: true }).first(),
+			).toBeVisible();
+			// Older, already-reviewed requests stay listed too.
+			await expect(
+				page
+					.getByRole("list", { name: "Reviewed" })
+					.getByText("Rejected", { exact: true })
+					.first(),
+			).toBeVisible();
+		};
+
+		await expectBothRoleRequests();
+
+		await page.reload();
+		await expect(
+			page.getByRole("heading", {
+				name: "Request role, department, or status changes",
+			}),
+		).toBeVisible();
+		await expectBothRoleRequests();
 	});
 });

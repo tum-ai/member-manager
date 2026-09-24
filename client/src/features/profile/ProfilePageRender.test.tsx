@@ -63,7 +63,7 @@ vi.mock("./hooks/useMemberChangeRequestForm", () => ({
 		setIsRequestingAlumniStatus: vi.fn(),
 		changeRequestReason: "",
 		setChangeRequestReason: vi.fn(),
-		latestMemberChangeRequest: null,
+		memberChangeRequests: [],
 		isSubmittingChangeRequest: false,
 		handleSubmitMemberChangeRequest: vi.fn(),
 	}),

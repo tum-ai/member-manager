@@ -15,7 +15,8 @@ export interface UseMemberChangeRequestFormResult {
 	setIsRequestingAlumniStatus: (value: boolean) => void;
 	changeRequestReason: string;
 	setChangeRequestReason: (value: string) => void;
-	latestMemberChangeRequest: MemberChangeRequest | undefined;
+	/** Every change request the member has submitted, newest first. */
+	memberChangeRequests: MemberChangeRequest[];
 	isSubmittingChangeRequest: boolean;
 	handleSubmitMemberChangeRequest: () => Promise<void>;
 }
@@ -35,8 +36,6 @@ export function useMemberChangeRequestForm(
 	const [isRequestingAlumniStatus, setIsRequestingAlumniStatus] =
 		useState(false);
 	const [changeRequestReason, setChangeRequestReason] = useState("");
-
-	const latestMemberChangeRequest = memberChangeRequests[0];
 
 	const handleSubmitMemberChangeRequest = async (): Promise<void> => {
 		const memberRole = normalizeTextValue(requestedRole);
@@ -86,7 +85,7 @@ export function useMemberChangeRequestForm(
 		setIsRequestingAlumniStatus,
 		changeRequestReason,
 		setChangeRequestReason,
-		latestMemberChangeRequest,
+		memberChangeRequests,
 		isSubmittingChangeRequest,
 		handleSubmitMemberChangeRequest,
 	};
