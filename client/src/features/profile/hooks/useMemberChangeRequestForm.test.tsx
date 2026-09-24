@@ -71,12 +71,21 @@ describe("useMemberChangeRequestForm", () => {
 		expect(result.current.changeRequestReason).toBe("");
 	});
 
-	it("exposes the latest change request", () => {
-		requests = [{ id: "r1", status: "pending" }];
+	it("exposes every change request, not just the newest (#325)", () => {
+		requests = [
+			{
+				id: "r-vp",
+				status: "pending",
+				changes: { member_role: "Vice-President" },
+			},
+			{
+				id: "r-president",
+				status: "pending",
+				changes: { member_role: "President" },
+			},
+		];
 		const { result } = renderHook(() => useMemberChangeRequestForm("user-1"));
-		expect(result.current.latestMemberChangeRequest).toEqual({
-			id: "r1",
-			status: "pending",
-		});
+		expect(result.current.memberChangeRequests).toEqual(requests);
+		expect(result.current.memberChangeRequests).toHaveLength(2);
 	});
 });

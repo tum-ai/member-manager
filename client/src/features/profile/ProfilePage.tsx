@@ -184,9 +184,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								setChangeRequestReason={
 									changeRequestForm.setChangeRequestReason
 								}
-								latestMemberChangeRequest={
-									changeRequestForm.latestMemberChangeRequest
-								}
+								memberChangeRequests={changeRequestForm.memberChangeRequests}
 								isSubmittingChangeRequest={
 									changeRequestForm.isSubmittingChangeRequest
 								}
