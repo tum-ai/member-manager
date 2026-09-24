@@ -1,4 +1,9 @@
-import { sepaSchema, updateSepaSchema } from "@member-manager/shared";
+import {
+	BANK_DETAILS_REMOVAL_MESSAGE,
+	hasBankDetailsInput,
+	profileSepaSchema,
+	sepaSchema,
+} from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
 import { ensureOwnerOrAdmin } from "../lib/auth.js";
 import {
@@ -6,6 +11,7 @@ import {
 	ForbiddenError,
 	isNotFoundError,
 	NotFoundError,
+	ValidationError,
 } from "../lib/errors.js";
 import {
 	decryptRecordSafely,
@@ -60,6 +66,11 @@ function mergeSepaAndAgreements(
 			agreements?.privacy_policy_agreed ?? Boolean(sepa.privacy_agreed),
 		data_privacy_notice_agreed: Boolean(agreements?.data_privacy_notice_agreed),
 	};
+}
+
+/** Response shape for a member who has not saved any bank details. */
+function emptyBankDetails(userId: string): Record<string, unknown> {
+	return { user_id: userId, iban: "", bic: "", bank_name: "" };
 }
 
 export async function sepaRoutes(server: FastifyInstance) {
@@ -126,7 +137,11 @@ export async function sepaRoutes(server: FastifyInstance) {
 
 			const [{ data, error }, { data: agreements, error: agreementError }] =
 				await Promise.all([
-					getSupabase().from("sepa").select("*").eq("user_id", userId).single(),
+					getSupabase()
+						.from("sepa")
+						.select("*")
+						.eq("user_id", userId)
+						.maybeSingle(),
 					getSupabase()
 						.from("member_agreements")
 						.select("*")
@@ -142,12 +157,16 @@ export async function sepaRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			if (isNotFoundError(error)) {
-				throw new NotFoundError("SEPA data not found");
-			}
 			if (error) {
 				request.log.error({ err: error }, "Failed to fetch SEPA data");
 				throw new DatabaseError();
+			}
+
+			// Bank details are optional, so a member without a `sepa` row still
+			// gets their stored agreements (with blank bank fields) instead of a
+			// 404 that would hide them.
+			if (!data) {
+				return mergeSepaAndAgreements(emptyBankDetails(userId), agreements);
 			}
 
 			const decryptedSepa = decryptRecordSafely(
@@ -178,7 +197,45 @@ export async function sepaRoutes(server: FastifyInstance) {
 				"You can only update your own SEPA data",
 			);
 
-			const body = updateSepaSchema.parse(request.body);
+			const body = profileSepaSchema.parse(request.body);
+
+			const { data: existing, error: existingError } = await getSupabase()
+				.from("sepa")
+				.select("iban, bic, bank_name")
+				.eq("user_id", userId)
+				.maybeSingle();
+
+			if (existingError) {
+				request.log.error(
+					{ err: existingError },
+					"Failed to check existing SEPA data",
+				);
+				throw new DatabaseError();
+			}
+
+			if (!hasBankDetailsInput(body)) {
+				// Presence check only: stored values are ciphertext and are never
+				// decrypted here.
+				if (existing && hasBankDetailsInput(existing)) {
+					throw new ValidationError(BANK_DETAILS_REMOVAL_MESSAGE);
+				}
+
+				// Agreements-only save: never create or touch a `sepa` row.
+				try {
+					await upsertAgreementRecord(userId, body);
+				} catch (agreementError) {
+					request.log.error(
+						{ err: agreementError },
+						"Failed to upsert member agreement data",
+					);
+					throw new DatabaseError();
+				}
+
+				return mergeSepaAndAgreements(
+					emptyBankDetails(userId),
+					buildAgreementRecord(userId, body),
+				);
+			}
 
 			const encryptedBody = encryptRecord(
 				{

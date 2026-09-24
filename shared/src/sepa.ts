@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { ibanSchema } from "./iban.js";
+import { INVALID_IBAN_MESSAGE, ibanSchema, normalizeIban } from "./iban.js";
 
 export const sepaSchema = z.object({
 	iban: ibanSchema,
@@ -17,9 +17,82 @@ export const sepaSchema = z.object({
 	user_id: z.string(),
 });
 
-export const updateSepaSchema = sepaSchema.omit({
-	user_id: true,
-});
-
 export type SepaSchemaInput = z.input<typeof sepaSchema>;
 export type SepaSchema = z.infer<typeof sepaSchema>;
+
+export const BANK_DETAILS_REMOVAL_MESSAGE =
+	"Bank details can't be removed once saved — edit them instead";
+
+type BankDetailsFields = {
+	iban?: string | null;
+	bic?: string | null;
+	bank_name?: string | null;
+};
+
+/**
+ * True when any bank field (IBAN, BIC, bank name) holds a non-blank value.
+ * Works on form input as well as on stored rows, where the values are
+ * `enc-v1:` ciphertext — presence is all that is checked, never content.
+ */
+export function hasBankDetailsInput(value: BankDetailsFields): boolean {
+	return [value.iban, value.bic, value.bank_name].some(
+		(field) => typeof field === "string" && field.trim() !== "",
+	);
+}
+
+/**
+ * Profile-page SEPA contract (`PUT /api/sepa/:userId`).
+ *
+ * Bank details are optional as a group: all of IBAN, BIC and bank name may be
+ * blank, in which case only the agreements are saved. As soon as any bank
+ * field is filled, the group is fully validated — a valid IBAN, a bank name
+ * and the SEPA mandate are required. The Privacy Policy and Data Privacy
+ * Notice agreements are independent of bank details and never required here.
+ *
+ * Whether existing bank details may be cleared depends on stored state, so
+ * that rule is enforced by the caller (see `BANK_DETAILS_REMOVAL_MESSAGE`).
+ */
+export const profileSepaSchema = z
+	.object({
+		iban: z.string(),
+		bic: z.string().optional(),
+		bank_name: z.string(),
+		mandate_agreed: z.boolean(),
+		privacy_agreed: z.boolean(),
+		data_privacy_notice_agreed: z.boolean(),
+	})
+	.superRefine((value, ctx) => {
+		if (!hasBankDetailsInput(value)) {
+			return;
+		}
+		if (!ibanSchema.safeParse(value.iban).success) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["iban"],
+				message: INVALID_IBAN_MESSAGE,
+			});
+		}
+		if (value.bank_name.trim() === "") {
+			ctx.addIssue({
+				code: "custom",
+				path: ["bank_name"],
+				message: "Bank name is required",
+			});
+		}
+		if (!value.mandate_agreed) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["mandate_agreed"],
+				message: "You must agree to the SEPA mandate",
+			});
+		}
+	})
+	.transform((value) => ({
+		...value,
+		iban: normalizeIban(value.iban),
+		bic: value.bic?.trim() ?? "",
+		bank_name: value.bank_name.trim(),
+	}));
+
+export type ProfileSepaInput = z.input<typeof profileSepaSchema>;
+export type ProfileSepa = z.output<typeof profileSepaSchema>;
