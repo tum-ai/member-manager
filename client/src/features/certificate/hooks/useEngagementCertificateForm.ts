@@ -4,6 +4,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 
 import { useToast } from "@/contexts/ToastContext";
 import { generateEngagementCertificatePdf } from "@/features/certificate/generators/engagementCertificatePdf";
+import { useAnalytics } from "@/hooks/useAnalytics";
 import { useEngagementCertificateRequests } from "@/hooks/useEngagementCertificateRequests";
 import { useMemberData } from "@/hooks/useMemberData";
 import { downloadPdfBlob, formatGermanDate } from "@/lib/pdfUtils";
@@ -32,6 +33,7 @@ export function useEngagementCertificateForm(userId: string) {
 	const { requests, submitRequestAsync, isSubmitting } =
 		useEngagementCertificateRequests(userId);
 	const { showToast } = useToast();
+	const { capture } = useAnalytics();
 	const [isGenerating, setIsGenerating] = useState(false);
 
 	const form = useForm<EngagementFormSchema>({
@@ -63,6 +65,9 @@ export function useEngagementCertificateForm(userId: string) {
 		try {
 			await submitRequestAsync(data);
 			showToast("Certificate request submitted for admin approval.", "success");
+			capture("certificate_submitted", {
+				engagement_count: data.engagements.length,
+			});
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
@@ -93,6 +98,7 @@ export function useEngagementCertificateForm(userId: string) {
 			const fullName = `${safeGivenName}-${safeSurname}`;
 			downloadPdfBlob(pdfBlob, `TUMai_Engagement_Certificate_${fullName}.pdf`);
 			showToast("Approved certificate downloaded successfully!", "success");
+			capture("certificate_downloaded");
 		} catch (error) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";

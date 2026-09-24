@@ -4,6 +4,14 @@ import { HttpResponse, http, server } from "@/test/mswServer";
 import { renderHookWithClient } from "@/test/renderWithClient";
 import { useContractSignPage } from "./useContractSignPage";
 
+const { capture } = vi.hoisted(() => ({
+	capture: vi.fn(),
+}));
+
+vi.mock("@/hooks/useAnalytics", () => ({
+	useAnalytics: () => ({ capture }),
+}));
+
 vi.mock("react-router-dom", () => ({
 	useParams: () => ({ token: "partner-token" }),
 }));
@@ -46,6 +54,9 @@ describe("useContractSignPage", () => {
 		expect(posted).toEqual({
 			signer_name: "Jane Partner",
 			signature_data: "data:image/png;base64,AAAA",
+		});
+		expect(capture).toHaveBeenCalledWith("contract_signed", {
+			party: "partner",
 		});
 	});
 });

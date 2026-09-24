@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { useToast } from "@/contexts/ToastContext";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { useAnalytics } from "@/hooks/useAnalytics";
 import { useReimbursementReview } from "@/hooks/useReimbursementRequests";
 import { ReimbursementReviewControls } from "./ReimbursementReviewControls";
 import { ReimbursementReviewQueue } from "./ReimbursementReviewQueue";
@@ -61,6 +62,7 @@ function sortRequestsByDateDesc(
 
 export default function ReimbursementReviewPage(): React.ReactElement {
 	const { showToast } = useToast();
+	const { capture } = useAnalytics();
 	const {
 		requests,
 		isLoading,
@@ -157,6 +159,7 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 					action === "reject" ? rejectionReasons[requestId] : undefined,
 			});
 			showToast("Reimbursement request updated.", "success");
+			capture("reimbursement_reviewed", { action });
 		} catch (reviewError) {
 			showToast(
 				`Could not update reimbursement request: ${getErrorMessage(reviewError)}`,
@@ -186,6 +189,7 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		try {
 			await syncBuchhaltungsButlerAsync({ requestId });
 			showToast("Request synced to BuchhaltungsButler.", "success");
+			capture("reimbursement_synced_to_accounting");
 		} catch (syncError) {
 			showToast(
 				`Could not sync to BuchhaltungsButler: ${getErrorMessage(syncError)}`,

@@ -19,6 +19,7 @@ import type {
 	CreateReimbursementRequestPayload,
 	ReimbursementSubmissionType,
 } from "@/features/reimbursements/reimbursementTypes";
+import { useAnalytics } from "@/hooks/useAnalytics";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useMemberData } from "@/hooks/useMemberData";
 import { useReimbursementRequests } from "@/hooks/useReimbursementRequests";
@@ -26,6 +27,7 @@ import { useSepaData } from "@/hooks/useSepaData";
 
 export function useReimbursementForm(userId: string) {
 	const { showToast } = useToast();
+	const { capture } = useAnalytics();
 	const {
 		requests,
 		isLoading,
@@ -295,6 +297,10 @@ export function useReimbursementForm(userId: string) {
 		try {
 			await createRequestAsync(payload);
 			showToast("Reimbursement request submitted.", "success");
+			capture("reimbursement_submitted", {
+				submission_type: values.submissionType,
+				department: values.department,
+			});
 			reimbursementDraft.current = { iban: null, bic: null };
 			invoiceDraft.current = { iban: null, bic: null };
 			setValues({
@@ -309,6 +315,9 @@ export function useReimbursementForm(userId: string) {
 				`Error submitting reimbursement request: ${getErrorMessage(submitError)}`,
 				"error",
 			);
+			capture("reimbursement_submit_failed", {
+				submission_type: values.submissionType,
+			});
 		}
 	};
 

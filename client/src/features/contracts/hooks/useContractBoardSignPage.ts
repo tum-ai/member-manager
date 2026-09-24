@@ -14,10 +14,12 @@ import {
 } from "@/features/contracts/contractApi";
 import { contractQueryKeys } from "@/features/contracts/contractQueryKeys";
 import type { ContractBoardSignPageViewModel } from "@/features/contracts/publicSigningTypes";
+import { useAnalytics } from "@/hooks/useAnalytics";
 import { useBlobObjectUrl } from "./useBlobObjectUrl";
 
 export function useContractBoardSignPage(): ContractBoardSignPageViewModel {
 	const { token } = useParams<{ token: string }>();
+	const { capture } = useAnalytics();
 	const [submitted, setSubmitted] = useState(false);
 	const signatureForm = useForm<ContractSignatureInput>({
 		resolver: zodResolver(SignBodySchema),
@@ -40,7 +42,10 @@ export function useContractBoardSignPage(): ContractBoardSignPageViewModel {
 	const signMutation = useMutation({
 		mutationFn: (values: ContractSignatureInput) =>
 			postPublicBoardSignature(token ?? "", values),
-		onSuccess: () => setSubmitted(true),
+		onSuccess: () => {
+			setSubmitted(true);
+			capture("contract_signed", { party: "board" });
+		},
 	});
 
 	return {

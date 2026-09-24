@@ -32,6 +32,7 @@ More reading:
 - [docs/repo-structure.md](./docs/repo-structure.md) — full directory breakdown
 - [docs/development.md](./docs/development.md) — env precedence, dev modes, Slack OIDC, DNS quirks, testing, common failure modes
 - [docs/deployment.md](./docs/deployment.md) — Vercel env vars, Supabase dashboard config, Slack prod config, `FIELD_ENCRYPTION_KEY` warning
+- [docs/analytics.md](./docs/analytics.md) — PostHog setup, the `/ingest` proxy, what is captured, redaction guarantees, adding events
 - [docs/contracts.md](./docs/contracts.md) — contract generator workflow, seeded templates, statuses, and production migration notes
 
 ## Current App Flow

@@ -17,10 +17,12 @@ import {
 } from "@/features/contracts/contractApi";
 import { contractQueryKeys } from "@/features/contracts/contractQueryKeys";
 import type { ContractSignPageViewModel } from "@/features/contracts/publicSigningTypes";
+import { useAnalytics } from "@/hooks/useAnalytics";
 import { useBlobObjectUrl } from "./useBlobObjectUrl";
 
 export function useContractSignPage(): ContractSignPageViewModel {
 	const { token } = useParams<{ token: string }>();
+	const { capture } = useAnalytics();
 	const [submitted, setSubmitted] = useState(false);
 	const [commentSubmitted, setCommentSubmitted] = useState(false);
 	const signatureForm = useForm<ContractSignatureInput>({
@@ -50,7 +52,10 @@ export function useContractSignPage(): ContractSignPageViewModel {
 	const signMutation = useMutation({
 		mutationFn: (values: ContractSignatureInput) =>
 			postPublicSignature(token ?? "", values),
-		onSuccess: () => setSubmitted(true),
+		onSuccess: () => {
+			setSubmitted(true);
+			capture("contract_signed", { party: "partner" });
+		},
 	});
 	const commentMutation = useMutation({
 		mutationFn: (values: ContractCommentInput) =>

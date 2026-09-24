@@ -15,6 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { useAnalytics } from "@/hooks/useAnalytics";
 import { useCurrentUserIsAdmin } from "@/hooks/useCurrentUserIsAdmin";
 import { DynamicForm, isVisible } from "./DynamicForm";
 import {
@@ -29,6 +30,7 @@ import {
 
 export default function ContractFormPage(): JSX.Element {
 	const navigate = useNavigate();
+	const { capture } = useAnalytics();
 	const { draftId } = useParams<{ draftId: string }>();
 	const isEditingDraft = Boolean(draftId);
 	const templatesQuery = useContractTemplates();
@@ -94,6 +96,7 @@ export default function ContractFormPage(): JSX.Element {
 				{
 					onSuccess: (submission) => {
 						if (status === "submitted") {
+							capture("contract_submitted");
 							navigate(`/contracts/submissions/${submission.id}`);
 						}
 					},
@@ -110,6 +113,11 @@ export default function ContractFormPage(): JSX.Element {
 			},
 			{
 				onSuccess: (submission) => {
+					capture(
+						status === "submitted"
+							? "contract_submitted"
+							: "contract_draft_saved",
+					);
 					navigate(
 						status === "submitted"
 							? `/contracts/submissions/${submission.id}`

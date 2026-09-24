@@ -9,6 +9,7 @@ import {
 	Routes,
 	useLocation,
 } from "react-router-dom";
+import { AnalyticsTracker } from "./components/analytics/AnalyticsTracker";
 import { MainLayout } from "./components/layout/MainLayout";
 import { Skeleton } from "./components/ui/skeleton";
 import { SkeletonRegion } from "./components/ui/skeleton-blocks";
@@ -39,6 +40,7 @@ import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
 import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
 import TumaiDaysPage from "./features/tools/TumaiDaysPage";
+import { useAnalyticsPersonProperties } from "./hooks/useAnalytics";
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import { useToolAccess } from "./hooks/useToolAccess";
 import { queryClient } from "./lib/queryClient";
@@ -122,6 +124,7 @@ export default function App(): JSX.Element {
 		<QueryClientProvider client={queryClient}>
 			<ToastProvider>
 				<BrowserRouter>
+					<AnalyticsTracker user={user} />
 					<AppRouter user={user} onLogout={handleLogout} />
 				</BrowserRouter>
 			</ToastProvider>
@@ -172,7 +175,21 @@ export function AuthenticatedApp({
 	onLogout,
 }: AuthenticatedAppProps): JSX.Element {
 	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
-	const { permissions } = useToolAccess();
+	const {
+		permissions,
+		department,
+		isBoardMember,
+		isLoading: isLoadingAccess,
+	} = useToolAccess();
+
+	// Segmentation for PostHog. Passed as `undefined` while still loading so the
+	// person is not first written with placeholder values.
+	useAnalyticsPersonProperties({
+		department: isLoadingAccess ? undefined : department,
+		is_admin: isLoadingAdminRole ? undefined : isAdmin,
+		is_board_member: isLoadingAccess ? undefined : isBoardMember,
+	});
+
 	const hasContractsAccess =
 		isAdmin ||
 		permissions.includes("contracts.admin") ||

@@ -5,8 +5,9 @@ import { HttpResponse, http, server } from "@/test/mswServer";
 import { renderHookWithClient } from "@/test/renderWithClient";
 import { useReimbursementForm } from "./useReimbursementForm";
 
-const { showToast, memberState, sepaState } = vi.hoisted(() => ({
+const { showToast, capture, memberState, sepaState } = vi.hoisted(() => ({
 	showToast: vi.fn(),
+	capture: vi.fn(),
 	memberState: {
 		member: {
 			user_id: "user-123",
@@ -36,6 +37,10 @@ const { showToast, memberState, sepaState } = vi.hoisted(() => ({
 
 vi.mock("../../../contexts/ToastContext", () => ({
 	useToast: () => ({ showToast }),
+}));
+
+vi.mock("../../../hooks/useAnalytics", () => ({
+	useAnalytics: () => ({ capture }),
 }));
 
 vi.mock("../../../hooks/useMemberData", () => ({
@@ -86,6 +91,7 @@ function submitEvent(): React.FormEvent<HTMLFormElement> {
 describe("useReimbursementForm", () => {
 	beforeEach(() => {
 		showToast.mockReset();
+		capture.mockReset();
 		memberState.member = {
 			user_id: "user-123",
 			department: "Software Development",
@@ -447,6 +453,10 @@ describe("useReimbursementForm", () => {
 			"Reimbursement request submitted.",
 			"success",
 		);
+		expect(capture).toHaveBeenCalledWith("reimbursement_submitted", {
+			submission_type: "reimbursement",
+			department: "Software Development",
+		});
 		expect(result.current.values.receipt).toBeNull();
 		expect(result.current.values.amount).toBe("");
 		expect(result.current.values.department).toBe("Software Development");
@@ -494,6 +504,9 @@ describe("useReimbursementForm", () => {
 				"error",
 			),
 		);
+		expect(capture).toHaveBeenCalledWith("reimbursement_submit_failed", {
+			submission_type: "reimbursement",
+		});
 	});
 
 	it("does not process a dropped receipt while busy", async () => {
