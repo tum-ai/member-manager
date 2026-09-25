@@ -11,10 +11,13 @@ Commit the current work cleanly.
    that belong to this unit of work. Do not blindly `git add -A` unrelated files.
 2. **Branch if on `main`** — `git branch --show-current`. If it's `main`, create a topic branch first
    (`git switch -c <type>/<short-slug>`); never commit straight to `main`.
-3. **Stage** the intended files explicitly (`git add <paths>`).
-4. **Lint staged** — `pnpm lint:staged`. Fix anything it flags before committing.
+3. **Stage** the intended files explicitly (`git add <paths>`). Never stage real member data or
+   exports; the repo is public.
+4. **Lint staged** — the pre-commit hook runs `pnpm lint:staged`. In a worktree, or anywhere the
+   hooks aren't installed, run `pnpm lint:staged` yourself and fix what it flags.
 5. **Message** — conventional commit, scoped: `type(scope): summary` where type ∈
-   feat|fix|refactor|test|ci|docs|style|chore|perf|build. Keep the subject imperative and concise.
+   feat|fix|refactor|test|ci|docs|style|chore|perf|build|revert. Keep the subject imperative and
+   concise. Explain the *why* in the body when it isn't obvious; squash merges keep it on `main`.
 6. **Commit** — do not add tool-specific co-author trailers unless explicitly requested.
    (The git-guard hook warns on non-conventional messages.)
 7. Report the branch + short SHA. Don't push unless asked.

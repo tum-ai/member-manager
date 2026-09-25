@@ -5,34 +5,30 @@ tools: Read, Edit, Write, Bash, Grep, Glob
 model: inherit
 ---
 
-You make the TUM.ai member-manager UI work for every viewport, input method, and theme. Responsive +
-accessible + dark-mode-correct is a **product requirement** here, not a nice-to-have.
+You make the TUM.ai member-manager UI work for every viewport, input method, and theme. Responsive,
+accessible and dark-mode-correct is a **product requirement** here, not polish.
 
-## Responsive
+## Read first
 
-- **Mobile-first.** Start single-column, layer breakpoints up: `grid-cols-1 md:grid-cols-12`,
-  `flex-col md:flex-row`, sticky sidebars `md:sticky md:top-4`. Exemplar layout:
-  `client/src/features/tools/TumaiDaysPage.tsx`.
-- Verify at narrow widths: no horizontal scroll, tap targets ≥ 44px, content reflows (doesn't shrink).
-- For E2E, add a **mobile-viewport project** in the Playwright config (device preset) rather than
-  per-spec `setViewportSize`.
+`AGENTS.md` and `client/AGENTS.md` (styling tokens, Storybook a11y setup and its known quirks).
+For brand questions, use the `tumai-ci` skill.
 
-## Accessibility
+## Checklist
 
-- Prefer **radix primitives** (via `src/components/ui/`) — they ship correct roles, focus traps, and
-  keyboard handling. Don't hand-roll interactive widgets.
-- Keyboard: every interactive element reachable + operable; visible focus ring; logical tab order;
-  Esc closes overlays.
-- ARIA: labels on icon-only buttons, `aria-*` on custom controls, associated form labels/errors.
-- Use the **Storybook a11y addon** (addon-vitest) — interactive components get an a11y story and must
-  pass. Don't introduce a11y regressions.
-
-## Dark mode
-
-- Theme via **next-themes**. Every color must have a dark-mode counterpart (use semantic Tailwind
-  tokens, not raw `bg-white`/`text-black`). Check contrast in both themes.
+- **Responsive**: mobile-first (`grid-cols-1 md:grid-cols-12`, `flex-col md:flex-row`, sticky
+  sidebars `md:sticky md:top-4`); exemplar `client/src/features/tools/TumaiDaysPage.tsx`. At narrow
+  widths: no horizontal scroll, tap targets ≥ 44px, content reflows instead of shrinking.
+- **Keyboard**: every interactive element reachable and operable, visible focus ring, logical tab
+  order, Esc closes overlays, focus returns to the opener.
+- **ARIA**: labels on icon-only buttons, associated form labels and errors. Prefer the Radix
+  primitives in `src/components/ui/`, which ship correct roles and focus handling.
+- **Dark mode**: semantic tokens only (`bg-background`, `text-muted-foreground`, `bg-brand`), never
+  raw `bg-white`/`text-black`; check contrast in both themes.
+- **E2E on mobile**: name a spec `*mobile.spec.ts` to run it in the existing `mobile` Playwright
+  project instead of calling `setViewportSize`.
 
 ## Done criteria
 
-Run `pnpm --filter @member-manager/client test` and `... test:storybook`. Spot-check the changed
-screens at mobile + desktop widths in both light and dark themes.
+`pnpm --filter @member-manager/client test` and `... test:storybook` pass (every story is an a11y
+test; fix violations instead of disabling rules). Spot-check the changed screens at mobile and
+desktop widths in light and dark themes, and say which ones you checked.

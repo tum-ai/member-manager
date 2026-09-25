@@ -1,109 +1,41 @@
-# TUM.ai Brand CI
+# TUM.ai brand tokens
 
-This summary is based on the vendored brand material in `docs/brand/source/`.
+Summary of the vendored brand material in `docs/brand/source/`, and how member-manager uses it.
+When this file and `client/src/index.css` disagree, `index.css` wins.
 
-## Source bundle
+## Official palette
 
-- `docs/brand/source/brand-guidelines.pdf`
-- `docs/brand/source/colors.jpeg`
-- `docs/brand/source/website-styles.css`
-- `docs/brand/source/website-button.tsx`
-- `docs/brand/source/tum_ai_logo_new.svg`
-- `docs/brand/source/logo_new_white_standard.png`
-- `docs/brand/source/Manrope.ttf`
+From `docs/brand/source/colors.jpeg` and `docs/brand/source/website-styles.css`:
 
-## Identity
+| Name | Hex | Use in member-manager |
+| --- | --- | --- |
+| White | `#FFFFFF` | light-mode background/cards |
+| Minimal Grey | `#EFEFEF` | — (the app uses shadcn `neutral` greys) |
+| Lavender Tint | `#F5EFFF` | inspiration for `--accent` (hover/selected tint) |
+| Electric Lavender (TUM.ai violet) | `#9A64D9` | `--brand`, `--ring`, sidebar active item (light mode) |
+| Dark Purple | `#523573` | — |
+| Dark Indigo | `#1B0049` | — |
+| Black | `#0D0214` | — |
+| Electric Fade gradient | `#9A64D9 → #523573` | marketing surfaces only |
 
-The brand guide frames TUM.ai as the hub where academic rigor meets a make-it-happen builder mindset.
+Dark mode uses a lightened violet (`#b98ee6`) for `--brand`/`--ring` so the purple stays legible on
+neutral dark surfaces.
 
-Mission:
-"To bridge the gap between theory and practice by empowering students to build the future of AI."
-
-Vision:
-"To be the defining hub for AI talent in Europe, a community where technical precision meets human creativity."
-
-When designing UI, that means:
-
-- clean and technically precise, not noisy
-- confident and modern, not playful or random
-- community-oriented, but still restrained
-
-## Color system
-
-Confirmed directly from `docs/brand/source/colors.jpeg` and `docs/brand/source/website-styles.css`.
-
-- White: `#FFFFFF`
-- Minimal Grey: `#EFEFEF`
-- Lavender Tint: `#F5EFFF`
-- Electric Lavender / TUM.ai violet: `#9A64D9`
-- Dark Purple: `#523573`
-- Dark Indigo: `#1B0049`
-- Black: `#0D0214`
-- Electric Fade gradient: `#9A64D9 -> #523573`
-
-Usage rules:
-
-- Keep `#9A64D9` as the main brand accent and primary action color.
-- Use `#523573` for stronger hover or pressed states.
-- Use `#F5EFFF` sparingly for tinted backgrounds and highlights.
-- In dark mode, backgrounds and surfaces should stay in the `#0D0214`, `#1B0049`, `#523573` family.
-- Avoid random per-item accent colors.
-- Avoid old or alternate purples from exploratory palettes unless a task explicitly asks for a legacy look.
+The public website uses violet primary buttons (`website-button.tsx`). The member portal
+deliberately doesn't: primary buttons are neutral, and purple is the accent.
 
 ## Typography
 
-The brand guide embeds `Manrope` and the vendored source includes `docs/brand/source/Manrope.ttf`.
-
-Available weights observed in the PDF:
-
-- Light
-- Regular
-- SemiBold
-- Bold
-
-Usage rules:
-
-- Use Manrope for UI typography.
-- Favor clear hierarchy through size and weight, not decorative styling.
-- Keep copy crisp and minimal.
+Manrope (vendored as `docs/brand/source/Manrope.ttf`, served from `client/public/fonts/`). The brand
+guide uses Light, Regular, SemiBold and Bold. Keep copy crisp and minimal.
 
 ## Logos
 
-The brand guide includes sections for:
+Primary logo `docs/brand/source/tum_ai_logo_new.svg`; white variant
+`docs/brand/source/logo_new_white_standard.png` for dark backgrounds. Use the exported assets
+unmodified.
 
-- Primary Logo
-- Logomark
-- Secondary Logo
+## Tone
 
-Vendored assets available in this repo:
-
-- `docs/brand/source/tum_ai_logo_new.svg`
-- `docs/brand/source/logo_new_white_standard.png`
-
-Usage rules:
-
-- Prefer the provided exported assets.
-- Do not redraw, recolor, crop, or rebuild the logo manually.
-- Use the white logo variant only on dark enough backgrounds.
-
-## Buttons and interaction
-
-The website implementation source is vendored in `docs/brand/source/website-button.tsx`.
-
-Current brand-consistent behavior:
-
-- Primary button fill: brand violet
-- Primary button text: white or minimal gray depending on context
-- Primary hover: dark purple
-- Outline buttons: restrained border, subtle tinted hover
-- Interaction should feel crisp and confident, not bouncy or playful
-
-## UI direction for this repo
-
-For this member-manager repo specifically:
-
-- Light mode should stay bright, minimal, and quiet.
-- Dark mode should keep the branded purple/indigo background and use muted dark surfaces on top.
-- Cards should rely on soft separation, not black outlines.
-- Avatars, chips, and stat boxes should stay minimal and uniform.
-- If a design choice looks more generic SaaS than TUM.ai, simplify it.
+Clean and technically precise, confident and modern, restrained. If a design choice looks like
+generic SaaS decoration, simplify it.
