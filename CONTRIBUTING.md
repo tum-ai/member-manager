@@ -6,7 +6,7 @@ to the deeper guides rather than repeating them.
 ## Prerequisites
 
 - **Node 24** (matches `.nvmrc` — run `nvm use`)
-- **pnpm** (the repo pins pnpm 10 in CI)
+- **pnpm** (version pinned by `packageManager` in `package.json`)
 - **Docker** and the **Supabase CLI** (for the local stack)
 
 ## First run
@@ -18,8 +18,8 @@ pnpm dev              # generate .env.local, then run client + server
 ```
 
 `pnpm dev` runs `pnpm setup:local` for you, so you normally do not call it
-separately. Local URLs and the seeded test accounts are listed in the
-[README](./README.md#4-run-the-app).
+separately. Local URLs are in the [README](./README.md#quickstart); the seeded test
+accounts are in [docs/development.md](./docs/development.md#seed-data).
 
 Stuck? Run the environment health check:
 
@@ -34,7 +34,7 @@ precedence, dev modes, Slack OIDC, and common failure modes see
 ## Project layout
 
 `client/` (React + Vite), `server/` (Fastify), `shared/` (the client/server type
-contract), `supabase/` (migrations + seed). See
+contract), `supabase/` (migrations + seed), `e2e/` (Playwright). See
 [docs/repo-structure.md](./docs/repo-structure.md) for the full breakdown, and the
 root and package-level `AGENTS.md` files for the conventions that apply when you
 edit each area.
@@ -42,10 +42,17 @@ edit each area.
 ## Before you push
 
 ```bash
-pnpm gate             # lint + typecheck + test + build (mirrors required CI)
+pnpm gate             # lint + typecheck + test + build
 ```
 
-If `pnpm gate` is green locally, the core CI jobs should be too.
+The gate is a subset of CI. When your change touches those areas, also run:
+
+- `pnpm test:coverage` — CI enforces coverage floors; `pnpm test` doesn't
+- `typos` — CI spell-checks everything (German labels go in `_typos.toml`)
+- `pnpm --filter @member-manager/client test:storybook` — story play functions and a11y checks
+- `pnpm test:e2e` — end-to-end flows against the local stack
+
+[docs/ci.md](./docs/ci.md) lists every CI job and which ones are required.
 
 ## Commit and PR conventions
 
@@ -56,3 +63,15 @@ If `pnpm gate` is green locally, the core CI jobs should be too.
 - Keep changes feature-scoped and respect the repo invariants documented in the
   root [AGENTS.md](./AGENTS.md) (file-size limits, coverage ratchet, encrypted
   sensitive fields, immutable migrations).
+- PRs are squash-merged, so the PR title becomes the commit on `main`. `main`
+  needs one approving review and the required checks.
+- The repository is public. Never commit real member data, exports, or secrets,
+  not even on a short-lived branch.
+
+## Preview deployments
+
+PRs don't deploy automatically. A maintainer or admin can deploy a preview of
+an open PR from this repository by commenting exactly `/deploy-preview`; the
+workflow comments back with the URL and the PR SHA it deployed. Push a new
+commit and you need a new comment. Production deploys from `main` after CI
+passes ([docs/deployment.md](./docs/deployment.md)).

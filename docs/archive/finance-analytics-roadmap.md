@@ -1,5 +1,7 @@
 # Finance Analytics — Functional Requirements & Implementation Plan
 
+> **Archived.** Requirements and phase plan for the finance tool. The analytics page (#283, #295), T-Konto view (#305) and T-Konto workbench phases 0–5 (#317–#321) are merged into `main`; the status notes below predate those merges. Kept for the requirement IDs and design rationale.
+
 Design history for evolving `/tools/finance/analytics` from an LnF-only expense overview into a
 full budgeting, planning and analysis tool backed by BuchhaltungsButler (BB), with department
 self-service and a global Legal & Finance (LnF) view.

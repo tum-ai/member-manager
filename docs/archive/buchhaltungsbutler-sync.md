@@ -1,5 +1,7 @@
 # BuchhaltungsButler sync + Slack finance workflow
 
+> **Archived.** Research and design notes for the BuchhaltungsButler receipt sync, shipped in #90 (2026-05-13). Receipts have since moved to Supabase Storage (#246). For current setup see [development.md](../development.md#buchhaltungsbutler).
+
 Research date: 2026-05-12  
 Worktree: `../member-manager-bb-sync`  
 Branch: `feat/buchhaltungsbutler-sync`
