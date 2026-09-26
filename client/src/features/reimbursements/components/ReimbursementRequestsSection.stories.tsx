@@ -93,6 +93,30 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
+// The card's aria-label replaces its content for screen readers, so the
+// status (and a rejection reason) must be part of the accessible name.
+export const AnnouncesStatus: Story = {
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+
+		await expect(
+			canvas.getByRole("button", {
+				name: /invoice request from 03 jun 2026 .*status: not approved\. reason: please upload the itemised invoice from the vendor\./i,
+			}),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("button", {
+				name: /vivid reimbursement request .*status: no payment required$/i,
+			}),
+		).toBeVisible();
+		await expect(
+			canvas.getByRole("button", {
+				name: /reimbursement request from 14 may 2026 .*status: paid$/i,
+			}),
+		).toBeVisible();
+	},
+};
+
 // Each card is a real button: mouse and keyboard both select the request.
 export const SelectsRequest: Story = {
 	play: async ({ canvasElement, args }) => {

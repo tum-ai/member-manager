@@ -21,10 +21,16 @@ interface ReimbursementRequestsSectionProps {
 	onSelectRequest: (request: ReimbursementRequest) => void;
 }
 
+// The label replaces the card's content for assistive tech, so it has to carry
+// everything a sighted member reads at a glance: the status and, for rejected
+// requests, the reason.
 function getRequestButtonLabel(request: ReimbursementRequest): string {
-	return `View details for ${getRequestTypeLabel(request)} request from ${formatDate(
+	const summary = `View details for ${getRequestTypeLabel(request)} request from ${formatDate(
 		request.date,
-	)} (${formatAmount(request.amount)})`;
+	)} (${formatAmount(request.amount)}), status: ${getStatusLabel(request)}`;
+	return request.rejection_reason
+		? `${summary}. Reason: ${request.rejection_reason}`
+		: summary;
 }
 
 export function ReimbursementRequestsSection({

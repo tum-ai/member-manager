@@ -596,6 +596,11 @@ describe("ReimbursementPage", () => {
 		const trigger = screen.getByRole("button", {
 			name: /view details for reimbursement request from 18 apr 2026/i,
 		});
+		// The label replaces the card content for screen readers, so it must
+		// still announce the status and the rejection reason.
+		expect(trigger).toHaveAccessibleName(
+			/status: not approved\. reason: please attach an itemised invoice\.$/i,
+		);
 		await user.click(trigger);
 
 		const dialog = await screen.findByRole("dialog", {
