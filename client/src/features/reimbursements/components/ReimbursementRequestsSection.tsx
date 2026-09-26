@@ -17,12 +17,27 @@ interface ReimbursementRequestsSectionProps {
 	isLoading: boolean;
 	error: unknown;
 	requests: ReimbursementRequest[];
+	/** Opens the read-only detail view for one of the member's requests. */
+	onSelectRequest: (request: ReimbursementRequest) => void;
+}
+
+// The label replaces the card's content for assistive tech, so it has to carry
+// everything a sighted member reads at a glance: the status and, for rejected
+// requests, the reason.
+function getRequestButtonLabel(request: ReimbursementRequest): string {
+	const summary = `View details for ${getRequestTypeLabel(request)} request from ${formatDate(
+		request.date,
+	)} (${formatAmount(request.amount)}), status: ${getStatusLabel(request)}`;
+	return request.rejection_reason
+		? `${summary}. Reason: ${request.rejection_reason}`
+		: summary;
 }
 
 export function ReimbursementRequestsSection({
 	isLoading,
 	error,
 	requests,
+	onSelectRequest,
 }: ReimbursementRequestsSectionProps): ReactElement {
 	return (
 		<GlassCard>
@@ -72,47 +87,53 @@ export function ReimbursementRequestsSection({
 				)}
 
 				{!isLoading && !error && requests.length > 0 && (
-					<div className="grid gap-3">
+					<ul className="grid gap-3">
 						{requests.map((request) => (
-							<div
-								key={request.id}
-								className="min-w-0 rounded-lg bg-muted/50 p-4"
-							>
-								<div className="mb-2 flex flex-wrap items-start justify-between gap-3">
-									<div className="min-w-0 flex-[1_1_220px]">
-										<p className="font-bold break-words">
-											{getRequestTypeLabel(request)} request
-										</p>
-										<p className="text-sm text-muted-foreground">
-											{formatDate(request.date)}
-										</p>
-									</div>
-									<p className="font-bold whitespace-nowrap">
-										{formatAmount(request.amount)}
-									</p>
-								</div>
-								<div className="mb-2 flex flex-wrap gap-1.5">
-									<Badge variant="outline">
-										{getRequestTypeLabel(request)}
-									</Badge>
-									<Badge variant="neutral">{getStatusLabel(request)}</Badge>
-								</div>
-								<p className="mb-1 text-sm break-words">
-									{request.description}
-								</p>
-								{request.receipt_filename && (
-									<p className="text-sm text-muted-foreground">
-										{request.receipt_filename}
-									</p>
-								)}
-								{request.rejection_reason && (
-									<p className="mt-2 text-sm text-destructive">
-										{request.rejection_reason}
-									</p>
-								)}
-							</div>
+							<li key={request.id} className="min-w-0">
+								{/* Spans, not <p>: a <button> may only contain phrasing content. */}
+								<button
+									type="button"
+									aria-haspopup="dialog"
+									aria-label={getRequestButtonLabel(request)}
+									onClick={() => onSelectRequest(request)}
+									className="block w-full min-w-0 cursor-pointer rounded-lg bg-muted/50 p-4 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"
+								>
+									<span className="mb-2 flex flex-wrap items-start justify-between gap-3">
+										<span className="min-w-0 flex-[1_1_220px]">
+											<span className="block font-bold break-words">
+												{getRequestTypeLabel(request)} request
+											</span>
+											<span className="block text-sm text-muted-foreground">
+												{formatDate(request.date)}
+											</span>
+										</span>
+										<span className="font-bold whitespace-nowrap">
+											{formatAmount(request.amount)}
+										</span>
+									</span>
+									<span className="mb-2 flex flex-wrap gap-1.5">
+										<Badge variant="outline">
+											{getRequestTypeLabel(request)}
+										</Badge>
+										<Badge variant="neutral">{getStatusLabel(request)}</Badge>
+									</span>
+									<span className="mb-1 block text-sm break-words">
+										{request.description}
+									</span>
+									{request.receipt_filename && (
+										<span className="block text-sm break-words text-muted-foreground">
+											{request.receipt_filename}
+										</span>
+									)}
+									{request.rejection_reason && (
+										<span className="mt-2 block text-sm break-words text-destructive">
+											{request.rejection_reason}
+										</span>
+									)}
+								</button>
+							</li>
 						))}
-					</div>
+					</ul>
 				)}
 			</div>
 		</GlassCard>

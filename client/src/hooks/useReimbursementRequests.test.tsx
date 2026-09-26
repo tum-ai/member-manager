@@ -167,6 +167,134 @@ describe("useReimbursementRequests", () => {
 		await waitFor(() => expect(result.current.error).toBeTruthy());
 		expect(result.current.requests).toEqual([]);
 	});
+
+	describe("own receipts", () => {
+		const ownRequest: Partial<ReimbursementRequest> = {
+			...sampleRequest,
+			receipt_filename: "train.pdf",
+			receipt_view_url: "/api/reimbursements/req-1/receipt",
+			receipt_download_url: "/api/reimbursements/req-1/receipt?download=1",
+		};
+		let createObjectURL: ReturnType<typeof vi.fn>;
+		let revokeObjectURL: ReturnType<typeof vi.fn>;
+		let windowOpen: ReturnType<typeof vi.fn>;
+
+		beforeEach(() => {
+			createObjectURL = vi.fn(() => "blob:own");
+			revokeObjectURL = vi.fn();
+			windowOpen = vi.fn();
+			URL.createObjectURL =
+				createObjectURL as unknown as typeof URL.createObjectURL;
+			URL.revokeObjectURL =
+				revokeObjectURL as unknown as typeof URL.revokeObjectURL;
+			window.open = windowOpen as unknown as typeof window.open;
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+			vi.restoreAllMocks();
+		});
+
+		it("opens the member's own receipt through the owner-scoped endpoint", async () => {
+			vi.useFakeTimers();
+			let authorization: string | null = null;
+			server.use(
+				http.get("/api/reimbursements", () => HttpResponse.json([ownRequest])),
+				http.get("/api/reimbursements/req-1/receipt", ({ request }) => {
+					authorization = request.headers.get("Authorization");
+					return HttpResponse.arrayBuffer(new ArrayBuffer(4));
+				}),
+			);
+
+			const { result } = renderHookWithClient(() =>
+				useReimbursementRequests("user-1"),
+			);
+			await vi.waitFor(() => expect(result.current.isLoading).toBe(false));
+
+			await result.current.openReceiptAsync(ownRequest as ReimbursementRequest);
+
+			expect(authorization).toBe("Bearer test-token");
+			expect(windowOpen).toHaveBeenCalledWith(
+				"blob:own",
+				"_blank",
+				"noopener,noreferrer",
+			);
+			vi.advanceTimersByTime(30_000);
+			expect(revokeObjectURL).toHaveBeenCalledWith("blob:own");
+		});
+
+		it("downloads the member's own receipt under its original filename", async () => {
+			let requestedUrl: string | null = null;
+			server.use(
+				http.get("/api/reimbursements", () => HttpResponse.json([ownRequest])),
+				http.get("/api/reimbursements/req-1/receipt", ({ request }) => {
+					requestedUrl = request.url;
+					return HttpResponse.arrayBuffer(new ArrayBuffer(4));
+				}),
+			);
+			const clickedDownloads: string[] = [];
+			vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(
+				function (this: HTMLAnchorElement) {
+					clickedDownloads.push(this.download);
+				},
+			);
+
+			const { result } = renderHookWithClient(() =>
+				useReimbursementRequests("user-1"),
+			);
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+			await result.current.downloadReceiptAsync(
+				ownRequest as ReimbursementRequest,
+			);
+
+			expect(requestedUrl).toMatch(
+				/\/api\/reimbursements\/req-1\/receipt\?download=1$/,
+			);
+			expect(clickedDownloads).toEqual(["train.pdf"]);
+			expect(createObjectURL).toHaveBeenCalled();
+		});
+
+		it("rejects own receipt actions when the row has no receipt URLs", async () => {
+			server.use(http.get("/api/reimbursements", () => HttpResponse.json([])));
+
+			const { result } = renderHookWithClient(() =>
+				useReimbursementRequests("user-1"),
+			);
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+			const withoutReceipt = {
+				...ownRequest,
+				receipt_view_url: null,
+				receipt_download_url: null,
+			} as ReimbursementRequest;
+			await expect(
+				result.current.openReceiptAsync(withoutReceipt),
+			).rejects.toThrow("Receipt is not available");
+			await expect(
+				result.current.downloadReceiptAsync(withoutReceipt),
+			).rejects.toThrow("Receipt is not available");
+		});
+
+		it("surfaces the server error when the own receipt is not found", async () => {
+			server.use(
+				http.get("/api/reimbursements", () => HttpResponse.json([])),
+				http.get("/api/reimbursements/req-1/receipt", () =>
+					HttpResponse.json({ error: "Receipt not found" }, { status: 404 }),
+				),
+			);
+
+			const { result } = renderHookWithClient(() =>
+				useReimbursementRequests("user-1"),
+			);
+			await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+			await expect(
+				result.current.openReceiptAsync(ownRequest as ReimbursementRequest),
+			).rejects.toThrow("Receipt not found");
+			expect(windowOpen).not.toHaveBeenCalled();
+		});
+	});
 });
 
 const reviewRequest: Partial<ReimbursementRequest> = {

@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { DEPARTMENTS } from "@/lib/constants";
-import { cn } from "@/lib/utils";
+import { Detail, DetailGroup } from "./components/ReimbursementDetailFields";
 import { ReimbursementFinanceLinkEditor } from "./components/ReimbursementFinanceLinkEditor";
 import { ReimbursementReviewActions } from "./ReimbursementReviewActions";
 import {
@@ -394,21 +394,6 @@ function ReviewItem({
 	);
 }
 
-function DetailGroup({
-	title,
-	children,
-}: {
-	title: string;
-	children: React.ReactNode;
-}): React.ReactElement {
-	return (
-		<div className="grid min-w-0 content-start gap-2">
-			<p className="text-sm font-extrabold">{title}</p>
-			{children}
-		</div>
-	);
-}
-
 function DepartmentEditor({
 	department,
 	disabled,
@@ -445,33 +430,6 @@ function DepartmentEditor({
 					))}
 				</SelectContent>
 			</Select>
-		</div>
-	);
-}
-
-function Detail({
-	label,
-	value,
-	strong = false,
-	monospace = false,
-}: {
-	label: string;
-	value: string;
-	strong?: boolean;
-	monospace?: boolean;
-}): React.ReactElement {
-	return (
-		<div>
-			<span className="text-xs text-muted-foreground">{label}</span>
-			<p
-				className={cn(
-					"text-sm break-words",
-					strong ? "font-bold" : "font-medium",
-					monospace && "font-mono",
-				)}
-			>
-				{value}
-			</p>
 		</div>
 	);
 }

@@ -4,6 +4,7 @@ import {
 	cleanIbanInput,
 	formatIban,
 	isValidIban,
+	maskIban,
 	normalizeIban,
 	sepaSchema,
 } from "../dist/index.js";
@@ -78,5 +79,34 @@ describe("IBAN validation", () => {
 				.success,
 			false,
 		);
+	});
+});
+
+describe("IBAN masking", () => {
+	test("keeps only the country code, check digits, and last four characters", () => {
+		assert.equal(maskIban(validIban), "DE89 •••• •••• 3000");
+	});
+
+	test("normalizes formatted input before masking", () => {
+		assert.equal(
+			maskIban(" de89 3704-0044 0532 0130 00 "),
+			"DE89 •••• •••• 3000",
+		);
+	});
+
+	test("never reveals the middle of the account number", () => {
+		const masked = maskIban(validIban);
+		assert.equal(masked.includes("370400440532"), false);
+		assert.equal(masked.replace(/[^A-Z0-9]/g, "").length, 8);
+	});
+
+	test("returns an empty string for blank input", () => {
+		assert.equal(maskIban(""), "");
+		assert.equal(maskIban("   "), "");
+	});
+
+	test("fully masks values too short to be an IBAN", () => {
+		assert.equal(maskIban("DE891234"), "••••");
+		assert.equal(maskIban("DE8912345"), "••••");
 	});
 });

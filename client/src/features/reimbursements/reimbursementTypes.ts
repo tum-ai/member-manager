@@ -2,64 +2,17 @@ export type {
 	ReimbursementApprovalStatus,
 	ReimbursementBuchhaltungsButlerSyncStatus,
 	ReimbursementPaymentStatus,
-	ReimbursementRequest as SharedReimbursementRequest,
+	ReimbursementRequest,
 	ReimbursementReviewAction,
 	ReimbursementStatus,
 	ReimbursementSubmissionType,
 } from "@member-manager/shared";
 
 import type {
-	ReimbursementApprovalStatus,
-	ReimbursementBuchhaltungsButlerSyncStatus,
-	ReimbursementPaymentStatus,
+	ReimbursementRequest,
 	ReimbursementReviewAction,
-	ReimbursementStatus,
 	ReimbursementSubmissionType,
 } from "@member-manager/shared";
-
-export interface ReimbursementRequest {
-	id: string;
-	user_id: string;
-	requester_name?: string | null;
-	requester_email?: string | null;
-	person_name?: string | null;
-	personName?: string | null;
-	email?: string | null;
-	amount: number;
-	date: string;
-	description: string;
-	department: string;
-	submission_type: ReimbursementSubmissionType;
-	payment_iban?: string | null;
-	payment_bic?: string | null;
-	iban?: string | null;
-	bic?: string | null;
-	bank_name?: string | null;
-	payment_bank_name?: string | null;
-	receipt_filename?: string | null;
-	receipt_mime_type?: string | null;
-	receipt_url?: string | null;
-	receiptUrl?: string | null;
-	receipt_view_url?: string | null;
-	receipt_download_url?: string | null;
-	status: ReimbursementStatus;
-	approval_status: ReimbursementApprovalStatus;
-	payment_status: ReimbursementPaymentStatus;
-	rejection_reason?: string | null;
-	bb_sync_status?: ReimbursementBuchhaltungsButlerSyncStatus | null;
-	bb_receipt_id_by_customer?: string | null;
-	bb_receipt_filename?: string | null;
-	bb_synced_at?: string | null;
-	bb_sync_error?: string | null;
-	bb_sync_attempts?: number | null;
-	bb_last_sync_attempt_at?: string | null;
-	bb_synced_by?: string | null;
-	finance_project_id?: string | null;
-	finance_plan_item_id?: string | null;
-	bb_posting_external_id?: string | null;
-	created_at?: string;
-	updated_at?: string;
-}
 
 export interface BuchhaltungsButlerSyncStatus {
 	sync_enabled: boolean;

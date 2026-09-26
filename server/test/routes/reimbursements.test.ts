@@ -16,7 +16,14 @@ import {
 	testTokens,
 	testUserIds,
 } from "../helpers.js";
-import { mockDatabase, mockStorage } from "../mocks/supabase.js";
+import {
+	MOCK_OTHER_USER_REIMBURSEMENT_ID,
+	MOCK_REIMBURSEMENT_NEWER_ID,
+	MOCK_REIMBURSEMENT_OLDER_ID,
+	mockDatabase,
+	mockStorage,
+	mockSupabaseErrors,
+} from "../mocks/supabase.js";
 
 const PDF_BASE64 = "JVBERi0xLjQ=";
 const ONE_BY_ONE_JPEG_BASE64 =
@@ -80,7 +87,7 @@ describe("Reimbursement Routes", async () => {
 			const data = JSON.parse(response.payload);
 			assert.deepStrictEqual(
 				data.map((row: { id: string }) => row.id),
-				["reimbursement-newer", "reimbursement-older"],
+				[MOCK_REIMBURSEMENT_NEWER_ID, MOCK_REIMBURSEMENT_OLDER_ID],
 			);
 		});
 
@@ -90,6 +97,186 @@ describe("Reimbursement Routes", async () => {
 			const response = await app.inject({
 				method: "GET",
 				url: "/api/reimbursements",
+			});
+
+			assert.strictEqual(response.statusCode, 401);
+		});
+
+		test("adds owner-scoped receipt URLs without the inline payload", async () => {
+			resetDatabase();
+			const withoutReceipt = mockDatabase.reimbursements.find(
+				(row) => row.id === MOCK_REIMBURSEMENT_NEWER_ID,
+			);
+			assert.ok(withoutReceipt);
+			withoutReceipt.receipt_base64 = null;
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload) as Array<
+				Record<string, unknown>
+			>;
+			const older = data.find((row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID);
+			assert.ok(older);
+			assert.strictEqual(older.receipt_has_payload, true);
+			assert.strictEqual(
+				older.receipt_view_url,
+				`/api/reimbursements/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt`,
+			);
+			assert.strictEqual(
+				older.receipt_download_url,
+				`/api/reimbursements/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt?download=1`,
+			);
+			assert.strictEqual("receipt_base64" in older, false);
+			assert.strictEqual(older.payment_iban, "DE89370400440532013000");
+
+			const newer = data.find((row) => row.id === MOCK_REIMBURSEMENT_NEWER_ID);
+			assert.ok(newer);
+			assert.strictEqual(newer.receipt_has_payload, false);
+			assert.strictEqual(newer.receipt_view_url, null);
+			assert.strictEqual(newer.receipt_download_url, null);
+		});
+	});
+
+	describe("GET /api/reimbursements/:requestId/receipt", () => {
+		test("lets the requester view and download their own receipt", async () => {
+			resetDatabase();
+
+			const inline = await app.inject({
+				method: "GET",
+				url: `/api/reimbursements/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt`,
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(inline.statusCode, 200);
+			assert.strictEqual(inline.headers["content-type"], "application/pdf");
+			assert.strictEqual(
+				inline.headers["content-disposition"],
+				'inline; filename="older.pdf"',
+			);
+			assert.strictEqual(inline.rawPayload.toString("utf8"), "%PDF-1.4");
+
+			const download = await app.inject({
+				method: "GET",
+				url: `/api/reimbursements/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt?download=1`,
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(download.statusCode, 200);
+			assert.strictEqual(
+				download.headers["content-disposition"],
+				'attachment; filename="older.pdf"',
+			);
+		});
+
+		test("redirects storage-backed own receipts to signed URLs", async () => {
+			resetDatabase();
+			const request = mockDatabase.reimbursements.find(
+				(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
+			);
+			assert.ok(request);
+			request.receipt_base64 = null;
+			request.receipt_storage_bucket = "reimbursement-receipts";
+			request.receipt_storage_path = `${testUserIds.user}/older.pdf`;
+			mockStorage.set(
+				`reimbursement-receipts/${request.receipt_storage_path}`,
+				Buffer.from(PDF_BASE64, "base64"),
+			);
+
+			const response = await app.inject({
+				method: "GET",
+				url: `/api/reimbursements/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt?download=1`,
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 302);
+			assert.match(
+				String(response.headers.location),
+				/^https:\/\/mock-storage\.local\/reimbursement-receipts\//,
+			);
+			assert.match(String(response.headers.location), /download=older\.pdf/);
+		});
+
+		test("returns 404 for another member's receipt, same as a missing one", async () => {
+			resetDatabase();
+
+			const foreign = await app.inject({
+				method: "GET",
+				url: `/api/reimbursements/${MOCK_OTHER_USER_REIMBURSEMENT_ID}/receipt`,
+				headers: authHeaders(testTokens.user),
+			});
+			const missing = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/00000000-0000-4000-8000-000000000000/receipt",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(foreign.statusCode, 404);
+			assert.strictEqual(missing.statusCode, 404);
+			assert.deepStrictEqual(
+				JSON.parse(foreign.payload),
+				JSON.parse(missing.payload),
+			);
+		});
+
+		test("returns 404 for a non-uuid id without querying the database", async () => {
+			resetDatabase();
+			// A query would surface this as a 500; a 404 proves none ran.
+			mockSupabaseErrors.tables.reimbursements = {
+				message: 'invalid input syntax for type uuid: "not-a-uuid"',
+			};
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/not-a-uuid/receipt",
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 404);
+			assert.deepStrictEqual(JSON.parse(response.payload), {
+				error: "Receipt not found",
+			});
+		});
+
+		test("does not grant reviewers access through the owner route", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "GET",
+				url: `/api/reimbursements/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt`,
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 404);
+		});
+
+		test("returns 404 when the own request has no stored receipt", async () => {
+			resetDatabase();
+			const request = mockDatabase.reimbursements.find(
+				(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
+			);
+			assert.ok(request);
+			request.receipt_base64 = null;
+
+			const response = await app.inject({
+				method: "GET",
+				url: `/api/reimbursements/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt`,
+				headers: authHeaders(testTokens.user),
+			});
+
+			assert.strictEqual(response.statusCode, 404);
+		});
+
+		test("rejects unauthenticated requests", async () => {
+			resetDatabase();
+
+			const response = await app.inject({
+				method: "GET",
+				url: `/api/reimbursements/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt`,
 			});
 
 			assert.strictEqual(response.statusCode, 401);
@@ -862,9 +1049,9 @@ describe("Reimbursement Routes", async () => {
 			assert.deepStrictEqual(
 				data.map((row: { id: string }) => row.id),
 				[
-					"other-user-reimbursement",
-					"reimbursement-newer",
-					"reimbursement-older",
+					MOCK_OTHER_USER_REIMBURSEMENT_ID,
+					MOCK_REIMBURSEMENT_NEWER_ID,
+					MOCK_REIMBURSEMENT_OLDER_ID,
 				],
 			);
 			assert.strictEqual(data[0].receipt_base64, undefined);
@@ -876,10 +1063,8 @@ describe("Reimbursement Routes", async () => {
 				},
 				{
 					receipt_has_payload: true,
-					receipt_view_url:
-						"/api/reimbursements/review/other-user-reimbursement/receipt",
-					receipt_download_url:
-						"/api/reimbursements/review/other-user-reimbursement/receipt?download=1",
+					receipt_view_url: `/api/reimbursements/review/${MOCK_OTHER_USER_REIMBURSEMENT_ID}/receipt`,
+					receipt_download_url: `/api/reimbursements/review/${MOCK_OTHER_USER_REIMBURSEMENT_ID}/receipt?download=1`,
 				},
 			);
 		});
@@ -887,7 +1072,7 @@ describe("Reimbursement Routes", async () => {
 		test("does not show requester bank name when request payout details differ", async () => {
 			resetDatabase();
 			const request = mockDatabase.reimbursements.find(
-				(row) => row.id === "reimbursement-older",
+				(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
 			);
 			if (request) {
 				request.payment_iban = "DE12500105170648489890";
@@ -903,7 +1088,7 @@ describe("Reimbursement Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
 			const reviewedRequest = data.find(
-				(row: { id: string }) => row.id === "reimbursement-older",
+				(row: { id: string }) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
 			);
 			assert.strictEqual(reviewedRequest.bank_name, null);
 			assert.strictEqual(
@@ -965,7 +1150,7 @@ describe("Reimbursement Routes", async () => {
 
 			const inline = await app.inject({
 				method: "GET",
-				url: "/api/reimbursements/review/reimbursement-older/receipt",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt`,
 				headers: authHeaders(testTokens.admin),
 			});
 
@@ -979,7 +1164,7 @@ describe("Reimbursement Routes", async () => {
 
 			const download = await app.inject({
 				method: "GET",
-				url: "/api/reimbursements/review/reimbursement-older/receipt?download=1",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt?download=1`,
 				headers: authHeaders(testTokens.admin),
 			});
 
@@ -993,7 +1178,7 @@ describe("Reimbursement Routes", async () => {
 		test("redirects storage-backed receipt downloads to signed URLs", async () => {
 			resetDatabase();
 			const request = mockDatabase.reimbursements.find(
-				(row) => row.id === "reimbursement-older",
+				(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
 			);
 			assert.ok(request);
 			request.receipt_base64 = null;
@@ -1006,7 +1191,7 @@ describe("Reimbursement Routes", async () => {
 
 			const response = await app.inject({
 				method: "GET",
-				url: "/api/reimbursements/review/reimbursement-older/receipt?download=1",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt?download=1`,
 				headers: authHeaders(testTokens.admin),
 			});
 
@@ -1029,7 +1214,10 @@ describe("Reimbursement Routes", async () => {
 					"content-type": "application/json",
 				},
 				payload: JSON.stringify({
-					request_ids: ["reimbursement-older", "reimbursement-newer"],
+					request_ids: [
+						MOCK_REIMBURSEMENT_OLDER_ID,
+						MOCK_REIMBURSEMENT_NEWER_ID,
+					],
 				}),
 			});
 
@@ -1037,8 +1225,8 @@ describe("Reimbursement Routes", async () => {
 			assert.strictEqual(response.headers["content-type"], "application/zip");
 			const zip = await JSZip.loadAsync(response.rawPayload);
 			assert.deepStrictEqual(Object.keys(zip.files).sort(), [
-				"reimbursement-newer_newer.pdf",
-				"reimbursement-older_older.pdf",
+				`${MOCK_REIMBURSEMENT_OLDER_ID}_older.pdf`,
+				`${MOCK_REIMBURSEMENT_NEWER_ID}_newer.pdf`,
 			]);
 		});
 
@@ -1046,7 +1234,7 @@ describe("Reimbursement Routes", async () => {
 			test(`syncs approved ${submissionType} requests to BuchhaltungsButler`, async () => {
 				resetDatabase();
 				const expense = mockDatabase.reimbursements.find(
-					(row) => row.id === "reimbursement-newer",
+					(row) => row.id === MOCK_REIMBURSEMENT_NEWER_ID,
 				);
 				assert.ok(expense);
 				expense.submission_type = submissionType;
@@ -1104,7 +1292,7 @@ describe("Reimbursement Routes", async () => {
 
 				const response = await app.inject({
 					method: "POST",
-					url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
+					url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_NEWER_ID}/buchhaltungsbutler-sync`,
 					headers: {
 						...authHeaders(testTokens.admin),
 						"content-type": "application/json",
@@ -1123,7 +1311,7 @@ describe("Reimbursement Routes", async () => {
 
 				const second = await app.inject({
 					method: "POST",
-					url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
+					url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_NEWER_ID}/buchhaltungsbutler-sync`,
 					headers: {
 						...authHeaders(testTokens.admin),
 						"content-type": "application/json",
@@ -1144,7 +1332,7 @@ describe("Reimbursement Routes", async () => {
 		test("short-circuits in-flight BuchhaltungsButler sync attempts", async () => {
 			resetDatabase();
 			const request = mockDatabase.reimbursements.find(
-				(row) => row.id === "reimbursement-newer",
+				(row) => row.id === MOCK_REIMBURSEMENT_NEWER_ID,
 			);
 			assert.ok(request);
 			request.bb_sync_status = "pending";
@@ -1157,7 +1345,7 @@ describe("Reimbursement Routes", async () => {
 
 			const response = await app.inject({
 				method: "POST",
-				url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_NEWER_ID}/buchhaltungsbutler-sync`,
 				headers: {
 					...authHeaders(testTokens.admin),
 					"content-type": "application/json",
@@ -1185,7 +1373,7 @@ describe("Reimbursement Routes", async () => {
 
 			const response = await app.inject({
 				method: "POST",
-				url: "/api/reimbursements/review/reimbursement-newer/buchhaltungsbutler-sync",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_NEWER_ID}/buchhaltungsbutler-sync`,
 				headers: {
 					...authHeaders(testTokens.admin),
 					"content-type": "application/json",
@@ -1202,7 +1390,7 @@ describe("Reimbursement Routes", async () => {
 
 			const response = await app.inject({
 				method: "POST",
-				url: "/api/reimbursements/review/reimbursement-older/buchhaltungsbutler-sync",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}/buchhaltungsbutler-sync`,
 				headers: {
 					...authHeaders(testTokens.admin),
 					"content-type": "application/json",
@@ -1213,18 +1401,36 @@ describe("Reimbursement Routes", async () => {
 			assert.strictEqual(response.statusCode, 409);
 		});
 
+		test("returns 404 for a non-uuid reviewer receipt id without querying the database", async () => {
+			resetDatabase();
+			mockSupabaseErrors.tables.reimbursements = {
+				message: 'invalid input syntax for type uuid: "not-a-uuid"',
+			};
+
+			const response = await app.inject({
+				method: "GET",
+				url: "/api/reimbursements/review/not-a-uuid/receipt",
+				headers: authHeaders(testTokens.admin),
+			});
+
+			assert.strictEqual(response.statusCode, 404);
+			assert.deepStrictEqual(JSON.parse(response.payload), {
+				error: "Receipt not found",
+			});
+		});
+
 		test("protects reviewer receipt files", async () => {
 			resetDatabase();
 
 			const unauthenticated = await app.inject({
 				method: "GET",
-				url: "/api/reimbursements/review/reimbursement-older/receipt",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt`,
 			});
 			assert.strictEqual(unauthenticated.statusCode, 401);
 
 			const regularUser = await app.inject({
 				method: "GET",
-				url: "/api/reimbursements/review/reimbursement-older/receipt",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt`,
 				headers: authHeaders(testTokens.user),
 			});
 			assert.strictEqual(regularUser.statusCode, 403);
@@ -1233,7 +1439,7 @@ describe("Reimbursement Routes", async () => {
 		test("returns not found when a receipt payload is missing", async () => {
 			resetDatabase();
 			const request = mockDatabase.reimbursements.find(
-				(row) => row.id === "reimbursement-older",
+				(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
 			);
 			if (request) {
 				request.receipt_base64 = null;
@@ -1241,7 +1447,7 @@ describe("Reimbursement Routes", async () => {
 
 			const response = await app.inject({
 				method: "GET",
-				url: "/api/reimbursements/review/reimbursement-older/receipt",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}/receipt`,
 				headers: authHeaders(testTokens.admin),
 			});
 
@@ -1258,7 +1464,7 @@ describe("Reimbursement Routes", async () => {
 			try {
 				const approve = await app.inject({
 					method: "PATCH",
-					url: "/api/reimbursements/review/reimbursement-older",
+					url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 					headers: {
 						...authHeaders(testTokens.admin),
 						"content-type": "application/json",
@@ -1268,14 +1474,14 @@ describe("Reimbursement Routes", async () => {
 				assert.strictEqual(approve.statusCode, 200);
 				assert.strictEqual(
 					mockDatabase.reimbursements.find(
-						(row) => row.id === "reimbursement-older",
+						(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
 					)?.approval_status,
 					"approved",
 				);
 
 				const markPaid = await app.inject({
 					method: "PATCH",
-					url: "/api/reimbursements/review/reimbursement-older",
+					url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 					headers: {
 						...authHeaders(testTokens.admin),
 						"content-type": "application/json",
@@ -1284,14 +1490,14 @@ describe("Reimbursement Routes", async () => {
 				});
 				assert.strictEqual(markPaid.statusCode, 200);
 				const paidRequest = mockDatabase.reimbursements.find(
-					(row) => row.id === "reimbursement-older",
+					(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
 				);
 				assert.strictEqual(paidRequest?.payment_status, "paid");
 				assert.strictEqual(paidRequest?.status, "paid");
 
 				const reject = await app.inject({
 					method: "PATCH",
-					url: "/api/reimbursements/review/other-user-reimbursement",
+					url: `/api/reimbursements/review/${MOCK_OTHER_USER_REIMBURSEMENT_ID}`,
 					headers: {
 						...authHeaders(testTokens.admin),
 						"content-type": "application/json",
@@ -1303,7 +1509,7 @@ describe("Reimbursement Routes", async () => {
 				});
 				assert.strictEqual(reject.statusCode, 200);
 				const rejectedRequest = mockDatabase.reimbursements.find(
-					(row) => row.id === "other-user-reimbursement",
+					(row) => row.id === MOCK_OTHER_USER_REIMBURSEMENT_ID,
 				);
 				assert.strictEqual(rejectedRequest?.approval_status, "not_approved");
 				assert.strictEqual(rejectedRequest?.status, "rejected");
@@ -1322,21 +1528,21 @@ describe("Reimbursement Routes", async () => {
 					})),
 					[
 						{
-							requestId: "reimbursement-older",
+							requestId: MOCK_REIMBURSEMENT_OLDER_ID,
 							requesterEmail: "user@test.com",
 							statusType: "approval",
 							statusValue: "approved",
 							rejectionReason: undefined,
 						},
 						{
-							requestId: "reimbursement-older",
+							requestId: MOCK_REIMBURSEMENT_OLDER_ID,
 							requesterEmail: "user@test.com",
 							statusType: "payment",
 							statusValue: "paid",
 							rejectionReason: undefined,
 						},
 						{
-							requestId: "other-user-reimbursement",
+							requestId: MOCK_OTHER_USER_REIMBURSEMENT_ID,
 							requesterEmail: "other@test.com",
 							statusType: "approval",
 							statusValue: "not_approved",
@@ -1354,7 +1560,7 @@ describe("Reimbursement Routes", async () => {
 
 			const response = await app.inject({
 				method: "PATCH",
-				url: "/api/reimbursements/review/reimbursement-older",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 				headers: {
 					...authHeaders(testTokens.admin),
 					"content-type": "application/json",
@@ -1365,7 +1571,7 @@ describe("Reimbursement Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			assert.strictEqual(
 				mockDatabase.reimbursements.find(
-					(row) => row.id === "reimbursement-older",
+					(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
 				)?.department,
 				"Makeathon",
 			);
@@ -1418,7 +1624,7 @@ describe("Reimbursement Routes", async () => {
 			resetDatabase();
 			const currentMonth = new Date().toISOString().slice(0, 10);
 			const paidRequest = mockDatabase.reimbursements.find(
-				(row) => row.id === "reimbursement-newer",
+				(row) => row.id === MOCK_REIMBURSEMENT_NEWER_ID,
 			);
 			if (paidRequest) {
 				paidRequest.status = "paid";

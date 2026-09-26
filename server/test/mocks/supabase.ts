@@ -7,6 +7,14 @@ export const MOCK_USER_ID = "user-123";
 export const MOCK_ADMIN_ID = "admin-456";
 export const MOCK_OTHER_USER_ID = "user-789";
 
+// Reimbursement ids are uuids in Postgres and the routes validate them as such.
+export const MOCK_REIMBURSEMENT_OLDER_ID =
+	"7d1f3a52-5c1e-4b8e-9a64-0c2f5e1b7a01";
+export const MOCK_REIMBURSEMENT_NEWER_ID =
+	"7d1f3a52-5c1e-4b8e-9a64-0c2f5e1b7a02";
+export const MOCK_OTHER_USER_REIMBURSEMENT_ID =
+	"7d1f3a52-5c1e-4b8e-9a64-0c2f5e1b7a03";
+
 export const VALID_USER_TOKEN = "valid-user-token";
 export const VALID_ADMIN_TOKEN = "valid-admin-token";
 export const VALID_OTHER_USER_TOKEN = "valid-other-user-token";
@@ -291,7 +299,7 @@ export const mockDatabase: MockData = {
 	],
 	reimbursements: [
 		{
-			id: "reimbursement-older",
+			id: MOCK_REIMBURSEMENT_OLDER_ID,
 			user_id: MOCK_USER_ID,
 			amount: 25.5,
 			date: "2026-03-20",
@@ -311,7 +319,7 @@ export const mockDatabase: MockData = {
 			updated_at: "2026-03-20T10:00:00Z",
 		},
 		{
-			id: "reimbursement-newer",
+			id: MOCK_REIMBURSEMENT_NEWER_ID,
 			user_id: MOCK_USER_ID,
 			amount: 80,
 			date: "2026-04-12",
@@ -331,7 +339,7 @@ export const mockDatabase: MockData = {
 			updated_at: "2026-04-12T10:00:00Z",
 		},
 		{
-			id: "other-user-reimbursement",
+			id: MOCK_OTHER_USER_REIMBURSEMENT_ID,
 			user_id: MOCK_OTHER_USER_ID,
 			amount: 12,
 			date: "2026-04-13",
@@ -2801,7 +2809,7 @@ export function resetMockDatabase(): void {
 	mockStorage.clear();
 	mockDatabase.reimbursements = [
 		{
-			id: "reimbursement-older",
+			id: MOCK_REIMBURSEMENT_OLDER_ID,
 			user_id: MOCK_USER_ID,
 			amount: 25.5,
 			date: "2026-03-20",
@@ -2821,7 +2829,7 @@ export function resetMockDatabase(): void {
 			updated_at: "2026-03-20T10:00:00Z",
 		},
 		{
-			id: "reimbursement-newer",
+			id: MOCK_REIMBURSEMENT_NEWER_ID,
 			user_id: MOCK_USER_ID,
 			amount: 80,
 			date: "2026-04-12",
@@ -2841,7 +2849,7 @@ export function resetMockDatabase(): void {
 			updated_at: "2026-04-12T10:00:00Z",
 		},
 		{
-			id: "other-user-reimbursement",
+			id: MOCK_OTHER_USER_REIMBURSEMENT_ID,
 			user_id: MOCK_OTHER_USER_ID,
 			amount: 12,
 			date: "2026-04-13",

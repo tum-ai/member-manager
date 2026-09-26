@@ -120,6 +120,36 @@ function openBlob(blob: Blob): void {
 	window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
+/**
+ * Fetches a receipt through the row's own `receipt_view_url` and opens it in a
+ * new tab. The server scopes that URL to the list the row came from (owner or
+ * reviewer), so the same helper serves both hooks.
+ */
+async function openRequestReceipt(
+	request: ReimbursementRequest,
+): Promise<Blob> {
+	if (!request.receipt_view_url) {
+		throw new Error("Receipt is not available");
+	}
+
+	const blob = await apiBlobClient(request.receipt_view_url);
+	openBlob(blob);
+	return blob;
+}
+
+/** Downloads a receipt through the row's own `receipt_download_url`. */
+async function downloadRequestReceipt(
+	request: ReimbursementRequest,
+): Promise<Blob> {
+	if (!request.receipt_download_url) {
+		throw new Error("Receipt is not available");
+	}
+
+	const blob = await apiBlobClient(request.receipt_download_url);
+	downloadBlob(blob, request.receipt_filename ?? "receipt.pdf");
+	return blob;
+}
+
 export function useReimbursementRequests(userId: string) {
 	const queryClient = useQueryClient();
 
@@ -193,6 +223,16 @@ export function useReimbursementRequests(userId: string) {
 		},
 	});
 
+	// Rows from `GET /api/reimbursements` carry owner-scoped receipt URLs
+	// (`/api/reimbursements/:id/receipt`), so members can open their own files.
+	const openReceiptMutation = useMutation({
+		mutationFn: openRequestReceipt,
+	});
+
+	const downloadReceiptMutation = useMutation({
+		mutationFn: downloadRequestReceipt,
+	});
+
 	return {
 		requests: requests ?? [],
 		isLoading,
@@ -203,6 +243,10 @@ export function useReimbursementRequests(userId: string) {
 		isUploadingReceipt: receiptUploadMutation.isPending,
 		parseReceiptAsync: parseReceiptMutation.mutateAsync,
 		isParsingReceipt: parseReceiptMutation.isPending,
+		openReceiptAsync: openReceiptMutation.mutateAsync,
+		isOpeningReceipt: openReceiptMutation.isPending,
+		downloadReceiptAsync: downloadReceiptMutation.mutateAsync,
+		isDownloadingReceipt: downloadReceiptMutation.isPending,
 	};
 }
 
@@ -385,27 +429,11 @@ export function useReimbursementReview() {
 	});
 
 	const openReceiptMutation = useMutation({
-		mutationFn: async (request: ReimbursementRequest) => {
-			if (!request.receipt_view_url) {
-				throw new Error("Receipt is not available");
-			}
-
-			const blob = await apiBlobClient(request.receipt_view_url);
-			openBlob(blob);
-			return blob;
-		},
+		mutationFn: openRequestReceipt,
 	});
 
 	const downloadReceiptMutation = useMutation({
-		mutationFn: async (request: ReimbursementRequest) => {
-			if (!request.receipt_download_url) {
-				throw new Error("Receipt is not available");
-			}
-
-			const blob = await apiBlobClient(request.receipt_download_url);
-			downloadBlob(blob, request.receipt_filename ?? "receipt.pdf");
-			return blob;
-		},
+		mutationFn: downloadRequestReceipt,
 	});
 
 	return {

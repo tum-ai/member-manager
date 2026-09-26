@@ -2,8 +2,10 @@ import type { User } from "@supabase/supabase-js";
 import type React from "react";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
 import { ReimbursementFormSection } from "./components/ReimbursementFormSection";
+import { ReimbursementRequestDetailDialog } from "./components/ReimbursementRequestDetailDialog";
 import { ReimbursementRequestsSection } from "./components/ReimbursementRequestsSection";
 import { useReimbursementForm } from "./hooks/useReimbursementForm";
+import { useReimbursementRequestDetail } from "./hooks/useReimbursementRequestDetail";
 
 interface ReimbursementPageProps {
 	user: User;
@@ -31,6 +33,7 @@ export default function ReimbursementPage({
 		handleReceiptDrop,
 		handleSubmit,
 	} = useReimbursementForm(user.id);
+	const detail = useReimbursementRequestDetail(user.id);
 
 	return (
 		<ToolPageShell
@@ -42,6 +45,7 @@ export default function ReimbursementPage({
 					isLoading={isLoading}
 					error={error}
 					requests={sortedRequests}
+					onSelectRequest={detail.openDetail}
 				/>
 
 				<ReimbursementFormSection
@@ -61,6 +65,16 @@ export default function ReimbursementPage({
 					onSubmit={handleSubmit}
 				/>
 			</div>
+
+			<ReimbursementRequestDetailDialog
+				request={detail.selectedRequest}
+				open={detail.isDetailOpen}
+				onOpenChange={detail.setDetailOpen}
+				onViewReceipt={detail.handleViewReceipt}
+				onDownloadReceipt={detail.handleDownloadReceipt}
+				isOpeningReceipt={detail.isOpeningReceipt}
+				isDownloadingReceipt={detail.isDownloadingReceipt}
+			/>
 		</ToolPageShell>
 	);
 }

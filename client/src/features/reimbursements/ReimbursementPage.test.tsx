@@ -23,6 +23,8 @@ const {
 	createRequestAsync,
 	uploadReceiptAsync,
 	parseReceiptAsync,
+	openReceiptAsync,
+	downloadReceiptAsync,
 	showToast,
 	adminState,
 	hookState,
@@ -32,6 +34,8 @@ const {
 	createRequestAsync: vi.fn(),
 	uploadReceiptAsync: vi.fn(),
 	parseReceiptAsync: vi.fn(),
+	openReceiptAsync: vi.fn(),
+	downloadReceiptAsync: vi.fn(),
 	showToast: vi.fn(),
 	adminState: {
 		isAdmin: false,
@@ -82,6 +86,10 @@ vi.mock("../../hooks/useReimbursementRequests", () => ({
 		isUploadingReceipt: hookState.isUploadingReceipt,
 		parseReceiptAsync,
 		isParsingReceipt: hookState.isParsingReceipt,
+		openReceiptAsync,
+		isOpeningReceipt: false,
+		downloadReceiptAsync,
+		isDownloadingReceipt: false,
 	}),
 }));
 
@@ -153,6 +161,10 @@ describe("ReimbursementPage", () => {
 		});
 		parseReceiptAsync.mockReset();
 		parseReceiptAsync.mockResolvedValue({});
+		openReceiptAsync.mockReset();
+		openReceiptAsync.mockResolvedValue(new Blob());
+		downloadReceiptAsync.mockReset();
+		downloadReceiptAsync.mockResolvedValue(new Blob());
 		showToast.mockReset();
 		hookState.requests = [];
 		hookState.isLoading = false;
@@ -547,6 +559,129 @@ describe("ReimbursementPage", () => {
 				.compareDocumentPosition(screen.getByText("20 Apr 2026")) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
+	});
+
+	it("opens a request to show everything the member submitted, with a masked IBAN", async () => {
+		hookState.requests = [
+			{
+				id: "request-rejected",
+				user_id: "user-123",
+				amount: 64.2,
+				date: "2026-04-18",
+				description: "Workshop printing costs",
+				department: "Legal & Finance",
+				submission_type: "reimbursement",
+				payment_iban: "DE89370400440532013000",
+				payment_bic: "COBADEFFXXX",
+				status: "rejected",
+				approval_status: "not_approved",
+				payment_status: "to_be_paid",
+				rejection_reason: "Please attach an itemised invoice.",
+				receipt_filename: "printing.pdf",
+				receipt_view_url: "/api/reimbursements/request-rejected/receipt",
+				receipt_download_url:
+					"/api/reimbursements/request-rejected/receipt?download=1",
+				created_at: "2026-04-18T09:00:00Z",
+				updated_at: "2026-04-19T12:00:00Z",
+			},
+		];
+		const user = userEvent.setup();
+		renderPage();
+
+		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+		// Resolve the list before opening: the modal aria-hides the rest of the page.
+		const requestsList = screen
+			.getByRole("heading", { name: "Existing requests" })
+			.closest("div") as HTMLElement;
+		const trigger = screen.getByRole("button", {
+			name: /view details for reimbursement request from 18 apr 2026/i,
+		});
+		// The label replaces the card content for screen readers, so it must
+		// still announce the status and the rejection reason.
+		expect(trigger).toHaveAccessibleName(
+			/status: not approved\. reason: please attach an itemised invoice\.$/i,
+		);
+		await user.click(trigger);
+
+		const dialog = await screen.findByRole("dialog", {
+			name: "Reimbursement request",
+		});
+		const details = within(dialog);
+		expect(details.getByText("Legal & Finance")).toBeInTheDocument();
+		expect(details.getByText("Workshop printing costs")).toBeInTheDocument();
+		expect(details.getByText("DE89 •••• •••• 3000")).toBeInTheDocument();
+		expect(details.getByText("COBADEFFXXX")).toBeInTheDocument();
+		expect(
+			details.getByText("Please attach an itemised invoice."),
+		).toBeInTheDocument();
+		expect(details.getByText("printing.pdf")).toBeInTheDocument();
+		expect(details.getByText("Not approved")).toBeInTheDocument();
+		// The full IBAN must never be rendered to the member, in any format.
+		for (const region of [dialog, requestsList]) {
+			expect(region).not.toHaveTextContent("DE89370400440532013000");
+			expect(region).not.toHaveTextContent("DE89 3704 0044 0532 0130 00");
+		}
+
+		await user.click(details.getByRole("button", { name: "View receipt" }));
+		expect(openReceiptAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "request-rejected" }),
+		);
+		await user.click(details.getByRole("button", { name: "Download receipt" }));
+		expect(downloadReceiptAsync).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "request-rejected" }),
+		);
+
+		await user.keyboard("{Escape}");
+		await waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
+		// Keyboard users land back on the request they opened.
+		await waitFor(() => expect(trigger).toHaveFocus());
+	});
+
+	it("shows Vivid requests as not requiring payment and reports receipt errors", async () => {
+		hookState.requests = [
+			{
+				id: "request-vivid",
+				user_id: "user-123",
+				amount: 19.99,
+				date: "2026-05-02",
+				description: "Team offsite snacks",
+				department: "Community",
+				submission_type: "vivid_reimbursement",
+				status: "requested",
+				approval_status: "approved",
+				payment_status: "not_required",
+				receipt_filename: "snacks.png",
+				receipt_view_url: "/api/reimbursements/request-vivid/receipt",
+				receipt_download_url:
+					"/api/reimbursements/request-vivid/receipt?download=1",
+				created_at: "2026-05-02T09:00:00Z",
+			},
+		];
+		openReceiptAsync.mockRejectedValue(new Error("Receipt not found"));
+		const user = userEvent.setup();
+		renderPage();
+
+		const trigger = screen.getByRole("button", {
+			name: /view details for vivid reimbursement request/i,
+		});
+		trigger.focus();
+		await user.keyboard("{Enter}");
+
+		const dialog = await screen.findByRole("dialog");
+		const details = within(dialog);
+		expect(details.getAllByText("No payment required")).not.toHaveLength(0);
+		expect(details.queryByText("IBAN")).not.toBeInTheDocument();
+		expect(details.queryByText("BIC")).not.toBeInTheDocument();
+
+		await user.click(details.getByRole("button", { name: "View receipt" }));
+		await waitFor(() =>
+			expect(showToast).toHaveBeenCalledWith(
+				"Could not open receipt: Receipt not found",
+				"error",
+			),
+		);
 	});
 
 	it("uses local finance copy and a receipt-first upload without a redundant receipt heading", () => {

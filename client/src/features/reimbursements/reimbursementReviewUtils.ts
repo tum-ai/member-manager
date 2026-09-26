@@ -1,3 +1,4 @@
+import { maskIban } from "@member-manager/shared";
 import type {
 	ReimbursementApprovalStatus,
 	ReimbursementPaymentStatus,
@@ -97,6 +98,17 @@ export function getPaymentIban(request: ReimbursementRequest): string {
 	if (request.submission_type === "vivid_reimbursement")
 		return "Not applicable";
 	return request.payment_iban ?? request.iban ?? "Not provided";
+}
+
+/**
+ * Member-facing IBAN: country code, check digits, and last four characters
+ * only. Reviewers need the full value for payouts; the requester only needs
+ * to recognise which account they entered.
+ */
+export function getMaskedPaymentIban(request: ReimbursementRequest): string {
+	if (request.submission_type === "vivid_reimbursement")
+		return "Not applicable";
+	return maskIban(request.payment_iban ?? request.iban ?? "") || "Not provided";
 }
 
 export function getPaymentBic(request: ReimbursementRequest): string {
