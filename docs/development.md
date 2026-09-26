@@ -2,6 +2,10 @@
 
 Things that aren't obvious from reading the code. Read this before your first bug.
 
+Code conventions (architecture, imports, file size, tests) live in [`AGENTS.md`](../AGENTS.md) and
+the package guides it links to; they apply to humans and agents alike. CI is described in
+[ci.md](./ci.md).
+
 ## Environment file precedence
 
 The server and client both load `.env` and `.env.local`, but their interaction with pre-existing process env differs.
@@ -29,59 +33,10 @@ Implications:
 - Production uses Vercel/platform env vars. Avoid pointing local dev at production unless you are doing an explicit, careful production debug.
 - In prod on Vercel, the `.env*` files don't exist in the bundle (gitignored, not deployed), so platform env vars win unconditionally. This is intentional prod-safety — do **not** commit `.env`.
 
-## Optional receipt extraction
-
-The reimbursement tool can pre-fill amount, date, description, IBAN, and BIC from an uploaded receipt. Set `OPENAI_API_KEY` in `server/.env.local` or `server/.env` to enable it locally.
-
-If `OPENAI_API_KEY` is absent, uploads still work: the receipt stays attached and the user fills the editable fields manually.
-
-The Job Board reads approved member-submitted jobs from Member Manager and can also merge Partner Portal jobs through the server route `GET /api/jobs`. Set `PARTNER_PORTAL_JOBS_API_URL` to the Partner Portal `/api/public/v1/jobs` endpoint and `PARTNER_PORTAL_JOBS_API_TOKEN` to the same secret configured as Partner Portal `MM_API_TOKEN` to enable Partner Portal jobs. The same server-to-server credentials back the Partner Management tool; deployments may optionally set the clearer `PARTNER_PORTAL_API_URL` and `PARTNER_PORTAL_API_TOKEN` names, otherwise the server derives the portal origin and token from the jobs values. With those variables set, authorized Partnerships & Sponsors members can create, edit, and archive Partner Portal jobs directly from the partner directory, restore archived partners, and manage partner activation links. Member Manager admins can also select any organization, including archived ones, from the admin job-posting page and create, edit, or remove Partner Portal jobs on its behalf. Single-job accounts remain limited to one non-archived posting and never receive Partner Portal CV access; Bronze is retained only as the database compatibility tier. Local `pnpm setup:local` auto-fills the jobs values when `../partnerportal/apps/web/.env.local` exists. If those variables are absent, the job route still serves approved Member Manager job postings and the Partner Management tool reports that the portal is not configured. The browser never receives the token.
-
-Partner restore depends on the Partner Portal
-`POST /api/internal/member-manager/partners/:id/unarchive` endpoint. Deploy the
-Partner Portal change before enabling or deploying the Member Manager restore
-action; otherwise restore requests return a route-level error.
-
-Receipt files are uploaded directly from the browser to the private `reimbursement-receipts` Supabase Storage bucket through `POST /api/reimbursements/receipt-upload-url`; the reimbursement request stores only the storage reference. `POST /api/reimbursements/process-receipt` normalizes uploaded receipt payloads before submission. PDFs are returned as raw base64; JPG/PNG images are wrapped into a single-page PDF; filenames follow `DDMMYY_Name_Identifier.pdf` with `Expense` as the no-OpenAI fallback identifier.
-
-Submitted reimbursement and invoice requests appear in the Finance Review queue for active Legal & Finance members and admins. If `SLACK_BOT_TOKEN` is set, only eligible reviewers who enabled reimbursement Slack DMs in their profile receive a Slack DM. Approval, rejection, and paid status changes DM the requester by their Supabase auth email. Without Slack configuration, the queues and in-app statuses remain the source of truth.
-
-The subtle footer "Report a bug" action creates authenticated GitHub issues in this repo via `POST /api/bug-reports`, then posts a short Slack notification with the issue link and a round-robin mention of a current bug-report channel member. Configure a GitHub App with Issues read/write access and set `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and either `GITHUB_APP_PRIVATE_KEY` (escaped newlines are OK) or `GITHUB_APP_PRIVATE_KEY_BASE64`. Issues default to `tum-ai/member-manager`; override with `BUG_REPORT_GITHUB_REPOSITORY` or `BUG_REPORT_GITHUB_OWNER` + `BUG_REPORT_GITHUB_REPO`. Set optional `BUG_REPORT_GITHUB_LABELS` only for labels that already exist. Slack notification still needs `SLACK_BOT_TOKEN` and, optionally, `BUG_REPORT_SLACK_CHANNEL_ID` to override the default Member Manager bug-report channel (`C0B3YGL3XS5`). The Slack app must be invited to that channel and needs member-read access (`channels:read` for public channels). The tagged user is selected by issue number modulo the current channel member list after excluding the bot user. The GitHub issue includes the user id, current page, browser user agent, and the user's note, but not the reporter email.
-
-Finance review responses include receipt view/download URLs but never the raw `receipt_base64` payload. Reviewers can open `GET /api/reimbursements/review/:requestId/receipt` inline or add `?download=1` for an attachment response.
-
-Finance reviewers can also call `GET /api/reimbursements/summary` for dashboard essentials: total requests, total amount, pending approvals, approved-but-unpaid count, and paid amount for the current month.
-
-## BuchhaltungsButler sync
-
-Approved reimbursement and invoice requests can be synced to BuchhaltungsButler from Finance Review. The sync uploads the stored receipt to `POST /receipts/upload` as `invoice inbound`, sends amount/date/currency metadata, stores BuchhaltungsButler's `id_by_customer`, and adds a traceability comment with the Member Manager request ID. It does not create BuchhaltungsButler transactions by default to avoid duplicate bank-import entries.
-
-Set these server env vars to enable live sync:
-
-```bash
-BUCHHALTUNGSBUTLER_SYNC_ENABLED=true
-BUCHHALTUNGSBUTLER_API_CLIENT=
-BUCHHALTUNGSBUTLER_API_SECRET=
-BUCHHALTUNGSBUTLER_API_KEY=
-# optional; defaults to https://webapp.buchhaltungsbutler.de/api/v1
-BUCHHALTUNGSBUTLER_API_BASE_URL=
-```
-
-The Finance Transactions tool at `/tools/finance/buchhaltungsbutler` uses deterministic mock postings during local development, matching the original finance script's behavior. Production fails closed unless live postings are enabled. To read live postings from `POST /postings/get`, set the same credential vars plus:
-
-```bash
-BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API=true
-# legacy alias from the original script, also supported:
-BB_USE_REAL_API=1
-```
-
-`pnpm setup:local` preserves these values in `server/.env.local`; the credentials stay server-only and are never exposed to the browser.
-
-Regular Playwright runs always force mock postings and start their own API process. Run `pnpm test:e2e:finance-live` for the explicit live API smoke test; it uses the server-only credentials from `server/.env.local`.
-
-Slack reimbursement notifications use Block Kit buttons when `APP_BASE_URL` is set, `SLACK_BOT_TOKEN` is available, and the Slack app has `chat:write`, `users:read`, `users:read.email`, and `im:write` scopes. Footer bug-report channel-member rotation additionally needs `channels:read` for public channels (or the equivalent private-channel scope if the bug channel becomes private). Configure Slack interactivity to post to `/api/slack/interactions` and set `SLACK_SIGNING_SECRET` so the server can verify `X-Slack-Signature` before accepting approve / approve-and-sync button clicks.
-
-See `docs/buchhaltungsbutler-sync.md` for the API research and design notes.
+`pnpm setup:local` regenerates `server/.env.local` and keeps an allowlist of optional keys you added
+by hand (Slack, GitHub App, Partner Portal, BuchhaltungsButler, OpenSign, contract sender). A key that
+isn't on that list (`PRESERVED_OPTIONAL_SERVER_KEYS` in `scripts/setup-local-env.mjs`) is dropped on the next
+`pnpm dev`; put it in `server/.env` instead, or add it to the list.
 
 ## Environments
 
@@ -92,22 +47,17 @@ The app has two supported environments:
 | local | local Vite + Fastify | Docker-local Supabase at `http://127.0.0.1:54321` | resettable seed fixtures | `pnpm dev` / `pnpm dev:local` |
 | prod | Vercel production | hosted prod Supabase | real member data | deploy only |
 
-Same dev servers, explicit Supabase backend:
-
-| Command | Supabase | Docker? | How env is wired |
-| --- | --- | --- | --- |
-| `pnpm dev` | **local** Supabase at `http://127.0.0.1:54321` | yes | alias for `pnpm dev:local` |
-| `pnpm dev:local` | **local** Supabase at `http://127.0.0.1:54321` | yes | runs `supabase start` + `setup:local`, then starts dev servers reading freshly written `.env.local` files |
-
-Rule of thumb: use `pnpm dev` for normal local work, especially schema/auth/data changes. Improve local seed data when you need richer inspection fixtures; don't add hosted environments unless review/shareability needs justify the cost.
+`pnpm dev` is an alias for `pnpm dev:local`: it runs `supabase start` + `setup:local`, then starts the dev servers reading the freshly written `.env.local` files. Use it for normal local work, especially schema/auth/data changes. Improve local seed data when you need richer inspection fixtures; don't add hosted environments unless review/shareability needs justify the cost.
 
 If you hit "Invalid token" on `/api/*`, you probably have the wrong `SUPABASE_URL` on the server side — the JWT has to be validated against the same Supabase instance that issued it.
 
 The local API defaults to `http://127.0.0.1:8787` and Vite proxies `/api` there through `VITE_API_PROXY_TARGET`. Ports `3000` and `3001` are intentionally avoided because they are commonly occupied by other local apps; if `/api/*` returns a Next.js 404, restart with `pnpm dev` so the generated `.env.local` files point Vite at the member-manager API.
 
-## Slack OIDC locally
+## Local sign-in and Slack OIDC
 
-Local Slack login is **optional**. Skip this section if email/password is enough.
+Production sign-in is Slack only. Locally, the login screen also offers password sign-in and "Continue as local admin" buttons for the seeded accounts; they only appear in dev mode against local Supabase.
+
+Local Slack login is **optional**:
 
 1. Copy `supabase/.env.example` → `supabase/.env.local`, fill in Slack Client ID and Secret from the TUM.ai Slack app.
 2. In the Slack app's "Redirect URLs", ensure `http://127.0.0.1:54321/auth/v1/callback` is present. `supabase/config.toml` also sets this value as `auth.external.slack_oidc.redirect_uri`; GoTrue rejects Slack OIDC with `Unsupported provider: missing redirect URI` if it is blank.
@@ -116,6 +66,49 @@ Local Slack login is **optional**. Skip this section if email/password is enough
 The wrapper script `scripts/supabase-start.mjs` loads `supabase/.env.local` into the CLI's environment before spawning, so the `env(...)` refs in `supabase/config.toml` resolve. The raw `supabase start` CLI does **not** do this — always go through the pnpm script.
 
 **The redirect-URL trailing-slash trap (GoTrue):** `additional_redirect_urls` in `supabase/config.toml` is matched *exactly*, including trailing slash. The app asks for `http://localhost:5173/` but with only `http://localhost:5173` whitelisted, GoTrue silently falls back to `site_url` and you get mysterious redirects. The committed `config.toml` already lists all four variants (`localhost`/`127.0.0.1`, with/without `/`) — keep it that way if you touch it.
+
+## Local integrations (all optional)
+
+Every integration below is off unless its env vars are set in `server/.env.local`. Without them the feature degrades gracefully, and the local stack stubs the ones that could reach production.
+
+### Receipt extraction (OpenAI)
+
+The reimbursement tool can pre-fill amount, date, description, IBAN, and BIC from an uploaded receipt. Set `OPENAI_API_KEY` to enable it. Without it, uploads still work and the user fills the fields manually.
+
+Receipt files are uploaded directly from the browser to the private `reimbursement-receipts` Supabase Storage bucket through `POST /api/reimbursements/receipt-upload-url`; the request stores only the storage reference. `POST /api/reimbursements/process-receipt` normalizes uploaded receipts: PDFs are returned as raw base64, JPG/PNG images are wrapped into a single-page PDF, and filenames follow `DDMMYY_Name_Identifier.pdf` with `Expense` as the no-OpenAI fallback identifier.
+
+### Slack notifications and interactions
+
+Submitted reimbursement and invoice requests appear in the Finance Review queue for active Legal & Finance members and admins. If `SLACK_BOT_TOKEN` is set, eligible reviewers who enabled reimbursement Slack DMs in their profile receive a DM, and approval, rejection, and paid status changes DM the requester. Without Slack configuration, the queues and in-app statuses remain the source of truth.
+
+Block Kit buttons need `APP_BASE_URL`, `SLACK_BOT_TOKEN`, and the scopes `chat:write`, `users:read`, `users:read.email`, and `im:write`. Configure Slack interactivity to post to `/api/slack/interactions` and set `SLACK_SIGNING_SECRET` so the server can verify `X-Slack-Signature` before accepting approve / approve-and-sync clicks.
+
+### Bug reports (GitHub App)
+
+The footer "Report a bug" action creates GitHub issues via `POST /api/bug-reports`, then posts a Slack notification that mentions a bug-report channel member (round robin by issue number). Configure a GitHub App with Issues read/write and set `GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, and either `GITHUB_APP_PRIVATE_KEY` (escaped newlines are OK) or `GITHUB_APP_PRIVATE_KEY_BASE64`. Issues default to `tum-ai/member-manager`; override with `BUG_REPORT_GITHUB_REPOSITORY` or `BUG_REPORT_GITHUB_OWNER` + `BUG_REPORT_GITHUB_REPO`. Set `BUG_REPORT_GITHUB_LABELS` only for labels that already exist. The Slack post needs `SLACK_BOT_TOKEN`, optionally `BUG_REPORT_SLACK_CHANNEL_ID` (default `C0B3YGL3XS5`), the app invited to that channel, and `channels:read`. The issue includes the user id, current page, user agent, and note, but not the reporter email.
+
+On the local stack, bug reports are stubbed: no issue is created, and the Slack post is suppressed even if `.env.local` has a real `SLACK_BOT_TOKEN`.
+
+### Partner Portal (jobs and partner management)
+
+The Job Board merges approved member-submitted jobs with Partner Portal jobs through `GET /api/jobs`. Set `PARTNER_PORTAL_JOBS_API_URL` to the Partner Portal `/api/public/v1/jobs` endpoint and `PARTNER_PORTAL_JOBS_API_TOKEN` to the Partner Portal's `MM_API_TOKEN`. The same server-to-server credentials back the Partner Management tool (`PARTNER_PORTAL_API_URL` / `PARTNER_PORTAL_API_TOKEN` are optional clearer names; otherwise the server derives them from the jobs values). `pnpm setup:local` auto-fills the jobs values when `../partnerportal/apps/web/.env.local` exists. Without them, the job route serves only Member Manager postings and Partner Management reports that the portal is not configured. The browser never receives the token.
+
+Partner restore depends on the Partner Portal `POST /api/internal/member-manager/partners/:id/unarchive` endpoint; deploy that Partner Portal change first. E2E runs against `e2e/partner-portal-stub.mjs` instead of a real portal.
+
+### BuchhaltungsButler
+
+Approved reimbursement and invoice requests can be synced to BuchhaltungsButler from Finance Review. The sync uploads the stored receipt to `POST /receipts/upload` as `invoice inbound`, sends amount/date/currency metadata, stores BuchhaltungsButler's `id_by_customer`, and adds a traceability comment with the Member Manager request ID. It does not create BuchhaltungsButler transactions, to avoid duplicate bank-import entries.
+
+```bash
+BUCHHALTUNGSBUTLER_SYNC_ENABLED=true
+BUCHHALTUNGSBUTLER_API_CLIENT=
+BUCHHALTUNGSBUTLER_API_SECRET=
+BUCHHALTUNGSBUTLER_API_KEY=
+# optional; defaults to https://webapp.buchhaltungsbutler.de/api/v1
+BUCHHALTUNGSBUTLER_API_BASE_URL=
+```
+
+The finance tool uses deterministic mock postings in local development. Production fails closed unless live postings are enabled with `BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API=true` (legacy alias `BB_USE_REAL_API=1`) plus the credentials above. Regular Playwright runs always force mock postings; `pnpm test:e2e:finance-live` is the explicit live-API smoke test and uses the credentials from `server/.env.local`. Background: [archive/buchhaltungsbutler-sync.md](./archive/buchhaltungsbutler-sync.md).
 
 ## macOS DNS cache + paused Supabase projects
 
@@ -142,64 +135,39 @@ sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
 - engagement-certificate request states: pending, approved, rejected
 - reimbursement states: pending, approved/unpaid, paid/synced, rejected
 
-All seeded local accounts use password `password123`.
+All seeded local accounts use password `password123`:
+
+| Email | Role / fixture purpose |
+| --- | --- |
+| `admin@example.com` | admin |
+| `legal-finance-lead@example.com` | finance reviewer with SEPA data |
+| `board-lead@example.com` | board/team-lead fixture with approved certificate request |
+| `regular-member@example.com` | user with admin-managed profile fields unset |
+| `user@example.com` | regular active member with SEPA data and pending requests |
+| `research-member@example.com` | alumni/research fixture |
+| `venture-member@example.com` | inactive fixture |
+| `no-bank-details@example.com` | member who never saved bank details (no SEPA row) |
+
+Additional department/team-lead accounts are seeded for member-list, org-chart, admin, reimbursement, and certificate review flows. E2E depends on some of them: `e2e/helpers.ts` hard-codes the seeded accounts and the contract signing token, and `scripts/check-seed-fixture-parity.test.mjs` fails if the two drift.
 
 `seed.sql` inserts `auth.users` rows with explicit empty strings for `confirmation_token`, `recovery_token`, `email_change_token_new`, `email_change`. **Don't "clean that up"** — GoTrue's Go driver scans these nullable VARCHAR columns as plain strings and crashes with `converting NULL to string is unsupported` on login. There are also matching `auth.identities` rows, which newer GoTrue versions require for email auth to find the user.
 
-Re-apply after edits: `pnpm supabase:reset`.
-
-## Frontend code standards
-
-Phase 0 of the client remediation effort. These are enforced (or scheduled to be) so structure holds before larger refactors land.
-
-### File size
-
-`scripts/check-file-size.mjs` enforces a per-file line budget for React surfaces. It runs as part of `pnpm lint` (and standalone via `pnpm check:filesize`), so it is covered by the existing **Lint** CI job and by the local lint step:
-
-| Limit | Scope | Behaviour |
-| --- | --- | --- |
-| **700 lines (hard)** | `client/src/features/**/*.tsx`, `client/src/components/layout/**/*.tsx` | CI fails (exit 1) |
-| **400 lines (soft)** | same scope | prints a non-failing warning |
-
-Exempt entirely: `client/src/components/ui/**` (shadcn primitives), `*.d.ts`, `*.stories.tsx`, `*.test.ts`, `*.test.tsx`.
-
-A short **allowlist** in the script holds the files that already exceed 700 lines (`ProfilePage`, `AdminDatabaseView`, `ContractTemplatesPage`, `ContractSubmissionDetailPage`, `TumaiDaysPage`, `JobPostingsPage`, `ReimbursementPage`, `MemberForm`). These are suppressed from the hard-fail but print a backlog notice each run; they are tracked remediation debt (#189). When you split one below 700, delete it from the allowlist — never add new entries to dodge the gate. The script self-polices this: a **stale allowlist** warning prints when an entry is no longer tracked (renamed/deleted) or has dropped to ≤700 lines, so dead entries don't linger.
-
-### Import / export conventions
-
-- Cross-folder imports use the `@/` path alias (e.g. `@/lib/constants`, `@/hooks/useAdminData`). Relative imports (`./`, `../`) are reserved for **within a single feature** (`client/src/features/<feature>/`).
-- The file-size script also flags relative imports that escape a feature directory. This is a **non-failing WARNING** for now (the current tree has many) — it documents the direction of travel, not a hard gate. Biome enforcement of the import boundary and named-export rules arrives in #183.
-- Prefer **named exports**. The two intentional exceptions are lazy-loaded route page components (default export for `React.lazy`) and Storybook stories (default export for the meta object).
-
-### Types location
-
-- Feature-local types live beside the feature in a `*Types.ts` file (e.g. `client/src/features/<feature>/<feature>Types.ts`).
-- Ambient and cross-feature types live in the central `client/src/types/` directory and are imported via `@/types`.
-
-### Test layers
-
-| Layer | Where | Tool |
-| --- | --- | --- |
-| Unit / hook | `client/src/**/__tests__/*` | Vitest |
-| Component / interaction | `client/src/**/__tests__/*` | Vitest + Testing Library |
-| Storybook play | `*.stories.tsx` | Storybook play functions |
-| End-to-end | `e2e/` | Playwright |
-
-See the "Testing layout" section below for the full runner matrix and commands.
+Re-apply after edits: `pnpm supabase:reset`. It wipes the local database, including anything you loaded beyond the seed.
 
 ## Testing layout
 
-Three test runners, each in its natural place:
-
 | Runner | Where | What |
 | --- | --- | --- |
-| `node --test` | `scripts/*.test.mjs` | Plain JS dev scripts (env generator, supabase-start wrapper) |
-| `tsx --test` | `server/test/**/*.test.ts` | Fastify routes, middleware, encryption, unit helpers |
-| Vitest | `client/src/**/__tests__/*` | React components and hooks |
+| Vitest (`unit` project) | `client/src/**/*.test.ts(x)` | React components, hooks, utils (jsdom + RTL + MSW) |
+| Vitest (`storybook` project) | `client/src/**/*.stories.tsx` | play functions + a11y checks in a real browser |
+| `tsx --test` | `server/test/**/*.test.ts` | Fastify routes, middleware, encryption, libs |
+| `node --test` | `shared/test/*.test.ts` | shared schemas, against the built `dist/` |
+| `node --test` | `scripts/*.test.mjs` | dev scripts, seed parity, migration and config guards |
+| Playwright | `e2e/*.spec.ts` | end-to-end against the real local stack |
 
-Run all: `pnpm test`. Run one workspace: `pnpm --filter @member-manager/server test` or `pnpm --filter @member-manager/client test`. Add coverage with `pnpm test:coverage` (enforces the ratcheting floor — see below).
+Run all unit and integration tests with `pnpm test`, or one workspace with `pnpm --filter @member-manager/<client|server|shared> test`. Coverage floors are only enforced by `pnpm test:coverage` (what CI runs). Storybook tests: `pnpm --filter @member-manager/client test:storybook` (needs Playwright Chromium).
 
-End-to-end smoke tests live in `e2e/` (Playwright). Start and seed local Supabase with `pnpm supabase:start`, `pnpm supabase:reset`, and `pnpm setup:local`, then run `pnpm test:e2e` (or `pnpm test:e2e:ui`). Playwright starts its own API process, so stop any server already using the configured E2E port first. The login screen's "Continue as local admin" button only appears in dev mode against local Supabase, which is what the specs drive.
+End-to-end tests: start and seed local Supabase with `pnpm supabase:start`, `pnpm supabase:reset`, and `pnpm setup:local`, then run `pnpm test:e2e` (or `pnpm test:e2e:ui`). Playwright starts its own API process, so stop any server already using the configured E2E port first. See [`e2e/AGENTS.md`](../e2e/AGENTS.md).
 
 Verification tests that hit a running local stack live in `scripts/verify-*.test.mjs`. They skip silently if Supabase isn't reachable, so they're safe to run by default.
 
@@ -216,7 +184,7 @@ This writes two hooks:
 - `.git/hooks/pre-commit` — fast staged-file Biome check (`pnpm lint:staged`).
 - `.git/hooks/pre-push` — enforcing fast gate (`pnpm lint && pnpm typecheck`); bypass a one-off push with `git push --no-verify`.
 
-The installer is conservative: it refuses to overwrite a *custom* `pre-commit`/`pre-push` hook, but transparently upgrades the previous repo-managed pre-push hooks. It skips silently when there is no `.git` directory (CI, Git worktrees, tarball installs), so `pnpm install` never fails on hook setup.
+The installer is conservative: it refuses to overwrite a *custom* `pre-commit`/`pre-push` hook, but transparently upgrades the previous repo-managed pre-push hooks. It skips when there is no `.git` directory (CI, tarball installs) or when run inside a Git worktree, so `pnpm install` never fails on hook setup. Worktrees share the main checkout's `.git/hooks`, so install them once from the main checkout.
 
 For a quick read-only environment check (Node vs `.nvmrc`, `.env.local` files, local Supabase reachability):
 
@@ -224,49 +192,13 @@ For a quick read-only environment check (Node vs `.nvmrc`, `.env.local` files, l
 pnpm doctor
 ```
 
-The full merge gate remains:
-
-```bash
-pnpm gate
-```
-
-That expands to:
-
-```bash
-pnpm lint && pnpm typecheck && pnpm test && pnpm build
-```
-
-Run `pnpm gate` manually before PRs, deploys, or risky changes. CI runs the full gate for pull requests and pushes to `main`.
-
-## CI gates and ratcheting
-
-CI (`.github/workflows/`) runs each gate as its own job so failures are isolated. The toolchain setup (pnpm + Node + install + `build:shared`) is shared via the `./.github/actions/setup` composite action. `build`/`typecheck`/`lint`/`test` run through **Turborepo** (`turbo run …`) with the Vercel remote cache; see [deployment.md](./deployment.md#6-github-actions-secrets-turborepo-remote-cache) for the `TURBO_TOKEN`/`TURBO_TEAM` setup. The heavy jobs (E2E, Storybook, Supabase reset, Bundle Size) are **path-gated**: on a docs-only PR their expensive steps skip while the job still reports green, so branch protection is unaffected.
-
-| Job (workflow) | Command | Notes |
-| --- | --- | --- |
-| Lint | `pnpm lint` | Biome + file-size guardrail (`check-file-size.mjs`, hard-fails >700-line feature/layout `.tsx` — see "Frontend code standards") |
-| Typecheck | `pnpm typecheck` | `tsc --noEmit` per package |
-| Build | `pnpm build` | |
-| Test | `pnpm test:coverage` | Vitest (client) + c8 (server) + `pnpm test:scripts` (includes seed↔fixture parity), coverage uploaded to Codecov |
-| Bundle Size | `node scripts/check-bundle-size.mjs` | gzip-measures built client JS against a budget; advisory (not a required check yet) |
-| Workflow Lint | actionlint + zizmor | zizmor is advisory: the workflow baseline still has unpinned-action / `pull_request_target` findings to address before it can be a hard gate |
-| Spell Check | `crate-ci/typos` | config in `_typos.toml` |
-| E2E (`e2e.yml`) | `pnpm test:e2e` | Playwright smoke vs a real local Supabase stack |
-| Dependency Review (`dependency-review.yml`) | — | fails on high-severity advisories |
-| CodeQL (`codeql.yml`) | — | JS/TS security scan, also weekly |
-| PR Title (`pr-title.yml`) | — | Conventional-Commit title |
-
-Two gates are designed to **ratchet** — tighten over time, never loosen:
-
-- **Coverage floor.** Thresholds live in `client/vite.config.ts` (`test.coverage.thresholds`) and the server `test:coverage` script (`c8 --lines/--functions/--branches`). They sit just below current coverage so CI fails on a regression. When coverage rises, raise the numbers in the same PR. Never lower them to make a build pass — add tests instead.
-- **Biome rules.** `biome.json` enables `recommended` plus a set of stricter, already-clean rules. To tighten further, probe a candidate rule (`pnpm exec biome lint --only=<group>/<rule> client/src server/src shared/src`), and if it is clean (or auto-fixable with `pnpm lint:apply`), promote it to `"error"` in `biome.json`. Fix violations; don't disable rules.
-
-E2E is not a required merge check yet — let it stabilize across a few runs first, then add it to branch protection. Required status checks are configured in the GitHub repo settings (not in this repo).
+The full local gate is `pnpm gate` (`pnpm lint && pnpm typecheck && pnpm test && pnpm build`). Run it before PRs and risky changes. It is a subset of CI: coverage floors, spell check, Storybook tests, and E2E only run in CI unless you run them yourself ([ci.md](./ci.md)).
 
 ## Schema migrations
 
 - Local: add SQL files to `supabase/migrations/` (timestamp-prefixed), then `pnpm supabase:reset` to re-apply the full chain against a fresh DB.
 - Prod: merge migrations to `main`; GitHub Actions applies them to the hosted production project with `supabase db push` before asserting migration parity. Do **not** hand-edit tables in Studio — migrations are append-only history and must round-trip.
+- A migration must sort after the newest one already applied in production, or the push fails. Rename unmerged migrations on long-lived branches before merging. More rules: [`supabase/AGENTS.md`](../supabase/AGENTS.md).
 
 ## Sensitive-data fields
 
@@ -279,14 +211,15 @@ The server encrypts certain columns before insert (`server/src/lib/sensitiveData
 - If an older environment still has plaintext rows, run
   `pnpm --filter @member-manager/server backfill:encryption` once.
 - For key changes, follow the fallback-key and `rotate:encryption` procedure in
-  the deployment guide.
+  the [deployment guide](./deployment.md#field-encryption-and-rotation).
 
 ## The Vercel function wrapper
 
 `api/[...path].ts` is the Vercel entry point. It imports from `server/dist/app.js` (the built output), **not** `server/src/app.ts`. So:
 
-- Always run `pnpm build` before `vercel deploy` or before debugging the prod function locally with `vercel dev`.
-- Changes to server code require a rebuild to show up via the Vercel function path. (Plain `pnpm dev` / `pnpm dev:local` bypasses this and uses `tsx watch` directly.)
+- Production and preview deploys build in GitHub Actions (`vercel build`), so there is nothing to build by hand before a deploy.
+- To debug the function path locally with `vercel dev`, run `pnpm build` first; `pnpm dev` bypasses the wrapper and uses `tsx watch` directly.
+- Some failures only show up in the deployed function (the rewrite's `path` query parameter, untraced dynamic requires, the 4.5 MB body cap). See "Production-only traps" in [`server/AGENTS.md`](../server/AGENTS.md).
 
 ## Common failure modes (and first thing to check)
 
@@ -297,4 +230,6 @@ The server encrypts certain columns before insert (`server/src/lib/sensitiveData
 | Slack login redirects back to site instead of Slack | `additional_redirect_urls` missing the exact URL (trailing-slash trap) |
 | `MemberList` stuck on spinner / error card | `/api/members` 401 or 500 — curl it with a Bearer token, check server logs |
 | `converting NULL to string is unsupported` in GoTrue | Don't touch the empty-string columns in `seed.sql` |
-| Vercel deploy 500s but local works | Forgot `pnpm build`, or Vercel env vars missing/wrong |
+| Generic 500 "A database error occurred" on an embed | Missing foreign key for a PostgREST embed (PGRST200) — see `supabase/AGENTS.md` |
+| Works locally, 400/500 only on Vercel | A production-only trap (`server/AGENTS.md`), or Vercel env vars missing/wrong |
+| An optional env var vanished after `pnpm dev` | Not in `PRESERVED_OPTIONAL_SERVER_KEYS`; move it to `server/.env` |

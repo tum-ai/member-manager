@@ -1,6 +1,6 @@
 # Deployment Guide
 
-Production lives on **Vercel**, backed by the hosted **Supabase** project. After the private-repository cutover, production deploys are owned by the trusted GitHub Actions workflow described below. A push to `main` is eligible only after the complete CI workflow, including migrations, succeeds.
+Production lives on **Vercel**, backed by the hosted **Supabase** project. Since #337 (2026-09-06), GitHub Actions owns every deployment: a push to `main` deploys only after the complete CI workflow, including migrations, succeeds, and PR previews deploy only on a maintainer's `/deploy-preview` comment. Vercel's Git integration no longer deploys. CI itself is described in [ci.md](./ci.md).
 
 ## Architecture
 
@@ -52,7 +52,7 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `GITHUB_APP_INSTALLATION_ID` | GitHub App installation ID | required for in-app bug reports; install the app on `tum-ai/member-manager` |
 | `GITHUB_APP_PRIVATE_KEY` | GitHub App private key PEM | required unless `GITHUB_APP_PRIVATE_KEY_BASE64` is set; escaped `\\n` newlines are supported |
 | `GITHUB_APP_PRIVATE_KEY_BASE64` | base64-encoded GitHub App private key PEM | optional alternative to `GITHUB_APP_PRIVATE_KEY` for hosts that dislike multiline secrets |
-| `BUG_REPORT_GITHUB_REPOSITORY` | `tum-ai/member-manager` | optional; target repo for footer bug-report issues |
+| `BUG_REPORT_GITHUB_REPOSITORY` | `tum-ai/member-manager` | optional; target repo for footer bug-report issues (or set `BUG_REPORT_GITHUB_OWNER` + `BUG_REPORT_GITHUB_REPO`) |
 | `BUG_REPORT_GITHUB_LABELS` | e.g. `bug,reported-via-app` | optional; set only if these labels already exist in the repo |
 | `SLACK_BOT_TOKEN` | Slack bot token | optional for workflow DMs; required for bug-report Slack notifications; app also needs channel member-read access (`channels:read` for public channels) |
 | `BUG_REPORT_SLACK_CHANNEL_ID` | `C0B3YGL3XS5` | Slack channel receiving footer bug-report issue notifications; code defaults to this channel, but set explicitly in Vercel and invite the bot to the channel |
@@ -63,8 +63,10 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `RSVP_TARGET_EMAILS` | comma-separated target emails | required before scheduled TUM.ai Days Slack DMs are sent; `TEST_RSVP_EMAIL` can restrict to one test recipient |
 | `RESEND_API_KEY` | Resend API key | required to send partner contract signing-link emails |
 | `CONTRACT_EMAIL_FROM` | verified sender, e.g. `contracts@tum-ai.com` | required with `RESEND_API_KEY`; must be accepted by Resend |
+| `CONTRACT_LEGAL_EMAIL` | legal team address | optional; receives contract status-change notifications. When unset, only the contract creator is notified |
 | `CONTRACT_DOCX_CONVERTER_MODE` | `sandbox` | required for the production DOCX workflow; `fake` is rejected in production |
 | `CONTRACT_LIBREOFFICE_SANDBOX_IMAGE` | immutable VCR image digest | required for DOCX to PDF conversion; use the pushed VCR image reference ending in `@sha256:<64 hex characters>` |
+| `CONTRACT_LIBREOFFICE_SANDBOX_SNAPSHOT_ID` | Vercel Sandbox snapshot ID | optional; **takes precedence over the image** and skips the digest check, so leave unset unless you deliberately run from a snapshot (see [infra/libreoffice](../infra/libreoffice/README.md)) |
 | `OPENSIGN_API_TOKEN` | OpenSign API token | required to send reviewed contracts through hosted OpenSign |
 | `OPENSIGN_BASE_URL` | `https://eu-app.opensignlabs.com/api/v1.2` | optional override; set explicitly if the OpenSign account uses a different host |
 | `OPENSIGN_WEBHOOK_SECRET` | strong random shared secret | required for `/api/webhooks/opensign`; must match the webhook secret configured in OpenSign |
@@ -74,12 +76,16 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `PARTNER_PORTAL_JOBS_API_TOKEN` | shared Member Manager jobs API token | optional with the URL; must match Partner Portal `MM_API_TOKEN` for both approved-job reads and pending-request review; this is separate from `PARTNER_EXPORT_TOKEN` |
 | `PARTNER_PORTAL_API_URL` | Partner Portal origin, e.g. `https://partners.tum-ai.com` | optional preferred base URL for partner management; falls back to the origin of `PARTNER_PORTAL_JOBS_API_URL` |
 | `PARTNER_PORTAL_API_TOKEN` | shared Partner Portal `MM_API_TOKEN` | optional preferred partner-management token; falls back to `PARTNER_PORTAL_JOBS_API_TOKEN` |
+| `PARTNER_EXPORT_TOKEN` | strong random bearer secret | authorizes the internal CV export endpoint the Partner Portal calls; separate from the jobs token |
 | `BUCHHALTUNGSBUTLER_SYNC_ENABLED` | `true` | required to enable live BuchhaltungsButler sync |
 | `BUCHHALTUNGSBUTLER_API_CLIENT` | BuchhaltungsButler API client | required with sync enabled |
 | `BUCHHALTUNGSBUTLER_API_SECRET` | BuchhaltungsButler API secret | required with sync enabled |
 | `BUCHHALTUNGSBUTLER_API_KEY` | BuchhaltungsButler customer API key | required with sync enabled; ties sync to the BB account |
 | `BUCHHALTUNGSBUTLER_API_BASE_URL` | `https://webapp.buchhaltungsbutler.de/api/v1` | optional override |
+| `BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API` | `true` | required in production for the read-only finance postings route; without it the route fails closed |
 | `WEBSITE_RESEARCH_API_URL` | `https://www.tum-ai.com/api/getResearch` | optional override for research-project metadata; defaults to production website API |
+
+**Never set in production:** `ENABLE_LOCAL_ADMIN_BOOTSTRAP` and `LOCAL_ADMIN_EMAILS` enable the local-only admin bootstrap and the local bug-report stubs.
 
 **Client build-time** (baked into the JS bundle by `vite build`; `VITE_` prefix required):
 
@@ -129,9 +135,9 @@ Migrations in `supabase/migrations/` apply locally via `pnpm supabase:reset`. Fo
 
 If local and hosted schemas drift, `/api/members` and friends will 500 in prod with DB errors. Keep schema changes in migrations and do not hand-edit production tables in Supabase Studio.
 
-### 5. Vercel Git integration and deployment ownership
+### 5. Deployment ownership (GitHub Actions)
 
-Before the private-repository cutover, Vercel's Git integration may still create automatic deployments. The intended post-cutover ownership is:
+GitHub Actions owns both deployment paths:
 
 - `Vercel Production` runs only after the trusted `CI` workflow succeeds for a push to `main`. It checks out `github.event.workflow_run.head_sha`, builds locally, and uploads a prebuilt production artifact.
 - Immediately before the production deploy, the workflow reads the current `main` tip through the GitHub API and compares it with the CI SHA. If `main` advanced while the run was queued or building, the deployment is skipped and the Actions summary records both SHAs.
@@ -140,11 +146,13 @@ Before the private-repository cutover, Vercel's Git integration may still create
 - A new PR SHA needs a new `/deploy-preview` comment. Preview deployments are not triggered by arbitrary pushes or by `pull_request_target`.
 - Both workflows serialize deployments and never cancel an active deployment. Their workflow files run from the default branch, while only the authorized commit is checked out for the build.
 
-After the Actions workflows have been verified, disconnect the project's Vercel Git integration immediately before merging the cutover change. This prevents duplicate Git-triggered builds and leaves GitHub Actions as the only production deployment path. Keep the Vercel project and domains in place.
+The project's Vercel Git integration is disconnected (its last Git-triggered deployment was on 2026-09-02). Keep it that way: a reconnected integration would build every push in parallel with, and possibly ahead of, the CI-gated Actions deploy. The Vercel project and domains stay in place.
 
-### 6. GitHub Actions secrets (Turborepo remote cache)
+To see which commit is live: `gh run list --workflow "Vercel Production" --limit 1`.
 
-CI runs `build`/`typecheck`/`lint`/`test` through Turborepo and uses Vercel's remote cache so unchanged packages are restored instead of rebuilt. The deployment workflows also require three repository secrets (**Settings → Secrets and variables → Actions**):
+### 6. GitHub Actions secrets
+
+The production migration jobs in `ci.yml` need `SUPABASE_ACCESS_TOKEN`, `SUPABASE_DB_PASSWORD`, and `SUPABASE_PROJECT_REF` for the hosted project. CI runs `build`/`typecheck`/`lint`/`test` through Turborepo and can use Vercel's remote cache so unchanged packages are restored instead of rebuilt. The deployment workflows require three repository secrets (**Settings → Secrets and variables → Actions**):
 
 | Secret | Value | How to get it |
 | --- | --- | --- |
@@ -181,7 +189,9 @@ pnpm exec turbo link   # select the TUM-ai team
 
 ### Private-repository cutover
 
-Use this sequence so the deployment owner changes without a duplicate build or a migration race:
+**Status (2026-09-25):** steps 1–5 are done (#337; Actions has deployed production since). Step 6 is still open: the repository is **public**. Until it changes, treat every pushed branch as public.
+
+The original sequence, kept for reference and for step 6:
 
 1. Add and verify `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID` in the repository Actions secrets. Add the separate `TURBO_TOKEN` and `TURBO_TEAM` only if remote caching is wanted. Confirm the token values are current, scoped to the intended team/project, and have an expiry policy.
 2. Confirm the pull request's CI checks are green and review the deployment workflows. Do not merge yet.

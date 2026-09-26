@@ -1,5 +1,7 @@
 # LinkedIn member data integration notes
 
+> **Archived.** Notes from the one-off LinkedIn profile-link import. The schema and UI shipped in #99 (2026-05-24). Kept for the import decisions; the import data itself is not, and must never be, in this repository.
+
 ## Goal
 
 Add reliable LinkedIn profile links to member profiles, plus an optional public location field.

@@ -24,7 +24,6 @@
 			"Bash(pnpm supabase:status)",
 			"Bash(pnpm supabase:reset)",
 			"Bash(pnpm supabase:stop)",
-			"Bash(pnpm supabase:migrations:check)",
 			"Bash(pnpm --filter @member-manager/* *)",
 			"Bash(pnpm -r run *)",
 			"Bash(pnpm exec playwright:*)",
@@ -61,6 +60,7 @@
 			"Bash(git clean -fd:*)",
 			"Bash(supabase db push:*)",
 			"Bash(supabase link:*)",
+			"Bash(pnpm test:e2e:finance-live:*)",
 			"Read(**/.env)",
 			"Read(**/.env.local)",
 			"Read(supabase/.env)"

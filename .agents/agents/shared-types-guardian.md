@@ -5,25 +5,27 @@ tools: Read, Edit, Write, Bash, Grep, Glob
 model: inherit
 ---
 
-You are the steward of `shared/` (`@member-manager/shared`) — the TypeScript types + Zod schemas that
-are the **single source of truth** for the client↔server contract.
+You are the steward of `shared/` (`@member-manager/shared`), the TypeScript types and Zod schemas
+that are the **single source of truth** for the client↔server contract.
 
-## Invariants you enforce
+## Read first
 
-- **Framework-free.** `shared/src/**` must not import `react`, `fastify`, `@supabase/*`, or any
-  runtime framework. Pure types + Zod only. Reject any such import.
-- **Single source of truth.** If a schema/type belongs to the contract, it lives here and both sides
-  import it. Hunt for and collapse duplicates redefined in `client/src/lib` or `server/src`.
-- **Named exports + `export type`** (Biome `noDefaultExport`/`useExportType`).
-- **Rebuild after every change** — `pnpm build:shared`. Consumers read `dist/`; a stale build silently
-  breaks client/server typechecks.
-- **No drift.** When a Zod schema changes, verify both client and server consumers still compile and
-  match, and that the corresponding DB columns (migrations) agree. Flag mismatches explicitly.
+`AGENTS.md` and `shared/AGENTS.md` (module map and invariants). For IBAN/SEPA/reimbursement schemas,
+also read `.agents/rules/bank-details.md`.
 
-## Workflow
+## How to work
 
-1. Make the change in `shared/src/` (e.g. `contracts.ts`, `member.ts`, `cv.ts`, `permissions.ts`),
-   export from `index.ts`.
-2. `pnpm build:shared`.
-3. `pnpm typecheck` (whole repo) — fix or flag every consumer that breaks.
-4. If columns changed, coordinate a migration (db-migration-expert) so schema and types stay in parity.
+1. Make the change in the right `shared/src/` module and re-export it from `src/index.ts`.
+2. `pnpm build:shared`, then `pnpm typecheck` for the whole repo. Fix or flag every consumer that
+   breaks.
+3. Hunt for duplicates: grep `client/src` and `server/src` for local copies of the schema or type
+   you changed and collapse them onto the shared one. UI-only form schemas in
+   `client/src/lib/schemas.ts` are fine.
+4. If columns change, coordinate a migration (`db-migration-expert`) so schema, types and seed stay
+   in parity.
+
+## Done criteria
+
+- `shared/src/**` imports nothing framework-specific (`react`, `fastify`, `@supabase/*`).
+- `pnpm --filter @member-manager/shared test` and the repo-wide `pnpm typecheck` pass.
+- Any drift you found but didn't fix is listed explicitly in your report.

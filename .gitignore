@@ -80,3 +80,9 @@ service-account-*.json
 .claude/settings.local.json
 .claude/worktrees/
 .claude/scheduled_tasks.lock
+
+# Personal Codex adapter (hooks.json holds machine-specific paths)
+.codex/
+
+# Ad-hoc verification screenshots
+/verify-shots/

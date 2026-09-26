@@ -1,5 +1,7 @@
 # UI migration: MUI → shadcn/ui
 
+> **Archived.** The MUI → shadcn/ui migration is finished (#165, #171): MUI is gone and Tailwind Preflight is on. Current conventions, including how to add a shadcn component, live in [`client/AGENTS.md`](../../client/AGENTS.md).
+
 We are incrementally moving the client off **MUI v7** onto **shadcn/ui** (Tailwind
 v4 + Radix). New and reworked components should be built the shadcn way and
 documented in Storybook. MUI stays in place until a component is ported.

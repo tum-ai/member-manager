@@ -129,17 +129,18 @@ signing page includes the full ordered thread.
 
 ## Statuses
 
-Contract submissions use these workflow statuses:
+Contract submissions move through these workflow statuses (`CONTRACT_WORKFLOW_STATUSES` in `shared/src/contracts.ts`):
 
 - `draft`
 - `legal_review`
+- review outcomes set by Legal & Finance: `approved`, `rejected`, `inquiry`
 - `sent_to_partner`
 - `partner_comments`
 - `partner_signed`
 - `board_signed`
 - `completed`
 
-Legacy review statuses such as `submitted`, `in_review`, `approved`, `rejected`, `inquiry`, and `signed` remain accepted for existing rows and review tooling.
+The legacy statuses `submitted`, `in_review`, and `signed` remain accepted for existing rows and review tooling; a new submission goes straight to `legal_review`.
 
 When Legal & Finance uses **Request Clarification**, the submission status is
 set to `inquiry`. If contract email sending is configured, Member Manager emails
@@ -175,13 +176,9 @@ invalidating any previously shared final-PDF link.
 
 ## Production
 
-Deployments that include contract workflow code require all contract migrations to land in `supabase/migrations/`. GitHub Actions applies pending production migrations on pushes to `main` and then checks migration parity. To inspect the linked project manually:
+Deployments that include contract workflow code require all contract migrations to land in `supabase/migrations/`. GitHub Actions applies pending production migrations on pushes to `main` and then checks migration parity with `pnpm supabase:migrations:check`. That check needs a linked project, and the repo never links to production locally, so read the results in the `Production Supabase Migration Drift` (PRs) and `Production Supabase Migrations` (`main`) jobs.
 
-```bash
-pnpm supabase:migrations:check
-```
-
-The app uses the server-side service-role Supabase client for public signing, board signing, and final PDF generation. Partner signing links and final PDF links are token-based and do not require partner authentication. The current product generates the final PDF link; Legal & Finance shares that link with the partner.
+The app uses the server-side service-role Supabase client for public signing, board signing, and final PDF generation. Partner signing links and final PDF links are token-based and do not require partner authentication. Legal & Finance either shares the final PDF link with the partner manually or lets auto-finalization email it (see [Finalization](#finalization)).
 
 Partner signing-link emails use Resend when `RESEND_API_KEY`,
 `CONTRACT_EMAIL_FROM`, and a usable app base URL are configured. `APP_BASE_URL`
@@ -193,9 +190,10 @@ the last recipient, sent timestamp, or delivery error.
 
 OpenSign is supported as the external partner signature provider while Member
 Manager remains the place where Legal & Finance renders, reviews, and edits the
-contract. Sending with OpenSign generates the reviewed PDF from the current
-Member Manager text, asks hosted OpenSign to email the partner, and still
-creates the in-app signing token as a fallback.
+contract. Sending with OpenSign uploads the PDF of the sent DOCX document
+version, places the signature widgets at the signature anchors detected in that
+PDF, asks hosted OpenSign to email the partner, and still creates the in-app
+signing token as a fallback.
 
 Required server configuration:
 
@@ -219,7 +217,6 @@ sends them. If webhooks are not enabled in the OpenSign plan yet, Legal &
 Finance can still send via OpenSign, but completion will need manual follow-up
 or the in-app fallback signature link.
 
-OpenSign signature field positions are configurable with
-`OPENSIGN_WIDGETS_JSON`. Leave it empty for the default first-page signature and
-date widgets; set it to the JSON widget array exported/tested from OpenSign if
-Legal needs exact placement for the final contract template.
+Widget positions normally come from the anchors in the rendered PDF.
+`OPENSIGN_WIDGETS_JSON` (a JSON widget array) and the built-in first-page
+signature/date default only apply when a send passes no anchor-derived widgets.

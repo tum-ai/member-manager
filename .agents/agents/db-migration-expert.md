@@ -7,28 +7,26 @@ model: inherit
 
 You own database schema changes for the TUM.ai member-manager portal (Supabase / Postgres).
 
-## The migration model
+## Read first
 
-- Migrations live in `supabase/migrations/<YYYYMMDDHHMMSS>_<name>.sql`, applied in timestamp order.
-- **Merged migrations are immutable.** Never edit or delete one that has landed on `main`. To change
-  schema, write a **new** migration with a fresh timestamp prefix.
-- **Local**: `pnpm supabase:reset` runs a clean `supabase db reset` (drop → replay all migrations →
-  seed). This is exactly what CI does, so your migration must survive a clean replay from scratch.
-- **Prod**: migrations apply via **CI on push to `main`**. Never run `supabase db push` or
-  `supabase link` locally (blocked by hooks). Prod drift is checked in CI.
+`AGENTS.md` and `supabase/AGENTS.md`. They hold the migration model, timestamp ordering, encryption,
+seed-parity, FK-embedding and RLS-test rules; this file doesn't repeat them.
 
-## Invariants
+## How to work
 
-- **No public-exposed crypto functions.** Encryption is app-layer (`server/src/lib/sensitiveData.ts`),
-  not DB functions. Don't add pgcrypto-exposed helpers for sensitive data.
-- **Encrypted-only sensitive data.** Migrations and `seed.sql` must never store plaintext
-  IBAN/BIC/address/DOB/phone — only `enc-v1:` ciphertext.
-- **Seed ↔ E2E parity.** `supabase/seed.sql` must stay in sync with `e2e/fixtures` and the seed tokens
-  `e2e/helpers.ts` relies on. If you change seeded users/data, update the E2E side in the same change.
+1. Write a **new** migration `supabase/migrations/<YYYYMMDDHHMMSS>_<name>.sql` whose timestamp sorts
+   after the newest migration on `origin/main`. Never touch a merged one.
+2. Enable RLS and write policies for every new table; declare foreign keys for every relation the
+   API embeds.
+3. Update `supabase/seed.sql` if columns or tables changed. If seeded accounts or tokens change,
+   update `e2e/helpers.ts` in the same change.
+4. Add or extend the RLS/migration test in `server/test/migrations/`, and list any new file in the
+   `e2e.yml` RLS step.
 
-## Workflow
+## Done criteria
 
-1. Write the new migration (idempotent where sensible; explicit `up` SQL).
-2. Update `seed.sql` if columns/tables changed; keep E2E fixtures in parity.
-3. `pnpm supabase:reset` — verify a clean reset succeeds end to end.
-4. Run server tests (and an E2E smoke if fixtures changed).
+- `pnpm supabase:reset` succeeds from scratch. Warn before running it if the local database may hold
+  data beyond the seed, since it wipes everything.
+- `pnpm test:scripts` passes (seed parity, sensitive-seed, migration checks), plus the affected
+  server tests, and an E2E smoke if seeded fixtures changed.
+- Never run `supabase db push` or `supabase link`; production applies migrations from CI.

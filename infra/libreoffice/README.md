@@ -49,4 +49,9 @@ CONTRACT_LIBREOFFICE_SANDBOX_IMAGE=vcr.vercel.com/team-slug/project-slug/contrac
 The digest is required. A tag by itself is rejected so a later image push
 cannot silently change how existing contracts render.
 
+`CONTRACT_LIBREOFFICE_SANDBOX_SNAPSHOT_ID`, if set, takes precedence over the
+image and starts the sandbox from a Vercel Sandbox snapshot instead. The digest
+check doesn't apply to snapshots, so leave it unset unless you deliberately
+render from a snapshot, and clear it again afterwards.
+
 Vercel deployments authenticate to Sandbox automatically through OIDC.
