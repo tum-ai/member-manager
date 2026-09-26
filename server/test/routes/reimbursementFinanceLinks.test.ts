@@ -9,7 +9,10 @@ import {
 	resetDatabase,
 	testTokens,
 } from "../helpers.js";
-import { mockDatabase } from "../mocks/supabase.js";
+import {
+	MOCK_REIMBURSEMENT_OLDER_ID,
+	mockDatabase,
+} from "../mocks/supabase.js";
 
 const PROJECT_ID = "50000000-0000-4000-8000-000000000001";
 const OTHER_PROJECT_ID = "50000000-0000-4000-8000-000000000002";
@@ -109,7 +112,7 @@ describe("Reimbursement finance links", async () => {
 
 		const response = await app.inject({
 			method: "PATCH",
-			url: "/api/reimbursements/review/reimbursement-older",
+			url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 			headers: authHeaders(testTokens.admin),
 			payload: {
 				finance_project_id: PROJECT_ID,
@@ -123,7 +126,7 @@ describe("Reimbursement finance links", async () => {
 	test("rejects BB posting IDs that do not exist", async () => {
 		const response = await app.inject({
 			method: "PATCH",
-			url: "/api/reimbursements/review/reimbursement-older",
+			url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 			headers: authHeaders(testTokens.admin),
 			payload: {
 				bb_posting_external_id: "BB-DOES-NOT-EXIST",
@@ -137,7 +140,7 @@ describe("Reimbursement finance links", async () => {
 	test("rejects BB postings outside the reimbursement department", async () => {
 		const response = await app.inject({
 			method: "PATCH",
-			url: "/api/reimbursements/review/reimbursement-older",
+			url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 			headers: authHeaders(testTokens.admin),
 			payload: {
 				bb_posting_external_id: "BB-1001",
@@ -153,7 +156,7 @@ describe("Reimbursement finance links", async () => {
 
 		const response = await app.inject({
 			method: "PATCH",
-			url: "/api/reimbursements/review/reimbursement-older",
+			url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 			headers: authHeaders(testTokens.admin),
 			payload: {
 				finance_project_id: PROJECT_ID,
@@ -176,7 +179,7 @@ describe("Reimbursement finance links", async () => {
 
 		const response = await app.inject({
 			method: "PATCH",
-			url: "/api/reimbursements/review/reimbursement-older",
+			url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 			headers: authHeaders(testTokens.admin),
 			payload: {
 				finance_project_id: PROJECT_ID,
@@ -197,7 +200,7 @@ describe("Reimbursement finance links", async () => {
 
 		const response = await app.inject({
 			method: "PATCH",
-			url: "/api/reimbursements/review/reimbursement-older",
+			url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 			headers: authHeaders(testTokens.admin),
 			payload: {
 				finance_project_id: PROJECT_ID,
@@ -212,7 +215,7 @@ describe("Reimbursement finance links", async () => {
 	test("allows reviewers to add or clear links after submission", async () => {
 		const linked = await app.inject({
 			method: "PATCH",
-			url: "/api/reimbursements/review/reimbursement-older",
+			url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 			headers: authHeaders(testTokens.admin),
 			payload: {
 				finance_project_id: PROJECT_ID,
@@ -228,7 +231,7 @@ describe("Reimbursement finance links", async () => {
 
 		const cleared = await app.inject({
 			method: "PATCH",
-			url: "/api/reimbursements/review/reimbursement-older",
+			url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 			headers: authHeaders(testTokens.admin),
 			payload: {
 				finance_project_id: null,

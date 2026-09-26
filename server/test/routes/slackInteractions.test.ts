@@ -8,7 +8,12 @@ import {
 	setReimbursementStatusSlackNotifier,
 } from "../../src/lib/slackNotifier.js";
 import { closeTestApp, getTestApp, resetDatabase } from "../helpers.js";
-import { MOCK_ADMIN_ID, mockDatabase } from "../mocks/supabase.js";
+import {
+	MOCK_ADMIN_ID,
+	MOCK_REIMBURSEMENT_NEWER_ID,
+	MOCK_REIMBURSEMENT_OLDER_ID,
+	mockDatabase,
+} from "../mocks/supabase.js";
 
 const PDF_BASE64 = "JVBERi0xLjQ=";
 
@@ -199,7 +204,7 @@ describe("Slack interaction routes", async () => {
 				actions: [
 					{
 						action_id: "reimbursement_approve",
-						value: "reimbursement-older",
+						value: MOCK_REIMBURSEMENT_OLDER_ID,
 					},
 				],
 			},
@@ -218,7 +223,7 @@ describe("Slack interaction routes", async () => {
 		await waitForAssertion(() => {
 			assert.strictEqual(
 				mockDatabase.reimbursements.find(
-					(row) => row.id === "reimbursement-older",
+					(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
 				)?.approval_status,
 				"approved",
 			);
@@ -289,7 +294,7 @@ describe("Slack interaction routes", async () => {
 				actions: [
 					{
 						action_id: "reimbursement_approve_sync_bb",
-						value: "reimbursement-newer",
+						value: MOCK_REIMBURSEMENT_NEWER_ID,
 					},
 				],
 			},
@@ -311,7 +316,7 @@ describe("Slack interaction routes", async () => {
 				"https://bb.test/api/v1/comments/add",
 			]);
 			const request = mockDatabase.reimbursements.find(
-				(row) => row.id === "reimbursement-newer",
+				(row) => row.id === MOCK_REIMBURSEMENT_NEWER_ID,
 			);
 			assert.strictEqual(request?.bb_sync_status, "synced");
 			assert.strictEqual(request?.bb_receipt_id_by_customer, "654");

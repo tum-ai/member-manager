@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	getBankName,
+	getMaskedPaymentIban,
 	getPaymentBic,
 	getPaymentIban,
 	getReviewStage,
@@ -54,6 +55,35 @@ describe("Vivid reimbursement review presentation", () => {
 		expect(
 			matchesReimbursementReviewSearch(request, "Virtual card supplies"),
 		).toBe(true);
+	});
+});
+
+describe("getMaskedPaymentIban", () => {
+	it("masks everything but the country code, check digits, and last four", () => {
+		const request = vividRequest({
+			submission_type: "reimbursement",
+			payment_iban: "DE89370400440532013000",
+		});
+
+		expect(getMaskedPaymentIban(request)).toBe("DE89 •••• •••• 3000");
+	});
+
+	it("falls back to the legacy iban field and reports missing values", () => {
+		expect(
+			getMaskedPaymentIban(
+				vividRequest({
+					submission_type: "invoice",
+					iban: "DE89370400440532013000",
+				}),
+			),
+		).toBe("DE89 •••• •••• 3000");
+		expect(
+			getMaskedPaymentIban(vividRequest({ submission_type: "invoice" })),
+		).toBe("Not provided");
+	});
+
+	it("does not apply to Vivid requests", () => {
+		expect(getMaskedPaymentIban(vividRequest())).toBe("Not applicable");
 	});
 });
 
