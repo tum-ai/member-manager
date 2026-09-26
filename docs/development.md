@@ -146,6 +146,7 @@ All seeded local accounts use password `password123`:
 | `user@example.com` | regular active member with SEPA data and pending requests |
 | `research-member@example.com` | alumni/research fixture |
 | `venture-member@example.com` | inactive fixture |
+| `no-bank-details@example.com` | member who never saved bank details (no SEPA row) |
 
 Additional department/team-lead accounts are seeded for member-list, org-chart, admin, reimbursement, and certificate review flows. E2E depends on some of them: `e2e/helpers.ts` hard-codes the seeded accounts and the contract signing token, and `scripts/check-seed-fixture-parity.test.mjs` fails if the two drift.
 

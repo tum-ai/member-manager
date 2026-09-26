@@ -129,7 +129,7 @@ describe("Error Handling", async () => {
 			assert.match(payload.error, /not found/i);
 		});
 
-		test("Non-existent SEPA data returns 404", async () => {
+		test("Missing SEPA data is not a 404 (bank details are optional)", async () => {
 			resetDatabase();
 			const response = await app.inject({
 				method: "GET",
@@ -137,10 +137,10 @@ describe("Error Handling", async () => {
 				headers: authHeaders(testTokens.admin),
 			});
 
-			assert.strictEqual(response.statusCode, 404);
+			assert.strictEqual(response.statusCode, 200);
 			const payload = JSON.parse(response.payload);
-			assert.ok(payload.error);
-			assert.match(payload.error, /not found/i);
+			assert.strictEqual(payload.iban, "");
+			assert.strictEqual(payload.bank_name, "");
 		});
 
 		test("Non-existent route returns 404", async () => {

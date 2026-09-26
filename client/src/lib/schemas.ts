@@ -1,5 +1,9 @@
-export type { SepaSchema } from "@member-manager/shared";
-export { sepaSchema } from "@member-manager/shared";
+export type {
+	ProfileSepa,
+	ProfileSepaInput,
+	SepaSchema,
+} from "@member-manager/shared";
+export { profileSepaSchema, sepaSchema } from "@member-manager/shared";
 
 import { z } from "zod";
 import { ENGAGEMENT_SPECIAL_ROLES } from "./constants";

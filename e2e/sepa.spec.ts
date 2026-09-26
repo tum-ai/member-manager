@@ -7,14 +7,16 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 // `#sepa-agree` consent checkbox live in the "SEPA Mandate Agreement" modal
 // (ProfileAgreementModals → SepaMandate).
 //
-// Seed note (issue #223): the regular member (00000000-…-0006) has NO seeded
-// `sepa` row — SEPA is only seeded for the reimbursement personas (…0001/0009/
-// 0011/0020). So GET /api/sepa/<member> 404s and the form renders empty on first
-// load. Filling any field makes the SEPA form dirty, which makes the profile
-// save include a PUT /api/sepa/<member>. The shared schema validates the IBAN
-// checksum in both the client and server, and a successful save
-// upserts the row — so these tests assert via reload rather than a pristine
-// empty state, and stay re-runnable.
+// Seed note: the regular member (00000000-…-0006) HAS a seeded `sepa` row — the
+// catch-all insert at the end of supabase/seed.sql gives every seeded member
+// encrypted fixture bank details except the no-bank-details persona (…0023,
+// covered in profile-edit.spec.ts). So the banking fields load pre-filled here,
+// and because bank details are present every profile save includes a
+// PUT /api/sepa/<member>. Bank details are optional as a group, but once any
+// bank field is filled the shared schema requires a valid IBAN (checksum
+// checked on client and server), a bank name and all three agreements. These
+// tests overwrite the fields and assert via reload rather than a pristine
+// empty state, so they stay re-runnable.
 //
 // A valid German IBAN whose check digits pass `isValidIBAN` (matches the seed
 // fixtures used elsewhere). Reused deterministically; we assert persistence via
@@ -84,8 +86,7 @@ test.describe("SEPA mandate setup", () => {
 		await loginAsLocalMember(page);
 
 		// Banking fields are the labelled inputs inside the "Banking & agreements"
-		// panel. IBAN/Bank Name carry a trailing " *" in their label (required),
-		// which getByLabel substring-matches.
+		// panel.
 		await page.getByLabel("IBAN").fill(VALID_IBAN);
 		await page.getByLabel("BIC").fill(VALID_BIC);
 

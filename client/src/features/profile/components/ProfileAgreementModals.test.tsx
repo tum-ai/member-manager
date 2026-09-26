@@ -2,13 +2,13 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useForm } from "react-hook-form";
 import { describe, expect, it, vi } from "vitest";
-import type { SepaSchema } from "@/lib/schemas";
+import type { ProfileSepaInput } from "@/lib/schemas";
 import { ProfileAgreementModals } from "./ProfileAgreementModals";
 
 function Harness(
 	overrides: Partial<React.ComponentProps<typeof ProfileAgreementModals>> = {},
 ) {
-	const sepaForm = useForm<SepaSchema>({
+	const sepaForm = useForm<ProfileSepaInput>({
 		defaultValues: {
 			iban: "",
 			bic: "",
@@ -16,7 +16,6 @@ function Harness(
 			mandate_agreed: false,
 			privacy_agreed: false,
 			data_privacy_notice_agreed: false,
-			user_id: "u1",
 		},
 	});
 	const props: React.ComponentProps<typeof ProfileAgreementModals> = {

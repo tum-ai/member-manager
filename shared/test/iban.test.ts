@@ -1,8 +1,51 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
-import { isValidIban, normalizeIban, sepaSchema } from "../dist/index.js";
+import {
+	cleanIbanInput,
+	formatIban,
+	isValidIban,
+	normalizeIban,
+	sepaSchema,
+} from "../dist/index.js";
 
 const validIban = "DE89370400440532013000";
+
+describe("IBAN formatting", () => {
+	test("groups an IBAN into blocks of four", () => {
+		assert.equal(formatIban(validIban), "DE89 3704 0044 0532 0130 00");
+		assert.equal(formatIban("NL91ABNA0417164300"), "NL91 ABNA 0417 1643 00");
+	});
+
+	test("normalizes spacing, hyphens, and case before grouping", () => {
+		assert.equal(
+			formatIban("de89-3704 00440532 013000"),
+			"DE89 3704 0044 0532 0130 00",
+		);
+	});
+
+	test("formats partial input without a trailing separator", () => {
+		assert.equal(formatIban("DE8937"), "DE89 37");
+		assert.equal(formatIban("DE89"), "DE89");
+		assert.equal(formatIban(""), "");
+	});
+});
+
+describe("IBAN input cleaning", () => {
+	test("strips an IBAN label and punctuation", () => {
+		assert.equal(
+			cleanIbanInput("IBAN: DE89 3704 0044 0532 0130 00"),
+			validIban,
+		);
+		assert.equal(cleanIbanInput("iban de89.3704.0044.0532.0130.00"), validIban);
+		assert.equal(cleanIbanInput("de89-3704-0044-0532-0130-00"), validIban);
+	});
+
+	test("keeps a partial value that merely starts like a label", () => {
+		assert.equal(cleanIbanInput("IBA"), "IBA");
+		assert.equal(cleanIbanInput("IBAN"), "IBAN");
+		assert.equal(cleanIbanInput("IBAND"), "IBAND");
+	});
+});
 
 describe("IBAN validation", () => {
 	test("normalizes spaces, hyphens, and lowercase input", () => {
