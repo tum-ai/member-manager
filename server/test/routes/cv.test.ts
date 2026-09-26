@@ -19,6 +19,10 @@ import {
 
 const PDF_BYTES = Buffer.from("%PDF-1.4\n%mock pdf\n");
 const PDF_BASE64 = PDF_BYTES.toString("base64");
+// Distinct content for a superseding version, so a download that returns the
+// wrong version's bytes is detectable (#303).
+const PDF_V2_BYTES = Buffer.from("%PDF-1.4\n%mock pdf, version two\n");
+const PDF_V2_BASE64 = PDF_V2_BYTES.toString("base64");
 
 // Single top-level suite with one shared app lifecycle. getTestApp/closeTestApp
 // operate on a process-wide singleton, so opening/closing it in multiple
@@ -99,11 +103,22 @@ describe("member CVs", () => {
 		assert.equal(first.json().cv.source, "member_upload");
 		assert.equal(first.json().cv.is_current, true);
 
+		const downloadCurrent = () =>
+			app.inject({
+				method: "GET",
+				url: `/api/members/${testUserIds.user}/cv/current/download?download=1`,
+				headers: authHeaders(testTokens.user),
+			});
+
+		const firstDownload = await downloadCurrent();
+		assert.equal(firstDownload.statusCode, 200);
+		assert.ok(firstDownload.rawPayload.equals(PDF_BYTES));
+
 		const second = await app.inject({
 			method: "POST",
 			url: `/api/members/${testUserIds.user}/cv`,
 			headers: authHeaders(testTokens.user),
-			payload: { filename: "second.pdf", cv_base64: PDF_BASE64 },
+			payload: { filename: "second.pdf", cv_base64: PDF_V2_BASE64 },
 		});
 		assert.equal(second.statusCode, 201);
 		assert.equal(second.json().cv.version, 2);
@@ -115,6 +130,19 @@ describe("member CVs", () => {
 		});
 		assert.equal(current.json().cv.version, 2);
 		assert.equal(current.json().cv.original_filename, "second.pdf");
+		assert.equal(current.json().cv.sha256, sha256Hex(PDF_V2_BYTES));
+
+		// The same "current" URL must now serve v2's bytes under v2's filename,
+		// and must not be cacheable (a cached v1 response is the #303 bug).
+		const secondDownload = await downloadCurrent();
+		assert.equal(secondDownload.statusCode, 200);
+		assert.ok(secondDownload.rawPayload.equals(PDF_V2_BYTES));
+		assert.ok(!secondDownload.rawPayload.equals(PDF_BYTES));
+		assert.match(
+			String(secondDownload.headers["content-disposition"]),
+			/^attachment; filename="second\.pdf"$/,
+		);
+		assert.match(String(secondDownload.headers["cache-control"]), /no-store/);
 	});
 
 	it("rejects a non-PDF upload", async () => {
@@ -170,6 +198,10 @@ describe("member CVs", () => {
 		assert.equal(res.statusCode, 200);
 		assert.equal(res.headers["content-type"], "application/pdf");
 		assert.ok(res.rawPayload.equals(PDF_BYTES));
+		// "current" is a mutable alias; browsers must not cache it (#303).
+		const cacheControl = String(res.headers["cache-control"]);
+		assert.match(cacheControl, /no-store/);
+		assert.doesNotMatch(cacheControl, /max-age/);
 	});
 
 	it("derives partner-sharing consent from the Data Privacy Notice", async () => {

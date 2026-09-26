@@ -1,6 +1,6 @@
 import {
 	getReimbursementSubmissionTypeLabel,
-	VIVID_REIMBURSEMENT_SUBMISSION_TYPE,
+	reimbursementRequiresPayout,
 } from "@member-manager/shared";
 import { getAuthEmail } from "./authEmails.js";
 import { fetchWithTimeout } from "./fetchWithTimeout.js";
@@ -465,64 +465,128 @@ function buildReimbursementBlocks(
 	];
 }
 
-function buildReimbursementStatusBlocks(
+/**
+ * Action id of the link button in requester status DMs. Slack still posts an
+ * interaction when a URL button is clicked, so the interactions route uses
+ * this id to acknowledge the click without replying.
+ */
+export const REIMBURSEMENT_STATUS_LINK_ACTION_ID = "open_reimbursement_tool";
+
+/** Status-specific wording shared by the requester DM text and blocks. */
+interface ReimbursementStatusContent {
+	headline: string;
+	amount: string;
+	/** Reviewer-written reason, already escaped for Slack mrkdwn. */
+	rejectionReason?: string;
+	/** Follow-up hint shown for approvals (payout or no payout). */
+	note?: string;
+}
+
+function getReimbursementStatusContent(
 	payload: ReimbursementStatusSlackNotification,
-): SlackBlock[] | undefined {
-	if (!payload.requestUrl) {
-		return undefined;
+): ReimbursementStatusContent {
+	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
+	const amount = `${payload.amount.toFixed(2)} EUR`;
+
+	if (payload.statusType === "payment") {
+		return {
+			headline: `Your ${requestLabel} request was marked as paid`,
+			amount,
+		};
 	}
 
-	return [
+	if (payload.statusValue === "not_approved") {
+		return {
+			headline: `Your ${requestLabel} request was rejected`,
+			amount,
+			// The reason is free text from the reviewer; escape it so it cannot
+			// inject mentions, links, or formatting into the requester's DM.
+			rejectionReason: sanitizeSlackUserText(
+				payload.rejectionReason?.trim() || "No reason provided",
+				500,
+			),
+		};
+	}
+
+	return {
+		headline: `Your ${requestLabel} request was approved`,
+		amount,
+		note: reimbursementRequiresPayout(payload.submissionType)
+			? "Legal & Finance will mark it paid after payout."
+			: "This expense will be recorded; no payout is required.",
+	};
+}
+
+function buildReimbursementStatusBlocks(
+	payload: ReimbursementStatusSlackNotification,
+): SlackBlock[] {
+	const content = getReimbursementStatusContent(payload);
+	const blocks: SlackBlock[] = [
 		{
+			type: "section",
+			text: {
+				type: "mrkdwn",
+				text: `*${content.headline}*\nAmount: ${content.amount}`,
+			},
+		},
+	];
+
+	if (content.rejectionReason) {
+		blocks.push({
+			type: "section",
+			text: { type: "mrkdwn", text: `*Reason*\n${content.rejectionReason}` },
+		});
+	}
+
+	if (content.note) {
+		blocks.push({
+			type: "section",
+			text: { type: "mrkdwn", text: content.note },
+		});
+	}
+
+	blocks.push({
+		type: "context",
+		elements: [{ type: "mrkdwn", text: `Request ID: ${payload.requestId}` }],
+	});
+
+	if (payload.requestUrl) {
+		blocks.push({
 			type: "actions",
 			block_id: `reimbursement_${payload.requestId}_status_actions`,
 			elements: [
 				{
 					type: "button",
-					text: { type: "plain_text", text: "Open reimbursement tool" },
+					text: { type: "plain_text", text: "View request" },
 					url: payload.requestUrl,
-					action_id: "open_reimbursement_tool",
+					action_id: REIMBURSEMENT_STATUS_LINK_ACTION_ID,
 				},
 			],
-		},
-	];
+		});
+	}
+
+	return blocks;
 }
 
+/**
+ * Plain-text version of the requester DM. Slack renders only the blocks when
+ * both are sent, so this is what push notifications and clients without
+ * Block Kit support show.
+ */
 function buildReimbursementStatusMessage(
 	payload: ReimbursementStatusSlackNotification,
 ): string {
-	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
-	const requestLine = payload.requestUrl
-		? `View in Member Manager: ${payload.requestUrl}`
-		: "View it in Member Manager.";
-
-	if (payload.statusType === "payment") {
-		return [
-			`Your ${requestLabel} request was marked as paid`,
-			`Amount: ${payload.amount.toFixed(2)} EUR`,
-			`Request ID: ${payload.requestId}`,
-			requestLine,
-		].join("\n");
-	}
-
-	if (payload.statusValue === "not_approved") {
-		return [
-			`Your ${requestLabel} request was rejected`,
-			`Amount: ${payload.amount.toFixed(2)} EUR`,
-			`Reason: ${payload.rejectionReason || "No reason provided"}`,
-			`Request ID: ${payload.requestId}`,
-			requestLine,
-		].join("\n");
-	}
+	const content = getReimbursementStatusContent(payload);
 
 	return [
-		`Your ${requestLabel} request was approved`,
-		`Amount: ${payload.amount.toFixed(2)} EUR`,
-		...(payload.submissionType === VIVID_REIMBURSEMENT_SUBMISSION_TYPE
-			? ["This expense will be recorded; no payout is required."]
-			: ["Legal & Finance will mark it paid after payout."]),
+		content.headline,
+		`Amount: ${content.amount}`,
+		...(content.rejectionReason ? [`Reason: ${content.rejectionReason}`] : []),
+		...(content.note ? [content.note] : []),
 		`Request ID: ${payload.requestId}`,
-		requestLine,
+		payload.requestUrl
+			? `View in Member Manager: ${payload.requestUrl}`
+			: "View it in Member Manager.",
 	].join("\n");
 }
 

@@ -100,7 +100,7 @@ export function CvPanel({ userId, id, className }: CvPanelProps) {
 		if (!cv) return;
 		setIsDownloading(true);
 		try {
-			const blob = await fetchCvBlob();
+			const blob = await fetchCvBlob(cv.id);
 			downloadPdfBlob(blob, cv.original_filename);
 		} catch (error) {
 			showToast(

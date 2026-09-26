@@ -7,6 +7,7 @@ This document describes the source-of-truth layout of the `member-manager` monor
 ```text
 member-manager/
 ├── .agents/                  # Repo-local agent prompts, rules, and skills
+├── .claude/                  # Claude Code adapter: symlinks into .agents/ + settings and hooks
 ├── .github/                  # GitHub Actions workflows and repo automation
 ├── client/                   # React/Vite member portal
 ├── docs/                     # Project documentation and vendored brand material
@@ -150,9 +151,26 @@ Repo-local agent prompts, rules, and skill definitions.
     └── verify-e2e/           # E2E verification helper
 ```
 
-The root and package-level `AGENTS.md` files are the source of truth for repo instructions. `CLAUDE.md`
-files symlink to them for Claude compatibility. The `tumai-ci` skill points at `docs/brand/source/`
+The root and package-level `AGENTS.md` files are the source of truth for repo instructions. Claude Code
+reads them directly, so the repo has no `CLAUDE.md` files. The `tumai-ci` skill points at `docs/brand/source/`
 so future UI changes can stay consistent with the committed TUM.ai corporate identity material.
+
+### `.claude/`
+
+Claude Code does not read `.agents/`, so `.claude/` adapts it without duplicating anything:
+
+```text
+.claude/
+├── agents -> ../.agents/agents   # symlink
+├── rules  -> ../.agents/rules    # symlink
+├── skills -> ../.agents/skills   # symlink
+├── hooks/                        # Claude-only: git guard (PreToolUse), Biome format (PostToolUse)
+└── settings.json                 # Claude-only: permissions, deny list, hook wiring
+```
+
+Edit agent content under `.agents/` only. `scripts/check-agent-config.test.mjs` fails `pnpm test` if the
+symlinks are removed or replaced with real files, or if a `CLAUDE.md` (which would stop Claude Code from
+reading `AGENTS.md`) is committed.
 
 ## How To Navigate Changes
 
@@ -162,7 +180,7 @@ Use this map when deciding where a change belongs:
 - Request validation, authorization, encryption, API behavior: `server/src/`
 - Database schema or seed data: `supabase/migrations/` and `supabase/seed.sql`
 - Product docs and internal references: `docs/`
-- Repo-local agent guidance, helper prompts, and skills: `.agents/`
+- Repo-local agent guidance, helper prompts, and skills: `.agents/` (never directly in `.claude/`)
 
 ## Practical Conventions
 

@@ -3,10 +3,10 @@ import { Modal } from "@/components/ui/Modal";
 import { DataPrivacyNotice } from "@/features/legal/DataPrivacyNotice";
 import { PrivacyPolicy } from "@/features/legal/PrivacyPolicy";
 import { SepaMandate } from "@/features/sepa/SepaMandate";
-import type { SepaSchema } from "@/lib/schemas";
+import type { ProfileSepaInput } from "@/lib/schemas";
 
 interface ProfileAgreementModalsProps {
-	sepaForm: UseFormReturn<SepaSchema>;
+	sepaForm: UseFormReturn<ProfileSepaInput>;
 	showSepaModal: boolean;
 	setShowSepaModal: (value: boolean) => void;
 	showPrivacyModal: boolean;

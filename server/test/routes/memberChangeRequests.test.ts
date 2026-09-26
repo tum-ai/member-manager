@@ -135,6 +135,60 @@ describe("Member Change Request Routes", async () => {
 		assert.match(response.payload, /at least one requested change/i);
 	});
 
+	// Regression for #325: a member with several requests must get all of them
+	// back (newest first), not just one.
+	test("member lists all of their own change requests, newest first", async () => {
+		resetDatabase();
+		mockDatabase.member_change_requests.push(
+			{
+				id: "request-president",
+				user_id: testUserIds.user,
+				status: "pending",
+				changes: { member_role: "President", department: null },
+				reason: "Running for president",
+				created_at: "2026-04-24T10:00:00Z",
+			},
+			{
+				id: "request-other-member",
+				user_id: testUserIds.otherUser,
+				status: "pending",
+				changes: { department: "Community" },
+				reason: null,
+				created_at: "2026-04-25T09:00:00Z",
+			},
+			{
+				id: "request-vice-president",
+				user_id: testUserIds.user,
+				status: "pending",
+				changes: { member_role: "Vice-President", department: null },
+				reason: "Backup plan",
+				created_at: "2026-04-25T10:00:00Z",
+			},
+			{
+				id: "request-rejected",
+				user_id: testUserIds.user,
+				status: "rejected",
+				changes: { member_role: "Team Lead", department: "Venture" },
+				reason: "Leading venture",
+				review_note: "Needs board confirmation",
+				created_at: "2026-04-20T10:00:00Z",
+			},
+		);
+
+		const response = await app.inject({
+			method: "GET",
+			url: "/api/member-change-requests",
+			headers: authHeaders(testTokens.user),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const payload = JSON.parse(response.payload) as Array<{ id: string }>;
+		assert.deepStrictEqual(
+			payload.map((entry) => entry.id),
+			["request-vice-president", "request-president", "request-rejected"],
+		);
+	});
+
 	test("admin can list pending member change requests", async () => {
 		resetDatabase();
 		mockDatabase.member_change_requests.push({

@@ -1,5 +1,6 @@
+import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "@playwright/test";
+import { expect, type Locator, type Page, test } from "@playwright/test";
 import { expectToast, loginAsLocalMember } from "./helpers";
 
 // The profile CV panel (CvPanel via useMemberCv) starts at "No CV on record yet"
@@ -10,6 +11,39 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 const CV_FIXTURE = fileURLToPath(
 	new URL("./fixtures/receipt.pdf", import.meta.url),
 );
+// A second, byte-distinct valid PDF used to replace the first one (#303).
+const CV_REPLACEMENT_FIXTURE = fileURLToPath(
+	new URL("./fixtures/cv-replacement.pdf", import.meta.url),
+);
+
+async function uploadCv(
+	page: Page,
+	cvCard: Locator,
+	fixturePath: string,
+): Promise<void> {
+	const uploaded = page.waitForResponse(
+		(response) =>
+			/\/api\/members\/[^/]+\/cv$/.test(response.url()) &&
+			response.request().method() === "POST",
+	);
+	await cvCard.locator('input[type="file"]').setInputFiles(fixturePath);
+	const uploadResponse = await uploaded;
+	expect(uploadResponse.status()).toBe(201);
+}
+
+async function downloadCurrentCv(
+	page: Page,
+	cvCard: Locator,
+): Promise<{ filename: string; bytes: Buffer }> {
+	const [download] = await Promise.all([
+		page.waitForEvent("download"),
+		cvCard.getByRole("button", { name: "Download" }).click(),
+	]);
+	return {
+		filename: download.suggestedFilename(),
+		bytes: await readFile(await download.path()),
+	};
+}
 
 test("a member uploads a CV and downloads it back", async ({ page }) => {
 	await loginAsLocalMember(page);
@@ -32,14 +66,7 @@ test("a member uploads a CV and downloads it back", async ({ page }) => {
 	//
 	// The file input is hidden and ref-driven; set it directly and await the
 	// upload POST that persists the new version.
-	const uploaded = page.waitForResponse(
-		(response) =>
-			/\/api\/members\/[^/]+\/cv$/.test(response.url()) &&
-			response.request().method() === "POST",
-	);
-	await cvCard.locator('input[type="file"]').setInputFiles(CV_FIXTURE);
-	const uploadResponse = await uploaded;
-	expect(uploadResponse.status()).toBe(201);
+	await uploadCv(page, cvCard, CV_FIXTURE);
 
 	await expectToast(
 		page,
@@ -52,9 +79,48 @@ test("a member uploads a CV and downloads it back", async ({ page }) => {
 
 	// Downloading the current version emits a browser download named after the
 	// stored original filename.
-	const [download] = await Promise.all([
-		page.waitForEvent("download"),
-		cvCard.getByRole("button", { name: "Download" }).click(),
-	]);
-	expect(download.suggestedFilename()).toBe("receipt.pdf");
+	const download = await downloadCurrentCv(page, cvCard);
+	expect(download.filename).toBe("receipt.pdf");
+});
+
+// Regression for #303: after replacing a CV, the card showed the new filename
+// but Download still returned the old file, because the browser reused a cached
+// response for the stable "current" download URL. Download once to warm any
+// cache, replace, then assert the second download carries the new bytes.
+test("replacing a CV downloads the new file, not the previous one", async ({
+	page,
+}) => {
+	const originalBytes = await readFile(CV_FIXTURE);
+	const replacementBytes = await readFile(CV_REPLACEMENT_FIXTURE);
+	expect(replacementBytes.equals(originalBytes)).toBe(false);
+
+	await loginAsLocalMember(page);
+	await page.goto("/");
+
+	const cvCard = page.locator("#cv");
+	await expect(
+		cvCard.getByRole("heading", { name: "CV", exact: true }),
+	).toBeVisible();
+
+	// A prior run may already have left a CV for this member (see above), so
+	// only rely on state this test creates.
+	await uploadCv(page, cvCard, CV_FIXTURE);
+	await expect(cvCard.getByText("receipt.pdf", { exact: true })).toBeVisible();
+
+	const first = await downloadCurrentCv(page, cvCard);
+	expect(first.filename).toBe("receipt.pdf");
+	expect(first.bytes.equals(originalBytes)).toBe(true);
+
+	await uploadCv(page, cvCard, CV_REPLACEMENT_FIXTURE);
+	// Wait for the metadata refetch so the card reflects the new version.
+	await expect(
+		cvCard.getByText("cv-replacement.pdf", { exact: true }),
+	).toBeVisible();
+
+	const second = await downloadCurrentCv(page, cvCard);
+	expect(second.filename).toBe("cv-replacement.pdf");
+	expect(
+		second.bytes.equals(replacementBytes),
+		"downloaded bytes must be the replacement CV, not the cached original",
+	).toBe(true);
 });

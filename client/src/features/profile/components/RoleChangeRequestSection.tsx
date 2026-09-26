@@ -26,6 +26,7 @@ import {
 } from "@/features/profile/profileUtils";
 import type { MemberChangeRequest } from "@/hooks/useMemberChangeRequests";
 import { DEPARTMENTS, MEMBER_ROLES } from "@/lib/constants";
+import { MemberChangeRequestList } from "./MemberChangeRequestList";
 import { SectionHeading } from "./SectionHeading";
 
 interface RoleChangeRequestSectionProps {
@@ -37,7 +38,8 @@ interface RoleChangeRequestSectionProps {
 	setIsRequestingAlumniStatus: (value: boolean) => void;
 	changeRequestReason: string;
 	setChangeRequestReason: (value: string) => void;
-	latestMemberChangeRequest: MemberChangeRequest | undefined;
+	/** All of the member's change requests, newest first. */
+	memberChangeRequests: readonly MemberChangeRequest[];
 	isSubmittingChangeRequest: boolean;
 	onSubmitMemberChangeRequest: () => void;
 	ids: {
@@ -57,7 +59,7 @@ export function RoleChangeRequestSection({
 	setIsRequestingAlumniStatus,
 	changeRequestReason,
 	setChangeRequestReason,
-	latestMemberChangeRequest,
+	memberChangeRequests,
 	isSubmittingChangeRequest,
 	onSubmitMemberChangeRequest,
 	ids,
@@ -169,21 +171,6 @@ export function RoleChangeRequestSection({
 					</Field>
 				</div>
 
-				{latestMemberChangeRequest && (
-					<div className="mt-5 rounded-lg bg-brand/5 p-4">
-						<p className="mb-0.5 text-sm font-medium">
-							Latest request:{" "}
-							{latestMemberChangeRequest.status.charAt(0).toUpperCase() +
-								latestMemberChangeRequest.status.slice(1)}
-						</p>
-						{latestMemberChangeRequest.reason && (
-							<p className="text-sm text-muted-foreground">
-								Reason: {latestMemberChangeRequest.reason}
-							</p>
-						)}
-					</div>
-				)}
-
 				<Button
 					type="button"
 					variant="outline"
@@ -195,6 +182,8 @@ export function RoleChangeRequestSection({
 						? "Submitting request..."
 						: "Request changes"}
 				</Button>
+
+				<MemberChangeRequestList requests={memberChangeRequests} />
 			</CardContent>
 		</GlassCard>
 	);

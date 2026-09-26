@@ -4,6 +4,7 @@ import { afterEach, test } from "node:test";
 import {
 	notifyBugReport,
 	notifyFinanceOfReimbursementRequest,
+	notifyRequesterOfReimbursementStatus,
 	resetSlackNotifier,
 } from "../../src/lib/slackNotifier.js";
 import { getSupabase, setSupabaseClient } from "../../src/lib/supabase.js";
@@ -302,4 +303,237 @@ test("notifyBugReport exposes Slack member lookup failures", async () => {
 	assert.deepStrictEqual(calls, [
 		"https://slack.com/api/conversations.members",
 	]);
+});
+
+interface SlackBlockJson {
+	type?: string;
+	text?: { text?: string };
+	elements?: Array<{
+		type?: string;
+		text?: string | { text?: string };
+		url?: string;
+		action_id?: string;
+	}>;
+}
+
+interface PostedSlackMessage {
+	channel?: string;
+	text?: string;
+	blocks?: SlackBlockJson[];
+}
+
+function mockRequesterSlackApi(): PostedSlackMessage[] {
+	const posts: PostedSlackMessage[] = [];
+	globalThis.fetch = async (input, init) => {
+		const url = String(input);
+		const body = init?.body?.toString() ?? "";
+
+		if (url.endsWith("/users.lookupByEmail")) {
+			return new Response(
+				JSON.stringify({ ok: true, user: { id: "U-requester" } }),
+				{ status: 200 },
+			);
+		}
+
+		if (url.endsWith("/conversations.open")) {
+			return new Response(
+				JSON.stringify({ ok: true, channel: { id: "D-requester" } }),
+				{ status: 200 },
+			);
+		}
+
+		if (url.endsWith("/chat.postMessage")) {
+			posts.push(JSON.parse(body) as PostedSlackMessage);
+			return new Response(JSON.stringify({ ok: true }), { status: 200 });
+		}
+
+		return new Response("not found", { status: 404 });
+	};
+	return posts;
+}
+
+/** Every mrkdwn string rendered by the blocks (sections and context). */
+function blockTexts(blocks: SlackBlockJson[] | undefined): string[] {
+	return (blocks ?? []).flatMap((block) => [
+		...(block.text?.text ? [block.text.text] : []),
+		...(block.elements ?? []).flatMap((element) =>
+			typeof element.text === "string" ? [element.text] : [],
+		),
+	]);
+}
+
+const statusBasePayload = {
+	requestId: "request-42",
+	requesterUserId: "requester-1",
+	requesterEmail: "requester@test.com",
+	submissionType: "invoice",
+	amount: 42,
+	requestUrl: "https://member-manager.test/tools/reimbursement",
+};
+
+test("notifyRequesterOfReimbursementStatus shows the rejection and escaped reason in blocks", async () => {
+	process.env.SLACK_BOT_TOKEN = "xoxb-test";
+	const posts = mockRequesterSlackApi();
+
+	await notifyRequesterOfReimbursementStatus({
+		...statusBasePayload,
+		statusType: "approval",
+		statusValue: "not_approved",
+		rejectionReason: "Missing <receipt> & VAT > 0, ask <!channel>",
+	});
+
+	assert.strictEqual(posts.length, 1);
+	const [post] = posts;
+	assert.strictEqual(post.channel, "D-requester");
+	const blocks = post.blocks ?? [];
+
+	assert.strictEqual(blocks[0]?.type, "section");
+	assert.strictEqual(
+		blocks[0]?.text?.text,
+		"*Your Invoice request was rejected*\nAmount: 42.00 EUR",
+	);
+	assert.strictEqual(blocks[1]?.type, "section");
+	assert.strictEqual(
+		blocks[1]?.text?.text,
+		"*Reason*\nMissing &lt;receipt&gt; &amp; VAT &gt; 0, ask &lt;!channel&gt;",
+	);
+	assert.ok(
+		blockTexts(blocks).every((text) => !text.includes("<receipt>")),
+		"reviewer text must not reach Slack unescaped",
+	);
+	assert.ok(blockTexts(blocks).includes("Request ID: request-42"));
+
+	const actions = blocks.find((block) => block.type === "actions");
+	assert.deepStrictEqual(
+		actions?.elements?.map((element) => ({
+			label: typeof element.text === "object" ? element.text.text : undefined,
+			url: element.url,
+			actionId: element.action_id,
+		})),
+		[
+			{
+				label: "View request",
+				url: statusBasePayload.requestUrl,
+				actionId: "open_reimbursement_tool",
+			},
+		],
+	);
+
+	// The text fallback is the push-notification preview.
+	assert.match(post.text ?? "", /^Your Invoice request was rejected\n/);
+	assert.match(post.text ?? "", /\nReason: Missing &lt;receipt&gt; &amp;/);
+});
+
+test("notifyRequesterOfReimbursementStatus keeps blocks without a request URL", async () => {
+	process.env.SLACK_BOT_TOKEN = "xoxb-test";
+	const posts = mockRequesterSlackApi();
+
+	await notifyRequesterOfReimbursementStatus({
+		...statusBasePayload,
+		requestUrl: undefined,
+		statusType: "approval",
+		statusValue: "not_approved",
+		rejectionReason: "   ",
+	});
+
+	assert.strictEqual(posts.length, 1);
+	const blocks = posts[0].blocks ?? [];
+	assert.deepStrictEqual(
+		blocks.map((block) => block.type),
+		["section", "section", "context"],
+	);
+	assert.match(blocks[0]?.text?.text ?? "", /request was rejected/);
+	assert.strictEqual(blocks[1]?.text?.text, "*Reason*\nNo reason provided");
+	assert.match(posts[0].text ?? "", /\nView it in Member Manager\.$/);
+});
+
+test("notifyRequesterOfReimbursementStatus announces approvals with the payout note", async () => {
+	process.env.SLACK_BOT_TOKEN = "xoxb-test";
+	const posts = mockRequesterSlackApi();
+
+	await notifyRequesterOfReimbursementStatus({
+		...statusBasePayload,
+		submissionType: "reimbursement",
+		statusType: "approval",
+		statusValue: "approved",
+	});
+
+	assert.strictEqual(posts.length, 1);
+	const blocks = posts[0].blocks ?? [];
+	assert.deepStrictEqual(
+		blocks.map((block) => block.type),
+		["section", "section", "context", "actions"],
+	);
+	assert.strictEqual(
+		blocks[0]?.text?.text,
+		"*Your reimbursement request was approved*\nAmount: 42.00 EUR",
+	);
+	assert.strictEqual(
+		blocks[1]?.text?.text,
+		"Legal & Finance will mark it paid after payout.",
+	);
+	assert.match(posts[0].text ?? "", /^Your reimbursement request was approved/);
+	assert.doesNotMatch(posts[0].text ?? "", /Reason:/);
+});
+
+test("notifyRequesterOfReimbursementStatus tells Vivid requesters no payout is needed", async () => {
+	process.env.SLACK_BOT_TOKEN = "xoxb-test";
+	const posts = mockRequesterSlackApi();
+
+	await notifyRequesterOfReimbursementStatus({
+		...statusBasePayload,
+		submissionType: "vivid_reimbursement",
+		statusType: "approval",
+		statusValue: "approved",
+	});
+
+	assert.strictEqual(posts.length, 1);
+	const texts = blockTexts(posts[0].blocks);
+	assert.match(texts[0] ?? "", /Vivid Reimbursement request was approved/);
+	assert.ok(
+		texts.includes("This expense will be recorded; no payout is required."),
+	);
+	assert.ok(texts.every((text) => !text.includes("mark it paid")));
+});
+
+test("notifyRequesterOfReimbursementStatus announces paid requests", async () => {
+	process.env.SLACK_BOT_TOKEN = "xoxb-test";
+	const posts = mockRequesterSlackApi();
+
+	await notifyRequesterOfReimbursementStatus({
+		...statusBasePayload,
+		statusType: "payment",
+		statusValue: "paid",
+	});
+
+	assert.strictEqual(posts.length, 1);
+	const blocks = posts[0].blocks ?? [];
+	assert.deepStrictEqual(
+		blocks.map((block) => block.type),
+		["section", "context", "actions"],
+	);
+	assert.strictEqual(
+		blocks[0]?.text?.text,
+		"*Your Invoice request was marked as paid*\nAmount: 42.00 EUR",
+	);
+	assert.match(posts[0].text ?? "", /^Your Invoice request was marked as paid/);
+});
+
+test("notifyRequesterOfReimbursementStatus skips requesters without a Slack account", async () => {
+	process.env.SLACK_BOT_TOKEN = "xoxb-test";
+	const calls: string[] = [];
+	globalThis.fetch = async (input) => {
+		calls.push(String(input));
+		return new Response(JSON.stringify({ ok: true, user: {} }), {
+			status: 200,
+		});
+	};
+
+	await notifyRequesterOfReimbursementStatus({
+		...statusBasePayload,
+		statusType: "payment",
+		statusValue: "paid",
+	});
+
+	assert.deepStrictEqual(calls, ["https://slack.com/api/users.lookupByEmail"]);
 });

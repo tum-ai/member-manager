@@ -97,7 +97,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 	return (
 		<div>
-			<form onSubmit={memberForm.handleSubmit(onSubmit)}>
+			{/* noValidate: the Zod schemas own validation. Native `required`
+			    checks would block submit before onSubmit could run (#304). */}
+			<form onSubmit={memberForm.handleSubmit(onSubmit)} noValidate>
 				<div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-start">
 					<ProfileSidebar
 						avatarUrl={memberData?.avatar_url}
@@ -184,9 +186,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								setChangeRequestReason={
 									changeRequestForm.setChangeRequestReason
 								}
-								latestMemberChangeRequest={
-									changeRequestForm.latestMemberChangeRequest
-								}
+								memberChangeRequests={changeRequestForm.memberChangeRequests}
 								isSubmittingChangeRequest={
 									changeRequestForm.isSubmittingChangeRequest
 								}

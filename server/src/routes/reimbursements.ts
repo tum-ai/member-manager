@@ -1,4 +1,5 @@
 import {
+	cleanIbanInput,
 	FinanceReimbursementLinkSchema,
 	isValidIban,
 	normalizeIban,
@@ -68,10 +69,26 @@ Extract:
 - amount: total amount in EUR as a number, without currency symbols
 - date: receipt or invoice date in YYYY-MM-DD format
 - description: concise merchant/vendor and purchase description
-- payment_iban: IBAN shown on the document, if any
-- payment_bic: BIC/SWIFT shown on the document, if any
+- payment_iban: IBAN of the account this invoice should be paid to, i.e. the payee (vendor or issuer). Ignore the customer's or buyer's own IBAN, such as one printed for a SEPA direct debit. Return only the IBAN itself, without an "IBAN" label.
+- payment_bic: BIC/SWIFT of that payee account
 
 If a field cannot be determined, use null.`;
+
+/**
+ * Reduces the model's `payment_iban` to a checksum-valid electronic IBAN, or
+ * null. The model regularly adds an "IBAN:" label, dashes, or lowercase, and
+ * can misread a digit; passing such a value through would prefill the form
+ * with an IBAN that only fails later, at submit.
+ */
+function normalizeParsedIban(value: unknown): string | null {
+	const raw = normalizeMaybeString(value);
+	if (!raw) {
+		return null;
+	}
+
+	const iban = cleanIbanInput(raw);
+	return isValidIban(iban) ? iban : null;
+}
 
 function buildFinanceReviewUrl(): string | undefined {
 	const baseUrl = process.env.APP_BASE_URL?.trim();
@@ -1249,10 +1266,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					amount: normalizeMaybeAmount(parsed.amount),
 					date: normalizeMaybeDate(parsed.date),
 					description: normalizeMaybeString(parsed.description),
-					payment_iban: normalizeMaybeString(parsed.payment_iban)?.replace(
-						/\s/g,
-						"",
-					),
+					payment_iban: normalizeParsedIban(parsed.payment_iban),
 					payment_bic: normalizeMaybeString(parsed.payment_bic)?.toUpperCase(),
 				};
 			} catch (error) {

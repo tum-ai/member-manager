@@ -63,7 +63,7 @@ vi.mock("./hooks/useMemberChangeRequestForm", () => ({
 		setIsRequestingAlumniStatus: vi.fn(),
 		changeRequestReason: "",
 		setChangeRequestReason: vi.fn(),
-		latestMemberChangeRequest: null,
+		memberChangeRequests: [],
 		isSubmittingChangeRequest: false,
 		handleSubmitMemberChangeRequest: vi.fn(),
 	}),
@@ -157,6 +157,50 @@ describe("ProfilePage (render)", () => {
 		expect(
 			await screen.findByRole("dialog", { name: /sepa mandate agreement/i }),
 		).toBeInTheDocument();
+	});
+
+	it("submits the profile when Save Changes is clicked with empty bank fields", async () => {
+		// Regression for #304: native `required` on IBAN/Bank Name blocked the
+		// browser submit, so onSubmit never ran for members without bank details.
+		memberData = {
+			given_name: "Ada",
+			surname: "Lovelace",
+			department: "Venture",
+			degree: "Bachelor Informatics",
+		};
+		sepaData = {
+			user_id: "user-1",
+			iban: "",
+			bic: "",
+			bank_name: "",
+			mandate_agreed: false,
+			privacy_agreed: false,
+			data_privacy_notice_agreed: false,
+		};
+		updateMemberAsync.mockResolvedValue(undefined);
+		const userEv = userEvent.setup();
+		render(<ProfilePage user={user} />);
+		await waitFor(() =>
+			expect(
+				screen.getByRole("heading", { name: /personal information/i }),
+			).toBeInTheDocument(),
+		);
+		expect(screen.getByLabelText("IBAN")).toHaveValue("");
+
+		const [saveButton] = screen.getAllByRole("button", {
+			name: /save changes/i,
+		});
+		await userEv.click(saveButton);
+
+		await waitFor(() => expect(updateMemberAsync).toHaveBeenCalledTimes(1));
+		expect(updateMemberAsync.mock.calls[0][0].degree).toBe(
+			"Bachelor Informatics",
+		);
+		expect(updateSepaAsync).not.toHaveBeenCalled();
+		expect(showToast).toHaveBeenCalledWith(
+			"Profile saved successfully!",
+			"success",
+		);
 	});
 
 	it("derives an empty header when there is no name or department", async () => {

@@ -124,6 +124,22 @@ describe("useReimbursementForm", () => {
 		expect(result.current.values.paymentBic).toBe("COBADEFFXXX");
 	});
 
+	it("leaves the payment account blank for a member without saved bank details", async () => {
+		// GET /api/sepa/:userId answers 200 with blank bank fields (not 404)
+		// when the member never saved bank details.
+		sepaState.sepa = { user_id: "user-123", iban: "", bic: "" };
+
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+
+		await waitFor(() =>
+			expect(result.current.values.department).toBe("Software Development"),
+		);
+		expect(result.current.values.paymentIban).toBe("");
+		expect(result.current.values.paymentBic).toBe("");
+	});
+
 	it("clears prefilled bank details when switching to invoice and restores them", async () => {
 		const { result } = renderHookWithClient(() =>
 			useReimbursementForm("user-123"),
@@ -328,6 +344,154 @@ describe("useReimbursementForm", () => {
 		await waitFor(() => expect(result.current.values.amount).toBe("42.5"));
 		expect(result.current.values.paymentIban).toBe("");
 		expect(result.current.values.paymentBic).toBe("");
+
+		// The payee details are kept for Invoice rather than dropped.
+		act(() => result.current.handleSubmissionTypeChange("invoice"));
+		expect(result.current.values.paymentIban).toBe("DE89370400440532013000");
+		expect(result.current.values.paymentBic).toBe("COBADEFFXXX");
+	});
+
+	describe("parsed payee bank details (#282)", () => {
+		const VENDOR_IBAN = "DE12500105170648489890";
+		const VENDOR_BIC = "INGDDEFFXXX";
+		const PROFILE_IBAN = "DE89370400440532013000";
+		const PROFILE_BIC = "COBADEFFXXX";
+
+		function mockVendorInvoiceParse(gate?: Promise<void>): {
+			wasRequested: () => boolean;
+		} {
+			let requested = false;
+			server.use(
+				http.post("/api/reimbursements/parse-receipt", async () => {
+					requested = true;
+					await gate;
+					return HttpResponse.json({
+						amount: 180,
+						date: "2026-05-02",
+						description: "Venue rental",
+						payment_iban: VENDOR_IBAN,
+						payment_bic: VENDOR_BIC,
+					});
+				}),
+			);
+			return { wasRequested: () => requested };
+		}
+
+		function deferred(): { promise: Promise<void>; resolve: () => void } {
+			let resolve: () => void = () => {};
+			const promise = new Promise<void>((settle) => {
+				resolve = settle;
+			});
+			return { promise, resolve };
+		}
+
+		it("fills the invoice fields when Invoice is selected before upload", async () => {
+			mockVendorInvoiceParse();
+			const { result } = renderHookWithClient(() =>
+				useReimbursementForm("user-123"),
+			);
+			await waitFor(() =>
+				expect(result.current.values.paymentIban).toBe(PROFILE_IBAN),
+			);
+
+			act(() => result.current.handleSubmissionTypeChange("invoice"));
+			await act(async () => {
+				await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+			});
+
+			await waitFor(() =>
+				expect(result.current.values.paymentIban).toBe(VENDOR_IBAN),
+			);
+			expect(result.current.values.paymentBic).toBe(VENDOR_BIC);
+			expect(result.current.values.amount).toBe("180");
+			expect(result.current.values.description).toBe("Venue rental");
+		});
+
+		it("keeps the profile IBAN on a reimbursement and hands the parsed IBAN to Invoice", async () => {
+			mockVendorInvoiceParse();
+			const { result } = renderHookWithClient(() =>
+				useReimbursementForm("user-123"),
+			);
+			await waitFor(() =>
+				expect(result.current.values.paymentIban).toBe(PROFILE_IBAN),
+			);
+
+			// The reported flow: upload the invoice first (Reimbursement is the
+			// default), then pick Invoice.
+			await act(async () => {
+				await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+			});
+			await waitFor(() => expect(result.current.values.amount).toBe("180"));
+			expect(result.current.values.submissionType).toBe("reimbursement");
+			expect(result.current.values.paymentIban).toBe(PROFILE_IBAN);
+			expect(result.current.values.paymentBic).toBe(PROFILE_BIC);
+
+			act(() => result.current.handleSubmissionTypeChange("invoice"));
+			expect(result.current.values.paymentIban).toBe(VENDOR_IBAN);
+			expect(result.current.values.paymentBic).toBe(VENDOR_BIC);
+
+			act(() => result.current.handleSubmissionTypeChange("reimbursement"));
+			expect(result.current.values.paymentIban).toBe(PROFILE_IBAN);
+			expect(result.current.values.paymentBic).toBe(PROFILE_BIC);
+
+			act(() => result.current.handleSubmissionTypeChange("invoice"));
+			expect(result.current.values.paymentIban).toBe(VENDOR_IBAN);
+		});
+
+		it("routes the parsed IBAN to Invoice when the member switches to it mid-parse", async () => {
+			const gate = deferred();
+			const parse = mockVendorInvoiceParse(gate.promise);
+			const { result } = renderHookWithClient(() =>
+				useReimbursementForm("user-123"),
+			);
+			await waitFor(() =>
+				expect(result.current.values.paymentIban).toBe(PROFILE_IBAN),
+			);
+
+			act(() => result.current.handleReceiptDrop(dropEvent(pdfReceipt)));
+			await waitFor(() => expect(parse.wasRequested()).toBe(true));
+			act(() => result.current.handleSubmissionTypeChange("invoice"));
+			expect(result.current.values.paymentIban).toBe("");
+
+			await act(async () => {
+				gate.resolve();
+			});
+
+			await waitFor(() =>
+				expect(result.current.values.paymentIban).toBe(VENDOR_IBAN),
+			);
+			expect(result.current.values.paymentBic).toBe(VENDOR_BIC);
+			act(() => result.current.handleSubmissionTypeChange("reimbursement"));
+			expect(result.current.values.paymentIban).toBe(PROFILE_IBAN);
+		});
+
+		it("keeps the parsed IBAN for Invoice when the member leaves Invoice mid-parse", async () => {
+			const gate = deferred();
+			const parse = mockVendorInvoiceParse(gate.promise);
+			const { result } = renderHookWithClient(() =>
+				useReimbursementForm("user-123"),
+			);
+			await waitFor(() =>
+				expect(result.current.values.paymentIban).toBe(PROFILE_IBAN),
+			);
+
+			act(() => result.current.handleSubmissionTypeChange("invoice"));
+			act(() => result.current.handleReceiptDrop(dropEvent(pdfReceipt)));
+			await waitFor(() => expect(parse.wasRequested()).toBe(true));
+			act(() => result.current.handleSubmissionTypeChange("reimbursement"));
+
+			await act(async () => {
+				gate.resolve();
+			});
+
+			await waitFor(() => expect(result.current.values.amount).toBe("180"));
+			expect(result.current.values.paymentIban).toBe(PROFILE_IBAN);
+			expect(result.current.values.paymentBic).toBe(PROFILE_BIC);
+
+			act(() => result.current.handleSubmissionTypeChange("invoice"));
+			expect(result.current.values.paymentIban).toBe(VENDOR_IBAN);
+			expect(result.current.values.paymentBic).toBe(VENDOR_BIC);
+		});
 	});
 
 	it("warns when receipt parsing fails but keeps the attachment", async () => {

@@ -63,7 +63,10 @@ begin
         ('00000000-0000-0000-0000-000000000019', 'software-development-lead@example.com', 'Sofia', 'Software', 'WS23', 'Software Development', 'Team Lead', null, 'M.Sc. Computer Science', 'TUM', 'user'),
         ('00000000-0000-0000-0000-000000000020', 'user@example.com', 'Regular', 'User', 'SS24', 'Software Development', 'Member', null, 'B.Sc. Computer Science', 'TUM', 'user'),
         ('00000000-0000-0000-0000-000000000021', 'venture-lead@example.com', 'Valerie', 'Venture', 'WS23', 'Venture', 'Team Lead', null, 'M.Sc. Management & Technology', 'TUM', 'user'),
-        ('00000000-0000-0000-0000-000000000022', 'venture-member@example.com', 'Victor', 'Venture', 'SS24', 'Venture', 'Member', null, 'B.Sc. Management & Technology', 'LMU', 'user');
+        ('00000000-0000-0000-0000-000000000022', 'venture-member@example.com', 'Victor', 'Venture', 'SS24', 'Venture', 'Member', null, 'B.Sc. Management & Technology', 'LMU', 'user'),
+        -- Member who never saved bank details: deliberately excluded from the
+        -- catch-all `sepa` insert below (issue #304, e2e/profile-edit.spec.ts).
+        ('00000000-0000-0000-0000-000000000023', 'no-bank-details@example.com', 'Nora', 'Nobank', 'SS25', 'Community', 'Member', null, 'B.Sc. Management & Technology', 'TUM', 'user');
 
     insert into auth.users (
         id,
@@ -679,6 +682,8 @@ on conflict (id) do update set
 -- Broaden SEPA + agreement coverage to every seeded member so reimbursement
 -- and payment flows can be exercised from any local login (not just the four
 -- accounts above). Existing rows are left untouched (`do nothing`).
+-- no-bank-details@example.com (…0023) is skipped for SEPA so the "member
+-- without bank details" profile path stays covered; it still gets agreements.
 -- =========================================================================
 insert into public.sepa (user_id, iban, bic, bank_name, mandate_agreed, privacy_agreed)
 select
@@ -689,6 +694,7 @@ select
     true,
     true
 from public.members m
+where m.user_id <> '00000000-0000-0000-0000-000000000023'
 on conflict (user_id) do nothing;
 
 insert into public.member_agreements (

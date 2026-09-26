@@ -14,8 +14,8 @@ Supabase. Auth via Supabase; sensitive DB fields are encrypted at rest.
 ## Read These First
 
 Start with this file, then read the matching nested `AGENTS.md` for the area you are editing.
-Reusable helper prompts, rules, and skills live under `.agents/`; `CLAUDE.md` files are symlinks to
-the corresponding `AGENTS.md` files for Claude compatibility.
+Reusable helper prompts, rules, and skills live under `.agents/`; see
+[Agent Configuration](#agent-configuration) for how Claude Code picks them up.
 
 | You are editing...                        | Canonical guide                      |
 | ----------------------------------------- | ------------------------------------ |
@@ -26,6 +26,21 @@ the corresponding `AGENTS.md` files for Claude compatibility.
 | `e2e/**`                                  | `e2e/AGENTS.md`                      |
 | `**/*.test.ts(x)`, `**/*.stories.tsx`     | `e2e/AGENTS.md` and the package guide |
 | `.github/workflows/**`, `scripts/**`, `biome.json` | this file and relevant script docs |
+
+## Agent Configuration
+
+`.agents/` and the `AGENTS.md` files are the single source of truth. Claude Code does not read
+`.agents/`, so `.claude/` is a thin adapter over it:
+
+- `.claude/rules`, `.claude/agents`, `.claude/skills` are **symlinks** to `.agents/rules`,
+  `.agents/agents`, `.agents/skills`. Add or edit files only under `.agents/`; they show up for
+  Claude automatically. Never replace these links with real directories.
+- Claude Code (v2.1.277+) reads `AGENTS.md` files directly, so there are no `CLAUDE.md` files.
+  Don't add one: any `CLAUDE.md` (or a personal `CLAUDE.local.md`) makes Claude skip `AGENTS.md`.
+- `.claude/settings.json` (permissions + deny list) and `.claude/hooks/` (git guard, Biome
+  format-on-save) are real, Claude-only files. Keep them when reorganizing agent docs.
+- `scripts/check-agent-config.test.mjs` (part of `pnpm test`) fails if these links break or a
+  `CLAUDE.md` is committed.
 
 ## Key commands
 
