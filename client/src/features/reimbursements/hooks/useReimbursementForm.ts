@@ -68,7 +68,8 @@ export function useReimbursementForm(userId: string) {
 	// each type so switching back restores it instead of the other type's
 	// value. `null` means "not visited yet" (fall back to the profile
 	// IBAN/BIC for reimbursement); an empty string is a deliberate clear and
-	// must be kept as-is.
+	// must be kept as-is. A parsed receipt may also seed `invoiceDraft` while
+	// another type is shown (see `applyParsedPayeeDetails`).
 	const reimbursementDraft = useRef<{
 		iban: string | null;
 		bic: string | null;
@@ -77,6 +78,13 @@ export function useReimbursementForm(userId: string) {
 		iban: null,
 		bic: null,
 	});
+	// The submission type as of the latest commit. Receipt parsing resolves
+	// asynchronously, after the member may have switched type, so it must not
+	// rely on the `values` its closure captured at upload time.
+	const latestSubmissionType = useRef(values.submissionType);
+	useEffect(() => {
+		latestSubmissionType.current = values.submissionType;
+	}, [values.submissionType]);
 
 	useEffect(() => {
 		if (!memberDepartment && !profileIban && !profileBic) {
@@ -160,8 +168,30 @@ export function useReimbursementForm(userId: string) {
 		}));
 	};
 
+	// Bank details printed on a receipt belong to whoever issued it, i.e. the
+	// payee of an invoice. They go to the invoice slot only: straight into the
+	// fields if Invoice is selected now, otherwise into the stashed invoice
+	// draft that selecting Invoice restores. They must never replace the
+	// member's own payout IBAN on a reimbursement. Returns the bank-detail
+	// patch to merge into the visible form values.
+	const applyParsedPayeeDetails = (
+		parsedIban: string | null,
+		parsedBic: string | null,
+	): Partial<Pick<FormValues, "paymentIban" | "paymentBic">> => {
+		const patch: Partial<Pick<FormValues, "paymentIban" | "paymentBic">> = {};
+		if (latestSubmissionType.current === "invoice") {
+			if (parsedIban) patch.paymentIban = parsedIban;
+			if (parsedBic) patch.paymentBic = parsedBic;
+			return patch;
+		}
+		invoiceDraft.current = {
+			iban: parsedIban ?? invoiceDraft.current.iban,
+			bic: parsedBic ?? invoiceDraft.current.bic,
+		};
+		return patch;
+	};
+
 	const processReceiptFile = async (file: File): Promise<void> => {
-		const parsingSubmissionType = values.submissionType;
 		if (!ALLOWED_RECEIPT_TYPES.has(file.type)) {
 			setErrors((current) => ({
 				...current,
@@ -199,6 +229,12 @@ export function useReimbursementForm(userId: string) {
 					receipt_storage_path: nextReceipt.storagePath,
 				});
 
+				// Resolve the payee patch (and any draft write) outside the updater,
+				// which must stay a pure function of its input.
+				const payeeDetails = applyParsedPayeeDetails(
+					parsedReceipt.payment_iban || null,
+					parsedReceipt.payment_bic || null,
+				);
 				setValues((current) => ({
 					...current,
 					amount:
@@ -207,13 +243,7 @@ export function useReimbursementForm(userId: string) {
 							: current.amount,
 					date: parsedReceipt.date ?? current.date,
 					description: parsedReceipt.description ?? current.description,
-					...(current.submissionType === parsingSubmissionType &&
-					parsingSubmissionType !== "vivid_reimbursement"
-						? {
-								paymentIban: parsedReceipt.payment_iban ?? current.paymentIban,
-								paymentBic: parsedReceipt.payment_bic ?? current.paymentBic,
-							}
-						: {}),
+					...payeeDetails,
 				}));
 				showToast(
 					"Receipt details extracted. Please review and correct them.",

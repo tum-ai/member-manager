@@ -41,19 +41,56 @@ function renderSection(
 }
 
 describe("ReimbursementFormSection", () => {
-	it("renders the receipt-first form without a redundant receipt heading", () => {
+	it("asks for the submission type, then the receipt, then the details", () => {
 		renderSection();
 
 		expect(screen.getByText(/drag & drop your receipt/i)).toBeVisible();
 		expect(
 			screen.queryByRole("heading", { name: /^receipt$/i }),
 		).not.toBeInTheDocument();
+		const typeToggle = screen.getByRole("group", { name: "Submission type" });
 		const receiptText = screen.getByText(/drag & drop your receipt/i);
 		const amountInput = screen.getByLabelText(/amount/i);
+		expect(
+			typeToggle.compareDocumentPosition(receiptText) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 		expect(
 			receiptText.compareDocumentPosition(amountInput) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
+	});
+
+	it("shows the IBAN grouped in blocks of four", () => {
+		renderSection({ values: { paymentIban: "DE89370400440532013000" } });
+
+		const ibanInput = screen.getByLabelText("IBAN");
+		expect(ibanInput).toHaveValue("DE89 3704 0044 0532 0130 00");
+		expect(ibanInput).toHaveAttribute("autocapitalize", "characters");
+		expect(ibanInput).toHaveAttribute("autocorrect", "off");
+	});
+
+	it("reports a pasted IBAN in its cleaned form", async () => {
+		const user = userEvent.setup();
+		const { onFieldChange } = renderSection();
+
+		await user.click(screen.getByLabelText("IBAN"));
+		await user.paste("de12 5001 0517 0648 4898 90");
+
+		expect(onFieldChange).toHaveBeenLastCalledWith(
+			"paymentIban",
+			"DE12500105170648489890",
+		);
+	});
+
+	it("attaches the submit-time IBAN error to the field", () => {
+		renderSection({
+			props: { errors: { paymentIban: "Enter a valid IBAN." } },
+		});
+
+		const ibanInput = screen.getByLabelText("IBAN");
+		expect(ibanInput).toHaveAttribute("aria-invalid", "true");
+		expect(ibanInput).toHaveAccessibleDescription("Enter a valid IBAN.");
 	});
 
 	it("calls onFieldChange when typing into the amount field", async () => {

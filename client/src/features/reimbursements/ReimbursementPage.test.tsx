@@ -232,7 +232,7 @@ describe("ReimbursementPage", () => {
 			screen.getByRole("combobox", { name: /department/i }),
 		).toHaveTextContent("Software Development");
 		expect(screen.getByLabelText(/iban/i)).toHaveValue(
-			"DE89370400440532013000",
+			"DE89 3704 0044 0532 0130 00",
 		);
 		expect(screen.getByLabelText(/bic/i)).toHaveValue("COBADEFFXXX");
 
@@ -241,7 +241,7 @@ describe("ReimbursementPage", () => {
 		expect(screen.getByLabelText(/bic/i)).toHaveValue("");
 		await user.click(screen.getByRole("radio", { name: /^reimbursement$/i }));
 		expect(screen.getByLabelText(/iban/i)).toHaveValue(
-			"DE89370400440532013000",
+			"DE89 3704 0044 0532 0130 00",
 		);
 		expect(screen.getByLabelText(/bic/i)).toHaveValue("COBADEFFXXX");
 
@@ -253,7 +253,7 @@ describe("ReimbursementPage", () => {
 		).toBeInTheDocument();
 	}, 30_000);
 
-	it("puts receipt upload first and lets users correct extracted fields", async () => {
+	it("puts the type and receipt upload before the details and lets users correct extracted fields", async () => {
 		parseReceiptAsync.mockResolvedValueOnce({
 			amount: 42.5,
 			date: "2026-04-12",
@@ -264,8 +264,13 @@ describe("ReimbursementPage", () => {
 		const user = userEvent.setup();
 		const { container } = renderPage();
 
+		const typeToggle = screen.getByRole("group", { name: "Submission type" });
 		const receiptButton = screen.getByText(/drag & drop your receipt/i);
 		const amountInput = screen.getByLabelText(/amount/i);
+		expect(
+			typeToggle.compareDocumentPosition(receiptButton) &
+				Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
 		expect(
 			receiptButton.compareDocumentPosition(amountInput) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
@@ -284,6 +289,52 @@ describe("ReimbursementPage", () => {
 		await user.clear(screen.getByLabelText(/amount/i));
 		await user.type(screen.getByLabelText(/amount/i), "43");
 		expect(screen.getByLabelText(/amount/i)).toHaveValue(43);
+	});
+
+	it("keeps an IBAN parsed from an invoice uploaded before choosing Invoice (#282)", async () => {
+		createRequestAsync.mockResolvedValueOnce({});
+		parseReceiptAsync.mockResolvedValueOnce({
+			amount: 180,
+			date: "2026-05-02",
+			description: "Venue rental",
+			payment_iban: "DE12500105170648489890",
+			payment_bic: "INGDDEFFXXX",
+		});
+		const user = userEvent.setup();
+		const { container } = renderPage();
+
+		// Upload first with the default type, as reported, then pick Invoice.
+		await uploadReceipt(user, container);
+		await waitFor(() =>
+			expect(screen.getByLabelText(/amount/i)).toHaveValue(180),
+		);
+		expect(screen.getByLabelText(/iban/i)).toHaveValue(
+			"DE89 3704 0044 0532 0130 00",
+		);
+
+		await user.click(screen.getByRole("radio", { name: /^invoice$/i }));
+		expect(screen.getByLabelText(/iban/i)).toHaveValue(
+			"DE12 5001 0517 0648 4898 90",
+		);
+		expect(screen.getByLabelText(/bic/i)).toHaveValue("INGDDEFFXXX");
+
+		// The member's own payout IBAN is untouched by the vendor's.
+		await user.click(screen.getByRole("radio", { name: /^reimbursement$/i }));
+		expect(screen.getByLabelText(/iban/i)).toHaveValue(
+			"DE89 3704 0044 0532 0130 00",
+		);
+
+		await user.click(screen.getByRole("radio", { name: /^invoice$/i }));
+		await user.click(screen.getByRole("button", { name: /submit request/i }));
+
+		await waitFor(() => expect(createRequestAsync).toHaveBeenCalledTimes(1));
+		expect(createRequestAsync).toHaveBeenCalledWith(
+			expect.objectContaining({
+				submission_type: "invoice",
+				payment_iban: "DE12500105170648489890",
+				payment_bic: "INGDDEFFXXX",
+			}),
+		);
 	});
 
 	it("submits Vivid without bank fields or parsed bank autofill", async () => {
@@ -334,6 +385,29 @@ describe("ReimbursementPage", () => {
 		expect(await screen.findByText(/iban is required/i)).toBeInTheDocument();
 		expect(screen.getByText(/bic is required/i)).toBeInTheDocument();
 		expect(createRequestAsync).not.toHaveBeenCalled();
+	}, 30_000);
+
+	it("submits after the prefilled IBAN is re-entered unchanged", async () => {
+		// Mirrors e2e/reimbursement-submit-review.spec.ts, whose Playwright
+		// `fill()` selects the grouped profile IBAN and inserts the same IBAN.
+		createRequestAsync.mockResolvedValueOnce({});
+		const user = userEvent.setup();
+		const { container } = renderPage();
+
+		await uploadReceipt(user, container);
+		await fillBaseRequest(user);
+		await user.tripleClick(screen.getByLabelText(/iban/i));
+		await user.paste("DE89370400440532013000");
+		await user.click(screen.getByRole("button", { name: /submit request/i }));
+
+		await waitFor(() => expect(createRequestAsync).toHaveBeenCalledTimes(1));
+		expect(createRequestAsync).toHaveBeenCalledWith(
+			expect.objectContaining({
+				submission_type: "reimbursement",
+				payment_iban: "DE89370400440532013000",
+			}),
+		);
+		expect(screen.queryByText(/enter a valid iban/i)).not.toBeInTheDocument();
 	}, 30_000);
 
 	it("submits invoice payout details instead of profile bank details", async () => {

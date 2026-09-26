@@ -1,5 +1,6 @@
 import type React from "react";
 import type { ReactElement } from "react";
+import { IbanInput } from "@/components/IbanInput";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -64,16 +65,9 @@ export function ReimbursementFormSection({
 				<h2 className="mb-4 text-xl font-semibold">New request</h2>
 
 				<form onSubmit={onSubmit} noValidate>
-					<ReceiptUpload
-						receipt={values.receipt}
-						isReceiptBusy={isReceiptBusy}
-						isDraggingReceipt={isDraggingReceipt}
-						receiptError={errors.receiptFile}
-						onDraggingChange={onDraggingChange}
-						onDrop={onReceiptDrop}
-						onChange={onReceiptChange}
-					/>
-
+					{/* Type first: the receipt parse fills bank details into the
+					    invoice slot, so choosing Invoice before uploading shows the
+					    extracted payee IBAN right away. */}
 					<div className="mb-4">
 						<ToggleGroup
 							type="single"
@@ -100,6 +94,16 @@ export function ReimbursementFormSection({
 							)}
 						</ToggleGroup>
 					</div>
+
+					<ReceiptUpload
+						receipt={values.receipt}
+						isReceiptBusy={isReceiptBusy}
+						isDraggingReceipt={isDraggingReceipt}
+						receiptError={errors.receiptFile}
+						onDraggingChange={onDraggingChange}
+						onDrop={onReceiptDrop}
+						onChange={onReceiptChange}
+					/>
 
 					{values.submissionType === "vivid_reimbursement" && (
 						<Alert className="mb-4">
@@ -198,20 +202,15 @@ export function ReimbursementFormSection({
 							<>
 								<div className="flex min-w-0 flex-col gap-1.5">
 									<Label htmlFor="reimbursement-iban">IBAN</Label>
-									<Input
+									<IbanInput
 										id="reimbursement-iban"
 										value={values.paymentIban}
-										onChange={(event) =>
-											onFieldChange("paymentIban", event.target.value)
+										onValueChange={(value) =>
+											onFieldChange("paymentIban", value)
 										}
-										aria-invalid={Boolean(errors.paymentIban)}
+										error={errors.paymentIban}
 										required
 									/>
-									{errors.paymentIban && (
-										<p className="text-xs text-destructive">
-											{errors.paymentIban}
-										</p>
-									)}
 								</div>
 								<div className="flex min-w-0 flex-col gap-1.5">
 									<Label htmlFor="reimbursement-bic">BIC</Label>
@@ -221,6 +220,10 @@ export function ReimbursementFormSection({
 										onChange={(event) =>
 											onFieldChange("paymentBic", event.target.value)
 										}
+										autoCapitalize="characters"
+										autoComplete="off"
+										autoCorrect="off"
+										spellCheck={false}
 										aria-invalid={Boolean(errors.paymentBic)}
 										required
 									/>
