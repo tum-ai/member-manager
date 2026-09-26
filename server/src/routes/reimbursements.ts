@@ -538,8 +538,10 @@ async function loadReceiptBuffer(row: ReimbursementRow): Promise<Buffer> {
 const RECEIPT_RESPONSE_COLUMNS =
 	"id, receipt_filename, receipt_mime_type, receipt_base64, receipt_storage_bucket, receipt_storage_path";
 
-const OwnReceiptParamsSchema = z.object({
-	requestId: z.string().trim().min(1).max(200),
+// `reimbursements.id` is a uuid; anything else would make Postgres throw, so
+// the receipt routes reject it as not found before querying.
+const ReceiptParamsSchema = z.object({
+	requestId: z.string().uuid(),
 });
 
 /**
@@ -1378,7 +1380,11 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 		"/reimbursements/review/:requestId/receipt",
 		{ preHandler: [authenticate, requireReimbursementReviewer] },
 		async (request, reply) => {
-			const { requestId } = request.params;
+			const params = ReceiptParamsSchema.safeParse(request.params);
+			if (!params.success) {
+				return reply.status(404).send({ error: "Receipt not found" });
+			}
+			const { requestId } = params.data;
 			const { data, error } = await getSupabase()
 				.from("reimbursements")
 				.select(RECEIPT_RESPONSE_COLUMNS)
@@ -1412,7 +1418,11 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 		{ preHandler: authenticate },
 		async (request, reply) => {
 			const user = (request as AuthenticatedRequest).user;
-			const { requestId } = OwnReceiptParamsSchema.parse(request.params);
+			const params = ReceiptParamsSchema.safeParse(request.params);
+			if (!params.success) {
+				return reply.status(404).send({ error: "Receipt not found" });
+			}
+			const { requestId } = params.data;
 			const { data, error } = await getSupabase()
 				.from("reimbursements")
 				.select(RECEIPT_RESPONSE_COLUMNS)
