@@ -224,7 +224,7 @@ describe("SEPA Routes", async () => {
 			assert.strictEqual(response.statusCode, 403);
 		});
 
-		test("returns 404 for non-existent SEPA data", async () => {
+		test("returns blank bank details instead of 404 when no SEPA row exists", async () => {
 			resetDatabase();
 			const response = await app.inject({
 				method: "GET",
@@ -232,7 +232,40 @@ describe("SEPA Routes", async () => {
 				headers: authHeaders(testTokens.admin),
 			});
 
-			assert.strictEqual(response.statusCode, 404);
+			assert.strictEqual(response.statusCode, 200);
+			assert.deepStrictEqual(JSON.parse(response.payload), {
+				user_id: "non-existent-id",
+				iban: "",
+				bic: "",
+				bank_name: "",
+				mandate_agreed: false,
+				privacy_agreed: false,
+				data_privacy_notice_agreed: false,
+			});
+		});
+
+		test("returns stored agreements for a member without a SEPA row", async () => {
+			resetDatabase();
+			mockDatabase.member_agreements.push({
+				user_id: testUserIds.otherUser,
+				sepa_mandate_agreed: false,
+				privacy_policy_agreed: true,
+				data_privacy_notice_agreed: true,
+			});
+
+			const response = await app.inject({
+				method: "GET",
+				url: `/api/sepa/${testUserIds.otherUser}`,
+				headers: authHeaders(testTokens.otherUser),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.iban, "");
+			assert.strictEqual(data.bank_name, "");
+			assert.strictEqual(data.mandate_agreed, false);
+			assert.strictEqual(data.privacy_agreed, true);
+			assert.strictEqual(data.data_privacy_notice_agreed, true);
 		});
 
 		test("rejects unauthenticated request", async () => {
@@ -378,6 +411,270 @@ describe("SEPA Routes", async () => {
 					message: "You must agree to the Privacy Policy",
 				},
 			]);
+		});
+
+		test("rejects new bank details without the Data Privacy Notice agreement", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.otherUser}`,
+				headers: {
+					...authHeaders(testTokens.otherUser),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					iban: "DE89370400440532013000",
+					bank_name: "New Bank",
+					mandate_agreed: true,
+					privacy_agreed: true,
+					data_privacy_notice_agreed: false,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			assert.deepStrictEqual(JSON.parse(response.payload).details, [
+				{
+					field: "data_privacy_notice_agreed",
+					message: "You must agree to the Data Privacy Notice",
+				},
+			]);
+			assert.strictEqual(
+				mockDatabase.sepa.some((row) => row.user_id === testUserIds.otherUser),
+				false,
+			);
+		});
+
+		test("rejects bank details without the SEPA mandate", async () => {
+			resetDatabase();
+			const updatePayload = {
+				iban: "GB82WEST12345698765432",
+				bank_name: "Updated Bank",
+				mandate_agreed: false,
+				privacy_agreed: true,
+				data_privacy_notice_agreed: true,
+			};
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify(updatePayload),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			const data = JSON.parse(response.payload);
+			assert.deepStrictEqual(data.details, [
+				{
+					field: "mandate_agreed",
+					message: "You must agree to the SEPA mandate",
+				},
+			]);
+		});
+
+		test("saves agreements without creating a SEPA row when no bank details are given", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.otherUser}`,
+				headers: {
+					...authHeaders(testTokens.otherUser),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					iban: "",
+					bic: "",
+					bank_name: "",
+					mandate_agreed: false,
+					privacy_agreed: true,
+					data_privacy_notice_agreed: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(data.user_id, testUserIds.otherUser);
+			assert.strictEqual(data.iban, "");
+			assert.strictEqual(data.bic, "");
+			assert.strictEqual(data.bank_name, "");
+			assert.strictEqual(data.privacy_agreed, true);
+			assert.strictEqual(data.data_privacy_notice_agreed, true);
+			assert.strictEqual(
+				mockDatabase.sepa.some((row) => row.user_id === testUserIds.otherUser),
+				false,
+			);
+			const agreements = mockDatabase.member_agreements.find(
+				(row) => row.user_id === testUserIds.otherUser,
+			);
+			assert.strictEqual(agreements?.sepa_mandate_agreed, false);
+			assert.strictEqual(agreements?.privacy_policy_agreed, true);
+			assert.strictEqual(agreements?.data_privacy_notice_agreed, true);
+		});
+
+		test("saves agreements and leaves an existing SEPA row without bank data untouched", async () => {
+			resetDatabase();
+			mockDatabase.sepa.push({
+				id_uuid: "sepa-uuid-empty",
+				user_id: testUserIds.otherUser,
+				iban: null,
+				bic: null,
+				bank_name: null,
+				mandate_agreed: false,
+				privacy_agreed: false,
+			});
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.otherUser}`,
+				headers: {
+					...authHeaders(testTokens.otherUser),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					iban: "",
+					bank_name: "",
+					mandate_agreed: false,
+					privacy_agreed: true,
+					data_privacy_notice_agreed: false,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const storedSepa = mockDatabase.sepa.find(
+				(row) => row.user_id === testUserIds.otherUser,
+			);
+			assert.strictEqual(storedSepa?.iban, null);
+			assert.strictEqual(storedSepa?.privacy_agreed, false);
+			const agreements = mockDatabase.member_agreements.find(
+				(row) => row.user_id === testUserIds.otherUser,
+			);
+			assert.strictEqual(agreements?.privacy_policy_agreed, true);
+		});
+
+		test("rejects partial bank details without writing anything", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.otherUser}`,
+				headers: {
+					...authHeaders(testTokens.otherUser),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					iban: "",
+					bic: "COBADEFFXXX",
+					bank_name: "",
+					mandate_agreed: true,
+					privacy_agreed: true,
+					data_privacy_notice_agreed: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			assert.strictEqual(
+				mockDatabase.sepa.some((row) => row.user_id === testUserIds.otherUser),
+				false,
+			);
+			assert.strictEqual(
+				mockDatabase.member_agreements.some(
+					(row) => row.user_id === testUserIds.otherUser,
+				),
+				false,
+			);
+		});
+
+		test("rejects a bank name without an IBAN", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.otherUser}`,
+				headers: {
+					...authHeaders(testTokens.otherUser),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					iban: "",
+					bank_name: "Test Bank",
+					mandate_agreed: true,
+					privacy_agreed: true,
+					data_privacy_notice_agreed: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			assert.match(JSON.parse(response.payload).error, /invalid iban/i);
+		});
+
+		test("refuses to clear bank details that are already saved", async () => {
+			resetDatabase();
+			const storedBefore = {
+				...mockDatabase.sepa.find((row) => row.user_id === testUserIds.user),
+			};
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					iban: "",
+					bic: "",
+					bank_name: "",
+					mandate_agreed: true,
+					privacy_agreed: true,
+					data_privacy_notice_agreed: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 400);
+			const data = JSON.parse(response.payload);
+			assert.strictEqual(
+				data.error,
+				"Bank details can't be removed once saved — edit them instead",
+			);
+			// The rejection must not echo the stored bank details back.
+			assert.doesNotMatch(response.payload, /DE89370400440532013000/);
+			assert.deepStrictEqual(
+				mockDatabase.sepa.find((row) => row.user_id === testUserIds.user),
+				storedBefore,
+			);
+		});
+
+		test("stores newly added bank details encrypted for a member without a SEPA row", async () => {
+			resetDatabase();
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.otherUser}`,
+				headers: {
+					...authHeaders(testTokens.otherUser),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					iban: "DE89 3704 0044 0532 0130 00",
+					bic: "COBADEFFXXX",
+					bank_name: "New Bank",
+					mandate_agreed: true,
+					privacy_agreed: true,
+					data_privacy_notice_agreed: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const storedSepa = mockDatabase.sepa.find(
+				(row) => row.user_id === testUserIds.otherUser,
+			);
+			assert.ok(storedSepa);
+			assert.match(String(storedSepa?.iban), /^enc-v1:/);
+			assert.match(String(storedSepa?.bic), /^enc-v1:/);
+			assert.match(String(storedSepa?.bank_name), /^enc-v1:/);
+			assert.strictEqual(
+				decryptRecord(storedSepa, SENSITIVE_SEPA_FIELDS).iban,
+				"DE89370400440532013000",
+			);
 		});
 
 		test("rejects unauthenticated request", async () => {

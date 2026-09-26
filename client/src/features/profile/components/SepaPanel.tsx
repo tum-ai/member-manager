@@ -7,11 +7,11 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LinkButton } from "@/components/ui/link-button";
-import type { SepaSchema } from "@/lib/schemas";
+import type { ProfileSepaInput } from "@/lib/schemas";
 import { SectionHeading } from "./SectionHeading";
 
 interface SepaPanelProps {
-	sepaForm: UseFormReturn<SepaSchema>;
+	sepaForm: UseFormReturn<ProfileSepaInput>;
 	mandateAgreed: boolean;
 	privacyAgreed: boolean;
 	dataPrivacyNoticeAgreed: boolean;
@@ -44,14 +44,13 @@ export function SepaPanel({
 				<SectionHeading
 					icon={Landmark}
 					title="Banking & agreements"
-					description="Your SEPA details and required agreements."
+					description="Bank details are optional — needed for SEPA direct debit and reimbursements."
 				/>
 
 				<div className="mb-6 grid gap-4">
 					<Field
 						label="IBAN"
 						htmlFor={ids.iban}
-						required
 						error={sepaForm.formState.errors.iban?.message}
 					>
 						<Input
@@ -59,7 +58,6 @@ export function SepaPanel({
 							{...sepaForm.register("iban")}
 							aria-invalid={!!sepaForm.formState.errors.iban}
 							className="font-mono"
-							required
 						/>
 					</Field>
 					<Field label="BIC" htmlFor={ids.bic}>
@@ -68,14 +66,12 @@ export function SepaPanel({
 					<Field
 						label="Bank Name"
 						htmlFor={ids.bankName}
-						required
 						error={sepaForm.formState.errors.bank_name?.message}
 					>
 						<Input
 							id={ids.bankName}
 							{...sepaForm.register("bank_name")}
 							aria-invalid={!!sepaForm.formState.errors.bank_name}
-							required
 						/>
 					</Field>
 				</div>

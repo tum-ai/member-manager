@@ -8,6 +8,8 @@ export const SEED_EDUCATION_ADMIN_EMAIL = "innovation-lead@example.com";
 export const SEED_LEGAL_FINANCE_MEMBER_EMAIL =
 	"legal-finance-member@example.com";
 export const SEED_MAKEATHON_LEAD_EMAIL = "makeathon-lead@example.com";
+// The one seeded member without a `sepa` row (never saved bank details).
+export const SEED_NO_BANK_DETAILS_MEMBER_EMAIL = "no-bank-details@example.com";
 
 // This seeded submission is intentionally a historical text contract. The
 // DOCX-only cutover must reject its old public signing link instead of trying

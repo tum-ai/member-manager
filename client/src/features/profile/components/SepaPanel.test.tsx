@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useForm } from "react-hook-form";
 import { describe, expect, it, vi } from "vitest";
-import type { SepaSchema } from "@/lib/schemas";
+import type { ProfileSepaInput } from "@/lib/schemas";
 import { SepaPanel } from "./SepaPanel";
 
 const ids = {
@@ -22,7 +22,7 @@ function Harness({
 	openPrivacyModal = vi.fn(),
 	openDataPrivacyNoticeModal = vi.fn(),
 }: Partial<React.ComponentProps<typeof SepaPanel>>) {
-	const sepaForm = useForm<SepaSchema>({
+	const sepaForm = useForm<ProfileSepaInput>({
 		defaultValues: {
 			iban: "",
 			bic: "",
@@ -30,7 +30,6 @@ function Harness({
 			mandate_agreed: mandateAgreed,
 			privacy_agreed: privacyAgreed,
 			data_privacy_notice_agreed: dataPrivacyNoticeAgreed,
-			user_id: "u1",
 		},
 	});
 	return (
@@ -54,6 +53,21 @@ describe("SepaPanel", () => {
 		expect(screen.getByLabelText(/iban/i)).toBeInTheDocument();
 		expect(screen.getByLabelText(/^bic$/i)).toBeInTheDocument();
 		expect(screen.getByLabelText(/bank name/i)).toBeInTheDocument();
+	});
+
+	it("marks bank details as optional so they never block the profile form", () => {
+		render(<Harness />);
+
+		// A native `required` here blocks the whole profile form from
+		// submitting, even when the member only edits their degree (#304).
+		for (const input of [
+			screen.getByLabelText(/iban/i),
+			screen.getByLabelText(/^bic$/i),
+			screen.getByLabelText(/bank name/i),
+		]) {
+			expect(input).not.toBeRequired();
+		}
+		expect(screen.getByText(/bank details are optional/i)).toBeInTheDocument();
 	});
 
 	it("opens the SEPA modal when checking the unchecked mandate box", async () => {
