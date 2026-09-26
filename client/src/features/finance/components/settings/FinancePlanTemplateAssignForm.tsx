@@ -25,9 +25,9 @@ interface FinancePlanTemplateAssignFormProps {
 }
 
 // Applying a plan template to a project used to hang off each row of the
-// project table; that table went away with the Projekte tab (FR-O), and
-// templates are a setup concern, so the action lives here next to the templates
-// themselves. Projects are created in the T-view now — this only fills one.
+// project table; that table went away with the Projekte tab, and templates are
+// a setup concern, so the action lives here next to the templates themselves.
+// Projects are created in the T-view now — this only fills one.
 export function FinancePlanTemplateAssignForm({
 	period,
 	projects,

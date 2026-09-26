@@ -49,8 +49,8 @@ const groups: FinanceTAccountGroup[] = [
 				status: "planned",
 				plan_item_id: "p-venue",
 			}),
-			// A parked Planposten: visible and flagged, but excluded from every plan
-			// subtotal and from the forecast (FR-M3).
+			// A parked plan item: visible and flagged, but excluded from every plan
+			// subtotal and from the forecast.
 			tAccountLine({
 				kind: "plan",
 				label: "Merch (gestrichen)",
@@ -200,18 +200,18 @@ export const Default: Story = {
 	},
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
-		// Department salden are labelled, and planned lines are flagged (a11y: a
+		// Department balances are labelled, and planned lines are flagged (a11y: a
 		// badge + dimming, never colour alone). The legend states the code.
 		await expect(canvas.getAllByText(/Ist-Saldo/).length).toBeGreaterThan(0);
 		await expect(canvas.getAllByText(/Plan-Saldo/).length).toBeGreaterThan(0);
 		await expect(canvas.getByText(/Grau = geplant/)).toBeVisible();
 		await expect(canvas.getAllByText("Geplant").length).toBeGreaterThan(0);
 		// VAT is named by direction on both sides, and the department states what
-		// it owes the tax office (FR-N2/FR-N3).
+		// it owes the tax office.
 		await expect(canvas.getAllByText("Vorsteuer").length).toBeGreaterThan(0);
 		await expect(canvas.getAllByText("Umsatzsteuer").length).toBeGreaterThan(0);
 		await expect(canvas.getByText("Zahllast")).toBeVisible();
-		// A parked Planposten is out of the way but still reachable (FR-M3).
+		// A parked plan item is out of the way but still reachable.
 		const parked = canvas.getByRole("button", { name: /Deaktiviert \(1\)/ });
 		await expect(parked).toBeVisible();
 		await userEvent.click(parked);
@@ -230,8 +230,8 @@ export const Default: Story = {
 	},
 };
 
-// The workbench half (FR-K5–K7, FR-L1): tick two invoices from two different
-// folders, and turn the selection into a project in one call.
+// The workbench half: tick two invoices from two different folders, and turn
+// the selection into a project in one call.
 const makeathonProject: FinanceProject = {
 	id: MAKEATHON_ID,
 	parent_project_id: null,
@@ -287,7 +287,7 @@ export const Workbench: Story = {
 		await userEvent.type(dialog.getByLabelText(/Name/), "Sponsoring-Kampagne");
 
 		// A selection spans folders, so it starts unplaced — placement is chosen
-		// here, not inherited (FR-L1). Both pickers are real controls.
+		// here, not inherited. Both pickers are real controls.
 		const body = within(canvasElement.ownerDocument.body);
 		await userEvent.click(dialog.getByRole("combobox", { name: "Sub-Team" }));
 		await userEvent.click(
@@ -316,8 +316,8 @@ export const Workbench: Story = {
 	},
 };
 
-// FR-L3: a department that may be written must be able to open its first
-// project even when it has no bookings and no Planposten at all.
+// A department that may be written must be able to open its first project even
+// when it has no bookings and no plan items at all.
 export const EmptyWritableDepartment: Story = {
 	args: {
 		period,
@@ -360,21 +360,21 @@ export const EmptyWritableDepartment: Story = {
 	},
 };
 
-// FR-N4: one toggle switches every amount in the view — the rows, the column
-// subtotals and the department saldi — and the header says which mode is on.
+// One toggle switches every amount in the view — the rows, the column subtotals
+// and the department balances — and the header says which mode is on.
 export const NettoBrutto: Story = {
 	args: Default.args,
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 
-		// Brutto by default: the invoice shows what the bank moved, VAT included.
+		// Gross by default: the invoice shows what the bank moved, VAT included.
 		await expect(canvas.getByText(/Beträge brutto/)).toBeVisible();
 		await expect(canvas.getByText("16.761,00 €")).toBeVisible();
 		await expect(canvas.getByText(/inkl\. .* Vorsteuer/)).toBeVisible();
 
 		await userEvent.click(canvas.getByRole("radio", { name: "Nettobeträge" }));
 
-		// Netto: the header states the mode, the saldo is the net one, and the VAT
+		// Net: the header states the mode, the balance is the net one, and the VAT
 		// now sits on top of the amount rather than inside it.
 		await expect(canvas.getByText(/Beträge netto/)).toBeVisible();
 		await expect(canvas.getByText("13.519,49 €")).toBeVisible();
@@ -386,8 +386,8 @@ export const NettoBrutto: Story = {
 	},
 };
 
-// FR-M1: a Planposten is planned on the node where the money will be spent, and
-// the dialog opens with that folder already stated.
+// A plan item is planned on the node where the money will be spent, and the
+// dialog opens with that folder already stated.
 export const PlanFromNode: Story = {
 	args: {
 		...Default.args,
@@ -402,7 +402,7 @@ export const PlanFromNode: Story = {
 		const projectPanel = await canvas.findByText(/Abweichung zum Ziel/);
 		await expect(projectPanel).toBeVisible();
 
-		// The project folder offers its own Planposten action.
+		// The project folder offers its own "Neuer Planposten" action.
 		const buttons = canvas.getAllByRole("button", { name: "Neuer Planposten" });
 		await userEvent.click(buttons[buttons.length - 1]);
 
@@ -428,7 +428,7 @@ export const PlanFromNode: Story = {
 };
 
 // Regression (PR #321 review): the split editor is the only direct allocation
-// editor left since Abgleich retired (FR-O), so a reviewer has to reach it on a
+// editor left since Abgleich retired, so a reviewer has to reach it on a
 // posting that carries no allocation at all — and what opens has to be a working
 // editor, not a form waiting for rows that never existed.
 export const SplitUnsplitInvoice: Story = {
@@ -557,7 +557,7 @@ export const DepartmentMemberWithoutReview: Story = {
 			canvas.getByRole("button", { name: "Planposten zuordnen" }),
 		).toBeVisible();
 		// A member cannot replace an allocation themselves, but may still ask for
-		// the posting to be moved (FR-O).
+		// the posting to be moved.
 		await expect(
 			canvas.getByRole("button", { name: "Umverteilung beantragen" }),
 		).toBeVisible();
@@ -572,7 +572,7 @@ export const DepartmentMemberWithoutReview: Story = {
 };
 
 // A read-only viewer (no write permission on the department): rows still expand,
-// but nothing is selectable and no folder offers a project action (FR-K6).
+// but nothing is selectable and no folder offers a project action.
 export const ReadOnly: Story = {
 	args: { ...Default.args, canWrite: false },
 	play: async ({ canvasElement }) => {
@@ -624,7 +624,7 @@ export const Loading: Story = {
 };
 
 // A freshly created project with no postings or plan lines yet. The server emits
-// it as an empty folder (FR-I3); the section must render that folder rather than
+// it as an empty folder; the section must render that folder rather than
 // collapsing to the "no activity" empty-state card.
 export const EmptyProjectOnly: Story = {
 	args: {

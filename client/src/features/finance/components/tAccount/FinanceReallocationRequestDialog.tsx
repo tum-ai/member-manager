@@ -29,7 +29,7 @@ interface FinanceReallocationRequestDialogProps {
 // Asking another department to take a posting is the one allocation change a
 // department member cannot simply make (the replace endpoint is reviewer-only),
 // so it stays a request. It used to hang off the Abgleich tab's posting list;
-// with that tab gone (FR-O) it belongs where the invoice is — its own row.
+// with that tab gone it belongs where the invoice is — its own row.
 export function FinanceReallocationRequestDialog({
 	preset,
 	projects,

@@ -16,8 +16,8 @@ interface ResolvedCategory {
 	note: string | null;
 }
 
-// The second cost location (Kostenstelle 2) is keyed the same way as the
-// primary one: leading zeros stripped, empty/all-zero collapse to "0".
+// The second cost location is keyed the same way as the primary one: leading
+// zeros stripped, empty/all-zero collapse to "0".
 export function buildCategoryLookup(
 	mappings: FinanceCategoryMapping[],
 ): Map<string, ResolvedCategory> {
@@ -50,7 +50,7 @@ export async function loadCategoryMappings(): Promise<
 }
 
 // Upsert a single category label. Keyed on the normalized second cost location
-// so a Kostenstelle can never end up split across padded/unpadded rows.
+// so the same location can never end up split across padded/unpadded rows.
 export async function upsertCategoryMapping(input: {
 	costLocationTwo: string;
 	label: string | null;
@@ -91,8 +91,8 @@ interface CategoryBucket {
 }
 
 // Roll postings up by their labelled second cost location. Postings whose
-// Kostenstelle 2 has no label (including the "0"/none default) land in the
-// FINANCE_UNMAPPED_CATEGORY bucket so nothing is silently dropped.
+// second cost location has no label (including the "0"/none default) land in
+// the FINANCE_UNMAPPED_CATEGORY bucket so nothing is silently dropped.
 export function aggregateByCategory(
 	transactions: BuchhaltungsButlerTransaction[],
 	mappings: FinanceCategoryMapping[],
@@ -151,7 +151,7 @@ export function aggregateByCategory(
 
 // Build the rows the category editor shows: every stored label unioned with the
 // second cost locations actually seen in the postings, enriched with usage
-// stats so the LnF can tell which Kostenstellen still need a label.
+// stats so the LnF can tell which cost locations still need a label.
 export function buildCategoryMappingRows(
 	transactions: BuchhaltungsButlerTransaction[],
 	mappings: FinanceCategoryMapping[],

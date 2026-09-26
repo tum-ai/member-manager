@@ -42,15 +42,13 @@ const STATUS_OPTIONS: ReadonlyArray<{
 ];
 
 // Where the node the action was triggered on *suggests* the project should go: a
-// sub-team folder presets its sub-team, a project presets itself as the parent
-// (FR-L3). Both stay editable in the dialog — a selection collected across
-// folders has no node to inherit from, so it must be able to say where it lands
-// (FR-L1).
+// sub-team folder presets its sub-team, a project presets itself as the parent.
+// Both stay editable in the dialog — a selection collected across folders has no
+// node to inherit from, so it must be able to say where it lands.
 export interface FinanceProjectDialogPreset {
 	parentProjectId: string | null;
 	subTeam: string | null;
-	// Invoices to file into the new project (FR-L1); empty = create an empty
-	// folder.
+	// Invoices to file into the new project; empty = create an empty folder.
 	postingExternalIds: string[];
 	selectionSum: number;
 }
@@ -181,9 +179,9 @@ export function FinanceProjectDialog({
 						/>
 					</Field>
 
-					{/* Placement (FR-L1/FR-L3/FR-L4): prefilled from the folder the
-					    action was started in, editable because a selection spanning
-					    folders has no folder to inherit from. */}
+					{/* Placement: prefilled from the folder the action was started in,
+					    editable because a selection spanning folders has no folder to
+					    inherit from. */}
 					<div className="grid gap-4 sm:grid-cols-2">
 						<Field
 							label="Übergeordnetes Projekt"

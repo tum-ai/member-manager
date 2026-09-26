@@ -213,7 +213,7 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(catering?.vat_amount, 19);
 	});
 
-	test("ungrouped Ist- and Plan-Saldo include only/also the planned lines", () => {
+	test("ungrouped actual and planned balances include only/also the planned lines", () => {
 		const ungrouped = build().groups.find((g) => g.project_id === null);
 		assert.ok(ungrouped);
 		assert.deepStrictEqual(ungrouped.actual, {
@@ -235,7 +235,7 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(hackathon.project_name, "Hackathon");
 		assert.strictEqual(hackathon.actual.income, 11_900);
 		assert.strictEqual(hackathon.actual.saldo, 11_900);
-		// Plan-Saldo = actual income + planned income (5000).
+		// Planned balance = actual income + planned income (5000).
 		assert.strictEqual(hackathon.plan.saldo, 16_900);
 	});
 
@@ -281,7 +281,7 @@ describe("buildFinanceTAccount", () => {
 		]);
 		const big = subTeams.find((g) => g.project_name === "Big Makeathon");
 		assert.strictEqual(big?.actual.saldo, -500);
-		// The department net is unchanged by the finer grouping (FR-G5).
+		// The department net is unchanged by the finer grouping.
 		assert.strictEqual(result.totals.actual.saldo, -700);
 	});
 
@@ -301,17 +301,17 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(empty.plan.saldo, 0);
 	});
 
-	test("totals expose embedded VAT for income and expenses (FR-J)", () => {
+	test("totals expose embedded VAT for income and expenses", () => {
 		const { totals } = build();
 		assert.strictEqual(totals.vat_income, 1_900);
 		assert.strictEqual(totals.vat_expenses, 19);
 	});
 
-	test("carries both saldi net of VAT for the Netto mode (FR-N4)", () => {
+	test("carries both balances net of VAT for the net amount mode", () => {
 		const { totals } = build();
 
-		// Gross: 11.900 income − 119 expenses. Net strips the 1.900 USt and the
-		// 19 Vorsteuer, so the department's real margin is 10.000 − 100.
+		// Gross: 11.900 income − 119 expenses. Net strips the 1.900 output tax and
+		// the 19 input tax, so the department's real margin is 10.000 − 100.
 		assert.deepStrictEqual(totals.actual, {
 			income: 11_900,
 			expenses: 119,
@@ -322,14 +322,14 @@ describe("buildFinanceTAccount", () => {
 			expenses: 100,
 			saldo: 9_900,
 		});
-		// The plan saldo folds in the two still-open Planposten, neither of which
-		// carries a rate — so its net differs from its gross only by the booked
-		// lines' VAT.
+		// The planned balance folds in the two still-open plan items, neither of
+		// which carries a rate — so its net differs from its gross only by the
+		// booked lines' VAT.
 		assert.strictEqual(totals.plan.saldo, 11_781 + 5_000 - 200);
 		assert.strictEqual(totals.plan_net.saldo, 9_900 + 5_000 - 200);
 	});
 
-	test("forecasts the Zahllast from planned VAT as well (FR-N5)", () => {
+	test("forecasts the VAT payable from planned VAT as well", () => {
 		const result = buildFinanceTAccount({
 			periodType: "year",
 			periodKey: "2026",
@@ -345,7 +345,7 @@ describe("buildFinanceTAccount", () => {
 			mappings: [mapping("120", "Makeathon")],
 			allocations: [],
 			planItems: [
-				// Planned expense with a rate: 190 Vorsteuer still to come.
+				// Planned expense with a rate: 190 input tax still to come.
 				planItem({
 					id: VENUE_PLAN_ID,
 					label: "Venue",
@@ -371,12 +371,12 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(totals.vat_income_plan, 0);
 		assert.strictEqual(totals.vat_expenses_plan, 190);
 		// Owed today: 190 collected. Once the planned expense arrives, its 190
-		// Vorsteuer cancels it out.
+		// input tax cancels it out.
 		assert.strictEqual(totals.vat_payload, 190);
 		assert.strictEqual(totals.vat_payload_forecast, 0);
 	});
 
-	test("a fully matched plan item adds nothing to the Plan-Saldo (no double count)", () => {
+	test("a fully matched plan item adds nothing to the planned balance (no double count)", () => {
 		// 100 EUR booked expense + a 100 EUR plan item matched to it. The forecast
 		// must stay 100, not 200: the booked posting already covers the plan.
 		const result = buildFinanceTAccount({
@@ -409,7 +409,7 @@ describe("buildFinanceTAccount", () => {
 		});
 		const ungrouped = result.groups.find((g) => g.project_id === null);
 		assert.ok(ungrouped);
-		// The plan line stays on the response so the Planposten remains reachable
+		// The plan line stays on the response so the plan item remains reachable
 		// once the plan tab is gone, but with nothing open it moves no total.
 		const settled = ungrouped.expense_lines.find((l) => l.kind === "plan");
 		assert.strictEqual(settled?.amount, 0);
@@ -420,11 +420,11 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(result.totals.plan.saldo, -100);
 	});
 
-	test("names the project each Planposten draws on (split-invoice capacity)", () => {
+	test("names the project each plan item draws on (split-invoice capacity)", () => {
 		// A 100 EUR invoice split 50/50 over two projects becomes one line per
 		// project, and both carry every match on the posting. `plan_items` is what
 		// lets the client tell them apart: the Hackathon half stays open after the
-		// Makeathon half is matched, and the fully matched Makeathon Planposten has
+		// Makeathon half is matched, and the fully matched Makeathon plan item has
 		// no line of its own to say where it sits.
 		const result = buildFinanceTAccount({
 			periodType: "year",
@@ -578,8 +578,8 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(ungrouped?.actual.saldo, -300);
 	});
 
-	test("names every Planposten by id, whatever state it is in", () => {
-		// The lookup is what lets an invoice name the Planposten it funds without
+	test("names every plan item by id, whatever state it is in", () => {
+		// The lookup is what lets an invoice name the plan item it funds without
 		// depending on that item having a visible line.
 		const result = buildFinanceTAccount({
 			periodType: "year",
@@ -616,7 +616,7 @@ describe("buildFinanceTAccount", () => {
 		});
 	});
 
-	test("carries the posting detail inline on the actual line (FR-K2/FR-K3)", () => {
+	test("carries the posting detail inline on the actual line", () => {
 		const result = buildFinanceTAccount({
 			periodType: "year",
 			periodKey: "2026",
@@ -674,7 +674,7 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(line.category, "Verpflegung");
 	});
 
-	test("expense lines expose their VAT rate and net amount (FR-N1)", () => {
+	test("expense lines expose their VAT rate and net amount", () => {
 		const result = build();
 		const catering = result.groups
 			.flatMap((group) => group.expense_lines)
@@ -692,22 +692,22 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(sponsoring?.net_amount, 10_000);
 	});
 
-	test("splits VAT per column into Vorsteuer and Umsatzsteuer (FR-N3)", () => {
+	test("splits VAT per column into input tax and output tax", () => {
 		const result = build();
 		const ungrouped = result.groups.find((g) => g.project_id === null);
 		const hackathon = result.groups.find((g) => g.project_id === HACKATHON_ID);
 
-		// Expense column → Vorsteuer; income column → Umsatzsteuer. Each group only
+		// Expense column → input tax; income column → output tax. Each group only
 		// carries its own lines, never its children's.
 		assert.deepStrictEqual(ungrouped?.vorsteuer, { actual: 19, plan: 0 });
 		assert.deepStrictEqual(ungrouped?.umsatzsteuer, { actual: 0, plan: 0 });
 		assert.deepStrictEqual(hackathon?.umsatzsteuer, { actual: 1_900, plan: 0 });
 		assert.deepStrictEqual(hackathon?.vorsteuer, { actual: 0, plan: 0 });
-		// Zahllast: Umsatzsteuer owed minus Vorsteuer reclaimable.
+		// VAT payable: output tax owed minus input tax reclaimable.
 		assert.strictEqual(result.totals.vat_payload, 1_881);
 	});
 
-	test("a VAT-rated plan item feeds the planned column VAT (FR-N5)", () => {
+	test("a VAT-rated plan item feeds the planned column VAT", () => {
 		const result = buildFinanceTAccount({
 			periodType: "year",
 			periodKey: "2026",
@@ -746,7 +746,7 @@ describe("buildFinanceTAccount", () => {
 		assert.deepStrictEqual(ungrouped?.vorsteuer, { actual: 0, plan: 190 });
 	});
 
-	test("plan lines carry Plan / Ist / Delta and lifecycle detail (FR-K4)", () => {
+	test("plan lines carry planned / actual / delta and lifecycle detail", () => {
 		const result = buildFinanceTAccount({
 			periodType: "year",
 			periodKey: "2026",
@@ -803,7 +803,7 @@ describe("buildFinanceTAccount", () => {
 		assert.strictEqual(detail.matches.length, 1);
 	});
 
-	test("a disabled plan item stays visible but out of plan totals (FR-M3)", () => {
+	test("a disabled plan item stays visible but out of plan totals", () => {
 		const result = buildFinanceTAccount({
 			periodType: "year",
 			periodKey: "2026",
@@ -833,7 +833,7 @@ describe("buildFinanceTAccount", () => {
 		// It is emitted (so it can be re-enabled from the T-view)…
 		assert.ok(parked);
 		assert.strictEqual(parked.plan_detail?.is_active, false);
-		// …but moves neither the Plan-Saldo nor the planned VAT.
+		// …but moves neither the planned balance nor the planned VAT.
 		assert.strictEqual(ungrouped?.plan.saldo, 0);
 		assert.deepStrictEqual(ungrouped?.vorsteuer, { actual: 0, plan: 0 });
 		assert.strictEqual(result.totals.plan.saldo, 0);
@@ -944,7 +944,7 @@ describe("buildFinanceTAccount", () => {
 		);
 	});
 
-	test("actual saldo matches aggregateByDepartment net (consistency, FR-G5)", () => {
+	test("actual balance matches aggregateByDepartment net (consistency)", () => {
 		const transactions = [
 			tx({
 				external_id: "BB-1",

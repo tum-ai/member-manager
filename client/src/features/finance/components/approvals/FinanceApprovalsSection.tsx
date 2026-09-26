@@ -36,7 +36,7 @@ interface FinanceApprovalsSectionProps {
 	onReviewBudgetTransfer: (input: BudgetTransferReviewInput) => Promise<void>;
 }
 
-// FR-O: the approval inbox, split out of the old Abgleich tab. Allocation and
+// The approval inbox, split out of the old Abgleich tab. Allocation and
 // matching moved into the T-view, where the money is; what is left here is the
 // queue of things one department asks another (or LnF) to approve — a different
 // job, done by different people, at a different time.

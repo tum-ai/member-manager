@@ -122,7 +122,7 @@ describe("FinancePostingDetailPanel", () => {
 		// Cost location carries the sub-team alongside it.
 		expect(screen.getByText("120 · Big Makeathon")).toBeInTheDocument();
 		expect(screen.getByText("19 %")).toBeInTheDocument();
-		// An expense's VAT is reclaimable input tax, never a generic "USt" (FR-N2).
+		// An expense's VAT is reclaimable input tax, never a generic "USt".
 		expect(screen.getByText("Vorsteuer")).toBeInTheDocument();
 	});
 
@@ -216,7 +216,7 @@ describe("FinancePostingDetailPanel", () => {
 		expect(screen.getByText(/Ohne Department/)).toBeInTheDocument();
 	});
 
-	it("reports when no Planposten is linked yet", () => {
+	it("reports when no plan item is linked yet", () => {
 		renderPanel(booked());
 
 		expect(
@@ -224,7 +224,7 @@ describe("FinancePostingDetailPanel", () => {
 		).toBeInTheDocument();
 	});
 
-	it("resolves a linked Planposten to its label", () => {
+	it("resolves a linked plan item to its label", () => {
 		renderPanel(
 			booked({
 				posting_detail: tAccountPostingDetail({
@@ -252,7 +252,7 @@ describe("FinancePostingDetailPanel", () => {
 		expect(screen.getByText("Catering (geplant)")).toBeInTheDocument();
 	});
 
-	// FR-K6: a read-only viewer still gets the whole detail, just no actions.
+	// A read-only viewer still gets the whole detail, just no actions.
 	it("offers no actions without an assign handler", () => {
 		renderPanel(booked(), { interaction: interaction({ canWrite: false }) });
 
@@ -358,7 +358,7 @@ describe("FinancePostingDetailPanel", () => {
 			screen.getByRole("button", { name: "Planposten zuordnen" }),
 		).toBeInTheDocument();
 		// A member cannot replace an allocation, but may still ask the owning
-		// department to take the posting (FR-O).
+		// department to take the posting.
 		expect(
 			screen.getByRole("button", { name: "Umverteilung beantragen" }),
 		).toBeInTheDocument();

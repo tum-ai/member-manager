@@ -50,7 +50,7 @@ interface FinanceBudgetSectionProps {
 	// Reviewers edit budgets inline; department viewers see them read-only.
 	canEdit?: boolean;
 	// When provided, each row can drill down into that department's T-account
-	// ("rauf/runterstufen" from the overview into one department — FR-H2).
+	// ("rauf/runterstufen" from the overview into one department).
 	onOpenDepartment?: (department: string) => void;
 	onPeriodTypeChange: (type: FinancePeriodType) => void;
 	onPeriodKeyChange: (key: string) => void;

@@ -145,7 +145,7 @@ describe("updatePlanItem", () => {
 
 	test("leaves every field the update does not mention alone", async () => {
 		// The RPC assigns most columns unconditionally, so a single-field update
-		// (here: parking a Planposten, FR-M3) must resend the stored values or it
+		// (here: parking a plan item) must resend the stored values or it
 		// would wipe the project, the VAT rate and the note.
 		const supabase = mockSupabase(storedRow());
 
@@ -163,7 +163,7 @@ describe("updatePlanItem", () => {
 		assert.strictEqual(params.p_note, "Vertrag liegt vor");
 	});
 
-	test("correcting the planned amount touches nothing else (FR-M6)", async () => {
+	test("correcting the planned amount touches nothing else", async () => {
 		const supabase = mockSupabase(storedRow());
 
 		await updatePlanItem(PLAN_ITEM_ID, { planned_amount: 12_000 });
@@ -176,7 +176,7 @@ describe("updatePlanItem", () => {
 
 	test("an explicit null still clears a field", async () => {
 		// Absent means "leave it"; null means "clear it" — the two must stay
-		// distinguishable, or a Planposten could never lose its note or project.
+		// distinguishable, or a plan item could never lose its note or project.
 		const supabase = mockSupabase(storedRow());
 
 		await updatePlanItem(PLAN_ITEM_ID, { note: null, project_id: null });

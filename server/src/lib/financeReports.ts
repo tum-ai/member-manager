@@ -399,7 +399,7 @@ export function buildFinancePeriodReport(input: {
 		if (input.department !== null && item.department !== input.department) {
 			continue;
 		}
-		// A disabled Planposten is parked, not planned (FR-M3). Counting it here
+		// A disabled plan item is parked, not planned. Counting it here
 		// would keep it in the period report and the tax-area forecast after the
 		// department total in `computePlanTotals` has already dropped it.
 		if (item.is_active === false) {

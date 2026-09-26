@@ -58,8 +58,8 @@ function tAccountResponse(department: string) {
 }
 
 // The hook also loads the department's projects, which back the "add to
-// project" picker (FR-L2). They are requested together with the T-account, so
-// every test needs the handler.
+// project" picker. They are requested together with the T-account, so every
+// test needs the handler.
 function projectsHandler() {
 	return http.get("/api/finance/projects", () =>
 		HttpResponse.json({

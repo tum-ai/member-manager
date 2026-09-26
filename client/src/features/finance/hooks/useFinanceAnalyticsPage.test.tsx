@@ -113,9 +113,9 @@ describe("useFinanceAnalyticsPage", () => {
 	it("enables only the queries needed for the active tab", () => {
 		const { result } = renderHookWithClient(() => useFinanceAnalyticsPage());
 
-		// A reviewer lands on the org-wide overview (FR-O2), which is also the
-		// only tab that needs the analytics query now that the category and
-		// account breakdowns are panels of it.
+		// A reviewer lands on the org-wide overview, which is also the only tab
+		// that needs the analytics query now that the category and account
+		// breakdowns are panels of it.
 		expect(result.current.activeTab).toBe("overview");
 		expect(mocks.analytics).toHaveBeenLastCalledWith({ enabled: true });
 		expect(mocks.mappings).toHaveBeenLastCalledWith(range, { enabled: false });
@@ -150,7 +150,7 @@ describe("useFinanceAnalyticsPage", () => {
 		expect(mocks.accounts).toHaveBeenLastCalledWith(range, { enabled: true });
 	});
 
-	it("lands a department-scoped member on their working surface (FR-O2)", () => {
+	it("lands a department-scoped member on their working surface", () => {
 		mocks.toolAccess.mockReturnValue({
 			permissions: ["finance.department"],
 			department: "Makeathon",
@@ -189,7 +189,7 @@ describe("useFinanceAnalyticsPage", () => {
 		});
 	});
 
-	it("offers the T-view write surface to anyone with a department (FR-K6)", () => {
+	it("offers the T-view write surface to anyone with a department", () => {
 		// A reviewer may write every department…
 		const reviewer = renderHookWithClient(() => useFinanceAnalyticsPage());
 		expect(reviewer.result.current.tAccountWorkbench.canWrite).toBe(true);
@@ -203,7 +203,7 @@ describe("useFinanceAnalyticsPage", () => {
 		const member = renderHookWithClient(() => useFinanceAnalyticsPage());
 		expect(member.result.current.tAccountWorkbench.canWrite).toBe(true);
 		// …but only `finance.review` unlocks the allocation editor, because only
-		// that reaches the reviewer-only replace endpoint (FR-L5).
+		// that reaches the reviewer-only replace endpoint.
 		expect(member.result.current.tAccountWorkbench.canReview).toBe(false);
 
 		// …and someone with no department has nothing to write to. The server is
@@ -216,7 +216,7 @@ describe("useFinanceAnalyticsPage", () => {
 		expect(unscoped.result.current.tAccountWorkbench.canWrite).toBe(false);
 	});
 
-	it("clears the selection once a bulk action has been applied (FR-K7)", () => {
+	it("clears the selection once a bulk action has been applied", () => {
 		renderHookWithClient(() => useFinanceAnalyticsPage());
 
 		// The actions hook is wired to the T-account's own department and period,

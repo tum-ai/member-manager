@@ -29,8 +29,8 @@ export interface FinanceMatchCandidate {
 	openAmount: number;
 }
 
-// FR-M5. The same dialog serves both directions: whichever side the user
-// expanded is fixed, the other is picked from candidates of the same direction.
+// The same dialog serves both directions: whichever side the user expanded is
+// fixed, the other is picked from candidates of the same direction.
 export interface FinanceMatchDialogPreset {
 	// The side the action was started from.
 	from: "posting" | "planItem";
@@ -75,7 +75,7 @@ export function FinanceMatchPlanItemDialog({
 	function pickCandidate(nextId: string): void {
 		setCandidateId(nextId);
 		// Default to whatever is open on the smaller of the two sides, so the
-		// common "this invoice settles this Planposten" case needs no arithmetic.
+		// common "this invoice settles this plan item" case needs no arithmetic.
 		const candidate = preset?.candidates.find((entry) => entry.id === nextId);
 		if (candidate && preset) {
 			setAmount(String(Math.min(candidate.openAmount, preset.openAmount)));

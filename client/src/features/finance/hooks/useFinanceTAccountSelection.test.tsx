@@ -15,7 +15,7 @@ function groups(): FinanceTAccountGroup[] {
 			expense_lines: [
 				line({ kind: "actual", amount: 119, posting_external_id: "BB-1" }),
 				line({ kind: "actual", amount: 340, posting_external_id: "BB-2" }),
-				// A Planposten is not an invoice and can never be selected.
+				// A plan item is not an invoice and can never be selected.
 				line({ kind: "plan", amount: 800, plan_item_id: "plan-venue" }),
 			],
 			income_lines: [
@@ -80,7 +80,7 @@ describe("useFinanceTAccountSelection", () => {
 		expect(result.current.grossSum).toBe(3000);
 	});
 
-	it("collects across folders, since a new project spans sub-teams (FR-K1)", () => {
+	it("collects across folders, since a new project spans sub-teams", () => {
 		const { result } = renderSelection({
 			groups: [
 				group({
@@ -141,7 +141,7 @@ describe("useFinanceTAccountSelection", () => {
 		expect(result.current.grossSum).toBe(100);
 	});
 
-	it("survives a background refetch (FR-K7)", () => {
+	it("survives a background refetch", () => {
 		const { result, rerender } = renderSelection();
 
 		act(() => result.current.toggle("BB-1"));
@@ -154,7 +154,7 @@ describe("useFinanceTAccountSelection", () => {
 		expect(result.current.isSelected("BB-1")).toBe(true);
 	});
 
-	it("clears on a department or period change (FR-K7)", () => {
+	it("clears on a department or period change", () => {
 		const { result, rerender } = renderSelection();
 
 		act(() => result.current.toggle("BB-1"));

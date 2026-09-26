@@ -153,4 +153,4 @@ is now a first-class, assignable field:
 - The **T-Konto** groups a department's **un-allocated** postings by their cost location's
   `sub_team` (each becomes a folder labelled with the sub-team name); an explicit project
   allocation still wins. Postings whose cost location has no `sub_team` fall into
-  "Direkt zugeordnet". Grouping is display-only — the department net is unchanged (FR-G5).
+  "Direkt zugeordnet". Grouping is display-only — the department net is unchanged.

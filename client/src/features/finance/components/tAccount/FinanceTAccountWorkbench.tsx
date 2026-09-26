@@ -59,7 +59,7 @@ export interface FinanceTAccountWorkbenchProps {
 	canReview: boolean;
 	projects: FinanceProject[];
 	// Sub-team folders that exist in this department's T-account, so a new
-	// project lands in one by exact name instead of a typo'd near-match (FR-L4).
+	// project lands in one by exact name instead of a typo'd near-match.
 	subTeamOptions: string[];
 	selection?: FinanceTAccountSelection;
 	isCreatingProject: boolean;
@@ -149,8 +149,8 @@ export function FinanceTAccountWorkbench({
 				onCreateProject: (node) =>
 					setProjectPreset({
 						// A project node becomes the parent of a sub-project; a sub-team
-						// folder passes its sub-team on (FR-L3/FR-L4). Both are only the
-						// dialog's starting point — the user can still place it elsewhere.
+						// folder passes its sub-team on. Both are only the dialog's
+						// starting point — the user can still place it elsewhere.
 						parentProjectId: node.projectId,
 						subTeam: node.subTeam,
 						postingExternalIds: [],
@@ -159,7 +159,7 @@ export function FinanceTAccountWorkbench({
 				onDeleteProject: (node) => {
 					if (node.projectId === null) return;
 					// Say what actually happens before asking: nothing is destroyed,
-					// but invoices and Planposten fall back to the department and
+					// but invoices and plan items fall back to the department and
 					// sub-projects move up a level.
 					if (window.confirm(deleteProjectPrompt(node))) {
 						onDeleteProject?.(node.projectId);
@@ -168,7 +168,7 @@ export function FinanceTAccountWorkbench({
 				onCreatePlanItem: (node) =>
 					setPlanItemPreset({
 						id: null,
-						// FR-M1: the node decides the project the Planposten lands in.
+						// The node decides the project the plan item lands in.
 						projectId: node.projectId,
 						folderName: node.projectName,
 						label: "",
@@ -194,7 +194,7 @@ export function FinanceTAccountWorkbench({
 						planItemId: line.planItemId,
 						postingExternalId: null,
 						fixedLabel: line.label,
-						// Gross even in Netto mode: the dialog's amount is submitted as
+						// Gross even in net mode: the dialog's amount is submitted as
 						// `matched_amount`, whose contract is gross.
 						openAmount: line.grossAmount,
 						candidates: candidates.postings.filter(
@@ -236,7 +236,7 @@ export function FinanceTAccountWorkbench({
 					});
 				},
 				onDeletePlanItem: (planItemId, label) => {
-					// Deleting a Planposten cannot be undone from a toast the way
+					// Deleting a plan item cannot be undone from a toast the way
 					// parking can, so it asks first.
 					if (
 						window.confirm(
@@ -249,9 +249,9 @@ export function FinanceTAccountWorkbench({
 			}
 		: undefined;
 
-	// A named project or sub-team folder is renderable content even with no lines:
-	// the server deliberately emits empty projects so a freshly created one shows
-	// up (FR-I3). Only the bare ungrouped bucket (no name, no id) counts as "no
+	// A named project or sub-team folder is renderable content even with no
+	// lines: the server deliberately emits empty projects so a freshly created
+	// one shows up. Only the bare ungrouped bucket (no name, no id) counts as "no
 	// activity" and falls through to the empty-state card.
 	const hasActivity = tree.some(
 		(node) =>
@@ -286,7 +286,7 @@ export function FinanceTAccountWorkbench({
 						</p>
 						{/* A department that may be written must be able to open its first
 						    project here too — otherwise an empty department has no way in
-						    at all (FR-L3). */}
+						    at all. */}
 						{interaction ? (
 							<Button
 								type="button"
@@ -314,7 +314,7 @@ export function FinanceTAccountWorkbench({
 					grossSum={selection.grossSum}
 					onCreateProject={() =>
 						// A selection spans folders, so it starts unplaced: the dialog's
-						// parent and sub-team pickers decide where it lands (FR-L1).
+						// parent and sub-team pickers decide where it lands.
 						setProjectPreset({
 							parentProjectId: null,
 							subTeam: null,
@@ -432,8 +432,8 @@ function deleteProjectPrompt(node: TAccountNode): string {
 	return `Projekt „${node.projectName ?? "Projekt"}" löschen? ${consequences}`;
 }
 
-// An edit starts from the Planposten's own values (FR-M2). `line.amount` is the
-// still-open remainder — and in Netto mode the net one — so the full planned
+// An edit starts from the plan item's own values. `line.amount` is the
+// still-open remainder — and in net mode the net one — so the full planned
 // amount comes off the detail, which is always the gross figure that is saved.
 function planItemPresetFromLine(
 	line: TAccountDisplayLine,

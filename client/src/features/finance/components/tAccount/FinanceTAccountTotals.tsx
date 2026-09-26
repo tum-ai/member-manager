@@ -17,8 +17,8 @@ function saldoClass(value: number): string {
 	return "text-foreground";
 }
 
-// The department's headline numbers: both salden and the VAT the department owes
-// the tax office, named by direction (FR-N2/FR-N3).
+// The department's headline numbers: both balances and the VAT the department
+// owes the tax office, named by direction.
 export function TotalsSummary({
 	department,
 	period,
@@ -33,8 +33,8 @@ export function TotalsSummary({
 	onAmountModeChange: (mode: TAccountAmountMode) => void;
 }): ReactElement {
 	const isNet = amountMode === "net";
-	// The saldi come from the server in both modes, so the header can never
-	// disagree with the columns below it (FR-N6).
+	// The balances come from the server in both modes, so the header can never
+	// disagree with the columns below it.
 	const saldi = isNet
 		? { actual: totals?.actual_net, plan: totals?.plan_net }
 		: { actual: totals?.actual, plan: totals?.plan };
@@ -48,7 +48,7 @@ export function TotalsSummary({
 				<div className="flex flex-wrap items-center justify-between gap-3">
 					<CardTitle className="text-base">
 						{department} — {formatFinancePeriodLabel(period)}
-						{/* The active mode is stated, never merely implied (FR-N4). */}
+						{/* The active mode is stated, never merely implied. */}
 						<span className="ml-2 font-normal text-muted-foreground">
 							· Beträge {isNet ? "netto" : "brutto"}
 						</span>
@@ -103,9 +103,9 @@ export function TotalsSummary({
 					<Metric
 						label="Zahllast"
 						value={formatFinanceAmount(vatPayload)}
-						// Signed on purpose: a negative Zahllast is a refund, not a debt.
+						// Signed on purpose: a negative "Zahllast" is a refund, not a debt.
 						// The forecast is only worth stating when the still-open plan
-						// actually changes it (FR-N5).
+						// actually changes it.
 						hint={
 							vatPayloadForecast !== vatPayload
 								? `Forecast ${formatFinanceAmount(vatPayloadForecast)}`

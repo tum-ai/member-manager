@@ -13,16 +13,16 @@ import {
 } from "./financeDepartments.js";
 
 // Deciding *which* of the selected invoices may be assigned to a project is the
-// whole risk surface of the bulk action (FR-L5–L8), so it lives here as a pure
-// function: no Supabase, no BB, fully unit-testable. The route does the IO and
-// then writes only what this planner cleared.
+// whole risk surface of the bulk action, so it lives here as a pure function:
+// no Supabase, no BB, fully unit-testable. The route does the IO and then
+// writes only what this planner cleared.
 
 export interface BulkAllocationPlanInput {
 	project: FinanceProject;
 	postingExternalIds: string[];
 	// Every posting the period could contain, not pre-filtered by the project's
-	// period — otherwise a cross-period posting would look like it does not exist
-	// and we could not tell FR-L8 apart from a typo'd id.
+	// period — otherwise a cross-period posting would look like it does not
+	// exist, and a period mismatch would be indistinguishable from a typo'd id.
 	transactions: BuchhaltungsButlerTransaction[];
 	allocations: FinancePostingAllocation[];
 	matches: FinancePlanItemPostingMatch[];
@@ -130,7 +130,7 @@ export function planBulkAllocation(
 		}
 
 		// The assign endpoint replaces *all* allocations of a posting, so taking the
-		// fast path on a split posting would silently destroy the split (FR-L5).
+		// fast path on a split posting would silently destroy the split.
 		if ((allocationsByPosting.get(externalId) ?? []).length > 1) {
 			results.push(skip(externalId, "already_split"));
 			continue;
@@ -144,11 +144,11 @@ export function planBulkAllocation(
 			continue;
 		}
 
-		// Moving an invoice that funds another project's Planposten would leave that
-		// plan item matched to money it no longer has (FR-L7). A department-level
-		// Planposten (no project) is unaffected and stays matched — the RPC's
-		// capacity guard agrees since migration 20260825120000, which funds a
-		// department-scoped match from any project of that department.
+		// Moving an invoice that funds another project's plan item would leave that
+		// item matched to money it no longer has. A department-level plan item (no
+		// project) is unaffected and stays matched — the RPC's capacity guard
+		// agrees since migration 20260825120000, which funds a department-scoped
+		// match from any project of that department.
 		const matchedElsewhere = (matchesByPosting.get(externalId) ?? []).some(
 			(match) => {
 				const planItemProject = input.planItemProjectById.get(
@@ -180,7 +180,7 @@ export function planBulkAllocation(
 // Fold the per-posting write outcomes back into the planned results. A write can
 // still fail after planning — most often because the database guard refuses to
 // invalidate an existing plan-item match — and a bulk assign is atomic *per
-// posting* (FR-L6), so the ones that succeeded stay applied.
+// posting*, so the ones that succeeded stay applied.
 export function applyWriteFailures(
 	results: FinanceAllocationResult[],
 	failures: ReadonlyMap<string, FinanceAllocationSkipReason>,
