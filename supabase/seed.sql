@@ -66,7 +66,11 @@ begin
         ('00000000-0000-0000-0000-000000000022', 'venture-member@example.com', 'Victor', 'Venture', 'SS24', 'Venture', 'Member', null, 'B.Sc. Management & Technology', 'LMU', 'user'),
         -- Member who never saved bank details: deliberately excluded from the
         -- catch-all `sepa` insert below (issue #304, e2e/profile-edit.spec.ts).
-        ('00000000-0000-0000-0000-000000000023', 'no-bank-details@example.com', 'Nora', 'Nobank', 'SS25', 'Community', 'Member', null, 'B.Sc. Management & Technology', 'TUM', 'user');
+        ('00000000-0000-0000-0000-000000000023', 'no-bank-details@example.com', 'Nora', 'Nobank', 'SS25', 'Community', 'Member', null, 'B.Sc. Management & Technology', 'TUM', 'user'),
+        -- Imported member who never logged in: no `sepa` and no
+        -- `member_agreements` row, so consents are undecided and the first
+        -- login redirects to /welcome (e2e/welcome.spec.ts).
+        ('00000000-0000-0000-0000-000000000024', 'new-joiner@example.com', 'Nico', 'Newjoiner', 'WS25', 'Community', 'Member', null, 'B.Sc. Management & Technology', 'TUM', 'user');
 
     insert into auth.users (
         id,
@@ -684,6 +688,8 @@ on conflict (id) do update set
 -- accounts above). Existing rows are left untouched (`do nothing`).
 -- no-bank-details@example.com (…0023) is skipped for SEPA so the "member
 -- without bank details" profile path stays covered; it still gets agreements.
+-- new-joiner@example.com (…0024) is skipped for both so the undecided-consent
+-- /welcome path stays covered.
 -- =========================================================================
 insert into public.sepa (user_id, iban, bic, bank_name, mandate_agreed, privacy_agreed)
 select
@@ -694,7 +700,10 @@ select
     true,
     true
 from public.members m
-where m.user_id <> '00000000-0000-0000-0000-000000000023'
+where m.user_id not in (
+    '00000000-0000-0000-0000-000000000023',
+    '00000000-0000-0000-0000-000000000024'
+)
 on conflict (user_id) do nothing;
 
 insert into public.member_agreements (
@@ -702,6 +711,7 @@ insert into public.member_agreements (
 )
 select m.user_id, true, true, true
 from public.members m
+where m.user_id <> '00000000-0000-0000-0000-000000000024'
 on conflict (user_id) do nothing;
 
 -- =========================================================================

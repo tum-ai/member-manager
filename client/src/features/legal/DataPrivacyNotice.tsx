@@ -1,3 +1,4 @@
+import type { DataPrivacyConsentKey } from "@member-manager/shared";
 import { useEffect, useState } from "react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -8,24 +9,38 @@ type ConsentKey = "websiteProfile" | "eventPhotos" | "partnerSharing";
 interface DataPrivacyNoticeProps {
 	dataPrivacyNoticeAgreed: boolean;
 	onCheckChange?: (checked: boolean) => void;
+	/**
+	 * Lists the consent statements as plain text instead of checkboxes, for
+	 * callers that collect the answers themselves (the /welcome page).
+	 */
+	readOnly?: boolean;
 }
 
-const consentItems: Array<{
+/**
+ * The notice's consent statements, one per purpose. Exported so the /welcome
+ * page asks with exactly the wording members agree to here; `field` is the
+ * `member_agreements` column that stores the answer.
+ */
+export const consentItems: Array<{
 	key: ConsentKey;
+	field: DataPrivacyConsentKey;
 	label: string;
 }> = [
 	{
 		key: "websiteProfile",
+		field: "website_profile_consent",
 		label:
 			"TUM.ai displaying my full name, photo, course of studies, TUM.ai internal position and team affiliation on its official website.",
 	},
 	{
 		key: "eventPhotos",
+		field: "event_photos_consent",
 		label:
 			"TUM.ai publishing photos of me taken in the context of participation in public events of the association on the TUM.ai website as well as other public TUM.ai channels such as on Instagram, Twitter, Facebook, presentations and press releases for public relations purposes.",
 	},
 	{
 		key: "partnerSharing",
+		field: "partner_sharing_consent",
 		label:
 			"TUM.ai sharing my data (including CV, photo, full name and email address) with affiliated partners and other third parties for recruitment purposes and potential job opportunities, as well as workshops and events, both on-site and online.",
 	},
@@ -42,6 +57,7 @@ function getInitialConsentState(agreed: boolean): Record<ConsentKey, boolean> {
 export function DataPrivacyNotice({
 	dataPrivacyNoticeAgreed,
 	onCheckChange,
+	readOnly = false,
 }: DataPrivacyNoticeProps) {
 	const [checkedItems, setCheckedItems] = useState<Record<ConsentKey, boolean>>(
 		() => getInitialConsentState(dataPrivacyNoticeAgreed),
@@ -229,27 +245,36 @@ export function DataPrivacyNotice({
 				<h3 className="mb-2 font-semibold">Declaration of consent</h3>
 				<p className="mb-4">I hereby declare my consent to</p>
 
-				{consentItems.map((item) => (
-					<div key={item.key} className="mb-3 flex items-start gap-2">
-						<Checkbox
-							id={`consent-${item.key}`}
-							className="mt-0.5"
-							checked={checkedItems[item.key]}
-							onCheckedChange={(value) =>
-								setCheckedItems((currentValue) => ({
-									...currentValue,
-									[item.key]: value === true,
-								}))
-							}
-						/>
-						<Label
-							htmlFor={`consent-${item.key}`}
-							className="text-sm font-normal leading-relaxed"
-						>
-							{item.label}
-						</Label>
-					</div>
-				))}
+				{readOnly ? (
+					<ul className="list-disc space-y-2 pl-5 text-sm">
+						{consentItems.map((item) => (
+							<li key={item.key}>{item.label}</li>
+						))}
+					</ul>
+				) : null}
+				{readOnly
+					? null
+					: consentItems.map((item) => (
+							<div key={item.key} className="mb-3 flex items-start gap-2">
+								<Checkbox
+									id={`consent-${item.key}`}
+									className="mt-0.5"
+									checked={checkedItems[item.key]}
+									onCheckedChange={(value) =>
+										setCheckedItems((currentValue) => ({
+											...currentValue,
+											[item.key]: value === true,
+										}))
+									}
+								/>
+								<Label
+									htmlFor={`consent-${item.key}`}
+									className="text-sm font-normal leading-relaxed"
+								>
+									{item.label}
+								</Label>
+							</div>
+						))}
 
 				<p className="mt-4">
 					I have been informed that failure to give consent will not result in

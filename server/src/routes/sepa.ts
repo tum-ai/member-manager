@@ -25,7 +25,8 @@ import type { AuthenticatedRequest } from "../types/index.js";
 type SepaAgreementInput = {
 	mandate_agreed: boolean;
 	privacy_agreed: boolean;
-	data_privacy_notice_agreed: boolean;
+	/** Omitted = leave the stored Data Privacy Notice consents untouched. */
+	data_privacy_notice_agreed?: boolean;
 };
 
 function buildAgreementRecord(
@@ -36,22 +37,34 @@ function buildAgreementRecord(
 		user_id: userId,
 		sepa_mandate_agreed: body.mandate_agreed,
 		privacy_policy_agreed: body.privacy_agreed,
-		data_privacy_notice_agreed: body.data_privacy_notice_agreed,
+		// Writing the summary column accepts or revokes all three purposes at
+		// once (DB trigger `sync_member_agreement_consents`), so only write it
+		// when the caller actually sent it.
+		...(body.data_privacy_notice_agreed === undefined
+			? {}
+			: { data_privacy_notice_agreed: body.data_privacy_notice_agreed }),
 		updated_at: new Date().toISOString(),
 	};
 }
 
+/**
+ * Upserts the member's agreement row and returns it as stored, so responses
+ * reflect what the sync trigger derived rather than echoing the request.
+ */
 async function upsertAgreementRecord(
 	userId: string,
 	body: SepaAgreementInput,
-): Promise<void> {
-	const { error } = await getSupabase()
+): Promise<Record<string, unknown>> {
+	const { data, error } = await getSupabase()
 		.from("member_agreements")
-		.upsert(buildAgreementRecord(userId, body), { onConflict: "user_id" });
+		.upsert(buildAgreementRecord(userId, body), { onConflict: "user_id" })
+		.select()
+		.single();
 
 	if (error) {
 		throw error;
 	}
+	return data as Record<string, unknown>;
 }
 
 function mergeSepaAndAgreements(
@@ -221,8 +234,9 @@ export async function sepaRoutes(server: FastifyInstance) {
 				}
 
 				// Agreements-only save: never create or touch a `sepa` row.
+				let storedAgreements: Record<string, unknown>;
 				try {
-					await upsertAgreementRecord(userId, body);
+					storedAgreements = await upsertAgreementRecord(userId, body);
 				} catch (agreementError) {
 					request.log.error(
 						{ err: agreementError },
@@ -233,7 +247,7 @@ export async function sepaRoutes(server: FastifyInstance) {
 
 				return mergeSepaAndAgreements(
 					emptyBankDetails(userId),
-					buildAgreementRecord(userId, body),
+					storedAgreements,
 				);
 			}
 
@@ -266,8 +280,9 @@ export async function sepaRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
+			let storedAgreements: Record<string, unknown>;
 			try {
-				await upsertAgreementRecord(userId, body);
+				storedAgreements = await upsertAgreementRecord(userId, body);
 			} catch (agreementError) {
 				request.log.error(
 					{ err: agreementError },
@@ -287,11 +302,7 @@ export async function sepaRoutes(server: FastifyInstance) {
 				},
 			);
 
-			return mergeSepaAndAgreements(decryptedSepa, {
-				sepa_mandate_agreed: body.mandate_agreed,
-				privacy_policy_agreed: body.privacy_agreed,
-				data_privacy_notice_agreed: body.data_privacy_notice_agreed,
-			});
+			return mergeSepaAndAgreements(decryptedSepa, storedAgreements);
 		},
 	);
 }

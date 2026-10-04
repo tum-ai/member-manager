@@ -1,3 +1,4 @@
+import type { MemberConsents } from "@member-manager/shared";
 import { Landmark } from "lucide-react";
 import type { UseFormReturn } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
@@ -8,23 +9,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LinkButton } from "@/components/ui/link-button";
 import type { ProfileSepaInput } from "@/lib/schemas";
+import { DataPrivacyConsentSummary } from "./DataPrivacyConsentSummary";
 import { SectionHeading } from "./SectionHeading";
 
 interface SepaPanelProps {
 	sepaForm: UseFormReturn<ProfileSepaInput>;
 	mandateAgreed: boolean;
 	privacyAgreed: boolean;
-	dataPrivacyNoticeAgreed: boolean;
+	memberConsents: MemberConsents | undefined;
 	openSepaModal: () => void;
 	openPrivacyModal: () => void;
-	openDataPrivacyNoticeModal: () => void;
 	ids: {
 		iban: string;
 		bic: string;
 		bankName: string;
 		mandate: string;
 		privacy: string;
-		dataPrivacy: string;
 	};
 }
 
@@ -32,10 +32,9 @@ export function SepaPanel({
 	sepaForm,
 	mandateAgreed,
 	privacyAgreed,
-	dataPrivacyNoticeAgreed,
+	memberConsents,
 	openSepaModal,
 	openPrivacyModal,
-	openDataPrivacyNoticeModal,
 	ids,
 }: SepaPanelProps): JSX.Element {
 	return (
@@ -150,42 +149,7 @@ export function SepaPanel({
 						</p>
 					)}
 
-					<div className="flex items-center gap-2">
-						<Checkbox
-							id={ids.dataPrivacy}
-							checked={dataPrivacyNoticeAgreed}
-							onCheckedChange={(checked) => {
-								if (checked === true) {
-									openDataPrivacyNoticeModal();
-									return;
-								}
-								sepaForm.setValue("data_privacy_notice_agreed", false, {
-									shouldDirty: true,
-									shouldValidate: true,
-								});
-							}}
-						/>
-						<Label htmlFor={ids.dataPrivacy} className="font-normal">
-							<span className="text-sm">
-								I agree to the{" "}
-								<LinkButton
-									onClick={(e) => {
-										e.preventDefault();
-										e.stopPropagation();
-										openDataPrivacyNoticeModal();
-									}}
-								>
-									Data Privacy Notice
-								</LinkButton>{" "}
-								*
-							</span>
-						</Label>
-					</div>
-					{sepaForm.formState.errors.data_privacy_notice_agreed && (
-						<p className="block text-xs text-destructive">
-							{sepaForm.formState.errors.data_privacy_notice_agreed.message}
-						</p>
-					)}
+					<DataPrivacyConsentSummary consents={memberConsents} />
 				</div>
 			</CardContent>
 		</GlassCard>

@@ -25,6 +25,7 @@ export function extractSeedConstants(source) {
 		adminEmail: grab("SEED_ADMIN_EMAIL"),
 		regularEmail: grab("SEED_REGULAR_MEMBER_EMAIL"),
 		noBankDetailsEmail: grab("SEED_NO_BANK_DETAILS_MEMBER_EMAIL"),
+		newJoinerEmail: grab("SEED_NEW_JOINER_EMAIL"),
 		signToken: grab("SEED_RETIRED_CONTRACT_SIGN_TOKEN"),
 	};
 }
@@ -38,12 +39,14 @@ test("extractSeedConstants parses exported string constants", () => {
 		'export const SEED_ADMIN_EMAIL = "admin@example.com";',
 		"export const SEED_REGULAR_MEMBER_EMAIL = 'regular@example.com';",
 		'export const SEED_NO_BANK_DETAILS_MEMBER_EMAIL = "nobank@example.com";',
+		'export const SEED_NEW_JOINER_EMAIL = "new@example.com";',
 		'export const SEED_RETIRED_CONTRACT_SIGN_TOKEN = "tok-123";',
 	].join("\n");
 	assert.deepEqual(extractSeedConstants(sample), {
 		adminEmail: "admin@example.com",
 		regularEmail: "regular@example.com",
 		noBankDetailsEmail: "nobank@example.com",
+		newJoinerEmail: "new@example.com",
 		signToken: "tok-123",
 	});
 });
@@ -69,17 +72,41 @@ test("supabase/seed.sql contains every fixture e2e/helpers.ts hard-codes", () =>
 	}
 });
 
+function seedPersonaId(seed, email) {
+	return seed.match(new RegExp(`\\('([0-9a-f-]{36})', '${email}'`))?.[1];
+}
+
+// Body of the catch-all `insert into public.<table>` up to its `on conflict`.
+function catchAllInsert(seed, table) {
+	const start = seed.lastIndexOf(`insert into public.${table} (`);
+	assert.ok(start >= 0, `no insert into public.${table} in the seed`);
+	return seed.slice(start, seed.indexOf("on conflict", start));
+}
+
 test("the no-bank-details persona is excluded from the catch-all SEPA seed", () => {
 	const { noBankDetailsEmail } = extractSeedConstants(
 		readRepoFile("e2e/helpers.ts"),
 	);
 	const seed = readRepoFile("supabase/seed.sql");
-	const personaId = seed.match(
-		new RegExp(`\\('([0-9a-f-]{36})', '${noBankDetailsEmail}'`),
-	)?.[1];
+	const personaId = seedPersonaId(seed, noBankDetailsEmail);
 	assert.ok(personaId, `no seed user row found for ${noBankDetailsEmail}`);
 	assert.ok(
-		seed.includes(`where m.user_id <> '${personaId}'`),
+		catchAllInsert(seed, "sepa").includes(`'${personaId}'`),
 		`the catch-all public.sepa insert must skip ${noBankDetailsEmail} (${personaId}); e2e/profile-edit.spec.ts relies on that member having no bank details.`,
 	);
+});
+
+test("the new-joiner persona is excluded from the catch-all agreements seed", () => {
+	const { newJoinerEmail } = extractSeedConstants(
+		readRepoFile("e2e/helpers.ts"),
+	);
+	const seed = readRepoFile("supabase/seed.sql");
+	const personaId = seedPersonaId(seed, newJoinerEmail);
+	assert.ok(personaId, `no seed user row found for ${newJoinerEmail}`);
+	for (const table of ["member_agreements", "sepa"]) {
+		assert.ok(
+			catchAllInsert(seed, table).includes(`'${personaId}'`),
+			`the catch-all public.${table} insert must skip ${newJoinerEmail} (${personaId}); e2e/welcome.spec.ts relies on that member having undecided consents.`,
+		);
+	}
 });

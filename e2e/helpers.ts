@@ -10,6 +10,9 @@ export const SEED_LEGAL_FINANCE_MEMBER_EMAIL =
 export const SEED_MAKEATHON_LEAD_EMAIL = "makeathon-lead@example.com";
 // The one seeded member without a `sepa` row (never saved bank details).
 export const SEED_NO_BANK_DETAILS_MEMBER_EMAIL = "no-bank-details@example.com";
+// The one seeded member with no `member_agreements` row (consents undecided),
+// so their login is redirected to /welcome.
+export const SEED_NEW_JOINER_EMAIL = "new-joiner@example.com";
 
 // This seeded submission is intentionally a historical text contract. The
 // DOCX-only cutover must reject its old public signing link instead of trying

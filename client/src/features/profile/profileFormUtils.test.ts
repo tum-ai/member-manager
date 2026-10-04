@@ -26,8 +26,8 @@ const completeInput = {
 		bank_name: "Commerzbank",
 		mandate_agreed: true,
 		privacy_agreed: true,
-		data_privacy_notice_agreed: true,
 	},
+	consentsDecided: true,
 };
 
 describe("computeProfileCompleteness", () => {
@@ -37,7 +37,12 @@ describe("computeProfileCompleteness", () => {
 
 	it("returns 0 when nothing is filled", () => {
 		expect(
-			computeProfileCompleteness({ member: {}, linkedin: {}, sepa: {} }),
+			computeProfileCompleteness({
+				member: {},
+				linkedin: {},
+				sepa: {},
+				consentsDecided: false,
+			}),
 		).toBe(0);
 	});
 
@@ -63,5 +68,16 @@ describe("getMissingProfileFields", () => {
 				sepa: { ...completeInput.sepa, iban: undefined, bank_name: "" },
 			}),
 		).toEqual(["IBAN", "Bank name"]);
+	});
+
+	it("counts the consent item once a decision is saved, whatever the answers", () => {
+		// Every Data Privacy Notice purpose is optional; refusing them all is a
+		// complete answer.
+		expect(getMissingProfileFields(completeInput)).not.toContain(
+			"Data privacy consent choices",
+		);
+		expect(
+			getMissingProfileFields({ ...completeInput, consentsDecided: false }),
+		).toEqual(["Data privacy consent choices"]);
 	});
 });

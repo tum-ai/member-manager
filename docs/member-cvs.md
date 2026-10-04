@@ -7,8 +7,8 @@ exposes them to the Partner Portal.
 
 - **Member Manager (this repo) is the source of truth for "what is this
   member's current CV right now".** It owns CV files and versions. Partner-
-  sharing consent is not a CV-specific flag; it is derived from the member's
-  Data Privacy Notice agreement (see [Consent](#consent)).
+  sharing consent is not a CV-specific flag; it is the partner-sharing purpose
+  of the member's Data Privacy Notice consents (see [Consent](#consent)).
 - **Partner Portal is a separate product.** It owns partner accounts, payment
   plans, and **semester snapshots**. It consumes a server-to-server export from
   Member Manager, downloads each CV once into its own private storage, and
@@ -42,25 +42,25 @@ Version 1 of most current members was backfilled from their application CV (see
 
 ## Consent
 
-Partner sharing is **opt-in** and derived from the **Data Privacy Notice**
-agreement, stored as `member_agreements.data_privacy_notice_agreed`. The member
-grants or revokes it by (un)agreeing to the Data Privacy Notice in their
-profile agreements — there is no separate CV consent toggle and no consent
-setter on the CV routes. `GET …/cv/consent` is read-only and returns the
-derived `{ consent: boolean }`.
+Partner sharing is **opt-in**. The Data Privacy Notice asks consent for three
+purposes, each stored separately in `member_agreements`:
+`website_profile_consent`, `event_photos_consent` and
+`partner_sharing_consent`. Only `partner_sharing_consent` matters for CVs.
+`consents_decided_at` is null until the member has saved a decision.
 
-**Tradeoff to be aware of:** the Data Privacy Notice bundles three consents
-(website profile, event photos, partner sharing) and `data_privacy_notice_agreed`
-only becomes true when the member agrees to **all three**. So "agreed to the
-DPN" implies partner-sharing consent, but a member cannot currently decline
-*only* partner sharing while accepting the others. If that granularity is
-needed later, split the notice into per-item consents and point the export at
-the partner-sharing flag specifically.
+Members set the three purposes individually on `/welcome` (via
+`PUT /api/members/:userId/consents`; undecided members are sent there after
+login). The profile only shows them read-only with a "Manage consents" link to
+`/welcome`. `data_privacy_notice_agreed` is kept as the "all three granted"
+summary by the DB trigger `sync_member_agreement_consents`, so writers that only
+know the summary keep working. `merge_duplicate_member` keeps the more recent
+decision of the two accounts. The CV routes have no consent setter;
+`GET …/cv/consent` is read-only and returns `{ consent: partner_sharing_consent }`.
 
 A member only appears in the partner export if **all** of:
 
 - `members.member_status = 'active'`
-- `member_agreements.data_privacy_notice_agreed = true`
+- `member_agreements.partner_sharing_consent = true`
 - they have a current, non-revoked CV
 
 ## Member-facing APIs (authenticated)
@@ -72,11 +72,13 @@ receipt flow); PDF-only; 10 MB max.
 GET   /api/members/:userId/cv                 -> current CV metadata (no bytes)
 POST  /api/members/:userId/cv                 -> upload new current version
 GET   /api/members/:userId/cv/current/download -> PDF bytes (Content-Disposition)
-GET   /api/members/:userId/cv/consent         -> { consent: boolean } (read-only, DPN-derived)
+GET   /api/members/:userId/cv/consent         -> { consent: boolean } (read-only, partner purpose)
+GET   /api/members/:userId/consents           -> all per-purpose consents + consents_decided_at
+PUT   /api/members/:userId/consents           -> save a full decision (owner only, never an admin)
 ```
 
-Consent is granted/revoked via the Data Privacy Notice, not these routes; there
-is no consent setter.
+The CV routes have no consent setter; consent is saved through
+`/api/members/:userId/consents` (the `/welcome` page).
 
 `POST` body:
 
@@ -159,8 +161,8 @@ Response:
 
 There are two revocation paths, handled differently to keep the export quiet:
 
-- **Consent withdrawn**: member un-agrees to the Data Privacy Notice
-  (`data_privacy_notice_agreed = false`). They simply **drop out of `members[]`**.
+- **Consent withdrawn**: member withdraws the partner-sharing purpose
+  (`partner_sharing_consent = false`). They simply **drop out of `members[]`**.
   Partner Portal detects withdrawal by diffing its snapshot against `members[]`
   (in snapshot, absent from export = withdrawn). The export does **not**
   enumerate every non-consenting member (that would be noise on every call).

@@ -132,10 +132,6 @@ describe("SEPA Routes", async () => {
 					field: "privacy_agreed",
 					message: "You must agree to the Privacy Policy",
 				},
-				{
-					field: "data_privacy_notice_agreed",
-					message: "You must agree to the Data Privacy Notice",
-				},
 			]);
 		});
 
@@ -413,7 +409,44 @@ describe("SEPA Routes", async () => {
 			]);
 		});
 
-		test("rejects new bank details without the Data Privacy Notice agreement", async () => {
+		test("saves new bank details without the Data Privacy Notice and leaves the notice untouched", async () => {
+			// The notice's purposes are optional consents (website, photos, partner
+			// sharing); refusing them must not block bank details. Omitting the
+			// field must not write it either: writing it would grant or revoke all
+			// three purposes via the DB trigger.
+			resetDatabase();
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/sepa/${testUserIds.otherUser}`,
+				headers: {
+					...authHeaders(testTokens.otherUser),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					iban: "DE89370400440532013000",
+					bank_name: "New Bank",
+					mandate_agreed: true,
+					privacy_agreed: true,
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			assert.strictEqual(
+				mockDatabase.sepa.some((row) => row.user_id === testUserIds.otherUser),
+				true,
+			);
+			const agreements = mockDatabase.member_agreements.find(
+				(row) => row.user_id === testUserIds.otherUser,
+			);
+			assert.ok(agreements);
+			assert.strictEqual("data_privacy_notice_agreed" in agreements, false);
+			assert.strictEqual(
+				JSON.parse(response.payload).data_privacy_notice_agreed,
+				false,
+			);
+		});
+
+		test("saves new bank details with the Data Privacy Notice refused", async () => {
 			resetDatabase();
 			const response = await app.inject({
 				method: "PUT",
@@ -431,15 +464,11 @@ describe("SEPA Routes", async () => {
 				}),
 			});
 
-			assert.strictEqual(response.statusCode, 400);
-			assert.deepStrictEqual(JSON.parse(response.payload).details, [
-				{
-					field: "data_privacy_notice_agreed",
-					message: "You must agree to the Data Privacy Notice",
-				},
-			]);
+			assert.strictEqual(response.statusCode, 200);
 			assert.strictEqual(
-				mockDatabase.sepa.some((row) => row.user_id === testUserIds.otherUser),
+				mockDatabase.member_agreements.find(
+					(row) => row.user_id === testUserIds.otherUser,
+				)?.data_privacy_notice_agreed,
 				false,
 			);
 		});

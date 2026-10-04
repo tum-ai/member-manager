@@ -4,11 +4,12 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 // Agreement / privacy acceptance flow (issue #222).
 //
 // The profile page ("/") renders a "Banking & agreements" panel (SepaPanel)
-// whose three consent checkboxes each launch a modal: SEPA Mandate, Privacy
-// Policy and Data Privacy Notice. Each modal gates its Confirm button on a
-// consent checkbox, and the accepted state is persisted via PUT /api/sepa/:id
-// (legacy `sepa` columns + the `member_agreements` table). This spec covers the
-// PRIVACY and DATA-PRIVACY legal consent modals only; the IBAN/SEPA banking +
+// whose SEPA Mandate and Privacy Policy checkboxes each launch a modal that
+// gates its Confirm button on a consent checkbox; the accepted state is
+// persisted via PUT /api/sepa/:id (legacy `sepa` columns + the
+// `member_agreements` table). The Data Privacy Notice purposes are shown there
+// read-only and edited per purpose on /welcome. This spec covers the Privacy
+// Policy modal and the Data Privacy Notice consents; the IBAN/SEPA banking +
 // mandate flow is covered by a sibling spec (#223).
 //
 // Seed note: the local "regular-member" account is seeded with all three
@@ -26,7 +27,6 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 // so target them by their accessible label rather than a brittle id. Each panel
 // label reads "I agree to the <Name>" with the link text matching <Name>.
 const PANEL_PRIVACY_LABEL = /I agree to the\s+Privacy Policy/i;
-const PANEL_DATA_PRIVACY_LABEL = /I agree to the\s+Data Privacy Notice/i;
 
 // Returns the SepaPanel consent checkbox (a shadcn Checkbox -> role "checkbox")
 // whose accessible name matches the panel label.
@@ -50,6 +50,52 @@ async function saveProfile(page: Page): Promise<void> {
 		.click();
 	await saved;
 	await expectToast(page, /profile saved successfully/i);
+}
+
+// Saves a Data Privacy Notice decision on /welcome: Privacy Policy agreed,
+// website and photos refused, partner sharing as given.
+async function saveConsentsOnWelcome(
+	page: Page,
+	{ partnerSharing }: { partnerSharing: boolean },
+): Promise<void> {
+	if (!page.url().endsWith("/welcome")) {
+		await page.goto("/welcome");
+	}
+	await page
+		.getByRole("checkbox", { name: /agree to the TUM\.ai Privacy Policy/i })
+		.setChecked(true);
+	await page
+		.getByRole("checkbox", { name: /displaying my full name/i })
+		.setChecked(false);
+	await page
+		.getByRole("checkbox", { name: /publishing photos/i })
+		.setChecked(false);
+	await page
+		.getByRole("checkbox", { name: /sharing my data/i })
+		.setChecked(partnerSharing);
+
+	const saved = page.waitForResponse(
+		(response) =>
+			/\/api\/members\/[^/]+\/consents$/.test(response.url()) &&
+			response.request().method() === "PUT",
+	);
+	await page.getByRole("button", { name: "Save my choices" }).click();
+	expect((await saved).status()).toBe(200);
+}
+
+// Asserts the read-only consent summary on the profile's agreements panel.
+async function expectConsentSummary(
+	page: Page,
+	expected: { website: string; photos: string; partner: string },
+): Promise<void> {
+	const summary = page.getByRole("region", {
+		name: "Data Privacy Notice consents",
+	});
+	const answer = (purpose: RegExp) =>
+		summary.locator("div").filter({ hasText: purpose }).locator("dd");
+	await expect(answer(/website/i)).toHaveText(expected.website);
+	await expect(answer(/event photos/i)).toHaveText(expected.photos);
+	await expect(answer(/partners/i)).toHaveText(expected.partner);
 }
 
 test.describe("legal agreement acceptance flow", () => {
@@ -109,53 +155,6 @@ test.describe("legal agreement acceptance flow", () => {
 		await expect(panelCheckbox(page, PANEL_PRIVACY_LABEL)).toBeChecked();
 	});
 
-	test("Data Privacy Notice modal requires every consent before Confirm enables", async ({
-		page,
-	}) => {
-		const panelDataPrivacy = panelCheckbox(page, PANEL_DATA_PRIVACY_LABEL);
-
-		if (await panelDataPrivacy.isChecked()) {
-			await panelDataPrivacy.click();
-		}
-		await expect(panelDataPrivacy).not.toBeChecked();
-
-		await panelDataPrivacy.click();
-
-		const dialog = page.getByRole("dialog");
-		await expect(dialog).toBeVisible();
-		await expect(
-			page.getByRole("heading", { name: "Data Privacy Notice Agreement" }),
-		).toBeVisible();
-		await expect(
-			dialog.getByRole("heading", { name: "Data Privacy Notice", exact: true }),
-		).toBeVisible();
-
-		const confirm = dialog.getByRole("button", { name: "Confirm" });
-		const websiteProfile = dialog.locator("#consent-websiteProfile");
-		const eventPhotos = dialog.locator("#consent-eventPhotos");
-		const partnerSharing = dialog.locator("#consent-partnerSharing");
-
-		// All three consents start unchecked (we drove the panel to false) and
-		// Confirm stays disabled until the LAST one is checked.
-		await expect(websiteProfile).not.toBeChecked();
-		await expect(eventPhotos).not.toBeChecked();
-		await expect(partnerSharing).not.toBeChecked();
-		await expect(confirm).toBeDisabled();
-
-		await websiteProfile.check();
-		await expect(confirm).toBeDisabled();
-
-		await eventPhotos.check();
-		await expect(confirm).toBeDisabled();
-
-		await partnerSharing.check();
-		await expect(confirm).toBeEnabled();
-
-		await confirm.click();
-		await expect(dialog).toBeHidden();
-		await expect(panelCheckbox(page, PANEL_DATA_PRIVACY_LABEL)).toBeChecked();
-	});
-
 	test("accepted legal agreements persist across a reload", async ({
 		page,
 	}) => {
@@ -167,7 +166,7 @@ test.describe("legal agreement acceptance flow", () => {
 			await panelPrivacy.click();
 		}
 		await panelPrivacy.click();
-		let dialog = page.getByRole("dialog");
+		const dialog = page.getByRole("dialog");
 		await dialog
 			.getByRole("checkbox", {
 				name: "I have read and agree to the Privacy Policy.",
@@ -176,20 +175,7 @@ test.describe("legal agreement acceptance flow", () => {
 		await dialog.getByRole("button", { name: "Confirm" }).click();
 		await expect(dialog).toBeHidden();
 
-		const panelDataPrivacy = panelCheckbox(page, PANEL_DATA_PRIVACY_LABEL);
-		if (await panelDataPrivacy.isChecked()) {
-			await panelDataPrivacy.click();
-		}
-		await panelDataPrivacy.click();
-		dialog = page.getByRole("dialog");
-		await dialog.locator("#consent-websiteProfile").check();
-		await dialog.locator("#consent-eventPhotos").check();
-		await dialog.locator("#consent-partnerSharing").check();
-		await dialog.getByRole("button", { name: "Confirm" }).click();
-		await expect(dialog).toBeHidden();
-
 		await expect(panelCheckbox(page, PANEL_PRIVACY_LABEL)).toBeChecked();
-		await expect(panelCheckbox(page, PANEL_DATA_PRIVACY_LABEL)).toBeChecked();
 
 		await saveProfile(page);
 
@@ -200,35 +186,39 @@ test.describe("legal agreement acceptance flow", () => {
 			page.getByRole("heading", { name: "Banking & agreements" }),
 		).toBeVisible();
 		await expect(panelCheckbox(page, PANEL_PRIVACY_LABEL)).toBeChecked();
-		await expect(panelCheckbox(page, PANEL_DATA_PRIVACY_LABEL)).toBeChecked();
 	});
 
-	test("unchecking a required consent re-disables Confirm", async ({
+	test("a partner-only consent shows on the profile and can be withdrawn on its own", async ({
 		page,
 	}) => {
-		const panelDataPrivacy = panelCheckbox(page, PANEL_DATA_PRIVACY_LABEL);
-		if (await panelDataPrivacy.isChecked()) {
-			await panelDataPrivacy.click();
-		}
-		await panelDataPrivacy.click();
+		// Regression (review on #368): the profile used to show a partial choice
+		// as an unticked combined checkbox that could neither show nor withdraw
+		// the partner consent.
+		await expect(
+			page.getByRole("checkbox", { name: /Data Privacy Notice/i }),
+		).toHaveCount(0);
 
-		const dialog = page.getByRole("dialog");
-		const confirm = dialog.getByRole("button", { name: "Confirm" });
-		const websiteProfile = dialog.locator("#consent-websiteProfile");
-		const eventPhotos = dialog.locator("#consent-eventPhotos");
-		const partnerSharing = dialog.locator("#consent-partnerSharing");
+		await saveConsentsOnWelcome(page, { partnerSharing: true });
+		await page
+			.getByRole("button", { name: "Continue to your profile" })
+			.click();
+		await expectConsentSummary(page, {
+			website: "Not agreed",
+			photos: "Not agreed",
+			partner: "Agreed",
+		});
 
-		await websiteProfile.check();
-		await eventPhotos.check();
-		await partnerSharing.check();
-		await expect(confirm).toBeEnabled();
-
-		// Removing any single consent re-disables Confirm (all are required).
-		await partnerSharing.uncheck();
-		await expect(confirm).toBeDisabled();
-
-		await dialog.getByRole("button", { name: "Cancel" }).click();
-		await expect(dialog).toBeHidden();
+		await page.getByRole("link", { name: "Manage consents" }).click();
+		await expect(page).toHaveURL(/\/welcome$/);
+		await saveConsentsOnWelcome(page, { partnerSharing: false });
+		await page
+			.getByRole("button", { name: "Continue to your profile" })
+			.click();
+		await expectConsentSummary(page, {
+			website: "Not agreed",
+			photos: "Not agreed",
+			partner: "Not agreed",
+		});
 	});
 
 	test("closing the Privacy Policy modal does not persist a change", async ({

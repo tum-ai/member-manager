@@ -1,5 +1,5 @@
 ---
-paths: ["shared/src/iban.ts", "shared/src/sepa.ts", "shared/src/reimbursements.ts", "client/src/features/profile/**", "client/src/features/sepa/**", "client/src/features/reimbursements/**", "client/src/hooks/useSepaData.ts", "server/src/routes/sepa.ts", "server/src/routes/reimbursements.ts", "server/src/lib/reimbursement*.ts", "server/src/lib/receiptProcessing.ts", "server/src/lib/sensitiveData*.ts", "server/test/routes/sepa.test.ts", "server/test/routes/reimbursement*.test.ts", "e2e/sepa.spec.ts", "e2e/*reimbursement*.spec.ts"]
+paths: ["shared/src/iban.ts", "shared/src/sepa.ts", "shared/src/consents.ts", "server/src/routes/consents.ts", "client/src/features/welcome/**", "shared/src/reimbursements.ts", "client/src/features/profile/**", "client/src/features/sepa/**", "client/src/features/reimbursements/**", "client/src/hooks/useSepaData.ts", "server/src/routes/sepa.ts", "server/src/routes/reimbursements.ts", "server/src/lib/reimbursement*.ts", "server/src/lib/receiptProcessing.ts", "server/src/lib/sensitiveData*.ts", "server/test/routes/sepa.test.ts", "server/test/routes/reimbursement*.test.ts", "e2e/sepa.spec.ts", "e2e/*reimbursement*.spec.ts"]
 ---
 
 # Bank details: SEPA, IBANs, reimbursement payments
@@ -32,10 +32,15 @@ changing behaviour, and add a regression test for every fix.
   agreements are stored then. Once any bank field is filled (`hasBankDetailsInput`), the group is
   validated like `sepaSchema`. Saved bank details can be edited but not cleared
   (`BANK_DETAILS_REMOVAL_MESSAGE`).
-- **Consent is not optional.** Saving bank details requires all three agreements: SEPA mandate,
-  Privacy Policy, and Data Privacy Notice (enforced by both `sepaSchema` and `profileSepaSchema`).
-  Never loosen a consent requirement as a side effect of another change; if a product change needs
-  it, ask first.
+- **Required agreements for bank details.** Saving bank details requires the SEPA mandate and the
+  Privacy Policy (enforced by both `sepaSchema` and `profileSepaSchema`). The Data Privacy Notice is
+  deliberately **not** required: its purposes (website profile, event photos, partner sharing) are
+  optional consents stored per purpose in `member_agreements` (`shared/src/consents.ts`), and the
+  notice itself says refusing them has no consequences for membership. Never loosen or tighten a
+  consent requirement as a side effect of another change; if a product change needs it, ask first.
+- **Writing `data_privacy_notice_agreed` grants or revokes all three purposes** (DB trigger
+  `sync_member_agreement_consents`). Only write it when the member actually answered the notice;
+  omit it otherwise (`buildAgreementRecord` in `server/src/routes/sepa.ts`).
 - **Encrypted at rest.** `iban`, `bic`, `bank_name` (`SENSITIVE_SEPA_FIELDS`) and
   `payment_iban`, `payment_bic` (`SENSITIVE_REIMBURSEMENT_FIELDS`) are `enc-v1:` ciphertext. Decrypt
   only for callers allowed to see them; never log them, and seed only ciphertext.

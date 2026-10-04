@@ -175,6 +175,12 @@ export const mockDatabase: MockData = {
 			sepa_mandate_agreed: true,
 			privacy_policy_agreed: true,
 			data_privacy_notice_agreed: true,
+			// Mirrors the 20261004120000 backfill: agreeing to the bundled notice
+			// granted every purpose.
+			website_profile_consent: true,
+			event_photos_consent: true,
+			partner_sharing_consent: true,
+			consents_decided_at: "2024-01-01T00:00:00Z",
 			created_at: "2024-01-01T00:00:00Z",
 			updated_at: "2024-01-01T00:00:00Z",
 		},
@@ -2682,6 +2688,12 @@ export function resetMockDatabase(): void {
 			sepa_mandate_agreed: true,
 			privacy_policy_agreed: true,
 			data_privacy_notice_agreed: true,
+			// Mirrors the 20261004120000 backfill: agreeing to the bundled notice
+			// granted every purpose.
+			website_profile_consent: true,
+			event_photos_consent: true,
+			partner_sharing_consent: true,
+			consents_decided_at: "2024-01-01T00:00:00Z",
 			created_at: "2024-01-01T00:00:00Z",
 			updated_at: "2024-01-01T00:00:00Z",
 		},

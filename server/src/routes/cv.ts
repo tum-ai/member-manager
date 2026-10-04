@@ -159,10 +159,10 @@ export async function cvRoutes(server: FastifyInstance) {
 		},
 	);
 
-	// Partner-sharing consent is derived from the Data Privacy Notice agreement
-	// (member_agreements.data_privacy_notice_agreed), which is where the member
-	// grants/revokes it. This route is read-only; there is no consent setter
-	// here. The member manages consent via the Data Privacy Notice.
+	// Partner-sharing consent is the Data Privacy Notice's partner purpose
+	// (member_agreements.partner_sharing_consent). This route is read-only; the
+	// member grants or withdraws it via /api/members/:userId/consents (the
+	// /welcome page) or the Data Privacy Notice on the profile.
 	server.get<{ Params: { userId: string } }>(
 		"/members/:userId/cv/consent",
 		{ preHandler: authenticate },
@@ -177,7 +177,7 @@ export async function cvRoutes(server: FastifyInstance) {
 
 			const { data, error } = await getSupabase()
 				.from("member_agreements")
-				.select("data_privacy_notice_agreed")
+				.select("partner_sharing_consent")
 				.eq("user_id", userId)
 				.maybeSingle();
 			if (error) {
@@ -186,8 +186,8 @@ export async function cvRoutes(server: FastifyInstance) {
 			}
 			return {
 				consent:
-					(data as { data_privacy_notice_agreed: boolean } | null)
-						?.data_privacy_notice_agreed ?? false,
+					(data as { partner_sharing_consent: boolean } | null)
+						?.partner_sharing_consent ?? false,
 			};
 		},
 	);
@@ -241,11 +241,12 @@ export async function partnerExportRoutes(server: FastifyInstance) {
 
 			const activeMembers = (members ?? []) as ActiveMemberRow[];
 
-			// Partner-sharing consent is the Data Privacy Notice agreement.
+			// Only members who granted the partner-sharing purpose are exported;
+			// their website/photo consents are irrelevant here.
 			const { data: agreements, error: agreementsError } = await supabase
 				.from("member_agreements")
 				.select("user_id")
-				.eq("data_privacy_notice_agreed", true);
+				.eq("partner_sharing_consent", true);
 			if (agreementsError) {
 				request.log.error(
 					{ err: agreementsError },

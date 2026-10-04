@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProfilePage from "./ProfilePage";
 
@@ -35,6 +36,10 @@ vi.mock("../../hooks/useIsAdmin", () => ({
 
 vi.mock("../../hooks/useResearchProjects", () => ({
 	useResearchProjects: () => ({ researchProjects: [], isLoading: false }),
+}));
+
+vi.mock("../../hooks/useMemberConsents", () => ({
+	useMemberConsents: () => ({ consents: undefined }),
 }));
 
 vi.mock("../../hooks/useSepaData", () => ({
@@ -96,14 +101,22 @@ beforeEach(() => {
 describe("ProfilePage (render)", () => {
 	it("renders the loading skeleton while data is loading", () => {
 		isLoadingMember = true;
-		render(<ProfilePage user={user} />);
+		render(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
 		expect(
 			screen.queryByRole("heading", { name: /personal information/i }),
 		).not.toBeInTheDocument();
 	});
 
 	it("renders the profile shell and derives the header from member data", async () => {
-		render(<ProfilePage user={user} />);
+		render(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
 
 		await waitFor(() =>
 			expect(
@@ -118,7 +131,11 @@ describe("ProfilePage (render)", () => {
 
 	it("shows the request-changes section for non-admin members", async () => {
 		isAdmin = false;
-		render(<ProfilePage user={user} />);
+		render(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
 		await waitFor(() =>
 			expect(
 				screen.getByRole("heading", {
@@ -130,7 +147,11 @@ describe("ProfilePage (render)", () => {
 
 	it("hides the request-changes section for admins", async () => {
 		isAdmin = true;
-		render(<ProfilePage user={user} />);
+		render(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
 		await waitFor(() =>
 			expect(
 				screen.getByRole("heading", { name: /personal information/i }),
@@ -145,7 +166,11 @@ describe("ProfilePage (render)", () => {
 
 	it("opens the SEPA mandate modal from the banking section", async () => {
 		const userEv = userEvent.setup();
-		render(<ProfilePage user={user} />);
+		render(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
 		await waitFor(() =>
 			expect(
 				screen.getByRole("heading", { name: /personal information/i }),
@@ -179,7 +204,11 @@ describe("ProfilePage (render)", () => {
 		};
 		updateMemberAsync.mockResolvedValue(undefined);
 		const userEv = userEvent.setup();
-		render(<ProfilePage user={user} />);
+		render(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
 		await waitFor(() =>
 			expect(
 				screen.getByRole("heading", { name: /personal information/i }),
@@ -210,7 +239,11 @@ describe("ProfilePage (render)", () => {
 			email: "ada@tum.ai",
 			user_metadata: {},
 		} as unknown as User;
-		render(<ProfilePage user={namelessUser} />);
+		render(
+			<MemoryRouter>
+				<ProfilePage user={namelessUser} />
+			</MemoryRouter>,
+		);
 		await waitFor(() =>
 			expect(
 				screen.getByRole("heading", { name: /personal information/i }),

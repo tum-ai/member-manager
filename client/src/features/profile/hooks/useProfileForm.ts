@@ -2,6 +2,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
 	BANK_DETAILS_REMOVAL_MESSAGE,
 	hasBankDetailsInput,
+	type MemberConsents,
 } from "@member-manager/shared";
 import type { User } from "@supabase/supabase-js";
 import { useEffect } from "react";
@@ -18,6 +19,7 @@ import {
 	normalizeTextValue,
 } from "@/features/profile/profileUtils";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { useMemberConsents } from "@/hooks/useMemberConsents";
 import { useMemberData } from "@/hooks/useMemberData";
 import { useResearchProjects } from "@/hooks/useResearchProjects";
 import { useSepaData } from "@/hooks/useSepaData";
@@ -42,11 +44,10 @@ import {
 } from "@/lib/schemas";
 import type { ResearchProject } from "@/types";
 
-const AGREEMENT_FIELDS = [
-	"mandate_agreed",
-	"privacy_agreed",
-	"data_privacy_notice_agreed",
-] as const;
+// The Data Privacy Notice consents are not part of the profile form: they are
+// managed per purpose on /welcome (`useMemberConsents`), and the profile only
+// summarises them. Leaving them out keeps a profile save from touching them.
+const AGREEMENT_FIELDS = ["mandate_agreed", "privacy_agreed"] as const;
 
 export interface UseProfileFormResult {
 	memberForm: UseFormReturn<MemberSchema>;
@@ -68,6 +69,7 @@ export interface UseProfileFormResult {
 	isResearchDepartmentSelected: boolean;
 	researchProjectOptions: ResearchProject[];
 	researchProjectSelectValue: string;
+	memberConsents: MemberConsents | undefined;
 }
 
 export function useProfileForm(user: User): UseProfileFormResult {
@@ -80,6 +82,7 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		isUpdating: isUpdatingMember,
 	} = useMemberData(user.id);
 	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
+	const { consents: memberConsents } = useMemberConsents(user.id);
 	const { researchProjects, isLoading: isLoadingResearchProjects } =
 		useResearchProjects();
 	const {
@@ -137,7 +140,6 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			bank_name: "",
 			mandate_agreed: false,
 			privacy_agreed: false,
-			data_privacy_notice_agreed: false,
 		},
 	});
 
@@ -195,8 +197,6 @@ export function useProfileForm(user: User): UseProfileFormResult {
 				bank_name: sepaData.bank_name || "",
 				mandate_agreed: sepaData.mandate_agreed || false,
 				privacy_agreed: sepaData.privacy_agreed || false,
-				data_privacy_notice_agreed:
-					sepaData.data_privacy_notice_agreed || false,
 			});
 		}
 	}, [sepaData, sepaForm]);
@@ -304,6 +304,7 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		member: memberForm.watch(),
 		linkedin: linkedinForm.watch(),
 		sepa: sepaForm.watch(),
+		consentsDecided: Boolean(memberConsents?.consents_decided_at),
 	};
 	const completeness = computeProfileCompleteness(completenessInput);
 	const missingProfileFields = getMissingProfileFields(completenessInput);
@@ -343,5 +344,6 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		isResearchDepartmentSelected,
 		researchProjectOptions,
 		researchProjectSelectValue,
+		memberConsents,
 	};
 }
