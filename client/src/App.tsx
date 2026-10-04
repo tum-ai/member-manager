@@ -12,6 +12,7 @@ import {
 import { MainLayout } from "./components/layout/MainLayout";
 import { Skeleton } from "./components/ui/skeleton";
 import { SkeletonRegion } from "./components/ui/skeleton-blocks";
+import { WelcomeRedirect } from "./components/WelcomeRedirect";
 import { ToastProvider } from "./contexts/ToastContext";
 import AdminCertificateRequestsPage from "./features/admin/AdminCertificateRequestsPage";
 import AdminChangeRequestsPage from "./features/admin/AdminChangeRequestsPage";
@@ -39,8 +40,10 @@ import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
 import ReimbursementReviewPage from "./features/reimbursements/ReimbursementReviewPage";
 import TumaiDaysPage from "./features/tools/TumaiDaysPage";
+import WelcomePage from "./features/welcome/WelcomePage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import { useToolAccess } from "./hooks/useToolAccess";
+import { rememberPostLoginPath } from "./lib/postLoginRedirect";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
 
@@ -156,10 +159,22 @@ function AppRouter({ user, onLogout }: AppRouterProps): JSX.Element {
 	}
 
 	if (!user) {
-		return <Auth />;
+		return <LoggedOutApp />;
 	}
 
 	return <AuthenticatedApp user={user} onLogout={onLogout} />;
+}
+
+// Slack OAuth returns to the bare origin, so remember the link a logged-out
+// visitor opened (e.g. /welcome) for WelcomeRedirect to resume after login.
+function LoggedOutApp(): JSX.Element {
+	const location = useLocation();
+
+	useEffect(() => {
+		rememberPostLoginPath(`${location.pathname}${location.search}`);
+	}, [location.pathname, location.search]);
+
+	return <Auth />;
 }
 
 interface AuthenticatedAppProps {
@@ -194,8 +209,10 @@ export function AuthenticatedApp({
 			hasContractsAccess={hasContractsAccess}
 			onLogout={onLogout}
 		>
+			<WelcomeRedirect userId={user.id} />
 			<Routes>
 				<Route path="/" element={<ProfilePage user={user} />} />
+				<Route path="/welcome" element={<WelcomePage user={user} />} />
 				<Route path="/profile" element={<Navigate to="/" replace />} />
 				<Route path="/members" element={<MemberList />} />
 				<Route path="/members/org-chart" element={<MembersOrgChartPage />} />

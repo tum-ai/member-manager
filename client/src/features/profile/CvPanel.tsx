@@ -194,9 +194,8 @@ export function CvPanel({ userId, id, className }: CvPanelProps) {
 						)}
 						<p className="text-sm text-muted-foreground">
 							{hasConsent
-								? "Your current CV may be shared with TUM.ai partners, based on your Data Privacy Notice consent."
-								: "Your CV is not shared with TUM.ai partners. Partner sharing is governed by your Data Privacy Notice consent."}{" "}
-							Manage this under the Data Privacy Notice in your agreements.
+								? "Your current CV may be shared with TUM.ai partners, because you agreed to partner sharing."
+								: "Your CV is not shared with TUM.ai partners until you agree to partner sharing."}
 						</p>
 					</div>
 				)}

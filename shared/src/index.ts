@@ -1,3 +1,4 @@
+export * from "./consents.js";
 export * from "./contractSchemas.js";
 export * from "./contracts.js";
 export * from "./cv.js";

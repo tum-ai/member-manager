@@ -7,11 +7,14 @@ import { Separator } from "@/components/ui/separator";
 interface PrivacyPolicyProps {
 	onCheckChange?: (checked: boolean) => void;
 	privacyAgreed: boolean;
+	/** Text only, no agreement checkbox (the /welcome page collects it). */
+	readOnly?: boolean;
 }
 
 export function PrivacyPolicy({
 	onCheckChange,
 	privacyAgreed,
+	readOnly = false,
 }: PrivacyPolicyProps) {
 	const [checked, setChecked] = useState(!!privacyAgreed);
 
@@ -211,18 +214,22 @@ export function PrivacyPolicy({
 				</Section>
 			</div>
 
-			<Separator className="my-4" />
+			{!readOnly && (
+				<>
+					<Separator className="my-4" />
 
-			<div className="flex items-center gap-2">
-				<Checkbox
-					id="privacy-agree"
-					checked={checked}
-					onCheckedChange={(value) => setChecked(value === true)}
-				/>
-				<Label htmlFor="privacy-agree" className="text-sm font-normal">
-					I have read and agree to the Privacy Policy.
-				</Label>
-			</div>
+					<div className="flex items-center gap-2">
+						<Checkbox
+							id="privacy-agree"
+							checked={checked}
+							onCheckedChange={(value) => setChecked(value === true)}
+						/>
+						<Label htmlFor="privacy-agree" className="text-sm font-normal">
+							I have read and agree to the Privacy Policy.
+						</Label>
+					</div>
+				</>
+			)}
 		</div>
 	);
 }

@@ -76,14 +76,30 @@ describe("profileSepaSchema", () => {
 				issue.path.join("."),
 				issue.message,
 			]),
-			[
-				["privacy_agreed", "You must agree to the Privacy Policy"],
-				[
-					"data_privacy_notice_agreed",
-					"You must agree to the Data Privacy Notice",
-				],
-			],
+			[["privacy_agreed", "You must agree to the Privacy Policy"]],
 		);
+	});
+
+	test("accepts bank details without the Data Privacy Notice", () => {
+		// The notice's purposes (website, photos, partner sharing) are optional
+		// consents; refusing one must not block saving bank details.
+		const parsed = profileSepaSchema.parse({
+			...allAgreed,
+			iban: validIban,
+			bank_name: "Test Bank",
+			data_privacy_notice_agreed: false,
+		});
+		assert.equal(parsed.data_privacy_notice_agreed, false);
+	});
+
+	test("leaves the Data Privacy Notice unset when it is omitted", () => {
+		const { data_privacy_notice_agreed: _omitted, ...withoutNotice } = {
+			...allAgreed,
+			iban: validIban,
+			bank_name: "Test Bank",
+		};
+		const parsed = profileSepaSchema.parse(withoutNotice);
+		assert.equal(parsed.data_privacy_notice_agreed, undefined);
 	});
 
 	test("rejects bank details without the SEPA mandate", () => {
@@ -98,7 +114,7 @@ describe("profileSepaSchema", () => {
 		);
 	});
 
-	test("accepts bank details once all three agreements are given", () => {
+	test("accepts bank details once the mandate and privacy policy are agreed", () => {
 		const parsed = profileSepaSchema.parse({
 			...allAgreed,
 			iban: validIban,
@@ -122,13 +138,12 @@ describe("profileSepaSchema", () => {
 		assert.equal(parsed.bank_name, "Test Bank");
 	});
 
-	test("requires IBAN, bank name and all agreements once any bank field is filled", () => {
+	test("requires IBAN, bank name and both required agreements once any bank field is filled", () => {
 		assert.deepEqual(issuePaths({ ...noBankDetails, bic: "COBADEFFXXX" }), [
 			"iban",
 			"bank_name",
 			"mandate_agreed",
 			"privacy_agreed",
-			"data_privacy_notice_agreed",
 		]);
 	});
 

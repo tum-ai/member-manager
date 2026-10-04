@@ -4,10 +4,21 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthenticatedApp } from "./App";
 import { ToastProvider } from "./contexts/ToastContext";
+import {
+	markWelcomeSkipped,
+	rememberPostLoginPath,
+} from "./lib/postLoginRedirect";
 
 const adminState = vi.hoisted(() => ({
 	isAdmin: false,
 	isLoading: true,
+}));
+
+// Decided by default so the existing route tests aren't redirected to /welcome.
+const consentsState = vi.hoisted(() => ({
+	consents: { consents_decided_at: "2026-01-01T00:00:00Z" } as
+		| { consents_decided_at: string | null }
+		| undefined,
 }));
 
 const toolAccessState = vi.hoisted(() => ({
@@ -22,6 +33,14 @@ vi.mock("./hooks/useIsAdmin", () => ({
 
 vi.mock("./hooks/useToolAccess", () => ({
 	useToolAccess: () => toolAccessState,
+}));
+
+vi.mock("./hooks/useMemberConsents", () => ({
+	useMemberConsents: () => consentsState,
+}));
+
+vi.mock("./features/welcome/WelcomePage", () => ({
+	default: () => <div>Welcome route</div>,
 }));
 
 vi.mock("./features/admin/AdminDatabaseView", () => ({
@@ -216,5 +235,52 @@ describe("AuthenticatedApp permission-gated routes", () => {
 		toolAccessState.educationalCourseRole = "administrator";
 		renderAuthenticatedApp("/education/courses");
 		expect(screen.getByText("Educational courses route")).toBeInTheDocument();
+	});
+});
+
+describe("AuthenticatedApp welcome redirect", () => {
+	beforeEach(() => {
+		adminState.isAdmin = false;
+		adminState.isLoading = false;
+		toolAccessState.permissions = [];
+		toolAccessState.isLoading = false;
+		consentsState.consents = { consents_decided_at: null };
+		window.sessionStorage.clear();
+	});
+
+	it("sends a member who hasn't decided on consents to /welcome", async () => {
+		renderAuthenticatedApp("/");
+
+		expect(await screen.findByText("Welcome route")).toBeInTheDocument();
+	});
+
+	it("leaves a member who already decided where they are", () => {
+		consentsState.consents = { consents_decided_at: "2026-10-01T00:00:00Z" };
+		renderAuthenticatedApp("/");
+
+		expect(screen.getByText("Profile route")).toBeInTheDocument();
+		expect(screen.queryByText("Welcome route")).not.toBeInTheDocument();
+	});
+
+	it("waits for the consents before deciding", () => {
+		consentsState.consents = undefined;
+		renderAuthenticatedApp("/");
+
+		expect(screen.getByText("Profile route")).toBeInTheDocument();
+	});
+
+	it("doesn't redirect again after 'Later' in this session", () => {
+		markWelcomeSkipped();
+		renderAuthenticatedApp("/");
+
+		expect(screen.getByText("Profile route")).toBeInTheDocument();
+	});
+
+	it("resumes the link opened before login instead of redirecting", async () => {
+		rememberPostLoginPath("/tools/jobs");
+		renderAuthenticatedApp("/");
+
+		expect(await screen.findByText("Jobs route")).toBeInTheDocument();
+		expect(screen.queryByText("Welcome route")).not.toBeInTheDocument();
 	});
 });

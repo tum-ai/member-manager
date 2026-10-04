@@ -307,9 +307,9 @@ describe("useProfileForm", () => {
 			expect(fieldError(result, "privacy_agreed")).toBe(
 				"You must agree to the Privacy Policy",
 			);
-			expect(fieldError(result, "data_privacy_notice_agreed")).toBe(
-				"You must agree to the Data Privacy Notice",
-			);
+			// The Data Privacy Notice is optional consent, never required for
+			// bank details.
+			expect(fieldError(result, "data_privacy_notice_agreed")).toBeUndefined();
 			expect(showToast).toHaveBeenCalledWith(
 				"Please complete all required fields and agreements before saving.",
 				"error",
@@ -339,7 +339,7 @@ describe("useProfileForm", () => {
 			);
 		});
 
-		it("requires IBAN, bank name and all agreements once any bank field is filled", async () => {
+		it("requires IBAN, bank name, mandate and privacy policy once any bank field is filled", async () => {
 			sepaData = { ...noBankDetails };
 			const { result } = await renderLoaded();
 
@@ -357,8 +357,28 @@ describe("useProfileForm", () => {
 			expect(fieldError(result, "privacy_agreed")).toBe(
 				"You must agree to the Privacy Policy",
 			);
-			expect(fieldError(result, "data_privacy_notice_agreed")).toBe(
-				"You must agree to the Data Privacy Notice",
+			expect(fieldError(result, "data_privacy_notice_agreed")).toBeUndefined();
+		});
+
+		it("saves bank details with the Data Privacy Notice refused", async () => {
+			sepaData = { ...noBankDetails };
+			const { result } = await renderLoaded();
+
+			act(() => {
+				result.current.sepaForm.setValue("iban", "DE89370400440532013000");
+				result.current.sepaForm.setValue("bank_name", "Test Bank");
+				result.current.sepaForm.setValue("mandate_agreed", true);
+				result.current.sepaForm.setValue("privacy_agreed", true);
+			});
+			await submit(result);
+
+			expect(updateSepaAsync).toHaveBeenCalledWith(
+				expect.objectContaining({
+					iban: "DE89370400440532013000",
+					mandate_agreed: true,
+					privacy_agreed: true,
+					data_privacy_notice_agreed: false,
+				}),
 			);
 		});
 

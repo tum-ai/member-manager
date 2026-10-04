@@ -52,16 +52,15 @@ describe("sepaSchema", () => {
 		);
 	});
 
-	it("requires the Data Privacy Notice agreement", () => {
+	it("doesn't require the Data Privacy Notice agreement", () => {
+		// Its purposes are optional consents; refusing them can't block bank
+		// details.
 		const result = sepaSchema.safeParse({
 			...validSepaPayload,
 			data_privacy_notice_agreed: false,
 		});
 
-		expect(result.success).toBe(false);
-		expect(result.error?.issues[0]?.message).toBe(
-			"You must agree to the Data Privacy Notice",
-		);
+		expect(result.success).toBe(true);
 	});
 });
 

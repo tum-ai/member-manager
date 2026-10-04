@@ -63,7 +63,9 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 	const mandateAgreed = sepaForm.watch("mandate_agreed");
 	const privacyAgreed = sepaForm.watch("privacy_agreed");
-	const dataPrivacyNoticeAgreed = sepaForm.watch("data_privacy_notice_agreed");
+	const dataPrivacyNoticeAgreed = Boolean(
+		sepaForm.watch("data_privacy_notice_agreed"),
+	);
 	const isActive = memberForm.watch("active");
 
 	const openSepaModal = () => {

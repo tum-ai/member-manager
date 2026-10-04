@@ -11,6 +11,7 @@ import { adminRoutes } from "./routes/admin.js";
 import { avatarProxyRoutes } from "./routes/avatarProxy.js";
 import { bugReportRoutes } from "./routes/bugReports.js";
 import { changeRequestRoutes } from "./routes/changeRequests.js";
+import { consentRoutes } from "./routes/consents.js";
 import { contractRoutes } from "./routes/contracts.js";
 import { cvRoutes, partnerExportRoutes } from "./routes/cv.js";
 import { educationalCourseRoutes } from "./routes/educationCourses.js";
@@ -111,6 +112,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(bugReportRoutes);
 			await api.register(memberRoutes);
 			await api.register(cvRoutes);
+			await api.register(consentRoutes);
 			await api.register(partnerExportRoutes);
 			await api.register(educationalCourseRoutes);
 			await api.register(sepaRoutes);

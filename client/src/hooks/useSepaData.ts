@@ -36,6 +36,12 @@ export function useSepaData(userId: string) {
 		},
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["sepa", userId] });
+			// Accepting or revoking the Data Privacy Notice here changes the
+			// per-purpose consents too (DB trigger), so refresh their readers.
+			queryClient.invalidateQueries({ queryKey: ["member-consents", userId] });
+			queryClient.invalidateQueries({
+				queryKey: ["member-cv-consent", userId],
+			});
 		},
 	});
 

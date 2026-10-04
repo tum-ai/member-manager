@@ -16,6 +16,25 @@ import {
 	testTokens,
 	testUserIds,
 } from "../helpers.js";
+import { mockDatabase } from "../mocks/supabase.js";
+
+/** Sets MOCK_USER_ID's stored consents, as the DB trigger would leave them. */
+function setUserConsents(consents: {
+	website_profile_consent: boolean;
+	event_photos_consent: boolean;
+	partner_sharing_consent: boolean;
+}): void {
+	const row = mockDatabase.member_agreements.find(
+		(agreement) => agreement.user_id === testUserIds.user,
+	);
+	assert.ok(row);
+	Object.assign(row, consents, {
+		data_privacy_notice_agreed:
+			consents.website_profile_consent &&
+			consents.event_photos_consent &&
+			consents.partner_sharing_consent,
+	});
+}
 
 const PDF_BYTES = Buffer.from("%PDF-1.4\n%mock pdf\n");
 const PDF_BASE64 = PDF_BYTES.toString("base64");
@@ -204,7 +223,7 @@ describe("member CVs", () => {
 		assert.doesNotMatch(cacheControl, /max-age/);
 	});
 
-	it("derives partner-sharing consent from the Data Privacy Notice", async () => {
+	it("reads partner-sharing consent from the partner purpose", async () => {
 		const app = await getTestApp();
 		const read = await app.inject({
 			method: "GET",
@@ -212,7 +231,23 @@ describe("member CVs", () => {
 			headers: authHeaders(testTokens.user),
 		});
 		assert.equal(read.statusCode, 200);
-		// MOCK_USER_ID has a member_agreements row with the DPN agreed.
+		// MOCK_USER_ID has a member_agreements row with every purpose granted.
+		assert.equal(read.json().consent, true);
+	});
+
+	it("reports consent when only the partner purpose is granted", async () => {
+		setUserConsents({
+			website_profile_consent: false,
+			event_photos_consent: false,
+			partner_sharing_consent: true,
+		});
+		const app = await getTestApp();
+		const read = await app.inject({
+			method: "GET",
+			url: `/api/members/${testUserIds.user}/cv/consent`,
+			headers: authHeaders(testTokens.user),
+		});
+		assert.equal(read.statusCode, 200);
 		assert.equal(read.json().consent, true);
 	});
 
@@ -281,6 +316,43 @@ describe("member CVs", () => {
 			assert.equal(entry.member_manager_user_id, testUserIds.user);
 			assert.ok(entry.cv.download_url.startsWith("https://"));
 			assert.match(entry.cv.sha256, /^[0-9a-f]{64}$/);
+		});
+
+		it("exports by the partner purpose alone, ignoring the other consents", async () => {
+			const app = await getTestApp();
+			await app.inject({
+				method: "POST",
+				url: `/api/members/${testUserIds.user}/cv`,
+				headers: authHeaders(testTokens.user),
+				payload: { filename: "cv.pdf", cv_base64: PDF_BASE64 },
+			});
+			const exportMembers = async () =>
+				(
+					await app.inject({
+						method: "GET",
+						url: "/api/internal/partner-portal/cv-export",
+						headers: { authorization: "Bearer test-export-token" },
+					})
+				).json().members as Array<{ member_manager_user_id: string }>;
+
+			// Website and photos refused, partner granted: exported.
+			setUserConsents({
+				website_profile_consent: false,
+				event_photos_consent: false,
+				partner_sharing_consent: true,
+			});
+			assert.deepEqual(
+				(await exportMembers()).map((m) => m.member_manager_user_id),
+				[testUserIds.user],
+			);
+
+			// Everything but partner sharing granted: not exported.
+			setUserConsents({
+				website_profile_consent: true,
+				event_photos_consent: true,
+				partner_sharing_consent: false,
+			});
+			assert.deepEqual(await exportMembers(), []);
 		});
 	});
 });

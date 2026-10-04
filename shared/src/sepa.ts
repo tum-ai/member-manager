@@ -1,11 +1,15 @@
 import { z } from "zod";
 import { INVALID_IBAN_MESSAGE, ibanSchema, normalizeIban } from "./iban.js";
 
-/** Every agreement required whenever bank details are saved. */
+/**
+ * Every agreement required whenever bank details are saved. The Data Privacy
+ * Notice is deliberately absent: its purposes (website profile, event photos,
+ * partner sharing) are optional consents that must not be a condition for
+ * paying dues or getting reimbursed (see `shared/src/consents.ts`).
+ */
 const SEPA_AGREEMENT_MESSAGES = {
 	mandate_agreed: "You must agree to the SEPA mandate",
 	privacy_agreed: "You must agree to the Privacy Policy",
-	data_privacy_notice_agreed: "You must agree to the Data Privacy Notice",
 } as const;
 
 export const sepaSchema = z.object({
@@ -18,9 +22,8 @@ export const sepaSchema = z.object({
 	privacy_agreed: z.boolean().refine((value) => value, {
 		message: SEPA_AGREEMENT_MESSAGES.privacy_agreed,
 	}),
-	data_privacy_notice_agreed: z.boolean().refine((value) => value, {
-		message: SEPA_AGREEMENT_MESSAGES.data_privacy_notice_agreed,
-	}),
+	/** Accepts or revokes the whole Data Privacy Notice; omitted = unchanged. */
+	data_privacy_notice_agreed: z.boolean().optional(),
 	user_id: z.string(),
 });
 
@@ -53,8 +56,8 @@ export function hasBankDetailsInput(value: BankDetailsFields): boolean {
  * Bank details are optional as a group: all of IBAN, BIC and bank name may be
  * blank, in which case only the agreements are saved, whatever their values.
  * As soon as any bank field is filled, the group is validated like
- * `sepaSchema`: a valid IBAN, a bank name and all three agreements (SEPA
- * mandate, Privacy Policy, Data Privacy Notice) are required.
+ * `sepaSchema`: a valid IBAN, a bank name, the SEPA mandate and the Privacy
+ * Policy are required. The Data Privacy Notice stays optional either way.
  *
  * Whether existing bank details may be cleared depends on stored state, so
  * that rule is enforced by the caller (see `BANK_DETAILS_REMOVAL_MESSAGE`).
@@ -66,7 +69,8 @@ export const profileSepaSchema = z
 		bank_name: z.string(),
 		mandate_agreed: z.boolean(),
 		privacy_agreed: z.boolean(),
-		data_privacy_notice_agreed: z.boolean(),
+		/** Accepts or revokes the whole Data Privacy Notice; omitted = unchanged. */
+		data_privacy_notice_agreed: z.boolean().optional(),
 	})
 	.superRefine((value, ctx) => {
 		if (!hasBankDetailsInput(value)) {
