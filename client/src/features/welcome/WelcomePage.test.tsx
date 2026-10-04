@@ -179,6 +179,36 @@ describe("WelcomePage", () => {
 		).not.toBeInTheDocument();
 	});
 
+	it("withdraws a partner-only consent without granting the other purposes", async () => {
+		// Regression (review on #368): a partial decision must stay editable
+		// purpose by purpose.
+		const puts = stubConsents({
+			...undecided,
+			privacy_policy_agreed: true,
+			partner_sharing_consent: true,
+			consents_decided_at: "2026-09-01T00:00:00Z",
+		});
+		const userEvents = userEvent.setup();
+		renderPage();
+
+		await waitFor(() => expect(checkbox(/cv/i)).toBeChecked());
+		await userEvents.click(checkbox(/cv/i));
+		await userEvents.click(
+			screen.getByRole("button", { name: "Save my choices" }),
+		);
+
+		await waitFor(() =>
+			expect(puts).toEqual([
+				{
+					privacy_policy_agreed: true,
+					website_profile_consent: false,
+					event_photos_consent: false,
+					partner_sharing_consent: false,
+				},
+			]),
+		);
+	});
+
 	it("'Later' returns to the interrupted page and stops the redirect for the session", async () => {
 		stubConsents(undecided);
 		const userEvents = userEvent.setup();

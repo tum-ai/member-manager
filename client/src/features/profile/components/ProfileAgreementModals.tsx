@@ -1,6 +1,5 @@
 import type { UseFormReturn } from "react-hook-form";
 import { Modal } from "@/components/ui/Modal";
-import { DataPrivacyNotice } from "@/features/legal/DataPrivacyNotice";
 import { PrivacyPolicy } from "@/features/legal/PrivacyPolicy";
 import { SepaMandate } from "@/features/sepa/SepaMandate";
 import type { ProfileSepaInput } from "@/lib/schemas";
@@ -11,14 +10,10 @@ interface ProfileAgreementModalsProps {
 	setShowSepaModal: (value: boolean) => void;
 	showPrivacyModal: boolean;
 	setShowPrivacyModal: (value: boolean) => void;
-	showDataPrivacyNoticeModal: boolean;
-	setShowDataPrivacyNoticeModal: (value: boolean) => void;
 	pendingMandateAgreed: boolean;
 	setPendingMandateAgreed: (value: boolean) => void;
 	pendingPrivacyAgreed: boolean;
 	setPendingPrivacyAgreed: (value: boolean) => void;
-	pendingDataPrivacyNoticeAgreed: boolean;
-	setPendingDataPrivacyNoticeAgreed: (value: boolean) => void;
 }
 
 export function ProfileAgreementModals({
@@ -27,14 +22,10 @@ export function ProfileAgreementModals({
 	setShowSepaModal,
 	showPrivacyModal,
 	setShowPrivacyModal,
-	showDataPrivacyNoticeModal,
-	setShowDataPrivacyNoticeModal,
 	pendingMandateAgreed,
 	setPendingMandateAgreed,
 	pendingPrivacyAgreed,
 	setPendingPrivacyAgreed,
-	pendingDataPrivacyNoticeAgreed,
-	setPendingDataPrivacyNoticeAgreed,
 }: ProfileAgreementModalsProps): JSX.Element {
 	return (
 		<>
@@ -74,26 +65,6 @@ export function ProfileAgreementModals({
 					<PrivacyPolicy
 						privacyAgreed={pendingPrivacyAgreed}
 						onCheckChange={setPendingPrivacyAgreed}
-					/>
-				</Modal>
-			)}
-
-			{showDataPrivacyNoticeModal && (
-				<Modal
-					title="Data Privacy Notice Agreement"
-					onClose={() => setShowDataPrivacyNoticeModal(false)}
-					confirmDisabled={!pendingDataPrivacyNoticeAgreed}
-					onConfirm={() => {
-						sepaForm.setValue("data_privacy_notice_agreed", true, {
-							shouldDirty: true,
-							shouldValidate: true,
-						});
-						setShowDataPrivacyNoticeModal(false);
-					}}
-				>
-					<DataPrivacyNotice
-						dataPrivacyNoticeAgreed={pendingDataPrivacyNoticeAgreed}
-						onCheckChange={setPendingDataPrivacyNoticeAgreed}
 					/>
 				</Modal>
 			)}

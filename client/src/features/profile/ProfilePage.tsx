@@ -23,18 +23,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const fieldId = useId();
 	const [showSepaModal, setShowSepaModal] = useState(false);
 	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-	const [showDataPrivacyNoticeModal, setShowDataPrivacyNoticeModal] =
-		useState(false);
 	const [pendingMandateAgreed, setPendingMandateAgreed] = useState(false);
 	const [pendingPrivacyAgreed, setPendingPrivacyAgreed] = useState(false);
-	const [pendingDataPrivacyNoticeAgreed, setPendingDataPrivacyNoticeAgreed] =
-		useState(false);
 
 	const {
 		memberForm,
 		linkedinForm,
 		sepaForm,
 		memberData,
+		memberConsents,
 		isAdmin,
 		isLoading,
 		isUpdating,
@@ -63,9 +60,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 	const mandateAgreed = sepaForm.watch("mandate_agreed");
 	const privacyAgreed = sepaForm.watch("privacy_agreed");
-	const dataPrivacyNoticeAgreed = Boolean(
-		sepaForm.watch("data_privacy_notice_agreed"),
-	);
 	const isActive = memberForm.watch("active");
 
 	const openSepaModal = () => {
@@ -76,11 +70,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 	const openPrivacyModal = () => {
 		setPendingPrivacyAgreed(privacyAgreed);
 		setShowPrivacyModal(true);
-	};
-
-	const openDataPrivacyNoticeModal = () => {
-		setPendingDataPrivacyNoticeAgreed(dataPrivacyNoticeAgreed);
-		setShowDataPrivacyNoticeModal(true);
 	};
 
 	if (isLoading) {
@@ -208,17 +197,15 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 							sepaForm={sepaForm}
 							mandateAgreed={mandateAgreed}
 							privacyAgreed={privacyAgreed}
-							dataPrivacyNoticeAgreed={dataPrivacyNoticeAgreed}
+							memberConsents={memberConsents}
 							openSepaModal={openSepaModal}
 							openPrivacyModal={openPrivacyModal}
-							openDataPrivacyNoticeModal={openDataPrivacyNoticeModal}
 							ids={{
 								iban: `${fieldId}-iban`,
 								bic: `${fieldId}-bic`,
 								bankName: `${fieldId}-bank-name`,
 								mandate: `${fieldId}-mandate`,
 								privacy: `${fieldId}-privacy`,
-								dataPrivacy: `${fieldId}-data-privacy`,
 							}}
 						/>
 
@@ -245,14 +232,10 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				setShowSepaModal={setShowSepaModal}
 				showPrivacyModal={showPrivacyModal}
 				setShowPrivacyModal={setShowPrivacyModal}
-				showDataPrivacyNoticeModal={showDataPrivacyNoticeModal}
-				setShowDataPrivacyNoticeModal={setShowDataPrivacyNoticeModal}
 				pendingMandateAgreed={pendingMandateAgreed}
 				setPendingMandateAgreed={setPendingMandateAgreed}
 				pendingPrivacyAgreed={pendingPrivacyAgreed}
 				setPendingPrivacyAgreed={setPendingPrivacyAgreed}
-				pendingDataPrivacyNoticeAgreed={pendingDataPrivacyNoticeAgreed}
-				setPendingDataPrivacyNoticeAgreed={setPendingDataPrivacyNoticeAgreed}
 			/>
 		</div>
 	);

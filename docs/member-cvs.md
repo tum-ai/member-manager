@@ -50,10 +50,11 @@ purposes, each stored separately in `member_agreements`:
 
 Members set the three purposes individually on `/welcome` (via
 `PUT /api/members/:userId/consents`; undecided members are sent there after
-login). The profile's Data Privacy Notice checkbox still accepts or revokes all
-three at once. `data_privacy_notice_agreed` is kept as the "all three granted"
+login). The profile only shows them read-only with a "Manage consents" link to
+`/welcome`. `data_privacy_notice_agreed` is kept as the "all three granted"
 summary by the DB trigger `sync_member_agreement_consents`, so writers that only
-know the summary keep working. The CV routes have no consent setter;
+know the summary keep working. `merge_duplicate_member` keeps the more recent
+decision of the two accounts. The CV routes have no consent setter;
 `GET …/cv/consent` is read-only and returns `{ consent: partner_sharing_consent }`.
 
 A member only appears in the partner export if **all** of:
@@ -77,7 +78,7 @@ PUT   /api/members/:userId/consents           -> save a full decision (owner onl
 ```
 
 The CV routes have no consent setter; consent is saved through
-`/api/members/:userId/consents` or the profile's Data Privacy Notice.
+`/api/members/:userId/consents` (the `/welcome` page).
 
 `POST` body:
 

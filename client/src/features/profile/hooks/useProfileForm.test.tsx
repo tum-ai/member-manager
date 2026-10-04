@@ -44,6 +44,10 @@ vi.mock("../../../hooks/useResearchProjects", () => ({
 	}),
 }));
 
+vi.mock("../../../hooks/useMemberConsents", () => ({
+	useMemberConsents: () => ({ consents: undefined }),
+}));
+
 vi.mock("../../../hooks/useSepaData", () => ({
 	useSepaData: () => ({
 		sepa: sepaData,
@@ -360,7 +364,7 @@ describe("useProfileForm", () => {
 			expect(fieldError(result, "data_privacy_notice_agreed")).toBeUndefined();
 		});
 
-		it("saves bank details with the Data Privacy Notice refused", async () => {
+		it("saves bank details without touching the Data Privacy Notice consents", async () => {
 			sepaData = { ...noBankDetails };
 			const { result } = await renderLoaded();
 
@@ -377,8 +381,12 @@ describe("useProfileForm", () => {
 					iban: "DE89370400440532013000",
 					mandate_agreed: true,
 					privacy_agreed: true,
-					data_privacy_notice_agreed: false,
 				}),
+			);
+			// Consents are managed per purpose on /welcome; writing the summary
+			// from here would grant or revoke all three (review on #368).
+			expect(updateSepaAsync.mock.calls[0][0]).not.toHaveProperty(
+				"data_privacy_notice_agreed",
 			);
 		});
 

@@ -1,6 +1,8 @@
+import type { MemberConsents } from "@member-manager/shared";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useForm } from "react-hook-form";
+import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
 import type { ProfileSepaInput } from "@/lib/schemas";
 import { SepaPanel } from "./SepaPanel";
@@ -11,16 +13,22 @@ const ids = {
 	bankName: "bank-name",
 	mandate: "mandate",
 	privacy: "privacy",
-	dataPrivacy: "data-privacy",
+};
+
+const partnerOnly: MemberConsents = {
+	privacy_policy_agreed: true,
+	website_profile_consent: false,
+	event_photos_consent: false,
+	partner_sharing_consent: true,
+	consents_decided_at: "2026-10-01T00:00:00Z",
 };
 
 function Harness({
 	mandateAgreed = false,
 	privacyAgreed = false,
-	dataPrivacyNoticeAgreed = false,
+	memberConsents,
 	openSepaModal = vi.fn(),
 	openPrivacyModal = vi.fn(),
-	openDataPrivacyNoticeModal = vi.fn(),
 }: Partial<React.ComponentProps<typeof SepaPanel>>) {
 	const sepaForm = useForm<ProfileSepaInput>({
 		defaultValues: {
@@ -29,20 +37,20 @@ function Harness({
 			bank_name: "",
 			mandate_agreed: mandateAgreed,
 			privacy_agreed: privacyAgreed,
-			data_privacy_notice_agreed: dataPrivacyNoticeAgreed,
 		},
 	});
 	return (
-		<SepaPanel
-			sepaForm={sepaForm}
-			mandateAgreed={mandateAgreed}
-			privacyAgreed={privacyAgreed}
-			dataPrivacyNoticeAgreed={dataPrivacyNoticeAgreed}
-			openSepaModal={openSepaModal}
-			openPrivacyModal={openPrivacyModal}
-			openDataPrivacyNoticeModal={openDataPrivacyNoticeModal}
-			ids={ids}
-		/>
+		<MemoryRouter>
+			<SepaPanel
+				sepaForm={sepaForm}
+				mandateAgreed={mandateAgreed}
+				privacyAgreed={privacyAgreed}
+				memberConsents={memberConsents}
+				openSepaModal={openSepaModal}
+				openPrivacyModal={openPrivacyModal}
+				ids={ids}
+			/>
+		</MemoryRouter>
 	);
 }
 
@@ -90,28 +98,45 @@ describe("SepaPanel", () => {
 		expect(openSepaModal).toHaveBeenCalled();
 	});
 
-	it("opens the privacy and data-privacy modals", async () => {
+	it("opens the privacy modal", async () => {
 		const user = userEvent.setup();
 		const openPrivacyModal = vi.fn();
-		const openDataPrivacyNoticeModal = vi.fn();
-		render(
-			<Harness
-				openPrivacyModal={openPrivacyModal}
-				openDataPrivacyNoticeModal={openDataPrivacyNoticeModal}
-			/>,
-		);
+		render(<Harness openPrivacyModal={openPrivacyModal} />);
 
 		await user.click(screen.getByRole("checkbox", { name: /privacy policy/i }));
 		expect(openPrivacyModal).toHaveBeenCalledOnce();
+	});
 
-		await user.click(
-			screen.getByRole("checkbox", { name: /data privacy notice/i }),
-		);
-		expect(openDataPrivacyNoticeModal).toHaveBeenCalledOnce();
+	it("shows a partial consent decision as it is, with no combined checkbox", () => {
+		// Regression (PR #368 review): a partner-only choice used to appear as an
+		// unticked "Data Privacy Notice" box that could neither show nor
+		// withdraw the partner consent.
+		render(<Harness memberConsents={partnerOnly} />);
+
+		expect(
+			screen.queryByRole("checkbox", { name: /data privacy notice/i }),
+		).not.toBeInTheDocument();
+		const row = (name: RegExp) =>
+			screen.getByText(name).closest("div")?.textContent ?? "";
+		expect(row(/sharing my data and cv/i)).toContain("Agreed");
+		expect(row(/website/i)).toContain("Not agreed");
+		expect(row(/event photos/i)).toContain("Not agreed");
+		expect(
+			screen.getByRole("link", { name: "Manage consents" }),
+		).toHaveAttribute("href", "/welcome");
+	});
+
+	it("asks an undecided member to make their choices", () => {
+		render(<Harness />);
+
+		expect(screen.getByText(/haven't made your choices/i)).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: "Make your choices" }),
+		).toHaveAttribute("href", "/welcome");
 	});
 
 	it("renders checked agreement boxes when already agreed", () => {
-		render(<Harness mandateAgreed privacyAgreed dataPrivacyNoticeAgreed />);
+		render(<Harness mandateAgreed privacyAgreed />);
 
 		for (const checkbox of screen.getAllByRole("checkbox")) {
 			expect(checkbox).toBeChecked();

@@ -38,8 +38,9 @@ interface ProfileCompletenessInput {
 		bank_name?: string;
 		mandate_agreed?: boolean;
 		privacy_agreed?: boolean;
-		data_privacy_notice_agreed?: boolean;
 	};
+	/** The member has saved a Data Privacy Notice decision (any answer counts). */
+	consentsDecided: boolean;
 }
 
 interface CompletenessField {
@@ -54,6 +55,7 @@ function getCompletenessFields({
 	member,
 	linkedin,
 	sepa,
+	consentsDecided,
 }: ProfileCompletenessInput): CompletenessField[] {
 	const isFilledText = (value: string | null | undefined) =>
 		Boolean(value?.trim());
@@ -90,10 +92,8 @@ function getCompletenessFields({
 			filled: Boolean(sepa.mandate_agreed),
 		},
 		{ label: "Privacy agreement", filled: Boolean(sepa.privacy_agreed) },
-		{
-			label: "Data privacy notice agreement",
-			filled: Boolean(sepa.data_privacy_notice_agreed),
-		},
+		// Each purpose is optional, so a refusal still completes this item.
+		{ label: "Data privacy consent choices", filled: consentsDecided },
 	];
 }
 

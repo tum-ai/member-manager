@@ -15,7 +15,6 @@ function Harness(
 			bank_name: "",
 			mandate_agreed: false,
 			privacy_agreed: false,
-			data_privacy_notice_agreed: false,
 		},
 	});
 	const props: React.ComponentProps<typeof ProfileAgreementModals> = {
@@ -24,14 +23,10 @@ function Harness(
 		setShowSepaModal: vi.fn(),
 		showPrivacyModal: false,
 		setShowPrivacyModal: vi.fn(),
-		showDataPrivacyNoticeModal: false,
-		setShowDataPrivacyNoticeModal: vi.fn(),
 		pendingMandateAgreed: false,
 		setPendingMandateAgreed: vi.fn(),
 		pendingPrivacyAgreed: false,
 		setPendingPrivacyAgreed: vi.fn(),
-		pendingDataPrivacyNoticeAgreed: false,
-		setPendingDataPrivacyNoticeAgreed: vi.fn(),
 		...overrides,
 	};
 	return <ProfileAgreementModals {...props} />;
@@ -80,14 +75,6 @@ describe("ProfileAgreementModals", () => {
 
 		expect(
 			screen.getByRole("heading", { name: /privacy policy agreement/i }),
-		).toBeInTheDocument();
-	});
-
-	it("shows the data-privacy modal when open", () => {
-		render(<Harness showDataPrivacyNoticeModal />);
-
-		expect(
-			screen.getByRole("heading", { name: /data privacy notice agreement/i }),
 		).toBeInTheDocument();
 	});
 });

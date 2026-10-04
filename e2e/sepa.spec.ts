@@ -67,16 +67,6 @@ async function agreeAllAgreements(page: Page) {
 	await privacyDialog.locator("#privacy-agree").check();
 	await privacyDialog.getByRole("button", { name: "Confirm" }).click();
 	await expect(privacyDialog).toBeHidden();
-
-	// Data privacy notice (all consent items required).
-	await resetAgreementUnchecked(page, /Data Privacy Notice/i);
-	await page.getByRole("checkbox", { name: /Data Privacy Notice/i }).click();
-	const dpnDialog = page.getByRole("dialog");
-	await dpnDialog.locator("#consent-websiteProfile").check();
-	await dpnDialog.locator("#consent-eventPhotos").check();
-	await dpnDialog.locator("#consent-partnerSharing").check();
-	await dpnDialog.getByRole("button", { name: "Confirm" }).click();
-	await expect(dpnDialog).toBeHidden();
 }
 
 test.describe("SEPA mandate setup", () => {
@@ -120,24 +110,15 @@ test.describe("SEPA mandate setup", () => {
 			page.getByRole("checkbox", { name: /SEPA mandate/i }),
 		).toBeChecked();
 
-		// The remaining required agreements (privacy + data-privacy notice) must
-		// also be satisfied for the SEPA save to pass server-side. Drive them
-		// minimally (their deep coverage lives in the legal spec).
+		// The Privacy Policy must also be agreed for the SEPA save to pass
+		// server-side (the Data Privacy Notice is optional consent). Drive it
+		// minimally (its deep coverage lives in the legal spec).
 		await resetAgreementUnchecked(page, /Privacy Policy/i);
 		await page.getByRole("checkbox", { name: /Privacy Policy/i }).click();
 		const privacyDialog = page.getByRole("dialog");
 		await privacyDialog.locator("#privacy-agree").check();
 		await privacyDialog.getByRole("button", { name: "Confirm" }).click();
 		await expect(privacyDialog).toBeHidden();
-
-		await resetAgreementUnchecked(page, /Data Privacy Notice/i);
-		await page.getByRole("checkbox", { name: /Data Privacy Notice/i }).click();
-		const dpnDialog = page.getByRole("dialog");
-		await dpnDialog.locator("#consent-websiteProfile").check();
-		await dpnDialog.locator("#consent-eventPhotos").check();
-		await dpnDialog.locator("#consent-partnerSharing").check();
-		await dpnDialog.getByRole("button", { name: "Confirm" }).click();
-		await expect(dpnDialog).toBeHidden();
 
 		// Save the profile and wait on the actual SEPA PUT so the assertion does
 		// not race the network. The member save fires a member PUT + a sepa PUT.
