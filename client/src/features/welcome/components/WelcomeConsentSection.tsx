@@ -20,8 +20,8 @@ import {
 import { PrivacyPolicy } from "@/features/legal/PrivacyPolicy";
 import type { ConsentField } from "@/features/welcome/hooks/useWelcome";
 
-export const PRIVACY_POLICY_CONSENT_LABEL =
-	"I have read and agree to the TUM.ai Privacy Policy.";
+const SAVE_BLOCKED_HINT =
+	"Confirm that you've read the Privacy Policy and Data Privacy Notice to save.";
 
 interface WelcomeConsentSectionProps {
 	draft: MemberConsentsInput;
@@ -47,11 +47,31 @@ export function WelcomeConsentSection({
 	const [openDocument, setOpenDocument] = useState<OpenDocument>(null);
 	const closeDocument = () => setOpenDocument(null);
 
-	const items: Array<{ field: ConsentField; label: string }> = [
-		{ field: "privacy_policy_agreed", label: PRIVACY_POLICY_CONSENT_LABEL },
-		...consentItems.map((item) => ({ field: item.field, label: item.label })),
-	];
-	const allGranted = items.every((item) => draft[item.field]);
+	const allGranted =
+		draft.privacy_policy_agreed &&
+		consentItems.every((item) => draft[item.field]);
+	// Reading the documents is required; the purposes below are optional.
+	const isAcknowledged = draft.privacy_policy_agreed;
+	const hintId = "welcome-consent-save-hint";
+
+	// A link inside the checkbox card's <label> must open its document
+	// without also toggling the checkbox.
+	const documentLink = (
+		document: Exclude<OpenDocument, null>,
+		text: string,
+	) => (
+		<button
+			type="button"
+			className="text-brand underline underline-offset-2"
+			onClick={(event) => {
+				event.preventDefault();
+				event.stopPropagation();
+				setOpenDocument(document);
+			}}
+		>
+			{text}
+		</button>
+	);
 
 	return (
 		<GlassCard variant="elevated">
@@ -61,29 +81,31 @@ export function WelcomeConsentSection({
 					<h2 className="text-base font-semibold">Your consent</h2>
 				</div>
 				<p className="mb-4 text-sm text-muted-foreground">
-					Each consent is optional and you can change it anytime on your
-					profile. Read the{" "}
-					<button
-						type="button"
-						className="text-brand underline underline-offset-2"
-						onClick={() => setOpenDocument("privacy-policy")}
-					>
-						Privacy Policy
-					</button>{" "}
-					and the{" "}
-					<button
-						type="button"
-						className="text-brand underline underline-offset-2"
-						onClick={() => setOpenDocument("data-privacy-notice")}
-					>
-						Data Privacy Notice
-					</button>{" "}
-					for the details.
+					Optional consents can be updated anytime in your profile.
 				</p>
 
+				<div className="mb-5">
+					<CheckboxCard
+						checked={draft.privacy_policy_agreed}
+						onCheckedChange={(value) =>
+							onConsentChange("privacy_policy_agreed", value === true)
+						}
+						disabled={isSaving}
+					>
+						<span className="text-sm leading-relaxed">
+							I have read and understood the TUM.ai{" "}
+							{documentLink("privacy-policy", "Privacy Policy")} and{" "}
+							{documentLink("data-privacy-notice", "Data Privacy Notice")}.
+							<span className="ml-1 text-muted-foreground">(required)</span>
+						</span>
+					</CheckboxCard>
+				</div>
+
 				<fieldset className="mb-5 grid gap-3">
-					<legend className="sr-only">Consent choices</legend>
-					{items.map((item) => (
+					<legend className="mb-2 text-sm font-medium">
+						Optional consents
+					</legend>
+					{consentItems.map((item) => (
 						<CheckboxCard
 							key={item.field}
 							checked={draft[item.field]}
@@ -109,12 +131,18 @@ export function WelcomeConsentSection({
 					<Button
 						type="button"
 						onClick={onSave}
-						disabled={isSaving || (isDecided && !isDirty)}
+						disabled={isSaving || !isAcknowledged || (isDecided && !isDirty)}
+						aria-describedby={isAcknowledged ? undefined : hintId}
 					>
 						{isSaving && <Spinner className="size-4" />}
 						{isDecided && !isDirty ? "Choices saved" : "Save my choices"}
 					</Button>
 				</div>
+				{!isAcknowledged && (
+					<p id={hintId} className="mt-2 text-xs text-muted-foreground">
+						{SAVE_BLOCKED_HINT}
+					</p>
+				)}
 			</CardContent>
 
 			{/* Read-only full texts; the answers are collected above. */}

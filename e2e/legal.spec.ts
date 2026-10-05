@@ -62,7 +62,9 @@ async function saveConsentsOnWelcome(
 		await page.goto("/welcome");
 	}
 	await page
-		.getByRole("checkbox", { name: /agree to the TUM\.ai Privacy Policy/i })
+		.getByRole("checkbox", {
+			name: /read and understood the TUM\.ai Privacy Policy/i,
+		})
 		.setChecked(true);
 	await page
 		.getByRole("checkbox", { name: /displaying my full name/i })

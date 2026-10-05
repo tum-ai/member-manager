@@ -136,6 +136,57 @@ describe("WelcomePage", () => {
 		expect(screen.getByText("Profile route")).toBeInTheDocument();
 	});
 
+	it("requires the privacy acknowledgement before saving, but no optional consent", async () => {
+		const puts = stubConsents(undecided);
+		const userEvents = userEvent.setup();
+		renderPage();
+
+		await screen.findByText("Your consent");
+		const save = screen.getByRole("button", { name: "Save my choices" });
+		expect(save).toBeDisabled();
+		expect(save).toHaveAccessibleDescription(
+			/read the Privacy Policy and Data Privacy Notice/,
+		);
+
+		await userEvents.click(
+			checkbox(
+				/read and understood the TUM\.ai Privacy Policy and Data Privacy Notice/i,
+			),
+		);
+		expect(save).toBeEnabled();
+		await userEvents.click(save);
+
+		await waitFor(() =>
+			expect(puts).toEqual([
+				{
+					privacy_policy_agreed: true,
+					website_profile_consent: false,
+					event_photos_consent: false,
+					partner_sharing_consent: false,
+				},
+			]),
+		);
+	});
+
+	it("opens a document from the acknowledgement without ticking it", async () => {
+		stubConsents(undecided);
+		const userEvents = userEvent.setup();
+		renderPage();
+
+		await screen.findByText("Your consent");
+		await userEvents.click(
+			screen.getByRole("button", { name: "Data Privacy Notice" }),
+		);
+
+		expect(
+			await screen.findByRole("dialog", { name: "Data Privacy Notice" }),
+		).toBeInTheDocument();
+		// The open dialog hides the page from role queries; close it first.
+		await userEvents.keyboard("{Escape}");
+		await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+		expect(checkbox(/read and understood/i)).not.toBeChecked();
+	});
+
 	it("saves each purpose separately, including refusals", async () => {
 		const puts = stubConsents(undecided);
 		const userEvents = userEvent.setup();
@@ -264,8 +315,10 @@ describe("WelcomePage", () => {
 		const userEvents = userEvent.setup();
 		renderPage();
 
+		await screen.findByText("Your consent");
+		await userEvents.click(checkbox(/privacy policy/i));
 		await userEvents.click(
-			await screen.findByRole("button", { name: "Save my choices" }),
+			screen.getByRole("button", { name: "Save my choices" }),
 		);
 
 		await waitFor(() =>
