@@ -32,10 +32,9 @@ export default function WelcomePage({ user }: WelcomePageProps): ReactElement {
 					<Skeleton className="h-80 w-full rounded-xl" />
 					<Skeleton className="h-40 w-full rounded-xl" />
 				</SkeletonRegion>
-			) : welcome.needsAccountLink ? (
-				<WelcomeAccountLinkAlert />
 			) : (
 				<>
+					{welcome.needsAccountLink && <WelcomeAccountLinkAlert />}
 					<WelcomeConsentSection
 						draft={welcome.draft}
 						onConsentChange={welcome.setConsent}
