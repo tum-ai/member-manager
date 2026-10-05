@@ -99,8 +99,8 @@ export function useWelcome(userId: string) {
 	};
 
 	// A first Slack login whose email doesn't match the imported member record
-	// creates a fresh, nameless account (`handle_new_user`). Consent saved
-	// there would never reach the member's real record or CV.
+	// creates a fresh, nameless account (`handle_new_user`). The member can
+	// still decide here; an admin merges the accounts afterwards.
 	const needsAccountLink =
 		!isMemberLoading &&
 		Boolean(member) &&

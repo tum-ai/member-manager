@@ -222,18 +222,38 @@ describe("WelcomePage", () => {
 		expect(isWelcomeSkipped()).toBe(true);
 	});
 
-	it("withholds consent and CV when the account has no member record", async () => {
-		stubConsents(undecided);
+	it("lets an unlinked account decide and asks the member to get it merged", async () => {
+		// A first Slack login with a different email creates a nameless account;
+		// consent and CV saved there move over when an admin merges it.
+		const puts = stubConsents(undecided);
 		memberState.member = { given_name: "" };
+		const userEvents = userEvent.setup();
 		renderPage();
 
 		expect(
-			await screen.findByText("We couldn't find your member record"),
+			await screen.findByText(
+				"Your Slack account isn't linked to your membership yet",
+			),
 		).toBeInTheDocument();
-		expect(screen.queryByText("Your consent")).not.toBeInTheDocument();
-		expect(screen.queryByText("CV panel")).not.toBeInTheDocument();
+		expect(screen.getByText("CV panel")).toBeInTheDocument();
+		await userEvents.click(
+			screen.getByRole("button", { name: "Agree to all" }),
+		);
+		await userEvents.click(
+			screen.getByRole("button", { name: "Save my choices" }),
+		);
+		await waitFor(() => expect(puts).toHaveLength(1));
 	});
 
+	it("shows no link notice for a matched account", async () => {
+		stubConsents(undecided);
+		renderPage();
+
+		await screen.findByText("Your consent");
+		expect(
+			screen.queryByText(/isn't linked to your membership/),
+		).not.toBeInTheDocument();
+	});
 	it("reports a failed save", async () => {
 		stubConsents(undecided);
 		server.use(
