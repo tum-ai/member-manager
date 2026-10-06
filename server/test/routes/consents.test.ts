@@ -147,6 +147,18 @@ describe("member consents", () => {
 			assert.equal(row?.sepa_mandate_agreed, true);
 		});
 
+		it("rejects a decision without the privacy acknowledgement", async () => {
+			const app = await getTestApp();
+			const res = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.otherUser}/consents`,
+				headers: authHeaders(testTokens.otherUser),
+				payload: { ...decision, privacy_policy_agreed: false },
+			});
+			assert.equal(res.statusCode, 400);
+			assert.equal(agreementRow(testUserIds.otherUser), undefined);
+		});
+
 		it("rejects a decision that leaves a purpose out", async () => {
 			const app = await getTestApp();
 			const { partner_sharing_consent: _omitted, ...partial } = decision;

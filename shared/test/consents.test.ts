@@ -4,6 +4,7 @@ import {
 	DATA_PRIVACY_CONSENT_KEYS,
 	hasAllDataPrivacyConsents,
 	memberConsentsSchema,
+	PRIVACY_ACKNOWLEDGEMENT_MESSAGE,
 } from "../dist/index.js";
 
 const allGranted = {
@@ -26,6 +27,21 @@ describe("memberConsentsSchema", () => {
 		assert.deepEqual(
 			result.error?.issues.map((issue) => issue.path.join(".")),
 			["partner_sharing_consent"],
+		);
+	});
+
+	test("requires the Privacy Policy and Data Privacy Notice acknowledgement", () => {
+		const result = memberConsentsSchema.safeParse({
+			...allGranted,
+			privacy_policy_agreed: false,
+		});
+		assert.equal(result.success, false);
+		assert.deepEqual(
+			result.error?.issues.map((issue) => [
+				issue.path.join("."),
+				issue.message,
+			]),
+			[["privacy_policy_agreed", PRIVACY_ACKNOWLEDGEMENT_MESSAGE]],
 		);
 	});
 

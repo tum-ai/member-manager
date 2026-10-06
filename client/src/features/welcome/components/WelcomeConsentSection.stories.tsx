@@ -73,6 +73,10 @@ export const Undecided: Story = {
 		const canvas = within(canvasElement);
 		const partner = canvas.getByRole("checkbox", { name: /sharing my data/i });
 		await expect(partner).not.toBeChecked();
+		// Saving needs the Privacy Policy / Data Privacy Notice acknowledgement.
+		await expect(
+			canvas.getByRole("button", { name: "Save my choices" }),
+		).toBeDisabled();
 
 		await userEvent.click(partner);
 		await expect(partner).toBeChecked();
