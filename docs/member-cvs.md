@@ -49,8 +49,12 @@ purposes, each stored separately in `member_agreements`:
 `consents_decided_at` is null until the member has saved a decision.
 
 Members set the three purposes individually on `/welcome` (via
-`PUT /api/members/:userId/consents`; undecided members are sent there after
-login). The profile only shows them read-only with a "Manage consents" link to
+`PUT /api/members/:userId/consents`). `/welcome` is mandatory: the client
+(`WelcomeRedirect`) keeps a member there until they have saved a decision
+(refusing every optional purpose counts) and, if active, have a current CV.
+There is no skip. The gate is client-side only; the APIs don't enforce it. If
+the lookup fails, the member is let through rather than locked out. The
+profile only shows the consents read-only with a "Manage consents" link to
 `/welcome`. `data_privacy_notice_agreed` is kept as the "all three granted"
 summary by the DB trigger `sync_member_agreement_consents`, so writers that only
 know the summary keep working. `merge_duplicate_member` keeps the more recent

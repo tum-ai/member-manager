@@ -789,6 +789,36 @@ insert into public.member_cvs (
     )
 on conflict (id) do nothing;
 
+-- /welcome keeps active members there until they have a current CV, so every
+-- other active seed member gets one (metadata only, like the rows above). The
+-- new joiner (…0024) is left without one: e2e/welcome.spec.ts uploads it.
+insert into public.member_cvs (
+    user_id, storage_bucket, storage_path, original_filename, mime_type,
+    size_bytes, sha256, source, version, is_current, uploaded_at, uploaded_by_user_id
+)
+select
+    m.user_id,
+    'member-cvs',
+    m.user_id::text || '/seed-cv-v1.pdf',
+    'seed-cv.pdf',
+    'application/pdf',
+    20480,
+    encode(sha256(convert_to(m.user_id::text, 'UTF8')), 'hex'),
+    'application',
+    1,
+    true,
+    now() - interval '30 days',
+    m.user_id
+from public.members m
+where m.member_status = 'active'
+    and m.user_id <> '00000000-0000-0000-0000-000000000024'
+    and exists (select 1 from auth.users u where u.id = m.user_id)
+    and not exists (
+        select 1 from public.member_cvs c
+        where c.user_id = m.user_id and c.is_current and c.revoked_at is null
+    )
+on conflict do nothing;
+
 -- =========================================================================
 -- TUM.ai Days: one upcoming (not yet sent) and one past (already sent) event,
 -- plus a spread of yes/no RSVPs so the manage view and response stats render.

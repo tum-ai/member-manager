@@ -7,7 +7,6 @@
 // then degrades to "nothing remembered" instead of throwing.
 
 const POST_LOGIN_PATH_KEY = "member-manager:post-login-path";
-const WELCOME_SKIPPED_KEY = "member-manager:welcome-skipped";
 
 function readSession(key: string): string | null {
 	try {
@@ -46,13 +45,4 @@ export function consumePostLoginPath(): string | null {
 	const path = readSession(POST_LOGIN_PATH_KEY);
 	writeSession(POST_LOGIN_PATH_KEY, null);
 	return path && isAppPath(path) ? path : null;
-}
-
-/** "Later" on /welcome: don't redirect there again in this browser session. */
-export function markWelcomeSkipped(): void {
-	writeSession(WELCOME_SKIPPED_KEY, "1");
-}
-
-export function isWelcomeSkipped(): boolean {
-	return readSession(WELCOME_SKIPPED_KEY) === "1";
 }

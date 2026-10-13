@@ -8,20 +8,19 @@ import {
 	SEED_NEW_JOINER_EMAIL,
 } from "./helpers";
 
-// The /welcome page collects per-purpose consent and the CV. The seeded
-// new-joiner (supabase/seed.sql, …0024) has no member_agreements row, so their
-// consents are undecided and login redirects them there.
+// The /welcome page collects per-purpose consent and the CV, and active
+// members can't leave it until both are done. The seeded new-joiner
+// (supabase/seed.sql, …0024) has no member_agreements row and no CV, so login
+// sends them there.
 //
-// The first spec only reads that state; the second one saves a decision. Keep
-// that order: once a decision is saved the redirect no longer happens until
-// the next `pnpm supabase:reset`.
+// The first spec only reads that state; the second one completes it. Keep
+// that order: once both are saved the redirect no longer happens until the
+// next `pnpm supabase:reset`.
 const CV_FIXTURE = fileURLToPath(
 	new URL("./fixtures/receipt.pdf", import.meta.url),
 );
 
-test("an undecided member is sent to /welcome and can postpone it", async ({
-	page,
-}) => {
+test("an unfinished member is kept on /welcome", async ({ page }) => {
 	await loginWithSeedEmail(page, SEED_NEW_JOINER_EMAIL);
 
 	await expect(page).toHaveURL(/\/welcome$/);
@@ -33,13 +32,19 @@ test("an undecided member is sent to /welcome and can postpone it", async ({
 		page.getByRole("checkbox", { name: /sharing my data/i }),
 	).not.toBeChecked();
 
-	await page.getByRole("button", { name: "Later", exact: true }).click();
-	await expect(page).toHaveURL(/\/$/);
+	// There is no skip: Continue waits for both steps.
+	await expect(
+		page.getByRole("button", { name: "Later", exact: true }),
+	).toHaveCount(0);
+	const proceed = page.getByRole("button", { name: "Continue", exact: true });
+	await expect(proceed).toBeDisabled();
+	await expect(proceed).toHaveAccessibleDescription(
+		"To continue, save your consent choices and upload your CV.",
+	);
 
-	// "Later" holds for the rest of the browser session.
-	await page.reload();
-	await expectAuthenticated(page);
-	await expect(page).toHaveURL(/\/$/);
+	// Opening another page directly sends them straight back.
+	await page.goto("/tools/jobs");
+	await expect(page).toHaveURL(/\/welcome$/);
 });
 
 test("a member saves their consents and uploads a CV on /welcome", async ({
@@ -60,6 +65,11 @@ test("a member saves their consents and uploads a CV on /welcome", async ({
 	await expect(
 		page.getByRole("button", { name: "Choices saved" }),
 	).toBeDisabled();
+	// Deciding alone isn't enough for an active member.
+	const proceed = page.getByRole("button", { name: "Continue", exact: true });
+	await expect(proceed).toHaveAccessibleDescription(
+		"To continue, upload your CV.",
+	);
 
 	const uploaded = page.waitForResponse(
 		(response) =>
@@ -72,11 +82,11 @@ test("a member saves their consents and uploads a CV on /welcome", async ({
 		.setInputFiles(CV_FIXTURE);
 	expect((await uploaded).status()).toBe(201);
 
-	await page.getByRole("button", { name: "Continue to your profile" }).click();
+	await expect(proceed).toBeEnabled();
+	await proceed.click();
 	await expect(page).toHaveURL(/\/$/);
 
-	// Decided now: a fresh session isn't redirected any more.
-	await page.evaluate(() => window.sessionStorage.clear());
+	// Finished now: reloading isn't redirected any more.
 	await page.reload();
 	await expectAuthenticated(page);
 	await expect(page).toHaveURL(/\/$/);
