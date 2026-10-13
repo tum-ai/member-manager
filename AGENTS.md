@@ -85,7 +85,8 @@ Before pushing a risky change, run `pnpm test:coverage` and `typos` in addition 
    `*Section`/`*Panel` components. Exemplar: `client/src/features/tools/`.
 2. **Never lower coverage thresholds.** They ratchet **up only** (`client/vite.config.ts`,
    server c8 floors in `server/package.json`). New code ships with tests.
-3. **Never log, return, or seed plaintext sensitive fields** (IBAN/BIC/bank name/address/DOB/phone).
+3. **Never log, return, or seed plaintext sensitive fields** (IBAN/BIC/bank name/address/DOB/phone/
+   door PIN).
    They are encrypted via `server/src/lib/sensitiveData.ts`. Security-critical.
 4. **Never edit a merged migration.** `supabase/migrations/*` is immutable once on `main`. Add a new
    timestamped migration instead.

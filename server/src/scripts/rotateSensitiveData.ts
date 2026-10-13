@@ -3,6 +3,7 @@ import {
 	encryptRecord,
 	isEncryptedValue,
 	reencryptRecord,
+	SENSITIVE_DOOR_PIN_FIELDS,
 	SENSITIVE_MEMBER_FIELDS,
 	SENSITIVE_REIMBURSEMENT_FIELDS,
 	SENSITIVE_SEPA_FIELDS,
@@ -16,12 +17,13 @@ import {
 } from "./rotationOptions.js";
 
 type RotationTarget = {
-	table: "members" | "sepa" | "reimbursements";
+	table: "members" | "sepa" | "reimbursements" | "member_door_pins";
 	idField: "user_id" | "id";
 	fields: readonly (
 		| (typeof SENSITIVE_MEMBER_FIELDS)[number]
 		| (typeof SENSITIVE_SEPA_FIELDS)[number]
 		| (typeof SENSITIVE_REIMBURSEMENT_FIELDS)[number]
+		| (typeof SENSITIVE_DOOR_PIN_FIELDS)[number]
 	)[];
 };
 
@@ -49,6 +51,11 @@ const ROTATION_TARGETS: RotationTarget[] = [
 		table: "reimbursements",
 		idField: "id",
 		fields: SENSITIVE_REIMBURSEMENT_FIELDS,
+	},
+	{
+		table: "member_door_pins",
+		idField: "user_id",
+		fields: SENSITIVE_DOOR_PIN_FIELDS,
 	},
 ];
 

@@ -19,6 +19,7 @@ links to. This folder holds everything else.
 | --- | --- |
 | [contracts.md](./contracts.md) | Contract generator: DOCX templates, review statuses, signing, OpenSign, finalization |
 | [member-cvs.md](./member-cvs.md) | Member CV storage, updates, and the Partner Portal export |
+| [door-pins.md](./door-pins.md) | Office key cabinet PINs: storage, the /welcome gate, importing the Traka21 sheet |
 | [finance-cost-location-mapping.md](./finance-cost-location-mapping.md) | Decoding BuchhaltungsButler cost-location codes into departments and categories |
 
 ## Runbooks

@@ -1,6 +1,7 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { renderWithClient } from "@/test/renderWithClient";
 import { AdminDatabaseView } from "./AdminDatabaseView";
 
 const { updateMemberAsync, mergeMembersAsync } = vi.hoisted(() => ({
@@ -167,8 +168,10 @@ vi.mock("../../hooks/useDepartmentPermissions", () => ({
 	}),
 }));
 
+// The door PIN hooks use TanStack Query directly; they make no requests until
+// an admin acts, so no handlers are needed for the existing flows.
 function renderAdminView() {
-	return render(<AdminDatabaseView />);
+	return renderWithClient(<AdminDatabaseView />);
 }
 
 describe("AdminDatabaseView", () => {
@@ -310,5 +313,33 @@ describe("AdminDatabaseView", () => {
 				note: "Same person",
 			});
 		});
+	});
+
+	it("opens the door PIN import and shows the PIN field in the member editor", async () => {
+		const user = userEvent.setup();
+		renderAdminView();
+
+		await user.click(screen.getByRole("button", { name: /import door pins/i }));
+		const importDialog = screen.getByRole("dialog", {
+			name: "Import door PINs",
+		});
+		expect(within(importDialog).getByLabelText("Traka21 sheet")).toBeVisible();
+		await user.click(
+			within(importDialog).getByRole("button", { name: "Cancel" }),
+		);
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("dialog", { name: "Import door PINs" }),
+			).not.toBeInTheDocument(),
+		);
+
+		await user.click(
+			screen.getByRole("button", { name: /edit member alice example/i }),
+		);
+		const editor = within(screen.getByRole("dialog"));
+		expect(editor.getByRole("heading", { name: "Door PIN" })).toBeVisible();
+		expect(
+			editor.getByRole("button", { name: "Show current PIN" }),
+		).toHaveAttribute("aria-pressed", "false");
 	});
 });

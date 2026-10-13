@@ -3,6 +3,7 @@ import type {
 	MemberConsentsInput,
 } from "@member-manager/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { memberDoorPinQueryKey } from "@/hooks/useMemberDoorPin";
 import { apiClient } from "@/lib/apiClient";
 
 export function memberConsentsQueryKey(userId: string) {
@@ -39,6 +40,10 @@ export function useMemberConsents(userId: string) {
 				queryKey: ["member-cv-consent", userId],
 			});
 			queryClient.invalidateQueries({ queryKey: ["sepa", userId] });
+			// A first decision unlocks the member's door PIN on the profile.
+			queryClient.invalidateQueries({
+				queryKey: memberDoorPinQueryKey(userId),
+			});
 		},
 	});
 

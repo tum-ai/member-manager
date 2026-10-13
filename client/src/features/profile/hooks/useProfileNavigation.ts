@@ -26,6 +26,7 @@ export function useProfileNavigation({
 		const ids = [
 			"personal",
 			"tumai",
+			"door-pin",
 			"links",
 			"cv",
 			"banking",
@@ -86,6 +87,7 @@ export function useProfileNavigation({
 	const navItems: NavItem[] = [
 		{ id: "personal", label: "Personal information" },
 		{ id: "tumai", label: "TUM.ai profile" },
+		{ id: "door-pin", label: "Door PIN" },
 		{ id: "links", label: "LinkedIn & location" },
 		{ id: "cv", label: "CV" },
 		{ id: "banking", label: "Banking & agreements" },

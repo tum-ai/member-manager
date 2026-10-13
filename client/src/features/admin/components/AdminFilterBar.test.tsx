@@ -22,6 +22,7 @@ function renderBar(
 		onExportCsv: vi.fn(),
 		onExportExcel: vi.fn(),
 		onDownloadEmails: vi.fn(),
+		onImportDoorPins: vi.fn(),
 		...overrides,
 	};
 	render(<AdminFilterBar {...props} />);
@@ -45,6 +46,15 @@ describe("AdminFilterBar", () => {
 		const result = updater({ ...emptyFilters, active: "active" });
 		expect(result.active).toBe("active");
 		expect(typeof result.search).toBe("string");
+	});
+
+	it("opens the door PIN import, even with nothing to export", async () => {
+		const user = userEvent.setup();
+		const props = renderBar({ canExport: false });
+
+		await user.click(screen.getByRole("button", { name: /import door pins/i }));
+
+		expect(props.onImportDoorPins).toHaveBeenCalledOnce();
 	});
 
 	it("offers CSV and Excel export actions", async () => {

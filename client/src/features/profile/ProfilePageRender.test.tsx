@@ -74,6 +74,17 @@ vi.mock("./hooks/useMemberChangeRequestForm", () => ({
 	}),
 }));
 
+const toggleDoorPin = vi.fn();
+vi.mock("./hooks/useDoorPin", () => ({
+	useDoorPin: () => ({
+		doorPin: { status: "available", pin: "482913", updated_at: "" },
+		isLoading: false,
+		hasError: false,
+		isRevealed: false,
+		toggleRevealed: toggleDoorPin,
+	}),
+}));
+
 // CvPanel fetches via useMemberCv; stub it so ProfilePage renders without network.
 vi.mock("./CvPanel", () => ({
 	CvPanel: () => <div data-testid="cv-panel" />,
@@ -162,6 +173,26 @@ describe("ProfilePage (render)", () => {
 				name: /request role, department, or status changes/i,
 			}),
 		).not.toBeInTheDocument();
+	});
+
+	it("shows the door PIN card masked, and revealing it doesn't submit the profile", async () => {
+		const userEv = userEvent.setup();
+		render(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
+		await waitFor(() =>
+			expect(
+				screen.getByRole("heading", { name: "Door PIN" }),
+			).toBeInTheDocument(),
+		);
+		expect(screen.queryByText("482913")).not.toBeInTheDocument();
+
+		await userEv.click(screen.getByRole("button", { name: /show pin/i }));
+
+		expect(toggleDoorPin).toHaveBeenCalledTimes(1);
+		expect(updateMemberAsync).not.toHaveBeenCalled();
 	});
 
 	it("opens the SEPA mandate modal from the banking section", async () => {

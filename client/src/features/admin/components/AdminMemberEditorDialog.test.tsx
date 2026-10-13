@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import type { AdminMember } from "@/features/admin/adminUtils";
+import type { AdminMemberDoorPinState } from "@/features/admin/hooks/useAdminMemberDoorPin";
 import { AdminMemberEditorDialog } from "./AdminMemberEditorDialog";
 
 const member = {
@@ -46,8 +47,33 @@ function makeProps(
 		isEditLinkedinUrlInvalid: false,
 		isMemberSaveDisabled: false,
 		saveMemberChanges: vi.fn(),
+		doorPin: makeDoorPinState(),
 		...overrides,
 	} as React.ComponentProps<typeof AdminMemberEditorDialog>;
+}
+
+function makeDoorPinState(
+	overrides: Partial<AdminMemberDoorPinState> = {},
+): AdminMemberDoorPinState {
+	return {
+		doorPin: undefined,
+		isRevealed: false,
+		isLoadingPin: false,
+		hasLoadError: false,
+		toggleRevealed: vi.fn(),
+		draftPin: "",
+		setDraftPin: vi.fn(),
+		draftError: null,
+		canSavePin: false,
+		isSavingPin: false,
+		savePin: vi.fn(),
+		isConfirmingClear: false,
+		requestClear: vi.fn(),
+		cancelClear: vi.fn(),
+		clearPin: vi.fn(),
+		isClearingPin: false,
+		...overrides,
+	};
 }
 
 describe("AdminMemberEditorDialog", () => {
@@ -136,5 +162,152 @@ describe("AdminMemberEditorDialog", () => {
 		);
 
 		expect(screen.getByLabelText(/research project/i)).toBeInTheDocument();
+	});
+
+	describe("door PIN", () => {
+		it("keeps the PIN hidden until asked and shows it when revealed", async () => {
+			const user = userEvent.setup();
+			const toggleRevealed = vi.fn();
+			const { rerender } = render(
+				<AdminMemberEditorDialog
+					{...makeProps({ doorPin: makeDoorPinState({ toggleRevealed }) })}
+				/>,
+			);
+
+			expect(screen.getByRole("heading", { name: "Door PIN" })).toBeVisible();
+			await user.click(
+				screen.getByRole("button", { name: "Show current PIN" }),
+			);
+			expect(toggleRevealed).toHaveBeenCalledOnce();
+
+			rerender(
+				<AdminMemberEditorDialog
+					{...makeProps({
+						doorPin: makeDoorPinState({
+							isRevealed: true,
+							doorPin: {
+								status: "available",
+								pin: "482913",
+								updated_at: "2026-10-13T10:00:00Z",
+							},
+						}),
+					})}
+				/>,
+			);
+			expect(screen.getByText("482913")).toBeVisible();
+			expect(
+				screen.getByRole("button", { name: "Hide current PIN" }),
+			).toHaveAttribute("aria-pressed", "true");
+		});
+
+		it("says when a member has no PIN, or it failed to load", () => {
+			const { rerender } = render(
+				<AdminMemberEditorDialog
+					{...makeProps({
+						doorPin: makeDoorPinState({
+							isRevealed: true,
+							doorPin: { status: "not_assigned" },
+						}),
+					})}
+				/>,
+			);
+			expect(screen.getByText("No PIN assigned.")).toBeVisible();
+
+			rerender(
+				<AdminMemberEditorDialog
+					{...makeProps({
+						doorPin: makeDoorPinState({ isRevealed: true, hasLoadError: true }),
+					})}
+				/>,
+			);
+			expect(screen.getByText("The PIN couldn't be loaded.")).toBeVisible();
+
+			rerender(
+				<AdminMemberEditorDialog
+					{...makeProps({
+						doorPin: makeDoorPinState({ isRevealed: true, isLoadingPin: true }),
+					})}
+				/>,
+			);
+			expect(screen.getByText("Loading…")).toBeVisible();
+		});
+
+		it("types, validates and saves a new PIN", async () => {
+			const user = userEvent.setup();
+			const setDraftPin = vi.fn();
+			const savePin = vi.fn();
+			const { rerender } = render(
+				<AdminMemberEditorDialog
+					{...makeProps({ doorPin: makeDoorPinState({ setDraftPin }) })}
+				/>,
+			);
+
+			await user.type(screen.getByLabelText("New PIN"), "4");
+			expect(setDraftPin).toHaveBeenCalledWith("4");
+			expect(screen.getByRole("button", { name: "Save PIN" })).toBeDisabled();
+
+			rerender(
+				<AdminMemberEditorDialog
+					{...makeProps({
+						doorPin: makeDoorPinState({
+							draftPin: "12a",
+							draftError: "A door PIN has 4 to 10 digits",
+						}),
+					})}
+				/>,
+			);
+			expect(screen.getByLabelText("New PIN")).toHaveAttribute(
+				"aria-invalid",
+				"true",
+			);
+			expect(screen.getByText("A door PIN has 4 to 10 digits")).toBeVisible();
+
+			rerender(
+				<AdminMemberEditorDialog
+					{...makeProps({
+						doorPin: makeDoorPinState({
+							draftPin: "482913",
+							canSavePin: true,
+							savePin,
+						}),
+					})}
+				/>,
+			);
+			await user.click(screen.getByRole("button", { name: "Save PIN" }));
+			await user.type(screen.getByLabelText("New PIN"), "{Enter}");
+			expect(savePin).toHaveBeenCalledTimes(2);
+		});
+
+		it("asks before clearing the PIN", async () => {
+			const user = userEvent.setup();
+			const requestClear = vi.fn();
+			const clearPin = vi.fn();
+			const cancelClear = vi.fn();
+			const { rerender } = render(
+				<AdminMemberEditorDialog
+					{...makeProps({ doorPin: makeDoorPinState({ requestClear }) })}
+				/>,
+			);
+
+			await user.click(screen.getByRole("button", { name: "Clear PIN" }));
+			expect(requestClear).toHaveBeenCalledOnce();
+
+			rerender(
+				<AdminMemberEditorDialog
+					{...makeProps({
+						doorPin: makeDoorPinState({
+							isConfirmingClear: true,
+							clearPin,
+							cancelClear,
+						}),
+					})}
+				/>,
+			);
+			expect(screen.getByText(/Clear this member's door PIN\?/)).toBeVisible();
+			await user.click(screen.getByRole("button", { name: "Keep PIN" }));
+			await user.click(screen.getByRole("button", { name: "Clear PIN" }));
+			expect(cancelClear).toHaveBeenCalledOnce();
+			expect(clearPin).toHaveBeenCalledOnce();
+		});
 	});
 });

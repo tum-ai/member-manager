@@ -12,7 +12,8 @@ In production it runs as one Vercel function (`api/[...path].ts` imports `server
   - `auth.ts` — `checkAdminRole`, `checkDepartmentPermission` (department-scoped RBAC).
   - `departmentPermissions.ts` — department→permission mapping.
   - `sensitiveData.ts` — **field-level encryption** (`enc-v1:` AES-GCM). `SENSITIVE_MEMBER_FIELDS`,
-    `SENSITIVE_SEPA_FIELDS`, `SENSITIVE_REIMBURSEMENT_FIELDS`. Key rotation uses
+    `SENSITIVE_SEPA_FIELDS`, `SENSITIVE_REIMBURSEMENT_FIELDS`, `SENSITIVE_DOOR_PIN_FIELDS`
+    (`lib/doorPins.ts`, `docs/door-pins.md`). Key rotation uses
     `FIELD_ENCRYPTION_KEY_FALLBACKS` plus `rotate:encryption` (runbook: `docs/deployment.md`).
   - `errors.ts` — typed errors: `AppError`, `ValidationError`, `NotFoundError`, `ForbiddenError`,
     `UnauthorizedError`, `ConflictError`, `DatabaseError`, `BadGatewayError`,

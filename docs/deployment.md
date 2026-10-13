@@ -204,8 +204,8 @@ Rollback: if the Actions deployment or smoke checks fail before the cutover is a
 
 ## Field encryption and rotation
 
-These secrets encrypt sensitive member, SEPA, and reimbursement fields before
-they hit Supabase. Losing every key capable of decrypting a row makes that row
+These secrets encrypt sensitive member, SEPA, reimbursement, and door PIN
+fields before they hit Supabase. Losing every key capable of decrypting a row makes that row
 unrecoverable.
 
 - Generate once, store in your password manager, paste into Vercel.

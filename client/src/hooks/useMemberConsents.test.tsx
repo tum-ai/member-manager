@@ -71,6 +71,9 @@ describe("useMemberConsents", () => {
 			queryKey: ["member-cv-consent", "user-1"],
 		});
 		expect(invalidate).toHaveBeenCalledWith({ queryKey: ["sepa", "user-1"] });
+		expect(invalidate).toHaveBeenCalledWith({
+			queryKey: ["door-pin", "user-1"],
+		});
 	});
 
 	it("surfaces a failed save", async () => {

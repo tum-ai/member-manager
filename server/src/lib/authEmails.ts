@@ -189,6 +189,42 @@ export async function getAuthUserIdByEmail(
 	}
 }
 
+/**
+ * Every auth user's id, keyed by trimmed, lowercased email. Always lists
+ * afresh (refreshing the per-user caches on the way), because bulk callers
+ * such as the door PIN import need a complete, current picture rather than
+ * whatever single lookups happened to cache.
+ */
+export async function listAuthUserIdsByEmail(): Promise<Map<string, string>> {
+	const userIdsByEmail = new Map<string, string>();
+	let page = 1;
+
+	while (true) {
+		const { data, error } = await getAuthAdmin().listUsers({
+			page,
+			perPage: AUTH_PAGE_SIZE,
+		});
+
+		if (error) {
+			throw new Error(`Failed to list auth users: ${error.message}`);
+		}
+
+		const users = (data.users ?? []) as ListedAuthUser[];
+		for (const user of users) {
+			const email = cacheListedAuthUser(user).email.trim().toLowerCase();
+			if (email) {
+				userIdsByEmail.set(email, user.id);
+			}
+		}
+
+		if (users.length < AUTH_PAGE_SIZE) {
+			return userIdsByEmail;
+		}
+
+		page += 1;
+	}
+}
+
 export async function getAuthEmails(
 	userIds: readonly string[],
 ): Promise<Map<string, string>> {

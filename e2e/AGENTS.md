@@ -12,7 +12,7 @@
   URL and fails fast if the seed isn't loaded (then run `pnpm supabase:reset`).
 - `helpers.ts` — login helpers and the seeded fixtures (`SEED_*` accounts, contract signing token).
   They must match `supabase/seed.sql`; `scripts/check-seed-fixture-parity.test.mjs` checks this.
-- `fixtures/` — static upload files (PDFs).
+- `fixtures/` — static upload files (PDFs, and a synthetic Traka21 sheet with fake door PINs).
 - `partner-portal-stub.mjs` — local stand-in for the partner portal API, started by the config.
 
 ## Running

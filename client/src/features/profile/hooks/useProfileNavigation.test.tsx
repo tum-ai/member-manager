@@ -3,7 +3,15 @@ import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useProfileNavigation } from "./useProfileNavigation";
 
-const SECTION_IDS = ["personal", "tumai", "links", "cv", "banking", "requests"];
+const SECTION_IDS = [
+	"personal",
+	"tumai",
+	"door-pin",
+	"links",
+	"cv",
+	"banking",
+	"requests",
+];
 
 function mountSections(): void {
 	for (const id of SECTION_IDS) {
@@ -52,6 +60,31 @@ describe("useProfileNavigation", () => {
 		expect(admin.current.navItems.map((item) => item.id)).not.toContain(
 			"requests",
 		);
+	});
+
+	it("links the door PIN card right after the TUM.ai profile for everyone", () => {
+		for (const isAdmin of [false, true]) {
+			const { result } = renderHook(() =>
+				useProfileNavigation({ isLoading: false, isAdmin }),
+			);
+			const ids = result.current.navItems.map((item) => item.id);
+			expect(ids.indexOf("door-pin")).toBe(ids.indexOf("tumai") + 1);
+			expect(result.current.navItems[ids.indexOf("door-pin")]?.label).toBe(
+				"Door PIN",
+			);
+		}
+	});
+
+	it("activates the door PIN card once it crosses the trigger line", async () => {
+		setSectionTop("personal", -300);
+		setSectionTop("tumai", -200);
+		setSectionTop("door-pin", 50);
+
+		const { result } = renderHook(() =>
+			useProfileNavigation({ isLoading: false, isAdmin: false }),
+		);
+
+		await waitFor(() => expect(result.current.activeSection).toBe("door-pin"));
 	});
 
 	it("does not subscribe to scroll while loading", () => {

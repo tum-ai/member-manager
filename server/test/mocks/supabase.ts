@@ -59,6 +59,7 @@ interface MockData {
 	job_posting_requests: Array<Record<string, unknown>>;
 	reimbursements: Array<Record<string, unknown>>;
 	member_cvs: Array<Record<string, unknown>>;
+	member_door_pins: Array<Record<string, unknown>>;
 	department_permissions: Array<Record<string, unknown>>;
 	contract_templates: Array<Record<string, unknown>>;
 	contract_template_variables: Array<Record<string, unknown>>;
@@ -201,6 +202,7 @@ export const mockDatabase: MockData = {
 	engagement_certificate_requests: [],
 	job_posting_requests: [],
 	member_cvs: [],
+	member_door_pins: [],
 	department_permissions: [
 		{
 			department: "Legal & Finance",
@@ -1016,6 +1018,25 @@ function mergeDuplicateMember(params: Record<string, unknown>) {
 		counts.sepa = 1;
 	} else {
 		counts.sepa = 0;
+	}
+
+	// Mirrors 20261013120000: the target keeps its own PIN, otherwise the
+	// source's moves over.
+	const targetHasDoorPin = mockDatabase.member_door_pins.some(
+		(row) => row.user_id === targetId,
+	);
+	const sourceDoorPinIndex = mockDatabase.member_door_pins.findIndex(
+		(row) => row.user_id === sourceId,
+	);
+	if (sourceDoorPinIndex !== -1) {
+		if (targetHasDoorPin) {
+			mockDatabase.member_door_pins.splice(sourceDoorPinIndex, 1);
+		} else {
+			mockDatabase.member_door_pins[sourceDoorPinIndex].user_id = targetId;
+		}
+		counts.member_door_pins = 1;
+	} else {
+		counts.member_door_pins = 0;
 	}
 
 	counts.member_role_history = moveUserIdRows(
@@ -2716,6 +2737,7 @@ export function resetMockDatabase(): void {
 	mockDatabase.engagement_certificate_requests = [];
 	mockDatabase.job_posting_requests = [];
 	mockDatabase.member_cvs = [];
+	mockDatabase.member_door_pins = [];
 	mockDatabase.department_permissions = [
 		{
 			department: "Legal & Finance",
