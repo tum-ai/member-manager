@@ -14,6 +14,12 @@ export const SEED_NO_BANK_DETAILS_MEMBER_EMAIL = "no-bank-details@example.com";
 // so their login is redirected to /welcome.
 export const SEED_NEW_JOINER_EMAIL = "new-joiner@example.com";
 
+// Fake door PINs behind the seeded `member_door_pins` ciphertext (the seed only
+// stores ciphertext). no-bank-details@example.com has no PIN; the new joiner
+// has one but hasn't saved /welcome yet.
+export const SEED_REGULAR_MEMBER_DOOR_PIN = "230742";
+export const SEED_ADMIN_DOOR_PIN = "739021";
+
 // This seeded submission is intentionally a historical text contract. The
 // DOCX-only cutover must reject its old public signing link instead of trying
 // to render it through the retired engine.

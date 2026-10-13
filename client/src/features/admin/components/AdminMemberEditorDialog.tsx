@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { NONE_VALUE } from "@/features/admin/adminDatabaseViewTypes";
+import type { AdminMemberDoorPinState } from "@/features/admin/hooks/useAdminMemberDoorPin";
 import type { useAdminMemberEditor } from "@/features/admin/hooks/useAdminMemberEditor";
 import { BATCH_OPTIONS, DEPARTMENTS, MEMBER_ROLES } from "@/lib/constants";
 import {
@@ -27,8 +28,11 @@ import {
 	MEMBER_STATUSES,
 } from "@/lib/memberMetadata";
 import { cn } from "@/lib/utils";
+import { AdminMemberDoorPinField } from "./AdminMemberDoorPinField";
 
-type AdminMemberEditorDialogProps = ReturnType<typeof useAdminMemberEditor>;
+type AdminMemberEditorDialogProps = ReturnType<typeof useAdminMemberEditor> & {
+	doorPin: AdminMemberDoorPinState;
+};
 
 export function AdminMemberEditorDialog({
 	memberBeingEdited,
@@ -61,6 +65,7 @@ export function AdminMemberEditorDialog({
 	isEditLinkedinUrlInvalid,
 	isMemberSaveDisabled,
 	saveMemberChanges,
+	doorPin,
 }: AdminMemberEditorDialogProps) {
 	return (
 		<Dialog
@@ -71,7 +76,7 @@ export function AdminMemberEditorDialog({
 				}
 			}}
 		>
-			<DialogContent className="sm:max-w-xl">
+			<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
 				<DialogHeader>
 					<DialogTitle>Edit member</DialogTitle>
 				</DialogHeader>
@@ -307,6 +312,8 @@ export function AdminMemberEditorDialog({
 							</SelectContent>
 						</Select>
 					</div>
+					<Separator />
+					<AdminMemberDoorPinField {...doorPin} />
 				</div>
 				<DialogFooter>
 					<Button

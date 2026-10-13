@@ -715,6 +715,24 @@ where m.user_id <> '00000000-0000-0000-0000-000000000024'
 on conflict (user_id) do nothing;
 
 -- =========================================================================
+-- Door PINs for the office key cabinet: ciphertext under the default local
+-- key. The fake plaintext PINs live in e2e/helpers.ts (SEED_*_DOOR_PIN).
+-- no-bank-details@example.com (…0023) has none, so the "no PIN yet" card stays
+-- covered; new-joiner@example.com (…0024) has one but hasn't saved /welcome,
+-- so the server holds it back (e2e/door-pin.spec.ts).
+-- =========================================================================
+insert into public.member_door_pins (user_id, pin, updated_by) values
+    -- admin@example.com
+    ('00000000-0000-0000-0000-000000000001', 'enc-v1:7i01-wMHc_lRxkU7:3HdNLZ1vMfvkPZ14LXnrHw:XxPJlYj1', '00000000-0000-0000-0000-000000000001'),
+    -- regular-member@example.com
+    ('00000000-0000-0000-0000-000000000006', 'enc-v1:8g8rqsgT4wfsCPqO:k3cflbnuzM2zSsWDliHxdg:Elt1r3mw', '00000000-0000-0000-0000-000000000001'),
+    -- user@example.com
+    ('00000000-0000-0000-0000-000000000020', 'enc-v1:0DJGnNsqYZ3b_0i6:sQFoXHGhcKPefH0drEtD0A:pxNPP-PZ', '00000000-0000-0000-0000-000000000001'),
+    -- new-joiner@example.com
+    ('00000000-0000-0000-0000-000000000024', 'enc-v1:VsidE8l4uV1L_TDq:6licjr9JRy6QxWwboJeCmg:O5vdbwve', '00000000-0000-0000-0000-000000000001')
+on conflict (user_id) do nothing;
+
+-- =========================================================================
 -- Member CVs (metadata only). Storage objects cannot be created from SQL, so
 -- the referenced PDF does not exist in the `member-cvs` bucket — the CV panel
 -- renders the version/history UI, but the download/signed-URL action will 404.

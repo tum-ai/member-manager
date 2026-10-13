@@ -14,6 +14,7 @@ import { changeRequestRoutes } from "./routes/changeRequests.js";
 import { consentRoutes } from "./routes/consents.js";
 import { contractRoutes } from "./routes/contracts.js";
 import { cvRoutes, partnerExportRoutes } from "./routes/cv.js";
+import { doorPinRoutes } from "./routes/doorPins.js";
 import { educationalCourseRoutes } from "./routes/educationCourses.js";
 import { engagementCertificateRoutes } from "./routes/engagementCertificates.js";
 import { financeRoutes } from "./routes/finance.js";
@@ -113,6 +114,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(memberRoutes);
 			await api.register(cvRoutes);
 			await api.register(consentRoutes);
+			await api.register(doorPinRoutes);
 			await api.register(partnerExportRoutes);
 			await api.register(educationalCourseRoutes);
 			await api.register(sepaRoutes);

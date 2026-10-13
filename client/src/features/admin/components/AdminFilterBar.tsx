@@ -1,4 +1,4 @@
-import { Download, Mail, Search } from "lucide-react";
+import { Download, KeyRound, Mail, Search } from "lucide-react";
 import type { Dispatch, SetStateAction } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +24,7 @@ interface AdminFilterBarProps {
 	onExportCsv: () => void;
 	onExportExcel: () => void;
 	onDownloadEmails: () => void;
+	onImportDoorPins: () => void;
 }
 
 export function AdminFilterBar({
@@ -33,6 +34,7 @@ export function AdminFilterBar({
 	onExportCsv,
 	onExportExcel,
 	onDownloadEmails,
+	onImportDoorPins,
 }: AdminFilterBarProps) {
 	return (
 		<GlassCard className="mb-6">
@@ -113,7 +115,10 @@ export function AdminFilterBar({
 				</div>
 
 				<div className="mt-6 flex flex-col justify-between gap-3 md:flex-row">
-					<div />
+					<Button type="button" variant="outline" onClick={onImportDoorPins}>
+						<KeyRound className="size-4" />
+						Import door PINs
+					</Button>
 
 					<div className="flex flex-col gap-3 sm:flex-row">
 						<DropdownMenu>

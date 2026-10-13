@@ -25,11 +25,14 @@ export const SENSITIVE_REIMBURSEMENT_FIELDS = [
 	"payment_iban",
 	"payment_bic",
 ] as const;
+/** `member_door_pins.pin`: a key-cabinet PIN opens a physical door. */
+export const SENSITIVE_DOOR_PIN_FIELDS = ["pin"] as const;
 
 type SensitiveField =
 	| (typeof SENSITIVE_MEMBER_FIELDS)[number]
 	| (typeof SENSITIVE_SEPA_FIELDS)[number]
-	| (typeof SENSITIVE_REIMBURSEMENT_FIELDS)[number];
+	| (typeof SENSITIVE_REIMBURSEMENT_FIELDS)[number]
+	| (typeof SENSITIVE_DOOR_PIN_FIELDS)[number];
 
 function allowInsecureTransport(hostname: string): boolean {
 	return hostname === "127.0.0.1" || hostname === "localhost";

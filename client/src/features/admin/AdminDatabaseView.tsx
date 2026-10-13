@@ -1,5 +1,6 @@
 import { GlassCard } from "@/components/ui/GlassCard";
 import { AdminDatabaseSkeleton } from "./components/AdminDatabaseSkeleton";
+import { AdminDoorPinImportDialog } from "./components/AdminDoorPinImportDialog";
 import { AdminDuplicateCandidatesPanel } from "./components/AdminDuplicateCandidatesPanel";
 import { AdminFilterBar } from "./components/AdminFilterBar";
 import { AdminMemberEditorDialog } from "./components/AdminMemberEditorDialog";
@@ -9,6 +10,8 @@ import { AdminWorkspaceHeader } from "./components/AdminWorkspaceHeader";
 import { EducationalCourseAdministratorsCard } from "./components/EducationalCourseAdministratorsCard";
 import { DepartmentPermissionsCard } from "./DepartmentPermissionsCard";
 import { useAdminDatabase } from "./hooks/useAdminDatabase";
+import { useAdminDoorPinImport } from "./hooks/useAdminDoorPinImport";
+import { useAdminMemberDoorPin } from "./hooks/useAdminMemberDoorPin";
 import { useAdminMemberEditor } from "./hooks/useAdminMemberEditor";
 import { useAdminMemberMerge } from "./hooks/useAdminMemberMerge";
 
@@ -42,6 +45,10 @@ export function AdminDatabaseView() {
 
 	const editor = useAdminMemberEditor({ updateMemberAsync, isSavingMember });
 	const merge = useAdminMemberMerge({ mergeMembersAsync, isMergingMembers });
+	const doorPin = useAdminMemberDoorPin(
+		editor.memberBeingEdited?.user_id ?? null,
+	);
+	const doorPinImport = useAdminDoorPinImport();
 
 	if (isLoading) return <AdminDatabaseSkeleton />;
 	if (error)
@@ -77,6 +84,7 @@ export function AdminDatabaseView() {
 				onExportCsv={exportToCsv}
 				onExportExcel={exportToExcel}
 				onDownloadEmails={downloadEmails}
+				onImportDoorPins={doorPinImport.openDialog}
 			/>
 
 			<AdminDuplicateCandidatesPanel
@@ -94,8 +102,9 @@ export function AdminDatabaseView() {
 				loadingMessage={memberLoadingMessage}
 			/>
 
-			<AdminMemberEditorDialog {...editor} />
+			<AdminMemberEditorDialog {...editor} doorPin={doorPin} />
 			<AdminMemberMergeDialog {...merge} />
+			<AdminDoorPinImportDialog {...doorPinImport} />
 		</div>
 	);
 }

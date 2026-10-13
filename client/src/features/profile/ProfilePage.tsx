@@ -3,6 +3,7 @@ import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { CvPanel } from "./CvPanel";
+import { DoorPinSection } from "./components/DoorPinSection";
 import { LinksSection } from "./components/LinksSection";
 import { PersonalInfoSection } from "./components/PersonalInfoSection";
 import { ProfileAgreementModals } from "./components/ProfileAgreementModals";
@@ -11,6 +12,7 @@ import { ProfileSidebar } from "./components/ProfileSidebar";
 import { RoleChangeRequestSection } from "./components/RoleChangeRequestSection";
 import { SepaPanel } from "./components/SepaPanel";
 import { TumaiProfileSection } from "./components/TumaiProfileSection";
+import { useDoorPin } from "./hooks/useDoorPin";
 import { useMemberChangeRequestForm } from "./hooks/useMemberChangeRequestForm";
 import { useMembershipProof } from "./hooks/useMembershipProof";
 import { useProfileForm } from "./hooks/useProfileForm";
@@ -52,6 +54,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		useMembershipProof(memberData);
 
 	const changeRequestForm = useMemberChangeRequestForm(user.id);
+
+	const doorPin = useDoorPin(user.id);
 
 	const { activeSection, navItems, handleNavClick } = useProfileNavigation({
 		isLoading,
@@ -145,6 +149,14 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								researchProject: `${fieldId}-research-project`,
 								reimbursementNotifications: `${fieldId}-reimbursement-notifications`,
 							}}
+						/>
+
+						<DoorPinSection
+							doorPin={doorPin.doorPin}
+							isLoading={doorPin.isLoading}
+							hasError={doorPin.hasError}
+							isRevealed={doorPin.isRevealed}
+							onToggleRevealed={doorPin.toggleRevealed}
 						/>
 
 						<LinksSection
