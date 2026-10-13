@@ -49,20 +49,14 @@ test("a member without a PIN is told so", async ({ page }) => {
 	).toBeVisible();
 });
 
-test("the PIN waits until /welcome is saved", async ({ page }) => {
+test("the PIN waits until /welcome is finished", async ({ page }) => {
 	await loginWithSeedEmail(page, SEED_NEW_JOINER_EMAIL);
-	// Undecided members land on /welcome; postpone it to reach the profile.
+	// Unfinished members are kept on /welcome, so the profile and its PIN card
+	// stay out of reach.
 	await expect(page).toHaveURL(/\/welcome$/);
-	await page.getByRole("button", { name: "Later", exact: true }).click();
-	await expect(page).toHaveURL(/\/$/);
-
-	const card = page.locator("#door-pin");
-	await expect(
-		card.getByText("Finish your welcome steps to see your door PIN."),
-	).toBeVisible();
-	await expect(card.getByRole("button", { name: "Show PIN" })).toHaveCount(0);
-	await card.getByRole("link", { name: "Go to welcome" }).click();
+	await page.goto("/");
 	await expect(page).toHaveURL(/\/welcome$/);
+	await expect(page.locator("#door-pin")).toHaveCount(0);
 });
 
 test("an admin imports the cabinet sheet and checks a member's PIN", async ({

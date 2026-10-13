@@ -1,5 +1,5 @@
 import type { User } from "@supabase/supabase-js";
-import type { ReactElement } from "react";
+import { type ReactElement, useId } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
@@ -14,6 +14,12 @@ interface WelcomePageProps {
 
 export default function WelcomePage({ user }: WelcomePageProps): ReactElement {
 	const welcome = useWelcome(user.id);
+	const missingHintId = useId();
+	const missing = [
+		welcome.needsConsentDecision && "save your consent choices",
+		welcome.needsCv && "upload your CV",
+	].filter(Boolean);
+	const showMissingHint = !welcome.canContinue && missing.length > 0;
 
 	return (
 		<div className="mx-auto flex w-full max-w-2xl flex-col gap-6">
@@ -22,8 +28,9 @@ export default function WelcomePage({ user }: WelcomePageProps): ReactElement {
 					Welcome to the Member Manager
 				</h1>
 				<p className="mt-1 text-sm text-muted-foreground">
-					Two quick things: tell us what we may do with your data, and upload
-					your CV so partners can reach you with job opportunities.
+					Two quick things before you continue: tell us what we may do with your
+					data, and upload your CV so partners can reach you with job
+					opportunities.
 				</p>
 			</header>
 
@@ -48,17 +55,20 @@ export default function WelcomePage({ user }: WelcomePageProps): ReactElement {
 				</>
 			)}
 
-			{/* Until a decision is saved, leaving counts as "Later": the login
-			    redirect would otherwise bring the member straight back here. */}
-			<div className="flex justify-end">
-				{welcome.isDecided ? (
-					<Button type="button" onClick={welcome.continueToProfile}>
-						Continue to your profile
-					</Button>
-				) : (
-					<Button type="button" variant="ghost" onClick={welcome.skipForNow}>
-						Later
-					</Button>
+			{/* No "Later": WelcomeRedirect keeps an unfinished member here. */}
+			<div className="flex flex-col items-stretch gap-2 sm:items-end">
+				<Button
+					type="button"
+					onClick={welcome.continueToApp}
+					disabled={!welcome.canContinue}
+					aria-describedby={showMissingHint ? missingHintId : undefined}
+				>
+					Continue
+				</Button>
+				{showMissingHint && (
+					<p id={missingHintId} className="text-xs text-muted-foreground">
+						To continue, {missing.join(" and ")}.
+					</p>
 				)}
 			</div>
 		</div>

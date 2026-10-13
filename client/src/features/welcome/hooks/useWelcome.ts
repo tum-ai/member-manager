@@ -2,9 +2,9 @@ import type { MemberConsentsInput } from "@member-manager/shared";
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { useToast } from "@/contexts/ToastContext";
+import { useWelcomeRequirements } from "@/features/welcome/hooks/useWelcomeRequirements";
 import { useMemberConsents } from "@/hooks/useMemberConsents";
 import { useMemberData } from "@/hooks/useMemberData";
-import { markWelcomeSkipped } from "@/lib/postLoginRedirect";
 
 export type ConsentField = keyof MemberConsentsInput;
 
@@ -26,7 +26,8 @@ function pickDecision(source: MemberConsentsInput): MemberConsentsInput {
 
 /**
  * State for the /welcome page: the member's consent choices (edited locally,
- * saved in one request) plus navigation out of the page.
+ * saved in one request), what is still missing before they may leave, and
+ * navigation out of the page.
  */
 export function useWelcome(userId: string) {
 	const navigate = useNavigate();
@@ -40,6 +41,7 @@ export function useWelcome(userId: string) {
 		saveConsentsAsync,
 		isSaving,
 	} = useMemberConsents(userId);
+	const requirements = useWelcomeRequirements(userId);
 
 	const [draft, setDraft] = useState<MemberConsentsInput>(NOTHING_GRANTED);
 	const [isDirty, setIsDirty] = useState(false);
@@ -83,19 +85,18 @@ export function useWelcome(userId: string) {
 		}
 	};
 
-	// WelcomeRedirect passes the page it interrupted; go back there.
+	// WelcomeRedirect passes the page it interrupted; go back there once done.
+	// Leaving earlier is pointless: WelcomeRedirect would bring them back.
 	const interruptedPath = (location.state as { from?: unknown } | null)?.from;
-	const skipForNow = (): void => {
-		markWelcomeSkipped();
+	// `unknown` (a failed lookup) doesn't trap the member here either.
+	const canContinue =
+		requirements.status === "complete" || requirements.status === "unknown";
+	const continueToApp = (): void => {
 		navigate(
 			typeof interruptedPath === "string" && interruptedPath.startsWith("/")
 				? interruptedPath
 				: "/",
 		);
-	};
-
-	const continueToProfile = (): void => {
-		navigate("/");
 	};
 
 	// A first Slack login whose email doesn't match the imported member record
@@ -117,7 +118,9 @@ export function useWelcome(userId: string) {
 		consentsError,
 		isDecided: Boolean(consents?.consents_decided_at),
 		needsAccountLink,
-		skipForNow,
-		continueToProfile,
+		needsConsentDecision: requirements.needsConsentDecision,
+		needsCv: requirements.needsCv,
+		canContinue,
+		continueToApp,
 	};
 }

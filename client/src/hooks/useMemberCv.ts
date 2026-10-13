@@ -32,16 +32,29 @@ function fileToBase64(file: File): Promise<string> {
 	});
 }
 
-export function useMemberCv(userId: string) {
-	const queryClient = useQueryClient();
+export function memberCvQueryKey(userId: string) {
+	return ["member-cv", userId] as const;
+}
 
-	const cvQuery = useQuery({
-		queryKey: ["member-cv", userId],
+/**
+ * Just the member's current CV, without the partner-sharing consent that
+ * `useMemberCv` also loads. Shares its cache entry, so an upload through
+ * `useMemberCv` refreshes every reader.
+ */
+export function useCurrentMemberCv(userId: string) {
+	return useQuery({
+		queryKey: memberCvQueryKey(userId),
 		queryFn: async () =>
 			(await apiClient(`/api/members/${userId}/cv`, {
 				method: "GET",
 			})) as CvResponse,
 	});
+}
+
+export function useMemberCv(userId: string) {
+	const queryClient = useQueryClient();
+
+	const cvQuery = useCurrentMemberCv(userId);
 
 	const consentQuery = useQuery({
 		queryKey: ["member-cv-consent", userId],
@@ -60,7 +73,7 @@ export function useMemberCv(userId: string) {
 			})) as CvResponse;
 		},
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["member-cv", userId] });
+			queryClient.invalidateQueries({ queryKey: memberCvQueryKey(userId) });
 		},
 	});
 

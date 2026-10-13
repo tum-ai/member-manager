@@ -3,7 +3,6 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { isWelcomeSkipped } from "@/lib/postLoginRedirect";
 import { HttpResponse, http, server } from "@/test/mswServer";
 import { renderWithClient } from "@/test/renderWithClient";
 import WelcomePage from "./WelcomePage";
@@ -11,7 +10,9 @@ import WelcomePage from "./WelcomePage";
 const { showToast, memberState } = vi.hoisted(() => ({
 	showToast: vi.fn(),
 	memberState: {
-		member: { given_name: "Nico" } as { given_name: string } | undefined,
+		member: { given_name: "Nico", member_status: "active" } as
+			| { given_name: string; member_status: string }
+			| undefined,
 	},
 }));
 
@@ -65,6 +66,22 @@ function stubConsents(stored: typeof undecided | Record<string, unknown>) {
 	return puts;
 }
 
+const storedCv = {
+	id: "cv-1",
+	version: 1,
+	source: "member_upload",
+	original_filename: "cv.pdf",
+	size_bytes: 1024,
+	mime_type: "application/pdf",
+	sha256: "abc",
+	uploaded_at: "2026-10-01T00:00:00Z",
+	is_current: true,
+};
+
+function stubCv(cv: typeof storedCv | null) {
+	server.use(http.get("/api/members/:id/cv", () => HttpResponse.json({ cv })));
+}
+
 function renderPage(from?: string) {
 	return renderWithClient(
 		<MemoryRouter
@@ -84,8 +101,8 @@ const checkbox = (name: RegExp) => screen.getByRole("checkbox", { name });
 describe("WelcomePage", () => {
 	beforeEach(() => {
 		showToast.mockReset();
-		memberState.member = { given_name: "Nico" };
-		window.sessionStorage.clear();
+		memberState.member = { given_name: "Nico", member_status: "active" };
+		stubCv(storedCv);
 	});
 
 	it("starts an undecided member with nothing ticked", async () => {
@@ -130,9 +147,10 @@ describe("WelcomePage", () => {
 			"Your consent choices are saved.",
 			"success",
 		);
-		await userEvents.click(
-			await screen.findByRole("button", { name: "Continue to your profile" }),
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled(),
 		);
+		await userEvents.click(screen.getByRole("button", { name: "Continue" }));
 		expect(screen.getByText("Profile route")).toBeInTheDocument();
 	});
 
@@ -260,24 +278,89 @@ describe("WelcomePage", () => {
 		);
 	});
 
-	it("'Later' returns to the interrupted page and stops the redirect for the session", async () => {
+	it("offers no way to skip before deciding and uploading a CV", async () => {
 		stubConsents(undecided);
+		stubCv(null);
+		renderPage("/tools/jobs");
+
+		await screen.findByText("Your consent");
+		const proceed = await screen.findByRole("button", { name: "Continue" });
+		await waitFor(() => expect(proceed).toBeDisabled());
+		expect(proceed).toHaveAccessibleDescription(
+			"To continue, save your consent choices and upload your CV.",
+		);
+		expect(
+			screen.queryByRole("button", { name: "Later" }),
+		).not.toBeInTheDocument();
+	});
+
+	it("still requires the CV from a member who has already decided", async () => {
+		stubConsents({
+			...undecided,
+			privacy_policy_agreed: true,
+			consents_decided_at: "2026-09-01T00:00:00Z",
+		});
+		stubCv(null);
+		renderPage();
+
+		const proceed = await screen.findByRole("button", { name: "Continue" });
+		await waitFor(() =>
+			expect(proceed).toHaveAccessibleDescription(
+				"To continue, upload your CV.",
+			),
+		);
+		expect(proceed).toBeDisabled();
+	});
+
+	it("counts a refusal as a decision", async () => {
+		stubConsents({
+			...undecided,
+			privacy_policy_agreed: true,
+			consents_decided_at: "2026-09-01T00:00:00Z",
+		});
+		renderPage();
+
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled(),
+		);
+	});
+
+	it("doesn't ask alumni for a CV", async () => {
+		memberState.member = { given_name: "Nico", member_status: "alumni" };
+		stubConsents({
+			...undecided,
+			privacy_policy_agreed: true,
+			consents_decided_at: "2026-09-01T00:00:00Z",
+		});
+		stubCv(null);
+		renderPage();
+
+		await waitFor(() =>
+			expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled(),
+		);
+	});
+
+	it("returns a finished member to the page they were sent from", async () => {
+		stubConsents({
+			...undecided,
+			privacy_policy_agreed: true,
+			consents_decided_at: "2026-09-01T00:00:00Z",
+		});
 		const userEvents = userEvent.setup();
 		renderPage("/tools/jobs");
 
-		await userEvents.click(
-			await screen.findByRole("button", { name: "Later" }),
-		);
+		const proceed = await screen.findByRole("button", { name: "Continue" });
+		await waitFor(() => expect(proceed).toBeEnabled());
+		await userEvents.click(proceed);
 
 		expect(screen.getByText("Jobs route")).toBeInTheDocument();
-		expect(isWelcomeSkipped()).toBe(true);
 	});
 
 	it("lets an unlinked account decide and asks the member to get it merged", async () => {
 		// A first Slack login with a different email creates a nameless account;
 		// consent and CV saved there move over when an admin merges it.
 		const puts = stubConsents(undecided);
-		memberState.member = { given_name: "" };
+		memberState.member = { given_name: "", member_status: "active" };
 		const userEvents = userEvent.setup();
 		renderPage();
 

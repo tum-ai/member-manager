@@ -201,9 +201,7 @@ test.describe("legal agreement acceptance flow", () => {
 		).toHaveCount(0);
 
 		await saveConsentsOnWelcome(page, { partnerSharing: true });
-		await page
-			.getByRole("button", { name: "Continue to your profile" })
-			.click();
+		await page.getByRole("button", { name: "Continue", exact: true }).click();
 		await expectConsentSummary(page, {
 			website: "Not agreed",
 			photos: "Not agreed",
@@ -213,9 +211,7 @@ test.describe("legal agreement acceptance flow", () => {
 		await page.getByRole("link", { name: "Manage consents" }).click();
 		await expect(page).toHaveURL(/\/welcome$/);
 		await saveConsentsOnWelcome(page, { partnerSharing: false });
-		await page
-			.getByRole("button", { name: "Continue to your profile" })
-			.click();
+		await page.getByRole("button", { name: "Continue", exact: true }).click();
 		await expectConsentSummary(page, {
 			website: "Not agreed",
 			photos: "Not agreed",

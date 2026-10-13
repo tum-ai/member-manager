@@ -4,21 +4,19 @@ import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AuthenticatedApp } from "./App";
 import { ToastProvider } from "./contexts/ToastContext";
-import {
-	markWelcomeSkipped,
-	rememberPostLoginPath,
-} from "./lib/postLoginRedirect";
+import type { WelcomeStatus } from "./features/welcome/hooks/useWelcomeRequirements";
+import { rememberPostLoginPath } from "./lib/postLoginRedirect";
 
 const adminState = vi.hoisted(() => ({
 	isAdmin: false,
 	isLoading: true,
 }));
 
-// Decided by default so the existing route tests aren't redirected to /welcome.
-const consentsState = vi.hoisted(() => ({
-	consents: { consents_decided_at: "2026-01-01T00:00:00Z" } as
-		| { consents_decided_at: string | null }
-		| undefined,
+// Complete by default so the existing route tests aren't redirected to /welcome.
+const welcomeState = vi.hoisted(() => ({
+	status: "complete" as WelcomeStatus,
+	needsConsentDecision: false,
+	needsCv: false,
 }));
 
 const toolAccessState = vi.hoisted(() => ({
@@ -35,8 +33,8 @@ vi.mock("./hooks/useToolAccess", () => ({
 	useToolAccess: () => toolAccessState,
 }));
 
-vi.mock("./hooks/useMemberConsents", () => ({
-	useMemberConsents: () => consentsState,
+vi.mock("./features/welcome/hooks/useWelcomeRequirements", () => ({
+	useWelcomeRequirements: () => welcomeState,
 }));
 
 vi.mock("./features/welcome/WelcomePage", () => ({
@@ -244,43 +242,59 @@ describe("AuthenticatedApp welcome redirect", () => {
 		adminState.isLoading = false;
 		toolAccessState.permissions = [];
 		toolAccessState.isLoading = false;
-		consentsState.consents = { consents_decided_at: null };
+		welcomeState.status = "incomplete";
 		window.sessionStorage.clear();
 	});
 
-	it("sends a member who hasn't decided on consents to /welcome", async () => {
+	it("sends a member who hasn't finished /welcome there", async () => {
 		renderAuthenticatedApp("/");
 
 		expect(await screen.findByText("Welcome route")).toBeInTheDocument();
 	});
 
-	it("leaves a member who already decided where they are", () => {
-		consentsState.consents = { consents_decided_at: "2026-10-01T00:00:00Z" };
+	it("keeps sending them back on later navigation, with no session skip", async () => {
+		// The old "Later" flag must no longer let anyone through.
+		window.sessionStorage.setItem("member-manager:welcome-skipped", "1");
+		renderAuthenticatedApp("/tools/jobs");
+
+		expect(await screen.findByText("Welcome route")).toBeInTheDocument();
+		expect(screen.queryByText("Jobs route")).not.toBeInTheDocument();
+	});
+
+	it("leaves a member who finished /welcome where they are", () => {
+		welcomeState.status = "complete";
 		renderAuthenticatedApp("/");
 
 		expect(screen.getByText("Profile route")).toBeInTheDocument();
 		expect(screen.queryByText("Welcome route")).not.toBeInTheDocument();
 	});
 
-	it("waits for the consents before deciding", () => {
-		consentsState.consents = undefined;
+	it("waits for the requirements before deciding", () => {
+		welcomeState.status = "loading";
 		renderAuthenticatedApp("/");
 
 		expect(screen.getByText("Profile route")).toBeInTheDocument();
 	});
 
-	it("doesn't redirect again after 'Later' in this session", () => {
-		markWelcomeSkipped();
+	it("doesn't lock a member out when the requirements can't be loaded", () => {
+		welcomeState.status = "unknown";
 		renderAuthenticatedApp("/");
 
 		expect(screen.getByText("Profile route")).toBeInTheDocument();
 	});
 
-	it("resumes the link opened before login instead of redirecting", async () => {
+	it("resumes the link opened before login for a finished member", async () => {
+		welcomeState.status = "complete";
 		rememberPostLoginPath("/tools/jobs");
 		renderAuthenticatedApp("/");
 
 		expect(await screen.findByText("Jobs route")).toBeInTheDocument();
-		expect(screen.queryByText("Welcome route")).not.toBeInTheDocument();
+	});
+
+	it("routes an unfinished member through /welcome even from a resumed link", async () => {
+		rememberPostLoginPath("/tools/jobs");
+		renderAuthenticatedApp("/");
+
+		expect(await screen.findByText("Welcome route")).toBeInTheDocument();
 	});
 });

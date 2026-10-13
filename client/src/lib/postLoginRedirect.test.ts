@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	consumePostLoginPath,
-	isWelcomeSkipped,
-	markWelcomeSkipped,
 	rememberPostLoginPath,
 } from "./postLoginRedirect";
 
@@ -38,12 +36,6 @@ describe("postLoginRedirect", () => {
 		expect(consumePostLoginPath()).toBeNull();
 	});
 
-	it("remembers 'Later' for the session", () => {
-		expect(isWelcomeSkipped()).toBe(false);
-		markWelcomeSkipped();
-		expect(isWelcomeSkipped()).toBe(true);
-	});
-
 	it("degrades to nothing remembered when storage throws", () => {
 		// Private mode / blocked site data: every access throws.
 		vi.spyOn(window, "sessionStorage", "get").mockImplementation(() => {
@@ -51,8 +43,6 @@ describe("postLoginRedirect", () => {
 		});
 
 		expect(() => rememberPostLoginPath("/welcome")).not.toThrow();
-		expect(() => markWelcomeSkipped()).not.toThrow();
 		expect(consumePostLoginPath()).toBeNull();
-		expect(isWelcomeSkipped()).toBe(false);
 	});
 });
