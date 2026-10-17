@@ -29,6 +29,8 @@ export function ReimbursementReviewActions({
 	compact = false,
 }: ReimbursementReviewActionsProps): React.ReactElement | null {
 	const canApprove = request.approval_status === "pending";
+	// The second "Approve" is the final one (see the server's two-step flow).
+	const isFinalApproval = Boolean(request.first_approved_at);
 	const canMarkPaid =
 		request.approval_status === "approved" &&
 		request.payment_status !== "paid" &&
@@ -66,7 +68,7 @@ export function ReimbursementReviewActions({
 						onClick={() => onReview("approve")}
 					>
 						<CircleCheck className="size-4" />
-						Approve
+						{isFinalApproval ? "Final approval" : "Approve"}
 					</Button>
 				)}
 				{availableActions.includes("mark_paid") && (

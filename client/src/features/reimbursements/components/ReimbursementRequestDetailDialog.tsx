@@ -206,5 +206,6 @@ function getStatusTone(request: ReimbursementRequest): BadgeVariant {
 	if (label === "Not approved") return "danger";
 	if (label === "Paid") return "success";
 	if (label === "Pending") return "warning";
+	if (label === "First approved") return "info";
 	return "accent";
 }
