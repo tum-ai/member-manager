@@ -94,10 +94,14 @@ test("eligible team lead submits a Vivid expense for finance review", async ({
 			await expect(adminPage.getByText("IBAN", { exact: true })).toHaveCount(0);
 			await expect(adminPage.getByText("BIC", { exact: true })).toHaveCount(0);
 
+			// Two clicks: the first approval, then the final one.
 			await adminPage
 				.getByRole("button", { name: "Approve", exact: true })
 				.click();
 			await expectToast(adminPage, /reimbursement request updated/i);
+			await adminPage
+				.getByRole("button", { name: "Final approval", exact: true })
+				.click();
 			await expect(
 				adminPage.getByText("No payment required").first(),
 			).toBeVisible();

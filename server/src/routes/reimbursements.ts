@@ -862,11 +862,78 @@ function createStatusNotificationPayload({
 	};
 }
 
+/**
+ * Approval takes two "Approve" clicks: the first only records who gave the
+ * first approval, the second makes the request `approved` as before. Until
+ * then `approval_status` stays `pending`, so payment, filters and the
+ * BuchhaltungsButler sync only ever see finally approved requests.
+ */
+function isFirstApproval(existingRequest: ReimbursementRow): boolean {
+	return (
+		existingRequest.approval_status === "pending" &&
+		!existingRequest.first_approved_at
+	);
+}
+
+/**
+ * Applies the next approval step together with any other `fields`. The update
+ * only matches while the request is still in the state the reviewer acted on,
+ * so two reviewers clicking at once can't both record the same step, and a
+ * click can't skip the first approval.
+ */
+async function advanceApproval({
+	existingRequest,
+	reviewerUserId,
+	fields = {},
+}: {
+	existingRequest: ReimbursementRow;
+	reviewerUserId: string;
+	fields?: ReimbursementRow;
+}): Promise<{ row: ReimbursementRow; firstApproval: boolean }> {
+	if (existingRequest.approval_status === "not_approved") {
+		throw new ReimbursementWorkflowError(
+			"Rejected requests can't be approved",
+			409,
+		);
+	}
+
+	const now = new Date().toISOString();
+	const firstApproval = isFirstApproval(existingRequest);
+	let query = getSupabase()
+		.from("reimbursements")
+		.update({
+			...fields,
+			...(firstApproval
+				? { first_approved_at: now, first_approved_by: reviewerUserId }
+				: { approval_status: "approved", rejection_reason: null }),
+			updated_at: now,
+		})
+		.eq("id", String(existingRequest.id))
+		.eq("approval_status", "pending");
+	query = firstApproval
+		? query.is("first_approved_at", null)
+		: query.eq("first_approved_at", existingRequest.first_approved_at);
+
+	const { data, error } = await query.select().maybeSingle();
+	if (error) {
+		throw createReimbursementDatabaseError(error);
+	}
+	if (!data) {
+		throw new ReimbursementWorkflowError(
+			"Someone else just reviewed this request. Reload and try again.",
+			409,
+		);
+	}
+	return { row: data as ReimbursementRow, firstApproval };
+}
+
 export async function approveReimbursementRequest({
 	requestId,
+	reviewerUserId,
 	log,
 }: {
 	requestId: string;
+	reviewerUserId: string;
 	log?: RouteLogger;
 }): Promise<ReimbursementRow> {
 	const { data: existing, error: fetchError } = await getSupabase()
@@ -890,19 +957,14 @@ export async function approveReimbursementRequest({
 		return existingRequest;
 	}
 
-	const { data, error } = await getSupabase()
-		.from("reimbursements")
-		.update({
-			approval_status: "approved",
-			rejection_reason: null,
-			updated_at: new Date().toISOString(),
-		})
-		.eq("id", requestId)
-		.select()
-		.single();
+	const { row: data, firstApproval } = await advanceApproval({
+		existingRequest,
+		reviewerUserId,
+	});
 
-	if (error) {
-		throw createReimbursementDatabaseError(error);
+	// The requester hears about the decision once, at the final approval.
+	if (firstApproval) {
+		return data;
 	}
 
 	try {
@@ -1613,10 +1675,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				);
 			}
 
-			if (body.action === "approve") {
-				update.approval_status = "approved";
-				update.rejection_reason = null;
-			} else if (body.action === "reject") {
+			if (body.action === "reject") {
 				update.approval_status = "not_approved";
 				update.status = "rejected";
 				update.rejection_reason = body.rejection_reason;
@@ -1625,20 +1684,45 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				update.payment_status = "paid";
 			}
 
-			const { data, error } = await getSupabase()
-				.from("reimbursements")
-				.update(update)
-				.eq("id", requestId)
-				.select()
-				.single();
+			let data: ReimbursementRow;
+			let firstApproval = false;
+			if (body.action === "approve") {
+				try {
+					({ row: data, firstApproval } = await advanceApproval({
+						existingRequest,
+						reviewerUserId: (request as AuthenticatedRequest).user.id,
+						fields: update,
+					}));
+				} catch (approvalError) {
+					if (approvalError instanceof ReimbursementWorkflowError) {
+						return reply
+							.status(approvalError.statusCode)
+							.send({ error: approvalError.message });
+					}
+					request.log.error(
+						{ err: approvalError },
+						"Failed to review reimbursement",
+					);
+					throw approvalError;
+				}
+			} else {
+				const { data: updated, error } = await getSupabase()
+					.from("reimbursements")
+					.update(update)
+					.eq("id", requestId)
+					.select()
+					.single();
 
-			if (error) {
-				request.log.error({ err: error }, "Failed to review reimbursement");
-				throw createReimbursementDatabaseError(error);
+				if (error) {
+					request.log.error({ err: error }, "Failed to review reimbursement");
+					throw createReimbursementDatabaseError(error);
+				}
+				data = updated as ReimbursementRow;
 			}
 
 			try {
-				if (!body.action) {
+				// No requester notification until the final approval.
+				if (!body.action || firstApproval) {
 					return decryptReimbursementForResponse(
 						data as ReimbursementRow,
 						request.log,

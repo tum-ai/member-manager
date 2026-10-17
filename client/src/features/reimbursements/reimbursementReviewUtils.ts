@@ -56,6 +56,10 @@ export function getReviewStage(request: ReimbursementRequest): string {
 	if (request.approval_status === "approved") {
 		return "Ready for payment";
 	}
+	// Still `pending`: the first of the two approvals is in.
+	if (request.first_approved_at) {
+		return "First approved";
+	}
 	return "Needs approval";
 }
 

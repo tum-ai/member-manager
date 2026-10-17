@@ -538,7 +538,16 @@ function createQueryBuilder(table: string): QueryBuilder {
 			const realTable = mockDatabase[table as keyof MockData];
 			for (let i = 0; i < realTable.length; i++) {
 				const row = realTable[i];
-				const matches = state.filters.every((f) => row[f.column] === f.value);
+				// Honour `.is()` too, like PostgREST, so a conditional update
+				// (e.g. "only while first_approved_at is null") can't overwrite
+				// a row it no longer matches.
+				const matches =
+					state.filters.every((f) => row[f.column] === f.value) &&
+					state.isFilters.every((f) =>
+						f.value === null
+							? row[f.column] === null || row[f.column] === undefined
+							: row[f.column] === f.value,
+					);
 				if (matches) {
 					realTable[i] = { ...realTable[i], ...state.pendingUpdate };
 				}
