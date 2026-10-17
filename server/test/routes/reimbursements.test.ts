@@ -8,6 +8,7 @@ import {
 	setReimbursementSlackNotifier,
 	setReimbursementStatusSlackNotifier,
 } from "../../src/lib/slackNotifier.js";
+import { approveReimbursementRequest } from "../../src/routes/reimbursements.js";
 import {
 	authHeaders,
 	closeTestApp,
@@ -1575,6 +1576,69 @@ describe("Reimbursement Routes", async () => {
 			} finally {
 				resetSlackNotifier();
 			}
+		});
+
+		test("refuses to approve a rejected request", async () => {
+			resetDatabase();
+			const row = mockDatabase.reimbursements.find(
+				(candidate) => candidate.id === MOCK_REIMBURSEMENT_OLDER_ID,
+			);
+			assert.ok(row);
+			Object.assign(row, {
+				approval_status: "not_approved",
+				status: "rejected",
+			});
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ action: "approve" }),
+			});
+
+			assert.strictEqual(response.statusCode, 409);
+			assert.strictEqual(row.approval_status, "not_approved");
+			assert.strictEqual(row.first_approved_at ?? null, null);
+		});
+
+		test("records only one first approval when two reviewers click at once", async () => {
+			resetDatabase();
+			const results = await Promise.allSettled([
+				approveReimbursementRequest({
+					requestId: MOCK_REIMBURSEMENT_OLDER_ID,
+					reviewerUserId: "reviewer-a",
+				}),
+				approveReimbursementRequest({
+					requestId: MOCK_REIMBURSEMENT_OLDER_ID,
+					reviewerUserId: "reviewer-b",
+				}),
+			]);
+
+			const row = mockDatabase.reimbursements.find(
+				(candidate) => candidate.id === MOCK_REIMBURSEMENT_OLDER_ID,
+			);
+			// The second click lost the race instead of becoming the final approval.
+			assert.strictEqual(row?.approval_status, "pending");
+			assert.deepStrictEqual(results.map((result) => result.status).sort(), [
+				"fulfilled",
+				"rejected",
+			]);
+			// The winner keeps its attribution; the loser didn't overwrite it.
+			const fulfilled = results.find((result) => result.status === "fulfilled");
+			const winner = (
+				fulfilled as PromiseFulfilledResult<Record<string, unknown>>
+			).value;
+			assert.ok(row?.first_approved_by);
+			assert.strictEqual(row?.first_approved_by, winner.first_approved_by);
+			assert.strictEqual(row?.first_approved_at, winner.first_approved_at);
+			const rejected = results.find((result) => result.status === "rejected");
+			assert.match(
+				String((rejected as PromiseRejectedResult).reason?.message),
+				/Someone else just reviewed this request/,
+			);
 		});
 
 		test("lets reviewers change reimbursement departments", async () => {
