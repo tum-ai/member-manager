@@ -1462,22 +1462,44 @@ describe("Reimbursement Routes", async () => {
 			});
 
 			try {
-				const approve = await app.inject({
+				const approveOnce = () =>
+					app.inject({
+						method: "PATCH",
+						url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
+						headers: {
+							...authHeaders(testTokens.admin),
+							"content-type": "application/json",
+						},
+						payload: JSON.stringify({ action: "approve" }),
+					});
+				const findOlder = () =>
+					mockDatabase.reimbursements.find(
+						(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
+					);
+
+				// First click: only a first approval, still pending, no notification.
+				const firstApprove = await approveOnce();
+				assert.strictEqual(firstApprove.statusCode, 200);
+				assert.strictEqual(findOlder()?.approval_status, "pending");
+				assert.ok(findOlder()?.first_approved_at);
+				assert.ok(findOlder()?.first_approved_by);
+				assert.strictEqual(notifications.length, 0);
+
+				const markPaidTooEarly = await app.inject({
 					method: "PATCH",
 					url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
 					headers: {
 						...authHeaders(testTokens.admin),
 						"content-type": "application/json",
 					},
-					payload: JSON.stringify({ action: "approve" }),
+					payload: JSON.stringify({ action: "mark_paid" }),
 				});
+				assert.strictEqual(markPaidTooEarly.statusCode, 409);
+
+				// Second click: the final approval, as before.
+				const approve = await approveOnce();
 				assert.strictEqual(approve.statusCode, 200);
-				assert.strictEqual(
-					mockDatabase.reimbursements.find(
-						(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
-					)?.approval_status,
-					"approved",
-				);
+				assert.strictEqual(findOlder()?.approval_status, "approved");
 
 				const markPaid = await app.inject({
 					method: "PATCH",

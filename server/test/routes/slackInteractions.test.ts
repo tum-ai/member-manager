@@ -196,6 +196,80 @@ describe("Slack interaction routes", async () => {
 			);
 		}) as typeof fetch;
 
+		const clickApprove = async () => {
+			const signed = signedSlackPayload(
+				{
+					type: "block_actions",
+					user: { id: "UADMIN" },
+					response_url: "https://hooks.slack.test/response",
+					actions: [
+						{
+							action_id: "reimbursement_approve",
+							value: MOCK_REIMBURSEMENT_OLDER_ID,
+						},
+					],
+				},
+				"test-secret",
+			);
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/slack/interactions",
+				headers: signed.headers,
+				payload: signed.body,
+			});
+			assert.strictEqual(response.statusCode, 200);
+			assert.match(JSON.parse(response.payload).text, /Processing/);
+		};
+		const findOlder = () =>
+			mockDatabase.reimbursements.find(
+				(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
+			);
+
+		// The first click is only the first approval.
+		await clickApprove();
+		await waitForAssertion(() => {
+			assert.ok(findOlder()?.first_approved_at);
+			assert.strictEqual(findOlder()?.approval_status, "pending");
+			assert.match(delayedMessages.at(-1) ?? "", /first approval/);
+		});
+
+		// The second click is the final approval.
+		await clickApprove();
+		await waitForAssertion(() => {
+			assert.strictEqual(findOlder()?.approval_status, "approved");
+			assert.match(delayedMessages.at(-1) ?? "", /approved\.$/);
+		});
+	});
+
+	test("doesn't sync to BuchhaltungsButler on a first approval", async () => {
+		resetDatabase();
+		process.env.SLACK_SIGNING_SECRET = "test-secret";
+		process.env.SLACK_BOT_TOKEN = "xoxb-test";
+		setReimbursementStatusSlackNotifier(async () => {});
+
+		const bbRequests: string[] = [];
+		const delayedMessages: string[] = [];
+		globalThis.fetch = (async (input, init) => {
+			const url = String(input);
+			if (url === "https://hooks.slack.test/response") {
+				delayedMessages.push(
+					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
+				);
+				return new Response("ok", { status: 200 });
+			}
+			if (url === "https://slack.com/api/users.info") {
+				return new Response(
+					JSON.stringify({
+						ok: true,
+						user: { profile: { email: "admin@test.com" } },
+					}),
+					{ status: 200, headers: { "content-type": "application/json" } },
+				);
+			}
+			bbRequests.push(url);
+			return new Response("{}", { status: 200 });
+		}) as typeof fetch;
+
 		const signed = signedSlackPayload(
 			{
 				type: "block_actions",
@@ -203,14 +277,13 @@ describe("Slack interaction routes", async () => {
 				response_url: "https://hooks.slack.test/response",
 				actions: [
 					{
-						action_id: "reimbursement_approve",
+						action_id: "reimbursement_approve_sync_bb",
 						value: MOCK_REIMBURSEMENT_OLDER_ID,
 					},
 				],
 			},
 			"test-secret",
 		);
-
 		const response = await app.inject({
 			method: "POST",
 			url: "/api/slack/interactions",
@@ -219,16 +292,16 @@ describe("Slack interaction routes", async () => {
 		});
 
 		assert.strictEqual(response.statusCode, 200);
-		assert.match(JSON.parse(response.payload).text, /Processing/);
 		await waitForAssertion(() => {
-			assert.strictEqual(
-				mockDatabase.reimbursements.find(
-					(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
-				)?.approval_status,
-				"approved",
-			);
-			assert.match(delayedMessages.at(-1) ?? "", /approved/);
+			assert.match(delayedMessages.at(-1) ?? "", /first approval/);
 		});
+		assert.strictEqual(
+			mockDatabase.reimbursements.find(
+				(row) => row.id === MOCK_REIMBURSEMENT_OLDER_ID,
+			)?.approval_status,
+			"pending",
+		);
+		assert.deepStrictEqual(bbRequests, []);
 	});
 
 	test("lets finance reviewers approve and sync to BuchhaltungsButler from Slack", async () => {

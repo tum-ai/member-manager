@@ -862,11 +862,37 @@ function createStatusNotificationPayload({
 	};
 }
 
+/**
+ * Approval takes two "Approve" clicks: the first only records who gave the
+ * first approval, the second makes the request `approved` as before. Until
+ * then `approval_status` stays `pending`, so payment, filters and the
+ * BuchhaltungsButler sync only ever see finally approved requests.
+ */
+function isFirstApproval(existingRequest: ReimbursementRow): boolean {
+	return (
+		existingRequest.approval_status === "pending" &&
+		!existingRequest.first_approved_at
+	);
+}
+
+function createApprovalUpdate(
+	existingRequest: ReimbursementRow,
+	reviewerUserId: string,
+	now: string,
+): ReimbursementRow {
+	if (isFirstApproval(existingRequest)) {
+		return { first_approved_at: now, first_approved_by: reviewerUserId };
+	}
+	return { approval_status: "approved", rejection_reason: null };
+}
+
 export async function approveReimbursementRequest({
 	requestId,
+	reviewerUserId,
 	log,
 }: {
 	requestId: string;
+	reviewerUserId: string;
 	log?: RouteLogger;
 }): Promise<ReimbursementRow> {
 	const { data: existing, error: fetchError } = await getSupabase()
@@ -890,12 +916,13 @@ export async function approveReimbursementRequest({
 		return existingRequest;
 	}
 
+	const now = new Date().toISOString();
+	const firstApproval = isFirstApproval(existingRequest);
 	const { data, error } = await getSupabase()
 		.from("reimbursements")
 		.update({
-			approval_status: "approved",
-			rejection_reason: null,
-			updated_at: new Date().toISOString(),
+			...createApprovalUpdate(existingRequest, reviewerUserId, now),
+			updated_at: now,
 		})
 		.eq("id", requestId)
 		.select()
@@ -903,6 +930,11 @@ export async function approveReimbursementRequest({
 
 	if (error) {
 		throw createReimbursementDatabaseError(error);
+	}
+
+	// The requester hears about the decision once, at the final approval.
+	if (firstApproval) {
+		return data as ReimbursementRow;
 	}
 
 	try {
@@ -1613,9 +1645,17 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				);
 			}
 
+			const firstApproval =
+				body.action === "approve" && isFirstApproval(existingRequest);
 			if (body.action === "approve") {
-				update.approval_status = "approved";
-				update.rejection_reason = null;
+				Object.assign(
+					update,
+					createApprovalUpdate(
+						existingRequest,
+						(request as AuthenticatedRequest).user.id,
+						now,
+					),
+				);
 			} else if (body.action === "reject") {
 				update.approval_status = "not_approved";
 				update.status = "rejected";
@@ -1638,7 +1678,8 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			}
 
 			try {
-				if (!body.action) {
+				// No requester notification until the final approval.
+				if (!body.action || firstApproval) {
 					return decryptReimbursementForResponse(
 						data as ReimbursementRow,
 						request.log,
