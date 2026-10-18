@@ -100,3 +100,15 @@ it("keeps pending Vivid open and closes approved or rejected expenses consistent
 		expect(matchesReimbursementPaymentFilter(request, "paid")).toBe(false);
 	}
 });
+
+it("shows a first approval as its own stage that stays open", () => {
+	const firstApproved = vividRequest({
+		approval_status: "pending",
+		first_approved_at: "2026-10-17T10:00:00Z",
+	});
+	expect(getReviewStage(firstApproved)).toBe("First approved");
+	expect(isClosedReimbursement(firstApproved)).toBe(false);
+	expect(
+		getReviewStage({ ...firstApproved, approval_status: "approved" }),
+	).not.toBe("First approved");
+});

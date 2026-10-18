@@ -453,6 +453,7 @@ function getReviewStageTone(stage: string): BadgeVariant {
 	if (stage === "No payment required") return "accent";
 	if (stage === "Ready for payment") return "accent";
 	if (stage === "Rejected") return "danger";
+	if (stage === "First approved") return "info";
 	// Needs approval
 	return "warning";
 }

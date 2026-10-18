@@ -80,6 +80,7 @@ export function getStatusLabel(request: ReimbursementRequest): string {
 	if (request.status === "paid" || request.payment_status === "paid")
 		return "Paid";
 	if (request.approval_status === "approved") return "Approved";
+	if (request.first_approved_at) return "First approved";
 	return "Pending";
 }
 

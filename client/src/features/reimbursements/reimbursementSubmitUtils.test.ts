@@ -59,6 +59,22 @@ describe("formatAmount", () => {
 });
 
 describe("getStatusLabel", () => {
+	it("marks a first approval until the final one", () => {
+		expect(
+			getStatusLabel(
+				makeRequest({ first_approved_at: "2026-10-17T10:00:00Z" }),
+			),
+		).toBe("First approved");
+		expect(
+			getStatusLabel(
+				makeRequest({
+					approval_status: "approved",
+					first_approved_at: "2026-10-17T10:00:00Z",
+				}),
+			),
+		).toBe("Approved");
+	});
+
 	it("prioritises not_approved", () => {
 		expect(
 			getStatusLabel(makeRequest({ approval_status: "not_approved" })),

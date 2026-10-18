@@ -143,6 +143,12 @@ export interface ReimbursementRequest {
 	receipt_has_payload?: boolean;
 	status: ReimbursementStatus;
 	approval_status: ReimbursementApprovalStatus;
+	/**
+	 * Set by the first of the two "Approve" clicks. The request stays
+	 * `pending` until the second one makes it `approved`.
+	 */
+	first_approved_at?: string | null;
+	first_approved_by?: string | null;
 	payment_status: ReimbursementPaymentStatus;
 	rejection_reason?: string | null;
 	bb_sync_status?: ReimbursementBuchhaltungsButlerSyncStatus | null;

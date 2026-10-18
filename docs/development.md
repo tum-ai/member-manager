@@ -79,7 +79,7 @@ Receipt files are uploaded directly from the browser to the private `reimburseme
 
 ### Slack notifications and interactions
 
-Submitted reimbursement and invoice requests appear in the Finance Review queue for active Legal & Finance members and admins. If `SLACK_BOT_TOKEN` is set, eligible reviewers who enabled reimbursement Slack DMs in their profile receive a DM, and approval, rejection, and paid status changes DM the requester. Without Slack configuration, the queues and in-app statuses remain the source of truth.
+Submitted reimbursement and invoice requests appear in the Finance Review queue for active Legal & Finance members and admins. Approval takes two clicks: the first "Approve" only records a first approval (`first_approved_at`, shown as "First approved"; the request stays `pending`), and the second, "Final approval", makes it `approved` as before. The same applies to the Slack approve buttons; a first approval never syncs to BuchhaltungsButler. If `SLACK_BOT_TOKEN` is set, eligible reviewers who enabled reimbursement Slack DMs in their profile receive a DM, and approval, rejection, and paid status changes DM the requester. Without Slack configuration, the queues and in-app statuses remain the source of truth.
 
 Block Kit buttons need `APP_BASE_URL`, `SLACK_BOT_TOKEN`, and the scopes `chat:write`, `users:read`, `users:read.email`, and `im:write`. Configure Slack interactivity to post to `/api/slack/interactions` and set `SLACK_SIGNING_SECRET` so the server can verify `X-Slack-Signature` before accepting approve / approve-and-sync clicks.
 
@@ -133,7 +133,7 @@ sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
 - SEPA rows for reimbursement flows
 - member-change request states: pending, approved, rejected
 - engagement-certificate request states: pending, approved, rejected
-- reimbursement states: pending, approved/unpaid, paid/synced, rejected
+- reimbursement states: pending, first approved, approved/unpaid, paid/synced, rejected
 
 All seeded local accounts use password `password123`:
 

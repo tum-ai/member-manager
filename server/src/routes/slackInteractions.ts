@@ -157,7 +157,16 @@ async function handleReimbursementAction({
 	reviewerUserId: string;
 	request: FastifyRequest;
 }): Promise<string> {
-	await approveReimbursementRequest({ requestId, log: request.log });
+	const approved = await approveReimbursementRequest({
+		requestId,
+		reviewerUserId,
+		log: request.log,
+	});
+
+	// A first approval isn't final yet, so there is nothing to sync.
+	if (approved.approval_status !== "approved") {
+		return `Request ${requestId} got its first approval. Click again for the final approval.`;
+	}
 
 	if (actionId === "reimbursement_approve_sync_bb") {
 		await syncApprovedReimbursementToBuchhaltungsButler({
