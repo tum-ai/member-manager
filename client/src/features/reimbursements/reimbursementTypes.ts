@@ -6,6 +6,7 @@ export type {
 	ReimbursementReviewAction,
 	ReimbursementStatus,
 	ReimbursementSubmissionType,
+	ResubmitReimbursementRequestPayload,
 } from "@member-manager/shared";
 
 import type {

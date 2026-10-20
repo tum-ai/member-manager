@@ -33,6 +33,11 @@ export interface ReimbursementSlackNotification {
 	department: string;
 	amount: number;
 	reviewUrl?: string;
+	/** Set when the requester fixed and resubmitted a rejected request. */
+	resubmission?: {
+		count: number;
+		previousRejectionReason: string;
+	};
 }
 
 export interface ReimbursementStatusSlackNotification {
@@ -375,16 +380,40 @@ async function fetchReimbursementReviewerEmails(): Promise<string[]> {
 	return emails.map((email) => email.trim()).filter(Boolean);
 }
 
+/** Wording shared by the finance DM text and blocks for a new or resubmitted request. */
+function getReimbursementRequestContent(
+	payload: ReimbursementSlackNotification,
+): { headline: string; previousRejectionReason?: string } {
+	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
+	if (!payload.resubmission) {
+		return { headline: `New ${requestLabel} request` };
+	}
+	return {
+		headline: `Resubmitted ${requestLabel} request`,
+		// Reviewer-written free text; escape it so it can't inject mentions,
+		// links, or formatting into the finance DM.
+		previousRejectionReason: sanitizeSlackUserText(
+			payload.resubmission.previousRejectionReason.trim() ||
+				"No reason provided",
+			500,
+		),
+	};
+}
+
 function buildReimbursementMessage(
 	payload: ReimbursementSlackNotification,
 ): string {
-	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
+	const { headline, previousRejectionReason } =
+		getReimbursementRequestContent(payload);
 	const reviewLine = payload.reviewUrl
 		? `Review in Member Manager: ${payload.reviewUrl}`
 		: "Review in the Member Manager finance workspace.";
 
 	return [
-		`New ${requestLabel} request`,
+		headline,
+		...(previousRejectionReason
+			? [`Previously rejected: ${previousRejectionReason}`]
+			: []),
 		`Requester: ${payload.requesterEmail}`,
 		`Department: ${payload.department}`,
 		`Amount: ${payload.amount.toFixed(2)} EUR`,
@@ -400,16 +429,21 @@ function buildReimbursementBlocks(
 		return undefined;
 	}
 
-	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
+	const { headline, previousRejectionReason } =
+		getReimbursementRequestContent(payload);
 
 	return [
 		{
 			type: "section",
 			text: {
 				type: "mrkdwn",
-				text: `*New ${requestLabel} request*\n${payload.amount.toFixed(
+				text: `*${headline}*\n${payload.amount.toFixed(
 					2,
-				)} EUR · ${payload.department}`,
+				)} EUR · ${payload.department}${
+					previousRejectionReason
+						? `\n*Previously rejected:* ${previousRejectionReason}`
+						: ""
+				}`,
 			},
 		},
 		{

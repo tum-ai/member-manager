@@ -222,6 +222,68 @@ test("labels Vivid reimbursement notifications for reviewers", async () => {
 	assert.match(String(posts[0].text), /New Vivid Reimbursement request/);
 });
 
+test("marks resubmitted requests and shows the escaped previous reason", async () => {
+	resetMockDatabase();
+	setSupabaseClient(createMockSupabaseClient());
+	process.env.SLACK_BOT_TOKEN = "xoxb-test";
+	const adminMember = mockDatabase.members.find(
+		(member) => member.user_id === MOCK_ADMIN_ID,
+	);
+	assert.ok(adminMember);
+	adminMember.reimbursement_slack_notifications_enabled = true;
+
+	const posts: Array<Record<string, unknown>> = [];
+	globalThis.fetch = async (input, init) => {
+		const url = String(input);
+		const body = init?.body?.toString() ?? "";
+		if (url.endsWith("/users.lookupByEmail")) {
+			return new Response(
+				JSON.stringify({ ok: true, user: { id: "U-reviewer" } }),
+				{ status: 200 },
+			);
+		}
+		if (url.endsWith("/conversations.open")) {
+			return new Response(
+				JSON.stringify({ ok: true, channel: { id: "D-reviewer" } }),
+				{ status: 200 },
+			);
+		}
+		if (url.endsWith("/chat.postMessage")) {
+			posts.push(JSON.parse(body) as Record<string, unknown>);
+			return new Response(JSON.stringify({ ok: true }), { status: 200 });
+		}
+		return new Response("not found", { status: 404 });
+	};
+
+	await notifyFinanceOfReimbursementRequest({
+		requestId: "request-7",
+		requesterUserId: "requester-1",
+		requesterEmail: "requester@test.com",
+		submissionType: "reimbursement",
+		department: "Community",
+		amount: 31.2,
+		reviewUrl: "https://member-manager.test/tools/reimbursement/review",
+		resubmission: {
+			count: 1,
+			previousRejectionReason: "Missing <receipt>, ask <!channel>",
+		},
+	});
+
+	assert.strictEqual(posts.length, 1);
+	const text = String(posts[0].text);
+	assert.match(text, /^Resubmitted reimbursement request\n/);
+	assert.match(
+		text,
+		/\nPreviously rejected: Missing &lt;receipt&gt;, ask &lt;!channel&gt;\n/,
+	);
+	const blocks = posts[0].blocks as Array<{ text?: { text?: string } }>;
+	assert.strictEqual(
+		blocks[0]?.text?.text,
+		"*Resubmitted reimbursement request*\n31.20 EUR · Community\n*Previously rejected:* Missing &lt;receipt&gt;, ask &lt;!channel&gt;",
+	);
+	assert.ok(!JSON.stringify(posts[0]).includes("<!channel>"));
+});
+
 test("notifyBugReport tags a round-robin member from the Slack channel", async () => {
 	const calls: Array<{ body?: string; url: string }> = [];
 	process.env.SLACK_BOT_TOKEN = "xoxb-test";
