@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from "react";
 import { useToast } from "@/contexts/ToastContext";
 import {
 	ALLOWED_RECEIPT_TYPES,
+	buildEditValues,
+	canResubmitRequest,
 	defaultValues,
 	type FormErrors,
 	type FormValues,
@@ -17,6 +19,7 @@ import {
 } from "@/features/reimbursements/reimbursementSubmitUtils";
 import type {
 	CreateReimbursementRequestPayload,
+	ReimbursementRequest,
 	ReimbursementSubmissionType,
 } from "@/features/reimbursements/reimbursementTypes";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
@@ -32,6 +35,8 @@ export function useReimbursementForm(userId: string) {
 		error,
 		createRequestAsync,
 		isCreating,
+		resubmitRequestAsync,
+		isResubmitting,
 		uploadReceiptAsync,
 		isUploadingReceipt,
 		parseReceiptAsync,
@@ -42,6 +47,10 @@ export function useReimbursementForm(userId: string) {
 	const { sepa, isLoading: isSepaLoading } = useSepaData(userId);
 	const [values, setValues] = useState<FormValues>(defaultValues);
 	const [errors, setErrors] = useState<FormErrors>({});
+	// The rejected request whose corrections the form currently holds; null
+	// while the form is for a new request.
+	const [editingRequest, setEditingRequest] =
+		useState<ReimbursementRequest | null>(null);
 	const [isReadingReceipt, setIsReadingReceipt] = useState(false);
 	const [isDraggingReceipt, setIsDraggingReceipt] = useState(false);
 	const memberDepartment =
@@ -303,7 +312,7 @@ export function useReimbursementForm(userId: string) {
 			return;
 		}
 
-		const payload: CreateReimbursementRequestPayload = {
+		const details = {
 			amount: Number(values.amount),
 			date: values.date,
 			description: values.description.trim(),
@@ -315,6 +324,8 @@ export function useReimbursementForm(userId: string) {
 						payment_iban: normalizeIban(values.paymentIban),
 						payment_bic: values.paymentBic.trim(),
 					}),
+		};
+		const receiptFields = {
 			receipt_filename: values.receipt?.fileName ?? "",
 			receipt_mime_type: values.receipt?.mimeType ?? "",
 			receipt_storage_bucket: values.receipt?.storageBucket ?? "",
@@ -322,18 +333,35 @@ export function useReimbursementForm(userId: string) {
 			receipt_size_bytes: values.receipt?.sizeBytes ?? null,
 		};
 
+		if (editingRequest) {
+			try {
+				// Leaving the receipt out keeps the one already on the request.
+				await resubmitRequestAsync({
+					requestId: editingRequest.id,
+					payload: values.receipt?.existing
+						? details
+						: { ...details, ...receiptFields },
+				});
+				showToast("Request resubmitted for review.", "success");
+				resetForm();
+			} catch (submitError) {
+				showToast(
+					`Error resubmitting request: ${getErrorMessage(submitError)}`,
+					"error",
+				);
+			}
+			return;
+		}
+
+		const payload: CreateReimbursementRequestPayload = {
+			...details,
+			...receiptFields,
+		};
+
 		try {
 			await createRequestAsync(payload);
 			showToast("Reimbursement request submitted.", "success");
-			reimbursementDraft.current = { iban: null, bic: null };
-			invoiceDraft.current = { iban: null, bic: null };
-			setValues({
-				...defaultValues,
-				department: memberDepartment,
-				paymentIban: profileIban,
-				paymentBic: profileBic,
-			});
-			setErrors({});
+			resetForm();
 		} catch (submitError) {
 			showToast(
 				`Error submitting reimbursement request: ${getErrorMessage(submitError)}`,
@@ -342,7 +370,43 @@ export function useReimbursementForm(userId: string) {
 		}
 	};
 
-	const isSubmitDisabled = isCreating || isReceiptBusy;
+	/** Back to a blank new-request form, prefilled from the member's profile. */
+	const resetForm = (): void => {
+		reimbursementDraft.current = { iban: null, bic: null };
+		invoiceDraft.current = { iban: null, bic: null };
+		setEditingRequest(null);
+		setValues({
+			...defaultValues,
+			department: memberDepartment,
+			paymentIban: profileIban,
+			paymentBic: profileBic,
+		});
+		setErrors({});
+	};
+
+	const startEditing = (request: ReimbursementRequest): void => {
+		if (!canResubmitRequest(request)) return;
+		const nextValues = buildEditValues(request);
+		// Seed the type's own bank-detail draft with what the request used, so
+		// switching type and back restores it instead of the profile IBAN.
+		const submittedAccount = {
+			iban: nextValues.paymentIban,
+			bic: nextValues.paymentBic,
+		};
+		reimbursementDraft.current =
+			nextValues.submissionType === "reimbursement"
+				? submittedAccount
+				: { iban: null, bic: null };
+		invoiceDraft.current =
+			nextValues.submissionType === "invoice"
+				? submittedAccount
+				: { iban: null, bic: null };
+		setEditingRequest(request);
+		setValues(nextValues);
+		setErrors({});
+	};
+
+	const isSubmitDisabled = isCreating || isResubmitting || isReceiptBusy;
 	const showDepartmentWarning =
 		Boolean(memberDepartment) &&
 		Boolean(values.department) &&
@@ -355,6 +419,10 @@ export function useReimbursementForm(userId: string) {
 		isLoading,
 		error,
 		isCreating,
+		isResubmitting,
+		editingRequest,
+		startEditing,
+		cancelEditing: resetForm,
 		isReceiptBusy,
 		isDraggingReceipt,
 		setIsDraggingReceipt,

@@ -116,6 +116,9 @@ export function ReimbursementRequestsSection({
 											{getRequestTypeLabel(request)}
 										</Badge>
 										<Badge variant="neutral">{getStatusLabel(request)}</Badge>
+										{(request.resubmission_count ?? 0) > 0 && (
+											<Badge variant="info">Resubmitted</Badge>
+										)}
 									</span>
 									<span className="mb-1 block text-sm break-words">
 										{request.description}

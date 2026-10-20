@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildEditValues,
+	canResubmitRequest,
 	defaultValues,
 	type FormValues,
 	formatAmount,
@@ -30,6 +32,69 @@ function makeRequest(
 		...overrides,
 	};
 }
+
+describe("canResubmitRequest", () => {
+	it("allows only rejected requests", () => {
+		expect(
+			canResubmitRequest(
+				makeRequest({ approval_status: "not_approved", status: "rejected" }),
+			),
+		).toBe(true);
+		expect(canResubmitRequest(makeRequest())).toBe(false);
+		expect(
+			canResubmitRequest(makeRequest({ approval_status: "approved" })),
+		).toBe(false);
+	});
+});
+
+describe("buildEditValues", () => {
+	it("starts from what was submitted and marks the receipt as kept", () => {
+		const values = buildEditValues(
+			makeRequest({
+				amount: 42.5,
+				payment_iban: "DE89370400440532013000",
+				payment_bic: "COBADEFFXXX",
+				receipt_filename: "receipt.pdf",
+				receipt_mime_type: "application/pdf",
+			}),
+		);
+
+		expect(values).toEqual({
+			submissionType: "reimbursement",
+			amount: "42.5",
+			date: "2026-04-12",
+			description: "Test",
+			department: "Community",
+			paymentIban: "DE89370400440532013000",
+			paymentBic: "COBADEFFXXX",
+			receipt: {
+				fileName: "receipt.pdf",
+				mimeType: "application/pdf",
+				sizeBytes: 0,
+				storageBucket: "",
+				storagePath: "",
+				existing: true,
+			},
+		});
+		// A kept receipt satisfies the form's receipt requirement.
+		expect(validateForm(values).receiptFile).toBeUndefined();
+	});
+
+	it("leaves payout blank for Vivid and asks for a receipt when none is attached", () => {
+		const values = buildEditValues(
+			makeRequest({
+				submission_type: "vivid_reimbursement",
+				payment_iban: "DE89370400440532013000",
+				receipt_filename: null,
+			}),
+		);
+
+		expect(values.paymentIban).toBe("");
+		expect(values.paymentBic).toBe("");
+		expect(values.receipt).toBeNull();
+		expect(validateForm(values).receiptFile).toBe("Attach a receipt.");
+	});
+});
 
 describe("getErrorMessage", () => {
 	it("returns the Error message", () => {

@@ -62,6 +62,7 @@ const meta = {
 		onDownloadReceipt: fn(),
 		isOpeningReceipt: false,
 		isDownloadingReceipt: false,
+		onEditAndResubmit: fn(),
 	},
 } satisfies Meta<typeof ReimbursementRequestDetailDialog>;
 
@@ -93,6 +94,12 @@ export const RejectedInvoice: Story = {
 			details.getByRole("button", { name: "Download receipt" }),
 		);
 		await expect(args.onDownloadReceipt).toHaveBeenCalledTimes(1);
+
+		// The edit starts once the dialog has closed, so clicking only closes it.
+		await userEvent.click(
+			details.getByRole("button", { name: "Edit and resubmit" }),
+		);
+		await expect(args.onOpenChange).toHaveBeenCalledWith(false);
 	},
 };
 
@@ -108,6 +115,9 @@ export const VividExpense: Story = {
 		await expect(details.getByText("Payout")).toBeVisible();
 		await expect(details.queryByText("IBAN")).not.toBeInTheDocument();
 		await expect(details.queryByText("BIC")).not.toBeInTheDocument();
+		await expect(
+			details.queryByRole("button", { name: "Edit and resubmit" }),
+		).not.toBeInTheDocument();
 	},
 };
 
