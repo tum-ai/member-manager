@@ -2,6 +2,8 @@ import "../setup.js";
 import assert from "node:assert";
 import { afterEach, test } from "node:test";
 import {
+	decodeReimbursementActionValue,
+	encodeReimbursementActionValue,
 	notifyBugReport,
 	notifyFinanceOfReimbursementRequest,
 	notifyRequesterOfReimbursementStatus,
@@ -260,7 +262,8 @@ test("marks resubmitted requests and shows the escaped previous reason", async (
 		requesterUserId: "requester-1",
 		requesterEmail: "requester@test.com",
 		submissionType: "reimbursement",
-		department: "Community",
+		// Department is requester free text too.
+		department: "Community <!here>",
 		amount: 31.2,
 		reviewUrl: "https://member-manager.test/tools/reimbursement/review",
 		resubmission: {
@@ -276,12 +279,38 @@ test("marks resubmitted requests and shows the escaped previous reason", async (
 		text,
 		/\nPreviously rejected: Missing &lt;receipt&gt;, ask &lt;!channel&gt;\n/,
 	);
-	const blocks = posts[0].blocks as Array<{ text?: { text?: string } }>;
+	assert.match(text, /\nDepartment: Community &lt;!here&gt;\n/);
+	const blocks = posts[0].blocks as Array<{
+		text?: { text?: string };
+		elements?: Array<{ action_id?: string; value?: string }>;
+	}>;
 	assert.strictEqual(
 		blocks[0]?.text?.text,
-		"*Resubmitted reimbursement request*\n31.20 EUR · Community\n*Previously rejected:* Missing &lt;receipt&gt;, ask &lt;!channel&gt;",
+		"*Resubmitted reimbursement request*\n31.20 EUR · Community &lt;!here&gt;\n*Previously rejected:* Missing &lt;receipt&gt;, ask &lt;!channel&gt;",
 	);
 	assert.ok(!JSON.stringify(posts[0]).includes("<!channel>"));
+	assert.ok(!JSON.stringify(posts[0]).includes("<!here>"));
+	// The approve buttons name the review round this message shows.
+	const approveValues = blocks
+		.flatMap((block) => block.elements ?? [])
+		.filter((element) => element.action_id?.startsWith("reimbursement_approve"))
+		.map((element) => element.value);
+	assert.deepStrictEqual(approveValues, ["request-7#1", "request-7#1"]);
+});
+
+test("reimbursement action values round-trip and default to round 0", () => {
+	assert.strictEqual(encodeReimbursementActionValue("req-1", 0), "req-1");
+	assert.strictEqual(encodeReimbursementActionValue("req-1", 2), "req-1#2");
+	assert.deepStrictEqual(decodeReimbursementActionValue("req-1"), {
+		requestId: "req-1",
+		revision: 0,
+	});
+	assert.deepStrictEqual(decodeReimbursementActionValue("req-1#2"), {
+		requestId: "req-1",
+		revision: 2,
+	});
+	// A garbled round never matches a real one, so the approval is refused.
+	assert.ok(Number.isNaN(decodeReimbursementActionValue("req-1#x").revision));
 });
 
 test("notifyBugReport tags a round-robin member from the Slack channel", async () => {

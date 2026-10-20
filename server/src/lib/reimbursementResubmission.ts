@@ -9,6 +9,7 @@ import {
 	ValidationError,
 } from "./errors.js";
 import {
+	assertOwnedReceiptStoragePath,
 	downloadStoredReceipt,
 	REIMBURSEMENT_RECEIPT_BUCKET,
 	removeStoredReceipt,
@@ -75,9 +76,7 @@ export async function assertOwnedStoredReceipt({
 	if (bucket !== REIMBURSEMENT_RECEIPT_BUCKET) {
 		throw new ValidationError("Unsupported receipt storage bucket");
 	}
-	if (!path.startsWith(`${userId}/`)) {
-		throw new ValidationError("Receipt upload does not belong to this user.");
-	}
+	assertOwnedReceiptStoragePath(userId, path);
 	try {
 		await downloadStoredReceipt({ bucket, path, expectedMimeType: mimeType });
 	} catch {
@@ -117,14 +116,41 @@ function storedReceiptLocation(
 }
 
 /**
+ * Deletes a receipt object unless some request still points at it. Two calls
+ * can carry the same upload (a double click), and the losing call must not
+ * delete the file the winner just attached. If the check itself fails, the
+ * file is kept: an orphaned object is harmless, a missing receipt is not.
+ */
+async function removeReceiptIfUnreferenced(
+	location: { bucket: string; path: string },
+	log: ResubmissionLogger,
+	requestId: string,
+): Promise<void> {
+	try {
+		const { data, error } = await getSupabase()
+			.from("reimbursements")
+			.select("id")
+			.eq("receipt_storage_path", location.path)
+			.limit(1);
+		if (error || (data ?? []).length > 0) return;
+		await removeStoredReceipt(location);
+	} catch (removeError) {
+		log.warn(
+			{ err: removeError, requestId },
+			"Failed to remove unused reimbursement receipt",
+		);
+	}
+}
+
+/**
  * Sends the member's own rejected request back to review with their
  * corrections, on the same row.
  *
  * The request restarts the whole review: both approvals are cleared because
  * the content they approved has changed. The rejection reason moves to
  * `last_rejection_reason` so reviewers can check it was addressed. Reviewer-
- * owned fields (finance links, BuchhaltungsButler sync state) and `created_at`
- * are left as they are.
+ * owned fields (BuchhaltungsButler sync state, finance links while the
+ * department stays the same) and `created_at` are left as they are.
  */
 export async function resubmitRejectedReimbursement({
 	requestId,
@@ -157,6 +183,17 @@ export async function resubmitRejectedReimbursement({
 	if (existingRequest.approval_status !== "not_approved") {
 		throw new ConflictError("Only rejected requests can be resubmitted");
 	}
+	// Before #382 a paid request could still be rejected and keep
+	// `payment_status: paid`. Resubmitting it would reset it to `to_be_paid`
+	// and put money already sent back in the payout queue.
+	if (
+		existingRequest.payment_status === "paid" ||
+		existingRequest.status === "paid"
+	) {
+		throw new ConflictError(
+			"This request was already paid, so it can't be resubmitted",
+		);
+	}
 
 	const newStoredReceipt = receipt?.storagePath
 		? {
@@ -176,14 +213,27 @@ export async function resubmitRejectedReimbursement({
 	const previousRejectionReason = String(
 		existingRequest.rejection_reason ?? "",
 	);
-	const resubmissionCount =
-		(Number(existingRequest.resubmission_count) || 0) + 1;
+	const currentRevision = Number(existingRequest.resubmission_count) || 0;
+	const resubmissionCount = currentRevision + 1;
+	const department = details.department.trim();
+	// Finance links are validated against the department
+	// (`resolveReimbursementFinanceLinks`). A request moved to another
+	// department drops them, and the reviewer assigns new ones.
+	const financeLinkReset =
+		department !== String(existingRequest.department ?? "").trim()
+			? {
+					finance_project_id: null,
+					finance_plan_item_id: null,
+					bb_posting_external_id: null,
+				}
+			: {};
 	const now = new Date().toISOString();
 	const update = encryptRecord(
 		{
 			...details,
 			description: details.description.trim(),
-			department: details.department.trim(),
+			department,
+			...financeLinkReset,
 			...(receipt ? receiptFields(receipt) : {}),
 			status: "requested",
 			approval_status: "pending",
@@ -201,44 +251,40 @@ export async function resubmitRejectedReimbursement({
 		SENSITIVE_REIMBURSEMENT_FIELDS,
 	);
 
-	// Re-check the state in the update itself so a double click can't
-	// resubmit twice and bump the count past what the member did.
+	// The update only applies to the exact version that was read: still
+	// rejected, same review round, same payment state. A double click, or a
+	// delayed call that arrives after another resubmit-and-reject round, can't
+	// overwrite newer details or rejection history.
 	const { data, error } = await getSupabase()
 		.from("reimbursements")
 		.update(update)
 		.eq("id", requestId)
 		.eq("user_id", userId)
 		.eq("approval_status", "not_approved")
+		.eq("resubmission_count", currentRevision)
+		.eq("payment_status", existingRequest.payment_status)
 		.select()
 		.maybeSingle();
 
 	if (error || !data) {
 		if (newStoredReceipt) {
-			await removeStoredReceipt(newStoredReceipt);
+			await removeReceiptIfUnreferenced(newStoredReceipt, log, requestId);
 		}
 		if (error) {
 			throw new DatabaseError("Failed to resubmit reimbursement request");
 		}
 		throw new ConflictError(
-			"This request was already resubmitted. Reload to see its status.",
+			"This request changed in the meantime. Reload to see its status.",
 		);
 	}
 
-	// The replaced receipt is no longer referenced by any request.
 	const oldStoredReceipt = storedReceiptLocation(existingRequest);
 	if (
 		receipt &&
 		oldStoredReceipt &&
 		oldStoredReceipt.path !== newStoredReceipt?.path
 	) {
-		try {
-			await removeStoredReceipt(oldStoredReceipt);
-		} catch (removeError) {
-			log.warn(
-				{ err: removeError, requestId },
-				"Failed to remove replaced reimbursement receipt",
-			);
-		}
+		await removeReceiptIfUnreferenced(oldStoredReceipt, log, requestId);
 	}
 
 	return {

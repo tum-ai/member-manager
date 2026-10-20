@@ -124,11 +124,34 @@ export function receiptStoragePath({
 	return `${userId}/${randomUUID()}-${filenameWithExtension}`;
 }
 
+// The object name `receiptStoragePath` mints after the owner folder: a UUID
+// plus the sanitized filename, so only word characters, dots and dashes.
+const RECEIPT_OBJECT_NAME = /^[\w.-]+$/;
+
+/**
+ * True only for a key of the exact shape `receiptStoragePath` mints for this
+ * user: `<userId>/<object name>`. A prefix check is not enough: the storage
+ * client builds a URL from the key, and URL parsing resolves `..` (also when
+ * written `%2e%2e`), so `<userId>/../<otherUser>/file.pdf` would read another
+ * member's receipt with the service key.
+ */
+export function isOwnedReceiptStoragePath(
+	userId: string,
+	path: string,
+): boolean {
+	const segments = path.split("/");
+	if (segments.length !== 2) return false;
+	const [owner, name] = segments;
+	return (
+		owner === userId && RECEIPT_OBJECT_NAME.test(name) && !/^\.+$/.test(name)
+	);
+}
+
 export function assertOwnedReceiptStoragePath(
 	userId: string,
 	path: string,
 ): void {
-	if (!path.startsWith(`${userId}/`)) {
+	if (!isOwnedReceiptStoragePath(userId, path)) {
 		throw new ValidationError("Receipt upload does not belong to this user.");
 	}
 }

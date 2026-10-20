@@ -3,9 +3,14 @@ import assert from "node:assert";
 import { after, afterEach, before, describe, test } from "node:test";
 import type { FastifyInstance } from "fastify";
 import {
+	type ResubmissionReceipt,
+	resubmitRejectedReimbursement,
+} from "../../src/lib/reimbursementResubmission.js";
+import {
 	resetSlackNotifier,
 	setReimbursementSlackNotifier,
 } from "../../src/lib/slackNotifier.js";
+import { setSupabaseClient } from "../../src/lib/supabase.js";
 import {
 	authHeaders,
 	closeTestApp,
@@ -15,6 +20,7 @@ import {
 	testUserIds,
 } from "../helpers.js";
 import {
+	createMockSupabaseClient,
 	MOCK_REIMBURSEMENT_OLDER_ID,
 	mockDatabase,
 	mockStorage,
@@ -51,6 +57,55 @@ function rejectSeededRequest(extra: Record<string, unknown> = {}) {
 		...extra,
 	});
 	return row;
+}
+
+/**
+ * Runs `action` with the request row changed by `change` right after the
+ * resubmission has read it, as if another call had landed in between.
+ */
+async function withRowChangedAfterRead<T>(
+	change: Record<string, unknown>,
+	action: () => Promise<T>,
+): Promise<T> {
+	const client = createMockSupabaseClient();
+	let changed = false;
+	setSupabaseClient({
+		...client,
+		from: (table: string) => {
+			const builder = client.from(table);
+			if (table === "reimbursements" && !changed) {
+				changed = true;
+				const read = builder.maybeSingle;
+				builder.maybeSingle = (async () => {
+					const result = await read();
+					// The mock hands out its stored row object; the database
+					// returns a copy, so snapshot it before the row changes.
+					const snapshot = {
+						...result,
+						data: result.data ? { ...result.data } : result.data,
+					};
+					Object.assign(findRequest() ?? {}, change);
+					return snapshot;
+				}) as typeof builder.maybeSingle;
+			}
+			return builder;
+		},
+	} as typeof client);
+	try {
+		return await action();
+	} finally {
+		setSupabaseClient(createMockSupabaseClient());
+	}
+}
+
+function resubmitDirectly(receipt: ResubmissionReceipt | null) {
+	return resubmitRejectedReimbursement({
+		requestId: MOCK_REIMBURSEMENT_OLDER_ID,
+		userId: testUserIds.user,
+		details: { ...correctedRequest, submission_type: "reimbursement" },
+		receipt,
+		log: { warn: () => {} },
+	});
 }
 
 describe("reimbursement resubmission", async () => {
@@ -294,5 +349,191 @@ describe("reimbursement resubmission", async () => {
 		assert.strictEqual(stored?.submission_type, "vivid_reimbursement");
 		assert.strictEqual(stored?.payment_iban, null);
 		assert.strictEqual(stored?.payment_status, "not_required");
+	});
+
+	test("refuses a rejected request that was already paid", async () => {
+		resetDatabase();
+		// Before the reject-only-pending fix a paid request could be rejected
+		// and keep its paid state; resubmitting must not make it payable again.
+		rejectSeededRequest({ payment_status: "paid" });
+
+		const response = await resubmit(correctedRequest);
+
+		assert.strictEqual(response.statusCode, 409);
+		assert.match(response.payload, /already paid/);
+		const stored = findRequest();
+		assert.strictEqual(stored?.payment_status, "paid");
+		assert.strictEqual(stored?.approval_status, "not_approved");
+	});
+
+	test("refuses receipt keys that resolve into another member's folder", async () => {
+		resetDatabase();
+		rejectSeededRequest();
+		const victimPath = `${testUserIds.otherUser}/receipt.pdf`;
+		mockStorage.set(
+			`${RECEIPT_BUCKET}/${victimPath}`,
+			Buffer.from(PDF_BASE64, "base64"),
+		);
+
+		const response = await resubmit({
+			...correctedRequest,
+			receipt_filename: "receipt.pdf",
+			receipt_mime_type: "application/pdf",
+			receipt_storage_bucket: RECEIPT_BUCKET,
+			receipt_storage_path: `${testUserIds.user}/../${victimPath}`,
+		});
+
+		assert.strictEqual(response.statusCode, 400);
+		assert.match(response.payload, /does not belong to this user/);
+		assert.strictEqual(findRequest()?.receipt_storage_path ?? null, null);
+	});
+
+	test("refuses the same traversal key on a new request", async () => {
+		resetDatabase();
+		const victimPath = `${testUserIds.otherUser}/receipt.pdf`;
+		mockStorage.set(
+			`${RECEIPT_BUCKET}/${victimPath}`,
+			Buffer.from(PDF_BASE64, "base64"),
+		);
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/reimbursements",
+			headers: {
+				...authHeaders(testTokens.user),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({
+				...correctedRequest,
+				receipt_filename: "receipt.pdf",
+				receipt_mime_type: "application/pdf",
+				receipt_storage_bucket: RECEIPT_BUCKET,
+				receipt_storage_path: `${testUserIds.user}/../${victimPath}`,
+			}),
+		});
+
+		assert.strictEqual(response.statusCode, 400);
+		assert.match(response.payload, /does not belong to this user/);
+	});
+
+	test("the losing call of a double click keeps the receipt the winner attached", async () => {
+		resetDatabase();
+		rejectSeededRequest();
+		const newPath = `${testUserIds.user}/itemised.pdf`;
+		mockStorage.set(
+			`${RECEIPT_BUCKET}/${newPath}`,
+			Buffer.from(PDF_BASE64, "base64"),
+		);
+
+		// Both clicks carry the same upload. The winner lands between this
+		// call's read and its update.
+		await assert.rejects(
+			withRowChangedAfterRead(
+				{
+					approval_status: "pending",
+					status: "requested",
+					resubmission_count: 1,
+					receipt_storage_bucket: RECEIPT_BUCKET,
+					receipt_storage_path: newPath,
+				},
+				() =>
+					resubmitDirectly({
+						filename: "itemised.pdf",
+						mimeType: "application/pdf",
+						base64: null,
+						storageBucket: RECEIPT_BUCKET,
+						storagePath: newPath,
+						sizeBytes: 8,
+					}),
+			),
+			/changed in the meantime/,
+		);
+
+		assert.strictEqual(findRequest()?.receipt_storage_path, newPath);
+		assert.strictEqual(mockStorage.has(`${RECEIPT_BUCKET}/${newPath}`), true);
+	});
+
+	test("keeps a replaced receipt that another request still uses", async () => {
+		resetDatabase();
+		const sharedPath = `${testUserIds.user}/shared.pdf`;
+		const newPath = `${testUserIds.user}/new.pdf`;
+		rejectSeededRequest({
+			receipt_base64: null,
+			receipt_storage_bucket: RECEIPT_BUCKET,
+			receipt_storage_path: sharedPath,
+		});
+		mockDatabase.reimbursements.push({
+			...findRequest(),
+			id: "other-request-with-same-receipt",
+			approval_status: "pending",
+			status: "requested",
+		});
+		mockStorage.set(
+			`${RECEIPT_BUCKET}/${sharedPath}`,
+			Buffer.from(PDF_BASE64, "base64"),
+		);
+		mockStorage.set(
+			`${RECEIPT_BUCKET}/${newPath}`,
+			Buffer.from(PDF_BASE64, "base64"),
+		);
+
+		const response = await resubmit({
+			...correctedRequest,
+			receipt_filename: "new.pdf",
+			receipt_mime_type: "application/pdf",
+			receipt_storage_bucket: RECEIPT_BUCKET,
+			receipt_storage_path: newPath,
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(
+			mockStorage.has(`${RECEIPT_BUCKET}/${sharedPath}`),
+			true,
+		);
+	});
+
+	test("a delayed call can't overwrite a newer review round", async () => {
+		resetDatabase();
+		rejectSeededRequest();
+
+		// The call reads round 0. Before its update lands, another resubmit
+		// and a second rejection move the request to round 1, still rejected.
+		await assert.rejects(
+			withRowChangedAfterRead(
+				{
+					resubmission_count: 1,
+					rejection_reason: "Second rejection",
+					description: "Newer details",
+				},
+				() => resubmitDirectly(null),
+			),
+			/changed in the meantime/,
+		);
+
+		const stored = findRequest();
+		assert.strictEqual(stored?.resubmission_count, 1);
+		assert.strictEqual(stored?.rejection_reason, "Second rejection");
+		assert.strictEqual(stored?.description, "Newer details");
+	});
+
+	test("moving to another department drops the finance links", async () => {
+		resetDatabase();
+		rejectSeededRequest({
+			finance_project_id: "project-1",
+			finance_plan_item_id: "plan-item-1",
+			bb_posting_external_id: "posting-1",
+		});
+
+		const response = await resubmit({
+			...correctedRequest,
+			department: "Makeathon",
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		const stored = findRequest();
+		assert.strictEqual(stored?.department, "Makeathon");
+		assert.strictEqual(stored?.finance_project_id, null);
+		assert.strictEqual(stored?.finance_plan_item_id, null);
+		assert.strictEqual(stored?.bb_posting_external_id, null);
 	});
 });

@@ -51,6 +51,9 @@ export function useReimbursementForm(userId: string) {
 	// while the form is for a new request.
 	const [editingRequest, setEditingRequest] =
 		useState<ReimbursementRequest | null>(null);
+	// Bumped whenever the form switches to another request or resets, so
+	// receipt work started for the previous form can tell it is stale.
+	const formSession = useRef(0);
 	const [isReadingReceipt, setIsReadingReceipt] = useState(false);
 	const [isDraggingReceipt, setIsDraggingReceipt] = useState(false);
 	const memberDepartment =
@@ -218,8 +221,14 @@ export function useReimbursementForm(userId: string) {
 		}
 
 		setIsReadingReceipt(true);
+		// Upload and parsing resolve later. If the member meanwhile started
+		// editing another request (or reset the form), the results belong to a
+		// form that is gone and must not land in this one.
+		const session = formSession.current;
+		const isStale = () => session !== formSession.current;
 		try {
 			const uploadedReceipt = await uploadReceiptAsync({ file });
+			if (isStale()) return;
 			const nextReceipt = {
 				fileName: uploadedReceipt.fileName,
 				mimeType: uploadedReceipt.mimeType,
@@ -237,6 +246,7 @@ export function useReimbursementForm(userId: string) {
 					receipt_storage_bucket: nextReceipt.storageBucket,
 					receipt_storage_path: nextReceipt.storagePath,
 				});
+				if (isStale()) return;
 
 				// Resolve the payee patch (and any draft write) outside the updater,
 				// which must stay a pure function of its input.
@@ -259,6 +269,7 @@ export function useReimbursementForm(userId: string) {
 					"success",
 				);
 			} catch (parseError) {
+				if (isStale()) return;
 				showToast(
 					`Receipt attached, but automatic extraction failed: ${getErrorMessage(
 						parseError,
@@ -267,6 +278,7 @@ export function useReimbursementForm(userId: string) {
 				);
 			}
 		} catch (readError) {
+			if (isStale()) return;
 			setErrors((current) => ({
 				...current,
 				receiptFile: `Could not upload receipt: ${getErrorMessage(readError)}`,
@@ -374,6 +386,7 @@ export function useReimbursementForm(userId: string) {
 	const resetForm = (): void => {
 		reimbursementDraft.current = { iban: null, bic: null };
 		invoiceDraft.current = { iban: null, bic: null };
+		formSession.current += 1;
 		setEditingRequest(null);
 		setValues({
 			...defaultValues,
@@ -401,6 +414,7 @@ export function useReimbursementForm(userId: string) {
 			nextValues.submissionType === "invoice"
 				? submittedAccount
 				: { iban: null, bic: null };
+		formSession.current += 1;
 		setEditingRequest(request);
 		setValues(nextValues);
 		setErrors({});

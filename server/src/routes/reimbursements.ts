@@ -33,6 +33,7 @@ import {
 	decodeReceiptBase64,
 	downloadStoredReceipt,
 	estimateBase64Bytes,
+	isOwnedReceiptStoragePath,
 	MAX_REIMBURSEMENT_RECEIPT_BYTES,
 	REIMBURSEMENT_RECEIPT_BUCKET,
 	removeStoredReceipt,
@@ -947,7 +948,10 @@ async function advanceApproval({
 			updated_at: now,
 		})
 		.eq("id", String(existingRequest.id))
-		.eq("approval_status", "pending");
+		.eq("approval_status", "pending")
+		// A resubmission keeps the id and returns to `pending`; the round
+		// makes sure this approval is for the content the reviewer saw.
+		.eq("resubmission_count", Number(existingRequest.resubmission_count) || 0);
 	query = firstApproval
 		? query.is("first_approved_at", null)
 		: query.eq("first_approved_at", existingRequest.first_approved_at);
@@ -967,10 +971,16 @@ async function advanceApproval({
 
 export async function approveReimbursementRequest({
 	requestId,
+	expectedRevision,
 	reviewerUserId,
 	log,
 }: {
 	requestId: string;
+	/**
+	 * Review round (`resubmission_count`) the approving Slack message showed.
+	 * A mismatch means the member resubmitted changed details since.
+	 */
+	expectedRevision?: number;
 	reviewerUserId: string;
 	log?: RouteLogger;
 }): Promise<ReimbursementRow> {
@@ -991,6 +1001,15 @@ export async function approveReimbursementRequest({
 	}
 
 	const existingRequest = existing as ReimbursementRow;
+	if (
+		expectedRevision !== undefined &&
+		(Number(existingRequest.resubmission_count) || 0) !== expectedRevision
+	) {
+		throw new ReimbursementWorkflowError(
+			"This message is for an earlier version of the request, which was resubmitted since. Review the current version in Member Manager.",
+			409,
+		);
+	}
 	if (existingRequest.approval_status === "approved") {
 		return existingRequest;
 	}
@@ -1266,7 +1285,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 						.status(400)
 						.send({ error: "Unsupported receipt storage bucket" });
 				}
-				if (!body.receipt_storage_path.startsWith(`${user.id}/`)) {
+				if (!isOwnedReceiptStoragePath(user.id, body.receipt_storage_path)) {
 					return reply
 						.status(400)
 						.send({ error: "Receipt upload does not belong to this user." });

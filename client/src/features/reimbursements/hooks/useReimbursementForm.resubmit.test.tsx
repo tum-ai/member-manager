@@ -262,6 +262,61 @@ describe("useReimbursementForm resubmission", () => {
 		expect(result.current.editingRequest?.id).toBe("req-rejected");
 	});
 
+	it("drops a receipt parse that finishes after the member switched to editing", async () => {
+		let finishParse: () => void = () => {};
+		const parseGate = new Promise<void>((resolve) => {
+			finishParse = resolve;
+		});
+		server.use(
+			http.post("/api/reimbursements/receipt-upload-url", () =>
+				HttpResponse.json({
+					bucket: "reimbursement-receipts",
+					path: "user-123/other.pdf",
+					token: "upload-token",
+					signed_url: "https://storage.example/upload",
+				}),
+			),
+			http.post("/api/reimbursements/parse-receipt", async () => {
+				await parseGate;
+				return HttpResponse.json({
+					amount: 999,
+					date: "2026-01-01",
+					description: "Another receipt",
+					payment_iban: "DE89370400440532013000",
+					payment_bic: "COBADEFFXXX",
+				});
+			}),
+		);
+		const { result } = await renderReady();
+
+		// A receipt for a new request is still being parsed...
+		act(() => {
+			void result.current.handleReceiptDrop(
+				dropEvent(
+					new File(["%PDF-1.4"], "other.pdf", { type: "application/pdf" }),
+				),
+			);
+		});
+		await waitFor(() =>
+			expect(result.current.values.receipt?.fileName).toBe("other.pdf"),
+		);
+		// ...when the member opens a rejected invoice to fix it.
+		act(() => result.current.startEditing(rejectedInvoice));
+		finishParse();
+		await waitFor(() => expect(result.current.isReceiptBusy).toBe(false));
+
+		expect(result.current.values).toMatchObject({
+			amount: "128.9",
+			description: "Prototype materials",
+			paymentIban: VENDOR_IBAN,
+			receipt: { fileName: "invoice.pdf", existing: true },
+		});
+		expect(showToast).not.toHaveBeenCalledWith(
+			expect.stringContaining("Receipt details extracted"),
+			"success",
+		);
+	});
+
 	it("cancelling returns to a blank new request", async () => {
 		const { result } = await renderReady();
 		act(() => result.current.startEditing(rejectedInvoice));
