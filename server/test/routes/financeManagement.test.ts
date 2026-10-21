@@ -953,7 +953,8 @@ describe("Finance management routes", async () => {
 			(group: { project_id: string | null }) => group.project_id === null,
 		);
 		assert.ok(ungrouped);
-		// The planned expense contributes to Plan- but not Ist-Saldo.
+		// The planned expense contributes to the planned balance, not the actual
+		// one.
 		assert.ok(
 			ungrouped.expense_lines.some(
 				(line: { kind: string; label: string }) =>
@@ -1277,12 +1278,12 @@ describe("Finance management routes", async () => {
 		assert.match(JSON.parse(response.payload).error, /direction/i);
 	});
 
-	// FR-L7 through the real route/RPC path: a department-level Planposten keeps
-	// its match when the invoice is filed into a project of the same department —
-	// the money never leaves the department. Before 20260825120000 the RPC refused
-	// the write and the route reported it as `matched_elsewhere` with no other
-	// project involved.
-	test("files a posting matched to a department Planposten into a project", async () => {
+	// Exercised through the real route/RPC path: a department-level plan item
+	// keeps its match when the invoice is filed into a project of the same
+	// department — the money never leaves the department. Before 20260825120000
+	// the RPC refused the write and the route reported it as `matched_elsewhere`
+	// with no other project involved.
+	test("files a posting matched to a department plan item into a project", async () => {
 		seedMakeathonMapping();
 		mockDatabase.finance_projects.push({
 			id: PROJECT_ID,
@@ -1310,7 +1311,7 @@ describe("Finance management routes", async () => {
 			expected_month: "2026-05",
 			status: "planned",
 			note: null,
-			// Department-level: no project owns this Planposten.
+			// Department-level: no project owns this plan item.
 			project_id: null,
 			template_item_id: null,
 		});
@@ -1458,7 +1459,7 @@ describe("Finance management routes", async () => {
 				},
 			]);
 			// The valid posting stayed applied instead of being rolled back into a
-			// 400 for the zero-value one (FR-L6).
+			// 400 for the zero-value one.
 			assert.strictEqual(
 				mockDatabase.finance_posting_allocations.filter(
 					(row) => row.posting_external_id === "9001",
@@ -1475,8 +1476,9 @@ describe("Finance management routes", async () => {
 		}
 	});
 
-	// FR-L1 is atomic in the direction that matters: if the postings cannot be
-	// read, no project is left behind for the user to trip over on the retry.
+	// Creating a project from a selection is atomic in the direction that
+	// matters: if the postings cannot be read, no project is left behind for the
+	// user to trip over on the retry.
 	test("creates no project when the selection cannot be read", async () => {
 		process.env.BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API = "true";
 		delete process.env.BUCHHALTUNGSBUTLER_API_CLIENT;

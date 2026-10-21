@@ -11,8 +11,8 @@ interface FinanceTAccountSelectionBarProps {
 	onClear: () => void;
 }
 
-// Appears as soon as one invoice is ticked (FR-K5). Sticky at the bottom on
-// small screens, where the selection is usually made far from the top of a long
+// Appears as soon as one invoice is ticked. Sticky at the bottom on small
+// screens, where the selection is usually made far from the top of a long
 // column; a plain bar above the folders on wider ones.
 export function FinanceTAccountSelectionBar({
 	count,

@@ -31,7 +31,7 @@ export function expenseVatTotal(
 
 // Total VAT contained in the income postings (amount > 0). Mirrors
 // `expenseVatTotal` for the income side so the T-account can explain how much of
-// a gross income figure is Umsatzsteuer (FR-J).
+// a gross income figure is output tax.
 export function incomeVatTotal(
 	transactions: BuchhaltungsButlerTransaction[],
 ): number {

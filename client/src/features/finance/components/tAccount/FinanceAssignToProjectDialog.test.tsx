@@ -73,8 +73,8 @@ describe("FinanceAssignToProjectDialog", () => {
 		expect(screen.getByText(/1 Buchung über/)).toBeInTheDocument();
 	});
 
-	// FR-L2 needs somewhere to file the invoice into; with no project the dialog
-	// says so instead of offering an empty picker.
+	// Filing an invoice needs somewhere to file it into; with no project the
+	// dialog says so instead of offering an empty picker.
 	it("explains that no project exists yet and disables the submit", () => {
 		renderDialog({ projects: [] });
 

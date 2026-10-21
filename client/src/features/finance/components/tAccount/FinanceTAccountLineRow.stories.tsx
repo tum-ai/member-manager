@@ -170,8 +170,8 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-// A booked invoice: the row states its embedded Vorsteuer in words (never a
-// generic "USt", FR-N2) and expands in place to its full detail (FR-K2).
+// A booked invoice: the row names its embedded input tax in words (never a
+// generic "USt") and expands in place to its full detail.
 export const BookedInvoice: Story = {
 	args: { line: bookedInvoice },
 	play: async ({ canvasElement }) => {
@@ -192,13 +192,13 @@ export const BookedInvoice: Story = {
 		// project rather than showing a raw uuid.
 		await expect(canvas.getByText(/120 · Big Makeathon/)).toBeVisible();
 		await expect(canvas.getByText(/Makeathon · Hackathon/)).toBeVisible();
-		// The match names the Planposten this invoice feeds.
+		// The match names the plan item this invoice feeds.
 		await expect(canvas.getByText("Catering (geplant)")).toBeVisible();
 	},
 };
 
-// A Planposten: same disclosure, different detail — status, expected month and
-// the Plan / Ist / Delta readout (FR-K4).
+// A plan item: same disclosure, different detail — status, expected month and
+// the "Plan / Ist / Delta" readout.
 export const PlannedItem: Story = {
 	args: { line: plannedItem },
 	play: async ({ canvasElement }) => {
@@ -217,16 +217,16 @@ export const PlannedItem: Story = {
 	},
 };
 
-// The Planposten as a working object (FR-M2/M5/M6/M7): edit it, match an
-// invoice to it, correct the plan to what arrived, park it, detach a match.
+// The plan item as a working object: edit it, match an invoice to it, correct
+// the plan to what arrived, park it, detach a match.
 export const PlannedItemWritable: Story = {
 	args: { line: plannedItem, interaction: writableInteraction() },
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(canvas.getByRole("button", { name: /Venue-Miete/ }));
 
-		// Plan 3.570 vs Ist 2.380 — the correction offer only appears because the
-		// two disagree.
+		// Planned 3.570 vs actual 2.380 — the correction offer only appears because
+		// the two disagree.
 		const correct = await canvas.findByRole("button", {
 			name: /Plan auf Ist korrigieren/,
 		});
@@ -259,8 +259,8 @@ export const PlannedItemWritable: Story = {
 	},
 };
 
-// A parked Planposten offers the way back and stops offering matches, because
-// the server refuses them anyway (FR-M8).
+// A parked plan item offers the way back and stops offering matches, because
+// the server refuses them anyway.
 export const ParkedPlanItem: Story = {
 	args: {
 		line: displayLine(
@@ -298,8 +298,8 @@ export const ParkedPlanItem: Story = {
 	},
 };
 
-// The same row on the income side: identical mechanics, Umsatzsteuer instead of
-// Vorsteuer — the label is what tells the two apart (FR-N2).
+// The same row on the income side: identical mechanics, "Umsatzsteuer" instead
+// of "Vorsteuer" — the label is what tells the two apart.
 export const IncomeInvoice: Story = {
 	args: { line: incomeInvoice },
 	play: async ({ canvasElement }) => {

@@ -370,7 +370,7 @@ describe("finance management calculations", () => {
 		assert.strictEqual(report.totals.planned_net, 2000);
 	});
 
-	test("leaves a disabled Planposten out of the period report and tax areas", () => {
+	test("leaves a disabled plan item out of the period report and tax areas", () => {
 		const report = buildFinancePeriodReport({
 			periodType: "year",
 			periodKey: "2026",
