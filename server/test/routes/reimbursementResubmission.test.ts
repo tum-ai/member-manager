@@ -75,18 +75,25 @@ async function withRowChangedAfterRead<T>(
 			const builder = client.from(table);
 			if (table === "reimbursements" && !changed) {
 				changed = true;
-				const read = builder.maybeSingle;
-				builder.maybeSingle = (async () => {
-					const result = await read();
-					// The mock hands out its stored row object; the database
-					// returns a copy, so snapshot it before the row changes.
-					const snapshot = {
-						...result,
-						data: result.data ? { ...result.data } : result.data,
+				// The resubmit lib reads with `maybeSingle`, the review route
+				// with `single`; hook whichever this first query ends with.
+				const changeAfter =
+					(read: typeof builder.single) =>
+					async (): Promise<Awaited<ReturnType<typeof builder.single>>> => {
+						const result = await read();
+						// The mock hands out its stored row object; the database
+						// returns a copy, so snapshot it before the row changes.
+						const snapshot = {
+							...result,
+							data: result.data ? { ...result.data } : result.data,
+						};
+						Object.assign(findRequest() ?? {}, change);
+						return snapshot;
 					};
-					Object.assign(findRequest() ?? {}, change);
-					return snapshot;
-				}) as typeof builder.maybeSingle;
+				builder.single = changeAfter(builder.single) as typeof builder.single;
+				builder.maybeSingle = changeAfter(
+					builder.maybeSingle,
+				) as typeof builder.maybeSingle;
 			}
 			return builder;
 		},
@@ -453,6 +460,38 @@ describe("reimbursement resubmission", async () => {
 		assert.strictEqual(mockStorage.has(`${RECEIPT_BUCKET}/${newPath}`), true);
 	});
 
+	test("a failed resubmit keeps its new upload so the retry can use it", async () => {
+		resetDatabase();
+		rejectSeededRequest();
+		const newPath = `${testUserIds.user}/itemised.pdf`;
+		mockStorage.set(
+			`${RECEIPT_BUCKET}/${newPath}`,
+			Buffer.from(PDF_BASE64, "base64"),
+		);
+		const receipt: ResubmissionReceipt = {
+			filename: "itemised.pdf",
+			mimeType: "application/pdf",
+			base64: null,
+			storageBucket: RECEIPT_BUCKET,
+			storagePath: newPath,
+			sizeBytes: 8,
+		};
+
+		// The update loses to another round; nothing references the upload.
+		await assert.rejects(
+			withRowChangedAfterRead({ resubmission_count: 1 }, () =>
+				resubmitDirectly(receipt),
+			),
+			/changed in the meantime/,
+		);
+		assert.strictEqual(mockStorage.has(`${RECEIPT_BUCKET}/${newPath}`), true);
+
+		await resubmitDirectly(receipt);
+
+		assert.strictEqual(findRequest()?.receipt_storage_path, newPath);
+		assert.strictEqual(findRequest()?.resubmission_count, 2);
+	});
+
 	test("keeps a replaced receipt that another request still uses", async () => {
 		resetDatabase();
 		const sharedPath = `${testUserIds.user}/shared.pdf`;
@@ -535,5 +574,132 @@ describe("reimbursement resubmission", async () => {
 		assert.strictEqual(stored?.finance_project_id, null);
 		assert.strictEqual(stored?.finance_plan_item_id, null);
 		assert.strictEqual(stored?.bb_posting_external_id, null);
+	});
+
+	test("refuses a rejected request that was already booked in BuchhaltungsButler", async () => {
+		for (const bookkeeping of [
+			{ bb_sync_status: "synced", bb_receipt_id_by_customer: "MM-0001" },
+			{ bb_sync_status: "failed", bb_receipt_id_by_customer: "MM-0001" },
+			{ bb_sync_status: "synced", bb_receipt_id_by_customer: null },
+		]) {
+			resetDatabase();
+			// Legacy path: approved, synced, then rejected before the
+			// reject-only-pending fix. A later sync would skip the row and keep
+			// the old amount in BuchhaltungsButler.
+			rejectSeededRequest(bookkeeping);
+
+			const response = await resubmit(correctedRequest);
+
+			assert.strictEqual(response.statusCode, 409);
+			assert.match(response.payload, /BuchhaltungsButler/);
+			assert.strictEqual(findRequest()?.amount, 25.5);
+			assert.strictEqual(findRequest()?.approval_status, "not_approved");
+		}
+	});
+
+	describe("review page approvals pin the round the reviewer saw", () => {
+		const review = (body: Record<string, unknown>) =>
+			app.inject({
+				method: "PATCH",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify(body),
+			});
+
+		/** The request after a rejection and a resubmission: pending, round 1. */
+		function resubmittedRequest() {
+			const row = findRequest();
+			assert.ok(row);
+			Object.assign(row, { amount: 1000, resubmission_count: 1 });
+		}
+
+		test("refuses an approve or reject from a page loaded before the resubmission", async () => {
+			for (const body of [
+				{ action: "approve", expected_revision: 0 },
+				{
+					action: "reject",
+					rejection_reason: "Not needed",
+					expected_revision: 0,
+				},
+			]) {
+				resetDatabase();
+				resubmittedRequest();
+
+				const response = await review(body);
+
+				assert.strictEqual(response.statusCode, 409, body.action);
+				assert.match(response.payload, /resubmitted since you loaded it/);
+				const stored = findRequest();
+				assert.strictEqual(stored?.approval_status, "pending");
+				assert.strictEqual(stored?.first_approved_at ?? null, null);
+			}
+		});
+
+		test("treats a page that sends no round as round 0", async () => {
+			for (const body of [
+				{ action: "approve" },
+				{ action: "reject", rejection_reason: "Not needed" },
+			]) {
+				resetDatabase();
+				resubmittedRequest();
+
+				const response = await review(body);
+
+				assert.strictEqual(response.statusCode, 409, body.action);
+				assert.strictEqual(findRequest()?.approval_status, "pending");
+			}
+		});
+
+		test("a reject can't land on a round resubmitted after the check", async () => {
+			resetDatabase();
+
+			// The reviewer's page and the read both show round 0; the member's
+			// resubmission lands between the read and the update.
+			const response = await withRowChangedAfterRead(
+				{ resubmission_count: 1, amount: 1000 },
+				() =>
+					review({
+						action: "reject",
+						rejection_reason: "Not needed",
+						expected_revision: 0,
+					}),
+			);
+
+			assert.strictEqual(response.statusCode, 409);
+			const stored = findRequest();
+			assert.strictEqual(stored?.approval_status, "pending");
+			assert.strictEqual(stored?.resubmission_count, 1);
+			assert.strictEqual(stored?.rejection_reason ?? null, null);
+		});
+
+		test("approves when the page shows the current round", async () => {
+			resetDatabase();
+			resubmittedRequest();
+
+			const response = await review({
+				action: "approve",
+				expected_revision: 1,
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			assert.ok(findRequest()?.first_approved_at);
+		});
+
+		test("rejects when the page shows the current round", async () => {
+			resetDatabase();
+			resubmittedRequest();
+
+			const response = await review({
+				action: "reject",
+				rejection_reason: "Still not itemized",
+				expected_revision: 1,
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			assert.strictEqual(findRequest()?.approval_status, "not_approved");
+		});
 	});
 });

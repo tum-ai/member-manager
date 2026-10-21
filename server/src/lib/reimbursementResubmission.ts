@@ -116,10 +116,10 @@ function storedReceiptLocation(
 }
 
 /**
- * Deletes a receipt object unless some request still points at it. Two calls
- * can carry the same upload (a double click), and the losing call must not
- * delete the file the winner just attached. If the check itself fails, the
- * file is kept: an orphaned object is harmless, a missing receipt is not.
+ * Deletes a receipt object a resubmission replaced, unless some request still
+ * points at it: a member can attach the same upload to two requests. If the
+ * check itself fails, the file is kept: an orphaned object is harmless, a
+ * missing receipt is not.
  */
 async function removeReceiptIfUnreferenced(
 	location: { bucket: string; path: string },
@@ -194,6 +194,18 @@ export async function resubmitRejectedReimbursement({
 			"This request was already paid, so it can't be resubmitted",
 		);
 	}
+	// Same legacy path for bookkeeping: an approved request synced to
+	// BuchhaltungsButler and then rejected. Its sync fields stay `synced`, so
+	// a later sync would skip it and BuchhaltungsButler would keep the old
+	// amount and receipt.
+	if (
+		existingRequest.bb_sync_status === "synced" ||
+		existingRequest.bb_receipt_id_by_customer
+	) {
+		throw new ConflictError(
+			"This request was already booked in BuchhaltungsButler, so it can't be resubmitted",
+		);
+	}
 
 	const newStoredReceipt = receipt?.storagePath
 		? {
@@ -266,10 +278,12 @@ export async function resubmitRejectedReimbursement({
 		.select()
 		.maybeSingle();
 
+	// A failed resubmit leaves the new upload in place: the member's form
+	// still points at it, so a retry can use it. Deleting it here would make
+	// the retry fail with "receipt not found", and the client can't tell which
+	// failures deleted it. An unused upload is no worse than one the member
+	// abandoned before submitting.
 	if (error || !data) {
-		if (newStoredReceipt) {
-			await removeReceiptIfUnreferenced(newStoredReceipt, log, requestId);
-		}
 		if (error) {
 			throw new DatabaseError("Failed to resubmit reimbursement request");
 		}

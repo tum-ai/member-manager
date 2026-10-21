@@ -262,6 +262,66 @@ describe("useReimbursementForm resubmission", () => {
 		expect(result.current.editingRequest?.id).toBe("req-rejected");
 	});
 
+	it("keeps the new receipt after a failed resubmit so the retry sends it", async () => {
+		const attempts: ResubmitReimbursementRequestPayload[] = [];
+		server.use(
+			http.post("/api/reimbursements/receipt-upload-url", () =>
+				HttpResponse.json({
+					bucket: "reimbursement-receipts",
+					path: "user-123/itemised.pdf",
+					token: "upload-token",
+					signed_url: "https://storage.example/upload",
+				}),
+			),
+			http.post("/api/reimbursements/parse-receipt", () =>
+				HttpResponse.json({
+					amount: null,
+					date: null,
+					description: null,
+					payment_iban: null,
+					payment_bic: null,
+				}),
+			),
+			http.post("/api/reimbursements/:id/resubmit", async ({ request }) => {
+				attempts.push(
+					(await request.json()) as ResubmitReimbursementRequestPayload,
+				);
+				return attempts.length === 1
+					? HttpResponse.json(
+							{ error: "Failed to resubmit reimbursement request" },
+							{ status: 500 },
+						)
+					: HttpResponse.json(rejectedInvoice);
+			}),
+		);
+		const { result } = await renderReady();
+		act(() => result.current.startEditing(rejectedInvoice));
+		await act(() =>
+			result.current.handleReceiptDrop(
+				dropEvent(
+					new File(["%PDF-1.4"], "itemised.pdf", { type: "application/pdf" }),
+				),
+			),
+		);
+		await waitFor(() => expect(result.current.isReceiptBusy).toBe(false));
+		expect(result.current.values.receipt?.fileName).toBe("itemised.pdf");
+
+		await act(() => result.current.handleSubmit(submitEvent()));
+
+		// The server keeps the upload on failure, so the form keeps it too.
+		expect(result.current.values.receipt?.fileName).toBe("itemised.pdf");
+		expect(result.current.editingRequest?.id).toBe("req-rejected");
+
+		await act(() => result.current.handleSubmit(submitEvent()));
+
+		expect(attempts).toHaveLength(2);
+		expect(attempts[1]).toMatchObject({
+			receipt_filename: "itemised.pdf",
+			receipt_storage_path: "user-123/itemised.pdf",
+		});
+		expect(result.current.editingRequest).toBeNull();
+	});
+
 	it("drops a receipt parse that finishes after the member switched to editing", async () => {
 		let finishParse: () => void = () => {};
 		const parseGate = new Promise<void>((resolve) => {

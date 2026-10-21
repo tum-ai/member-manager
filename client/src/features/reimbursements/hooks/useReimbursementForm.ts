@@ -357,6 +357,8 @@ export function useReimbursementForm(userId: string) {
 				showToast("Request resubmitted for review.", "success");
 				resetForm();
 			} catch (submitError) {
+				// The server keeps the new upload when a resubmit fails, so the
+				// form keeps it too and a retry sends the same receipt.
 				showToast(
 					`Error resubmitting request: ${getErrorMessage(submitError)}`,
 					"error",

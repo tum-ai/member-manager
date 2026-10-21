@@ -413,6 +413,8 @@ const ReviewReimbursementSchema = z
 		action: z.enum(["approve", "reject", "mark_paid"]).optional(),
 		rejection_reason: z.string().trim().max(500).optional(),
 		department: z.string().trim().min(1).max(120).optional(),
+		// Review round (`resubmission_count`) the reviewer's page showed.
+		expected_revision: z.number().int().nonnegative().optional(),
 		...FinanceReimbursementLinkSchema.shape,
 	})
 	.superRefine((body, context) => {
@@ -1679,6 +1681,20 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			}
 
 			const existingRequest = existing as ReimbursementRow;
+			const currentRevision = Number(existingRequest.resubmission_count) || 0;
+			// A resubmission keeps the id, so a page loaded before it would
+			// approve or reject details the reviewer never saw. A caller that
+			// sends no round (a tab opened before this field existed) is
+			// treated as round 0, the only round such a page could have shown.
+			if (
+				(body.action === "approve" || body.action === "reject") &&
+				(body.expected_revision ?? 0) !== currentRevision
+			) {
+				return reply.status(409).send({
+					error:
+						"This request was resubmitted since you loaded it. Reload to review the current version.",
+				});
+			}
 			if (
 				body.action === "mark_paid" &&
 				existingRequest.submission_type === VIVID_REIMBURSEMENT_SUBMISSION_TYPE
@@ -1781,7 +1797,9 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					.update(update)
 					.eq("id", requestId);
 				if (body.action === "reject") {
-					query = query.eq("approval_status", "pending");
+					query = query
+						.eq("approval_status", "pending")
+						.eq("resubmission_count", currentRevision);
 				}
 				const { data: updated, error } = await query.select().maybeSingle();
 

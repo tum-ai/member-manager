@@ -118,9 +118,19 @@ export function readFileAsBase64(file: File): Promise<string> {
 	});
 }
 
-/** Only a rejected request can be edited and sent back to review. */
+/**
+ * Only a rejected request can be edited and sent back to review. Mirrors the
+ * server: a request that was already paid or booked in BuchhaltungsButler
+ * before it was rejected (possible on older rows) stays closed.
+ */
 export function canResubmitRequest(request: ReimbursementRequest): boolean {
-	return request.approval_status === "not_approved";
+	return (
+		request.approval_status === "not_approved" &&
+		request.payment_status !== "paid" &&
+		request.status !== "paid" &&
+		request.bb_sync_status !== "synced" &&
+		!request.bb_receipt_id_by_customer
+	);
 }
 
 /** Form values for editing a rejected request, starting from what was submitted. */

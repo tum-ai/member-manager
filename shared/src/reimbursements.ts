@@ -253,6 +253,11 @@ export interface ReviewReimbursementRequestPayload {
 	requestId: string;
 	action: ReimbursementReviewAction;
 	rejection_reason?: string;
+	/**
+	 * `resubmission_count` of the version the reviewer is looking at. The
+	 * server refuses an approve or reject if the request was resubmitted since.
+	 */
+	expected_revision?: number;
 }
 
 export interface UpdateReimbursementDepartmentPayload {

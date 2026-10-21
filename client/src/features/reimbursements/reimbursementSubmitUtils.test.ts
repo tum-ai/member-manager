@@ -45,6 +45,26 @@ describe("canResubmitRequest", () => {
 			canResubmitRequest(makeRequest({ approval_status: "approved" })),
 		).toBe(false);
 	});
+
+	it("keeps older rejected rows closed once they were paid or booked", () => {
+		const rejected = {
+			approval_status: "not_approved" as const,
+			status: "rejected" as const,
+		};
+		expect(
+			canResubmitRequest(makeRequest({ ...rejected, payment_status: "paid" })),
+		).toBe(false);
+		expect(
+			canResubmitRequest(
+				makeRequest({ ...rejected, bb_sync_status: "synced" }),
+			),
+		).toBe(false);
+		expect(
+			canResubmitRequest(
+				makeRequest({ ...rejected, bb_receipt_id_by_customer: "MM-0001" }),
+			),
+		).toBe(false);
+	});
 });
 
 describe("buildEditValues", () => {
