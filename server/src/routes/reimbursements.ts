@@ -1706,16 +1706,37 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					throw approvalError;
 				}
 			} else {
-				const { data: updated, error } = await getSupabase()
+				// Only a pending request can be rejected: rejecting an approved or
+				// paid one would leave `status: rejected` next to money already
+				// committed or sent. The update re-checks the state so a reviewer
+				// acting on a stale page can't reject a request someone else just
+				// approved.
+				if (
+					body.action === "reject" &&
+					existingRequest.approval_status !== "pending"
+				) {
+					return reply
+						.status(409)
+						.send({ error: "Only pending requests can be rejected" });
+				}
+				let query = getSupabase()
 					.from("reimbursements")
 					.update(update)
-					.eq("id", requestId)
-					.select()
-					.single();
+					.eq("id", requestId);
+				if (body.action === "reject") {
+					query = query.eq("approval_status", "pending");
+				}
+				const { data: updated, error } = await query.select().maybeSingle();
 
 				if (error) {
 					request.log.error({ err: error }, "Failed to review reimbursement");
 					throw createReimbursementDatabaseError(error);
+				}
+				if (!updated) {
+					return reply.status(409).send({
+						error:
+							"Someone else just reviewed this request. Reload and try again.",
+					});
 				}
 				data = updated as ReimbursementRow;
 			}

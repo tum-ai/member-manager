@@ -241,6 +241,79 @@ describe("Slack interaction routes", async () => {
 		});
 	});
 
+	test("a stale Slack approve button can't approve a rejected request", async () => {
+		resetDatabase();
+		process.env.SLACK_SIGNING_SECRET = "test-secret";
+		process.env.SLACK_BOT_TOKEN = "xoxb-test";
+		const notifications: unknown[] = [];
+		setReimbursementStatusSlackNotifier(async (payload) => {
+			notifications.push(payload);
+		});
+
+		const row = mockDatabase.reimbursements.find(
+			(candidate) => candidate.id === MOCK_REIMBURSEMENT_OLDER_ID,
+		);
+		assert.ok(row);
+		Object.assign(row, {
+			approval_status: "not_approved",
+			status: "rejected",
+			rejection_reason: "Receipt missing",
+		});
+
+		const delayedMessages: string[] = [];
+		globalThis.fetch = (async (input, init) => {
+			const url = String(input);
+			if (url === "https://hooks.slack.test/response") {
+				delayedMessages.push(
+					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
+				);
+				return new Response("ok", { status: 200 });
+			}
+			assert.strictEqual(url, "https://slack.com/api/users.info");
+			return new Response(
+				JSON.stringify({
+					ok: true,
+					user: { profile: { email: "admin@test.com" } },
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		}) as typeof fetch;
+
+		const signed = signedSlackPayload(
+			{
+				type: "block_actions",
+				user: { id: "UADMIN" },
+				response_url: "https://hooks.slack.test/response",
+				actions: [
+					{
+						action_id: "reimbursement_approve",
+						value: MOCK_REIMBURSEMENT_OLDER_ID,
+					},
+				],
+			},
+			"test-secret",
+		);
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/slack/interactions",
+			headers: signed.headers,
+			payload: signed.body,
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		await waitForAssertion(() => {
+			assert.match(
+				delayedMessages.at(-1) ?? "",
+				/Rejected requests can't be approved/,
+			);
+		});
+		assert.strictEqual(row.approval_status, "not_approved");
+		assert.strictEqual(row.status, "rejected");
+		assert.strictEqual(row.rejection_reason, "Receipt missing");
+		assert.strictEqual(row.first_approved_at ?? null, null);
+		assert.deepStrictEqual(notifications, []);
+	});
+
 	test("doesn't sync to BuchhaltungsButler on a first approval", async () => {
 		resetDatabase();
 		process.env.SLACK_SIGNING_SECRET = "test-secret";

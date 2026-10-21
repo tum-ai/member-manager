@@ -1604,6 +1604,74 @@ describe("Reimbursement Routes", async () => {
 			assert.strictEqual(row.first_approved_at ?? null, null);
 		});
 
+		test("refuses to reject an approved or paid request", async () => {
+			for (const state of [
+				{ approval_status: "approved", status: "requested" },
+				{ approval_status: "approved", status: "paid", payment_status: "paid" },
+			]) {
+				resetDatabase();
+				const row = mockDatabase.reimbursements.find(
+					(candidate) => candidate.id === MOCK_REIMBURSEMENT_OLDER_ID,
+				);
+				assert.ok(row);
+				Object.assign(row, state);
+
+				const response = await app.inject({
+					method: "PATCH",
+					url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
+					headers: {
+						...authHeaders(testTokens.admin),
+						"content-type": "application/json",
+					},
+					payload: JSON.stringify({
+						action: "reject",
+						rejection_reason: "Too late",
+					}),
+				});
+
+				assert.strictEqual(response.statusCode, 409);
+				const stored = mockDatabase.reimbursements.find(
+					(candidate) => candidate.id === MOCK_REIMBURSEMENT_OLDER_ID,
+				);
+				assert.strictEqual(stored?.approval_status, "approved");
+				assert.strictEqual(stored?.status, state.status);
+				assert.strictEqual(stored?.rejection_reason ?? null, null);
+			}
+		});
+
+		test("still rejects a request that has only its first approval", async () => {
+			resetDatabase();
+			const row = mockDatabase.reimbursements.find(
+				(candidate) => candidate.id === MOCK_REIMBURSEMENT_OLDER_ID,
+			);
+			assert.ok(row);
+			Object.assign(row, {
+				approval_status: "pending",
+				first_approved_at: "2026-10-01T00:00:00.000Z",
+				first_approved_by: "reviewer-a",
+			});
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/reimbursements/review/${MOCK_REIMBURSEMENT_OLDER_ID}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					action: "reject",
+					rejection_reason: "Second reviewer disagrees",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const updated = mockDatabase.reimbursements.find(
+				(candidate) => candidate.id === MOCK_REIMBURSEMENT_OLDER_ID,
+			);
+			assert.strictEqual(updated?.approval_status, "not_approved");
+			assert.strictEqual(updated?.status, "rejected");
+		});
+
 		test("records only one first approval when two reviewers click at once", async () => {
 			resetDatabase();
 			const results = await Promise.allSettled([
