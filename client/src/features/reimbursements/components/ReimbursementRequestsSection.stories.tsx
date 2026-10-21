@@ -171,6 +171,7 @@ function SectionWithDetail(
 				onDownloadReceipt={onDownloadReceipt}
 				isOpeningReceipt={false}
 				isDownloadingReceipt={false}
+				onEditAndResubmit={fn()}
 			/>
 		</>
 	);

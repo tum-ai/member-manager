@@ -19,6 +19,7 @@ import type {
 	ReimbursementRequest,
 	ReimbursementReviewIntegrationsResponse,
 	ReimbursementReviewResponse,
+	ResubmitReimbursementRequestPayload,
 	ReviewReimbursementRequestPayload,
 	SyncBuchhaltungsButlerPayload,
 	UpdateReimbursementDepartmentPayload,
@@ -178,6 +179,29 @@ export function useReimbursementRequests(userId: string) {
 		},
 	});
 
+	const resubmitMutation = useMutation({
+		mutationFn: async ({
+			requestId,
+			payload,
+		}: {
+			requestId: string;
+			payload: ResubmitReimbursementRequestPayload;
+		}) => {
+			return await apiClient<ReimbursementRequest>(
+				`/api/reimbursements/${encodeURIComponent(requestId)}/resubmit`,
+				{
+					method: "POST",
+					body: JSON.stringify(payload),
+				},
+			);
+		},
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["reimbursement-requests", userId],
+			});
+		},
+	});
+
 	const parseReceiptMutation = useMutation({
 		mutationFn: async (payload: ParseReimbursementReceiptPayload) => {
 			return await apiClient<ParsedReimbursementReceipt>(
@@ -239,6 +263,8 @@ export function useReimbursementRequests(userId: string) {
 		error,
 		createRequestAsync: createMutation.mutateAsync,
 		isCreating: createMutation.isPending,
+		resubmitRequestAsync: resubmitMutation.mutateAsync,
+		isResubmitting: resubmitMutation.isPending,
 		uploadReceiptAsync: receiptUploadMutation.mutateAsync,
 		isUploadingReceipt: receiptUploadMutation.isPending,
 		parseReceiptAsync: parseReceiptMutation.mutateAsync,

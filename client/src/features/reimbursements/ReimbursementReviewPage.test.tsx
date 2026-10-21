@@ -276,8 +276,42 @@ describe("ReimbursementReviewPage", () => {
 			expect(reviewRequestAsync).toHaveBeenCalledWith({
 				requestId: "request-1",
 				action: "approve",
+				expected_revision: 0,
 			}),
 		);
+	}, 30_000);
+
+	it("pins the review round on screen when approving a resubmitted request", async () => {
+		const user = userEvent.setup();
+		const [shown] = hookState.requests as Array<Record<string, unknown>>;
+		shown.resubmission_count = 2;
+		shown.last_rejection_reason = "Receipt is not itemized";
+		try {
+			renderPage();
+
+			await user.click(
+				screen.getByRole("button", {
+					name: /snacks for onboarding workshop guests/i,
+				}),
+			);
+			expect(
+				screen.getByText("Previously rejected: Receipt is not itemized"),
+			).toBeVisible();
+			await user.click(screen.getByRole("button", { name: /^approve$/i }));
+
+			await waitFor(() =>
+				expect(reviewRequestAsync).toHaveBeenCalledWith(
+					expect.objectContaining({
+						requestId: "request-1",
+						action: "approve",
+						expected_revision: 2,
+					}),
+				),
+			);
+		} finally {
+			delete shown.resubmission_count;
+			delete shown.last_rejection_reason;
+		}
 	}, 30_000);
 
 	it("lets finance reviewers click the amount to select/copy it without toggling the row", async () => {

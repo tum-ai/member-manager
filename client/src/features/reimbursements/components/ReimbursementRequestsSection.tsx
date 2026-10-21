@@ -12,6 +12,7 @@ import {
 	getStatusLabel,
 } from "@/features/reimbursements/reimbursementSubmitUtils";
 import type { ReimbursementRequest } from "@/features/reimbursements/reimbursementTypes";
+import { ResubmittedBadge } from "./ReimbursementResubmissionNotice";
 
 interface ReimbursementRequestsSectionProps {
 	isLoading: boolean;
@@ -116,6 +117,7 @@ export function ReimbursementRequestsSection({
 											{getRequestTypeLabel(request)}
 										</Badge>
 										<Badge variant="neutral">{getStatusLabel(request)}</Badge>
+										<ResubmittedBadge request={request} />
 									</span>
 									<span className="mb-1 block text-sm break-words">
 										{request.description}

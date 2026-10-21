@@ -20,6 +20,10 @@ export default function ReimbursementPage({
 		isLoading,
 		error,
 		isCreating,
+		isResubmitting,
+		editingRequest,
+		startEditing,
+		cancelEditing,
 		isReceiptBusy,
 		isDraggingReceipt,
 		setIsDraggingReceipt,
@@ -52,6 +56,9 @@ export default function ReimbursementPage({
 					values={values}
 					errors={errors}
 					isCreating={isCreating}
+					isResubmitting={isResubmitting}
+					editingRequest={editingRequest}
+					onCancelEdit={cancelEditing}
 					isReceiptBusy={isReceiptBusy}
 					isDraggingReceipt={isDraggingReceipt}
 					isSubmitDisabled={isSubmitDisabled}
@@ -74,6 +81,9 @@ export default function ReimbursementPage({
 				onDownloadReceipt={detail.handleDownloadReceipt}
 				isOpeningReceipt={detail.isOpeningReceipt}
 				isDownloadingReceipt={detail.isDownloadingReceipt}
+				onEditAndResubmit={() => {
+					if (detail.selectedRequest) startEditing(detail.selectedRequest);
+				}}
 			/>
 		</ToolPageShell>
 	);

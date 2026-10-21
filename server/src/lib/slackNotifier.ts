@@ -33,6 +33,11 @@ export interface ReimbursementSlackNotification {
 	department: string;
 	amount: number;
 	reviewUrl?: string;
+	/** Set when the requester fixed and resubmitted a rejected request. */
+	resubmission?: {
+		count: number;
+		previousRejectionReason: string;
+	};
 }
 
 export interface ReimbursementStatusSlackNotification {
@@ -375,18 +380,88 @@ async function fetchReimbursementReviewerEmails(): Promise<string[]> {
 	return emails.map((email) => email.trim()).filter(Boolean);
 }
 
+/**
+ * Value of the Slack approve buttons: the request id, plus the review round
+ * (`resubmission_count`) the message was sent for once the request has been
+ * resubmitted. Resubmitting keeps the id, so without the round a button from
+ * an older DM would approve whatever the member resubmitted since.
+ */
+export function encodeReimbursementActionValue(
+	requestId: string,
+	revision: number,
+): string {
+	return revision > 0 ? `${requestId}#${revision}` : requestId;
+}
+
+/** Inverse of `encodeReimbursementActionValue`; a bare id (older messages) is round 0. */
+export function decodeReimbursementActionValue(value: string): {
+	requestId: string;
+	revision: number;
+} {
+	const separator = value.lastIndexOf("#");
+	if (separator === -1) {
+		return { requestId: value, revision: 0 };
+	}
+	return {
+		requestId: value.slice(0, separator),
+		revision: Number(value.slice(separator + 1)),
+	};
+}
+
+/** Wording shared by the finance DM text and blocks for a new or resubmitted request. */
+function getReimbursementRequestContent(
+	payload: ReimbursementSlackNotification,
+): {
+	headline: string;
+	department: string;
+	actionValue: string;
+	previousRejectionReason?: string;
+} {
+	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
+	// The department is free text from the requester; escape it like the
+	// reason so it can't inject mentions or links.
+	const department = sanitizeSlackUserText(payload.department, 120);
+	const actionValue = encodeReimbursementActionValue(
+		payload.requestId,
+		payload.resubmission?.count ?? 0,
+	);
+	if (!payload.resubmission) {
+		return {
+			headline: `New ${requestLabel} request`,
+			department,
+			actionValue,
+		};
+	}
+	return {
+		headline: `Resubmitted ${requestLabel} request`,
+		department,
+		actionValue,
+		// Reviewer-written free text; escape it so it can't inject mentions,
+		// links, or formatting into the finance DM.
+		previousRejectionReason: sanitizeSlackUserText(
+			payload.resubmission.previousRejectionReason.trim() ||
+				"No reason provided",
+			500,
+		),
+	};
+}
+
 function buildReimbursementMessage(
 	payload: ReimbursementSlackNotification,
 ): string {
-	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
+	const { headline, department, previousRejectionReason } =
+		getReimbursementRequestContent(payload);
 	const reviewLine = payload.reviewUrl
 		? `Review in Member Manager: ${payload.reviewUrl}`
 		: "Review in the Member Manager finance workspace.";
 
 	return [
-		`New ${requestLabel} request`,
+		headline,
+		...(previousRejectionReason
+			? [`Previously rejected: ${previousRejectionReason}`]
+			: []),
 		`Requester: ${payload.requesterEmail}`,
-		`Department: ${payload.department}`,
+		`Department: ${department}`,
 		`Amount: ${payload.amount.toFixed(2)} EUR`,
 		`Request ID: ${payload.requestId}`,
 		reviewLine,
@@ -400,16 +475,19 @@ function buildReimbursementBlocks(
 		return undefined;
 	}
 
-	const requestLabel = getSlackReimbursementTypeLabel(payload.submissionType);
+	const { headline, department, actionValue, previousRejectionReason } =
+		getReimbursementRequestContent(payload);
 
 	return [
 		{
 			type: "section",
 			text: {
 				type: "mrkdwn",
-				text: `*New ${requestLabel} request*\n${payload.amount.toFixed(
-					2,
-				)} EUR · ${payload.department}`,
+				text: `*${headline}*\n${payload.amount.toFixed(2)} EUR · ${department}${
+					previousRejectionReason
+						? `\n*Previously rejected:* ${previousRejectionReason}`
+						: ""
+				}`,
 			},
 		},
 		{
@@ -432,7 +510,7 @@ function buildReimbursementBlocks(
 				{
 					type: "button",
 					text: { type: "plain_text", text: "Approve" },
-					value: payload.requestId,
+					value: actionValue,
 					action_id: "reimbursement_approve",
 					style: "primary",
 					confirm: {
@@ -448,7 +526,7 @@ function buildReimbursementBlocks(
 				{
 					type: "button",
 					text: { type: "plain_text", text: "Approve & sync BB" },
-					value: payload.requestId,
+					value: actionValue,
 					action_id: "reimbursement_approve_sync_bb",
 					confirm: {
 						title: { type: "plain_text", text: "Approve and sync?" },

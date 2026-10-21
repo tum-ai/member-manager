@@ -31,6 +31,10 @@ import { Separator } from "@/components/ui/separator";
 import { DEPARTMENTS } from "@/lib/constants";
 import { Detail, DetailGroup } from "./components/ReimbursementDetailFields";
 import { ReimbursementFinanceLinkEditor } from "./components/ReimbursementFinanceLinkEditor";
+import {
+	ResubmissionNotice,
+	ResubmittedBadge,
+} from "./components/ReimbursementResubmissionNotice";
 import { ReimbursementReviewActions } from "./ReimbursementReviewActions";
 import {
 	formatReviewAmount,
@@ -255,6 +259,7 @@ function ReviewItem({
 											>
 												{getReviewStage(request)}
 											</Badge>
+											<ResubmittedBadge request={request} />
 											<Badge variant="outline">{typeLabel}</Badge>
 											<Badge variant="outline">{request.department}</Badge>
 											<Badge
@@ -288,6 +293,7 @@ function ReviewItem({
 					<AccordionContent className="px-4 pt-0 pb-6 md:px-6">
 						<Separator className="mb-4" />
 						<div className="flex flex-col gap-5">
+							<ResubmissionNotice request={request} />
 							<div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[1.1fr_1.4fr_1fr]">
 								<DetailGroup title="Requester">
 									<Detail label="Name" value={requesterName} strong />

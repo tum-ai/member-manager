@@ -2,6 +2,8 @@ import "../setup.js";
 import assert from "node:assert";
 import { afterEach, test } from "node:test";
 import {
+	decodeReimbursementActionValue,
+	encodeReimbursementActionValue,
 	notifyBugReport,
 	notifyFinanceOfReimbursementRequest,
 	notifyRequesterOfReimbursementStatus,
@@ -220,6 +222,95 @@ test("labels Vivid reimbursement notifications for reviewers", async () => {
 
 	assert.strictEqual(posts.length, 1);
 	assert.match(String(posts[0].text), /New Vivid Reimbursement request/);
+});
+
+test("marks resubmitted requests and shows the escaped previous reason", async () => {
+	resetMockDatabase();
+	setSupabaseClient(createMockSupabaseClient());
+	process.env.SLACK_BOT_TOKEN = "xoxb-test";
+	const adminMember = mockDatabase.members.find(
+		(member) => member.user_id === MOCK_ADMIN_ID,
+	);
+	assert.ok(adminMember);
+	adminMember.reimbursement_slack_notifications_enabled = true;
+
+	const posts: Array<Record<string, unknown>> = [];
+	globalThis.fetch = async (input, init) => {
+		const url = String(input);
+		const body = init?.body?.toString() ?? "";
+		if (url.endsWith("/users.lookupByEmail")) {
+			return new Response(
+				JSON.stringify({ ok: true, user: { id: "U-reviewer" } }),
+				{ status: 200 },
+			);
+		}
+		if (url.endsWith("/conversations.open")) {
+			return new Response(
+				JSON.stringify({ ok: true, channel: { id: "D-reviewer" } }),
+				{ status: 200 },
+			);
+		}
+		if (url.endsWith("/chat.postMessage")) {
+			posts.push(JSON.parse(body) as Record<string, unknown>);
+			return new Response(JSON.stringify({ ok: true }), { status: 200 });
+		}
+		return new Response("not found", { status: 404 });
+	};
+
+	await notifyFinanceOfReimbursementRequest({
+		requestId: "request-7",
+		requesterUserId: "requester-1",
+		requesterEmail: "requester@test.com",
+		submissionType: "reimbursement",
+		// Department is requester free text too.
+		department: "Community <!here>",
+		amount: 31.2,
+		reviewUrl: "https://member-manager.test/tools/reimbursement/review",
+		resubmission: {
+			count: 1,
+			previousRejectionReason: "Missing <receipt>, ask <!channel>",
+		},
+	});
+
+	assert.strictEqual(posts.length, 1);
+	const text = String(posts[0].text);
+	assert.match(text, /^Resubmitted reimbursement request\n/);
+	assert.match(
+		text,
+		/\nPreviously rejected: Missing &lt;receipt&gt;, ask &lt;!channel&gt;\n/,
+	);
+	assert.match(text, /\nDepartment: Community &lt;!here&gt;\n/);
+	const blocks = posts[0].blocks as Array<{
+		text?: { text?: string };
+		elements?: Array<{ action_id?: string; value?: string }>;
+	}>;
+	assert.strictEqual(
+		blocks[0]?.text?.text,
+		"*Resubmitted reimbursement request*\n31.20 EUR · Community &lt;!here&gt;\n*Previously rejected:* Missing &lt;receipt&gt;, ask &lt;!channel&gt;",
+	);
+	assert.ok(!JSON.stringify(posts[0]).includes("<!channel>"));
+	assert.ok(!JSON.stringify(posts[0]).includes("<!here>"));
+	// The approve buttons name the review round this message shows.
+	const approveValues = blocks
+		.flatMap((block) => block.elements ?? [])
+		.filter((element) => element.action_id?.startsWith("reimbursement_approve"))
+		.map((element) => element.value);
+	assert.deepStrictEqual(approveValues, ["request-7#1", "request-7#1"]);
+});
+
+test("reimbursement action values round-trip and default to round 0", () => {
+	assert.strictEqual(encodeReimbursementActionValue("req-1", 0), "req-1");
+	assert.strictEqual(encodeReimbursementActionValue("req-1", 2), "req-1#2");
+	assert.deepStrictEqual(decodeReimbursementActionValue("req-1"), {
+		requestId: "req-1",
+		revision: 0,
+	});
+	assert.deepStrictEqual(decodeReimbursementActionValue("req-1#2"), {
+		requestId: "req-1",
+		revision: 2,
+	});
+	// A garbled round never matches a real one, so the approval is refused.
+	assert.ok(Number.isNaN(decodeReimbursementActionValue("req-1#x").revision));
 });
 
 test("notifyBugReport tags a round-robin member from the Slack channel", async () => {

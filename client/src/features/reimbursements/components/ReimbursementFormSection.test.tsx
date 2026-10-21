@@ -5,6 +5,7 @@ import {
 	defaultValues,
 	type FormValues,
 } from "@/features/reimbursements/reimbursementSubmitUtils";
+import type { ReimbursementRequest } from "@/features/reimbursements/reimbursementTypes";
 import { ReimbursementFormSection } from "./ReimbursementFormSection";
 
 function renderSection(
@@ -20,6 +21,7 @@ function renderSection(
 		onSubmissionTypeChange: vi.fn(),
 		onFieldChange: vi.fn(),
 		onSubmit: vi.fn((event) => event.preventDefault()),
+		onCancelEdit: vi.fn(),
 	};
 
 	render(
@@ -27,6 +29,8 @@ function renderSection(
 			values={{ ...defaultValues, ...overrides.values }}
 			errors={{}}
 			isCreating={false}
+			isResubmitting={false}
+			editingRequest={null}
 			isReceiptBusy={false}
 			isDraggingReceipt={false}
 			isSubmitDisabled={false}
@@ -139,5 +143,58 @@ describe("ReimbursementFormSection", () => {
 		await user.click(screen.getByRole("button", { name: /submit request/i }));
 
 		expect(onSubmit).toHaveBeenCalledTimes(1);
+	});
+
+	describe("while editing a rejected request", () => {
+		const editingRequest: ReimbursementRequest = {
+			id: "req-rejected",
+			user_id: "member-1",
+			amount: 25,
+			date: "2026-06-03",
+			description: "Snacks",
+			department: "Community",
+			submission_type: "reimbursement",
+			status: "rejected",
+			approval_status: "not_approved",
+			payment_status: "to_be_paid",
+			rejection_reason: "Receipt is not itemized",
+		};
+
+		it("shows the reason and moves focus to the form", () => {
+			renderSection({ props: { editingRequest } });
+
+			const heading = screen.getByRole("heading", {
+				name: "Edit rejected request",
+			});
+			expect(heading).toHaveFocus();
+			expect(screen.getByText("Receipt is not itemized")).toBeVisible();
+			expect(
+				screen.getByRole("button", { name: "Resubmit request" }),
+			).toBeEnabled();
+		});
+
+		it("lets the member cancel the edit", async () => {
+			const user = userEvent.setup();
+			const { onCancelEdit } = renderSection({ props: { editingRequest } });
+
+			await user.click(screen.getByRole("button", { name: "Cancel" }));
+
+			expect(onCancelEdit).toHaveBeenCalledTimes(1);
+		});
+
+		it("shows progress while resubmitting", () => {
+			renderSection({
+				props: {
+					editingRequest,
+					isResubmitting: true,
+					isSubmitDisabled: true,
+				},
+			});
+
+			expect(
+				screen.getByRole("button", { name: "Resubmitting..." }),
+			).toBeDisabled();
+			expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+		});
 	});
 });

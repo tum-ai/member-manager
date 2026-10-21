@@ -151,6 +151,11 @@ export interface ReimbursementRequest {
 	first_approved_by?: string | null;
 	payment_status: ReimbursementPaymentStatus;
 	rejection_reason?: string | null;
+	/** How often the requester fixed and resubmitted this request after a rejection. */
+	resubmission_count?: number | null;
+	resubmitted_at?: string | null;
+	/** The rejection reason the requester addressed with their last resubmission. */
+	last_rejection_reason?: string | null;
 	bb_sync_status?: ReimbursementBuchhaltungsButlerSyncStatus | null;
 	bb_receipt_id_by_customer?: string | null;
 	bb_receipt_filename?: string | null;
@@ -203,6 +208,18 @@ export interface CreateReimbursementRequestPayload {
 	receipt_size_bytes?: number | null;
 }
 
+/**
+ * Body of `POST /reimbursements/:requestId/resubmit`: the corrected request.
+ * Leaving out the receipt keeps the one already attached to the request.
+ */
+export type ResubmitReimbursementRequestPayload = Omit<
+	CreateReimbursementRequestPayload,
+	"receipt_filename" | "receipt_mime_type"
+> & {
+	receipt_filename?: string | null;
+	receipt_mime_type?: string | null;
+};
+
 export interface ParseReimbursementReceiptPayload {
 	receipt_filename: string;
 	receipt_mime_type: string;
@@ -236,6 +253,11 @@ export interface ReviewReimbursementRequestPayload {
 	requestId: string;
 	action: ReimbursementReviewAction;
 	rejection_reason?: string;
+	/**
+	 * `resubmission_count` of the version the reviewer is looking at. The
+	 * server refuses an approve or reject if the request was resubmitted since.
+	 */
+	expected_revision?: number;
 }
 
 export interface UpdateReimbursementDepartmentPayload {

@@ -8,6 +8,7 @@ import {
 } from "../lib/buchhaltungsbutler.js";
 import { fetchWithTimeout } from "../lib/fetchWithTimeout.js";
 import {
+	decodeReimbursementActionValue,
 	getSlackUserEmailById,
 	REIMBURSEMENT_STATUS_LINK_ACTION_ID,
 } from "../lib/slackNotifier.js";
@@ -149,16 +150,19 @@ function actionLabel(actionId: string): string {
 async function handleReimbursementAction({
 	actionId,
 	requestId,
+	expectedRevision,
 	reviewerUserId,
 	request,
 }: {
 	actionId: string;
 	requestId: string;
+	expectedRevision: number;
 	reviewerUserId: string;
 	request: FastifyRequest;
 }): Promise<string> {
 	const approved = await approveReimbursementRequest({
 		requestId,
+		expectedRevision,
 		reviewerUserId,
 		log: request.log,
 	});
@@ -221,12 +225,14 @@ async function postSlackDelayedResponse(
 function queueSlackReimbursementAction({
 	actionId,
 	requestId,
+	expectedRevision,
 	slackUserId,
 	responseUrl,
 	request,
 }: {
 	actionId: string;
 	requestId: string;
+	expectedRevision: number;
 	slackUserId: string;
 	responseUrl?: string;
 	request: FastifyRequest;
@@ -238,6 +244,7 @@ function queueSlackReimbursementAction({
 				const message = await handleReimbursementAction({
 					actionId,
 					requestId,
+					expectedRevision,
 					reviewerUserId,
 					request,
 				});
@@ -531,9 +538,12 @@ export async function slackInteractionRoutes(server: FastifyInstance) {
 			return sendSlackMessage(reply, "Slack action payload is missing data.");
 		}
 
+		const { requestId: reimbursementId, revision } =
+			decodeReimbursementActionValue(requestId);
 		queueSlackReimbursementAction({
 			actionId,
-			requestId,
+			requestId: reimbursementId,
+			expectedRevision: revision,
 			slackUserId,
 			responseUrl: payload.response_url,
 			request,
