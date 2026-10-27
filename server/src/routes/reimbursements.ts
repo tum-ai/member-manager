@@ -33,11 +33,16 @@ import {
 	decodeReceiptBase64,
 	downloadStoredReceipt,
 	estimateBase64Bytes,
+	isOwnedReceiptStoragePath,
 	MAX_REIMBURSEMENT_RECEIPT_BYTES,
 	REIMBURSEMENT_RECEIPT_BUCKET,
 	removeStoredReceipt,
 	stripReceiptDataUrlPrefix,
 } from "../lib/reimbursementReceipts.js";
+import {
+	assertOwnedStoredReceipt,
+	resubmitRejectedReimbursement,
+} from "../lib/reimbursementResubmission.js";
 import {
 	decryptRecordSafely,
 	encryptRecord,
@@ -222,27 +227,42 @@ function createReimbursementDatabaseError(error: unknown): DatabaseError {
 	return new DatabaseError();
 }
 
-const CreateReimbursementSchema = z
-	.object({
-		amount: z.number().positive("Amount must be positive"),
-		date: z.string().refine(isValidDate, "Invalid date"),
-		description: z.string().trim().min(1).max(1000),
-		department: z.string().trim().min(1).max(120),
-		submission_type: reimbursementSubmissionTypeSchema.default("reimbursement"),
-		payment_iban: z.string().trim().optional().nullable(),
-		payment_bic: z.string().trim().max(34).optional().nullable(),
-		receipt_filename: z.string().trim().min(1).max(255).optional().nullable(),
-		receipt_mime_type: z.string().trim().min(1).max(120).optional().nullable(),
-		receipt_base64: z.string().trim().optional().nullable(),
-		receipt_storage_bucket: z.string().trim().max(120).optional().nullable(),
-		receipt_storage_path: z.string().trim().max(500).optional().nullable(),
-		receipt_size_bytes: z.number().int().positive().optional().nullable(),
-	})
-	.superRefine((body, context) => {
+const ReimbursementRequestFields = z.object({
+	amount: z.number().positive("Amount must be positive"),
+	date: z.string().refine(isValidDate, "Invalid date"),
+	description: z.string().trim().min(1).max(1000),
+	department: z.string().trim().min(1).max(120),
+	submission_type: reimbursementSubmissionTypeSchema.default("reimbursement"),
+	payment_iban: z.string().trim().optional().nullable(),
+	payment_bic: z.string().trim().max(34).optional().nullable(),
+	receipt_filename: z.string().trim().min(1).max(255).optional().nullable(),
+	receipt_mime_type: z.string().trim().min(1).max(120).optional().nullable(),
+	receipt_base64: z.string().trim().optional().nullable(),
+	receipt_storage_bucket: z.string().trim().max(120).optional().nullable(),
+	receipt_storage_path: z.string().trim().max(500).optional().nullable(),
+	receipt_size_bytes: z.number().int().positive().optional().nullable(),
+});
+
+/**
+ * Rules shared by a new request and a resubmitted one. A new request must
+ * carry a receipt; a resubmission may leave it out to keep the current one,
+ * but a receipt it does send must be complete.
+ */
+function refineReimbursementRequest({
+	requireReceipt,
+}: {
+	requireReceipt: boolean;
+}) {
+	return (
+		body: z.infer<typeof ReimbursementRequestFields>,
+		context: z.RefinementCtx,
+	): void => {
+		const hasReceiptFile = Boolean(
+			body.receipt_base64 || body.receipt_storage_path,
+		);
 		if (
-			(!body.receipt_base64 && !body.receipt_storage_path) ||
-			!body.receipt_filename ||
-			!body.receipt_mime_type
+			(requireReceipt || hasReceiptFile) &&
+			(!hasReceiptFile || !body.receipt_filename || !body.receipt_mime_type)
 		) {
 			context.addIssue({
 				code: z.ZodIssueCode.custom,
@@ -250,87 +270,106 @@ const CreateReimbursementSchema = z
 				path: ["receipt_base64"],
 			});
 		}
+		refineReimbursementPaymentAndReceipt(body, context);
+	};
+}
 
-		const hasIban = Boolean(body.payment_iban?.trim());
-		const hasBic = Boolean(body.payment_bic?.trim());
-		if (body.submission_type === VIVID_REIMBURSEMENT_SUBMISSION_TYPE) {
-			if (hasIban || hasBic) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: "Vivid reimbursement requests must not include IBAN or BIC",
-					path: [hasIban ? "payment_iban" : "payment_bic"],
-				});
-			}
-		} else {
-			if (!hasIban) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: "IBAN is required for reimbursement and invoice requests",
-					path: ["payment_iban"],
-				});
-			}
-			if (!hasBic) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: "BIC is required for reimbursement and invoice requests",
-					path: ["payment_bic"],
-				});
-			}
-		}
+const CreateReimbursementSchema = ReimbursementRequestFields.superRefine(
+	refineReimbursementRequest({ requireReceipt: true }),
+);
 
-		if (body.receipt_base64) {
-			if (!body.receipt_filename || !body.receipt_mime_type) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: "Receipt filename and MIME type are required with a file",
-					path: ["receipt_filename"],
-				});
-			}
-			if (
-				body.receipt_mime_type &&
-				!ALLOWED_REIMBURSEMENT_RECEIPT_MIME_TYPES.has(body.receipt_mime_type)
-			) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: "Unsupported receipt type. Upload a PDF, JPG, or PNG.",
-					path: ["receipt_mime_type"],
-				});
-			}
-			if (
-				estimateBase64Bytes(stripReceiptDataUrlPrefix(body.receipt_base64)) >
-				MAX_REIMBURSEMENT_RECEIPT_BYTES
-			) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: "Receipt file is too large",
-					path: ["receipt_base64"],
-				});
-			}
-		}
+const ResubmitReimbursementSchema = ReimbursementRequestFields.superRefine(
+	refineReimbursementRequest({ requireReceipt: false }),
+);
 
-		if (body.receipt_storage_path) {
-			if (
-				body.receipt_storage_bucket &&
-				body.receipt_storage_bucket !== REIMBURSEMENT_RECEIPT_BUCKET
-			) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: "Unsupported receipt storage bucket",
-					path: ["receipt_storage_bucket"],
-				});
-			}
-			if (
-				body.receipt_size_bytes &&
-				body.receipt_size_bytes > MAX_REIMBURSEMENT_RECEIPT_BYTES
-			) {
-				context.addIssue({
-					code: z.ZodIssueCode.custom,
-					message: "Receipt file is too large",
-					path: ["receipt_size_bytes"],
-				});
-			}
+const ReimbursementRequestParamsSchema = z.object({
+	requestId: z.string().trim().min(1),
+});
+
+function refineReimbursementPaymentAndReceipt(
+	body: z.infer<typeof ReimbursementRequestFields>,
+	context: z.RefinementCtx,
+): void {
+	const hasIban = Boolean(body.payment_iban?.trim());
+	const hasBic = Boolean(body.payment_bic?.trim());
+	if (body.submission_type === VIVID_REIMBURSEMENT_SUBMISSION_TYPE) {
+		if (hasIban || hasBic) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Vivid reimbursement requests must not include IBAN or BIC",
+				path: [hasIban ? "payment_iban" : "payment_bic"],
+			});
 		}
-	});
+	} else {
+		if (!hasIban) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "IBAN is required for reimbursement and invoice requests",
+				path: ["payment_iban"],
+			});
+		}
+		if (!hasBic) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "BIC is required for reimbursement and invoice requests",
+				path: ["payment_bic"],
+			});
+		}
+	}
+
+	if (body.receipt_base64) {
+		if (!body.receipt_filename || !body.receipt_mime_type) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Receipt filename and MIME type are required with a file",
+				path: ["receipt_filename"],
+			});
+		}
+		if (
+			body.receipt_mime_type &&
+			!ALLOWED_REIMBURSEMENT_RECEIPT_MIME_TYPES.has(body.receipt_mime_type)
+		) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Unsupported receipt type. Upload a PDF, JPG, or PNG.",
+				path: ["receipt_mime_type"],
+			});
+		}
+		if (
+			estimateBase64Bytes(stripReceiptDataUrlPrefix(body.receipt_base64)) >
+			MAX_REIMBURSEMENT_RECEIPT_BYTES
+		) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Receipt file is too large",
+				path: ["receipt_base64"],
+			});
+		}
+	}
+
+	if (body.receipt_storage_path) {
+		if (
+			body.receipt_storage_bucket &&
+			body.receipt_storage_bucket !== REIMBURSEMENT_RECEIPT_BUCKET
+		) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Unsupported receipt storage bucket",
+				path: ["receipt_storage_bucket"],
+			});
+		}
+		if (
+			body.receipt_size_bytes &&
+			body.receipt_size_bytes > MAX_REIMBURSEMENT_RECEIPT_BYTES
+		) {
+			context.addIssue({
+				code: z.ZodIssueCode.custom,
+				message: "Receipt file is too large",
+				path: ["receipt_size_bytes"],
+			});
+		}
+	}
+}
 
 const CreateReceiptUploadUrlSchema = z.object({
 	receipt_filename: z.string().trim().min(1).max(255),
@@ -374,6 +413,8 @@ const ReviewReimbursementSchema = z
 		action: z.enum(["approve", "reject", "mark_paid"]).optional(),
 		rejection_reason: z.string().trim().max(500).optional(),
 		department: z.string().trim().min(1).max(120).optional(),
+		// Review round (`resubmission_count`) the reviewer's page showed.
+		expected_revision: z.number().int().nonnegative().optional(),
 		...FinanceReimbursementLinkSchema.shape,
 	})
 	.superRefine((body, context) => {
@@ -909,7 +950,10 @@ async function advanceApproval({
 			updated_at: now,
 		})
 		.eq("id", String(existingRequest.id))
-		.eq("approval_status", "pending");
+		.eq("approval_status", "pending")
+		// A resubmission keeps the id and returns to `pending`; the round
+		// makes sure this approval is for the content the reviewer saw.
+		.eq("resubmission_count", Number(existingRequest.resubmission_count) || 0);
 	query = firstApproval
 		? query.is("first_approved_at", null)
 		: query.eq("first_approved_at", existingRequest.first_approved_at);
@@ -929,10 +973,16 @@ async function advanceApproval({
 
 export async function approveReimbursementRequest({
 	requestId,
+	expectedRevision,
 	reviewerUserId,
 	log,
 }: {
 	requestId: string;
+	/**
+	 * Review round (`resubmission_count`) the approving Slack message showed.
+	 * A mismatch means the member resubmitted changed details since.
+	 */
+	expectedRevision?: number;
 	reviewerUserId: string;
 	log?: RouteLogger;
 }): Promise<ReimbursementRow> {
@@ -953,6 +1003,15 @@ export async function approveReimbursementRequest({
 	}
 
 	const existingRequest = existing as ReimbursementRow;
+	if (
+		expectedRevision !== undefined &&
+		(Number(existingRequest.resubmission_count) || 0) !== expectedRevision
+	) {
+		throw new ReimbursementWorkflowError(
+			"This message is for an earlier version of the request, which was resubmitted since. Review the current version in Member Manager.",
+			409,
+		);
+	}
 	if (existingRequest.approval_status === "approved") {
 		return existingRequest;
 	}
@@ -1228,7 +1287,7 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 						.status(400)
 						.send({ error: "Unsupported receipt storage bucket" });
 				}
-				if (!body.receipt_storage_path.startsWith(`${user.id}/`)) {
+				if (!isOwnedReceiptStoragePath(user.id, body.receipt_storage_path)) {
 					return reply
 						.status(400)
 						.send({ error: "Receipt upload does not belong to this user." });
@@ -1622,6 +1681,20 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			}
 
 			const existingRequest = existing as ReimbursementRow;
+			const currentRevision = Number(existingRequest.resubmission_count) || 0;
+			// A resubmission keeps the id, so a page loaded before it would
+			// approve or reject details the reviewer never saw. A caller that
+			// sends no round (a tab opened before this field existed) is
+			// treated as round 0, the only round such a page could have shown.
+			if (
+				(body.action === "approve" || body.action === "reject") &&
+				(body.expected_revision ?? 0) !== currentRevision
+			) {
+				return reply.status(409).send({
+					error:
+						"This request was resubmitted since you loaded it. Reload to review the current version.",
+				});
+			}
 			if (
 				body.action === "mark_paid" &&
 				existingRequest.submission_type === VIVID_REIMBURSEMENT_SUBMISSION_TYPE
@@ -1724,7 +1797,9 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					.update(update)
 					.eq("id", requestId);
 				if (body.action === "reject") {
-					query = query.eq("approval_status", "pending");
+					query = query
+						.eq("approval_status", "pending")
+						.eq("resubmission_count", currentRevision);
 				}
 				const { data: updated, error } = await query.select().maybeSingle();
 
@@ -1810,28 +1885,13 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					REIMBURSEMENT_RECEIPT_BUCKET)
 				: null;
 
-			if (receiptStoragePath) {
-				if (receiptStorageBucket !== REIMBURSEMENT_RECEIPT_BUCKET) {
-					return reply
-						.status(400)
-						.send({ error: "Unsupported receipt storage bucket" });
-				}
-				if (!receiptStoragePath.startsWith(`${user.id}/`)) {
-					return reply
-						.status(400)
-						.send({ error: "Receipt upload does not belong to this user." });
-				}
-				try {
-					await downloadStoredReceipt({
-						bucket: receiptStorageBucket,
-						path: receiptStoragePath,
-						expectedMimeType: body.receipt_mime_type,
-					});
-				} catch {
-					return reply.status(400).send({
-						error: "Receipt upload was not found. Upload the receipt again.",
-					});
-				}
+			if (receiptStoragePath && receiptStorageBucket) {
+				await assertOwnedStoredReceipt({
+					userId: user.id,
+					bucket: receiptStorageBucket,
+					path: receiptStoragePath,
+					mimeType: body.receipt_mime_type,
+				});
 			}
 
 			const reimbursement = encryptRecord(
@@ -1908,6 +1968,102 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 						{ userId: user.id },
 					),
 				);
+		},
+	);
+
+	server.post<{ Params: { requestId: string } }>(
+		"/reimbursements/:requestId/resubmit",
+		{ preHandler: authenticate },
+		async (request, reply) => {
+			const user = (request as AuthenticatedRequest).user;
+			const { requestId } = ReimbursementRequestParamsSchema.parse(
+				request.params,
+			);
+			const body = ResubmitReimbursementSchema.parse(request.body);
+			const isVividReimbursement =
+				body.submission_type === VIVID_REIMBURSEMENT_SUBMISSION_TYPE;
+			if (
+				isVividReimbursement &&
+				!(await checkVividReimbursementEligibility(user.id))
+			) {
+				return reply.status(403).send({
+					error:
+						"Only active Team Leads, Presidents, Vice-Presidents, and admins may submit Vivid reimbursements",
+				});
+			}
+
+			const receiptStoragePath = normalizeMaybeString(
+				body.receipt_storage_path,
+			);
+			const hasNewReceipt = Boolean(receiptStoragePath || body.receipt_base64);
+			const { row, previousRejectionReason, resubmissionCount } =
+				await resubmitRejectedReimbursement({
+					requestId,
+					userId: user.id,
+					details: {
+						amount: body.amount,
+						date: body.date,
+						description: body.description,
+						department: body.department,
+						submission_type: body.submission_type,
+						payment_iban: isVividReimbursement
+							? null
+							: validateOptionalIban(body.payment_iban),
+						payment_bic: isVividReimbursement
+							? null
+							: body.payment_bic?.trim() || null,
+					},
+					receipt: hasNewReceipt
+						? {
+								filename: String(body.receipt_filename ?? "").trim(),
+								mimeType: String(body.receipt_mime_type ?? "").trim(),
+								base64: receiptStoragePath
+									? null
+									: (body.receipt_base64 ?? null),
+								storageBucket: receiptStoragePath
+									? (normalizeMaybeString(body.receipt_storage_bucket) ??
+										REIMBURSEMENT_RECEIPT_BUCKET)
+									: null,
+								storagePath: receiptStoragePath,
+								sizeBytes: body.receipt_size_bytes ?? null,
+							}
+						: null,
+					log: request.log,
+				});
+
+			try {
+				await notifyFinanceOfReimbursementRequest({
+					requestId,
+					requesterUserId: user.id,
+					requesterEmail: user.email ?? "",
+					submissionType: body.submission_type,
+					department: body.department.trim(),
+					amount: body.amount,
+					reviewUrl: buildFinanceReviewUrl(),
+					resubmission: {
+						count: resubmissionCount,
+						previousRejectionReason,
+					},
+				});
+			} catch (notificationError) {
+				request.log.warn(
+					{ err: notificationError, userId: user.id, requestId },
+					"Failed to notify finance about resubmitted reimbursement",
+				);
+			}
+
+			return withOwnerReceiptMetadata(
+				decryptRecordSafely(
+					row,
+					SENSITIVE_REIMBURSEMENT_FIELDS,
+					({ field, error }) => {
+						request.log.warn(
+							{ err: error, userId: user.id, field },
+							"Failed to decrypt reimbursement field; returning blank value",
+						);
+					},
+				),
+			);
 		},
 	);
 }

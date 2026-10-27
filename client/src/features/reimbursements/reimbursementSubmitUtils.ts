@@ -13,6 +13,11 @@ export interface ReceiptState {
 	sizeBytes: number;
 	storageBucket: string;
 	storagePath: string;
+	/**
+	 * The receipt already attached to a request being edited. It isn't sent
+	 * on resubmit, which tells the server to keep it.
+	 */
+	existing?: boolean;
 }
 
 export interface FormValues {
@@ -111,6 +116,45 @@ export function readFileAsBase64(file: File): Promise<string> {
 		reader.onerror = () => reject(new Error("Could not read receipt file"));
 		reader.readAsDataURL(file);
 	});
+}
+
+/**
+ * Only a rejected request can be edited and sent back to review. Mirrors the
+ * server: a request that was already paid or booked in BuchhaltungsButler
+ * before it was rejected (possible on older rows) stays closed.
+ */
+export function canResubmitRequest(request: ReimbursementRequest): boolean {
+	return (
+		request.approval_status === "not_approved" &&
+		request.payment_status !== "paid" &&
+		request.status !== "paid" &&
+		request.bb_sync_status !== "synced" &&
+		!request.bb_receipt_id_by_customer
+	);
+}
+
+/** Form values for editing a rejected request, starting from what was submitted. */
+export function buildEditValues(request: ReimbursementRequest): FormValues {
+	const isVivid = request.submission_type === "vivid_reimbursement";
+	return {
+		submissionType: request.submission_type,
+		amount: String(request.amount),
+		date: request.date,
+		description: request.description,
+		department: request.department,
+		paymentIban: isVivid ? "" : (request.payment_iban ?? request.iban ?? ""),
+		paymentBic: isVivid ? "" : (request.payment_bic ?? request.bic ?? ""),
+		receipt: request.receipt_filename
+			? {
+					fileName: request.receipt_filename,
+					mimeType: request.receipt_mime_type ?? "",
+					sizeBytes: 0,
+					storageBucket: "",
+					storagePath: "",
+					existing: true,
+				}
+			: null,
+	};
 }
 
 export function validateForm(values: FormValues): FormErrors {

@@ -1,7 +1,8 @@
 import type React from "react";
 import type { ReactElement } from "react";
+import { useEffect, useRef } from "react";
 import { IbanInput } from "@/components/IbanInput";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
@@ -19,7 +20,10 @@ import type {
 	FormErrors,
 	FormValues,
 } from "@/features/reimbursements/reimbursementSubmitUtils";
-import type { ReimbursementSubmissionType } from "@/features/reimbursements/reimbursementTypes";
+import type {
+	ReimbursementRequest,
+	ReimbursementSubmissionType,
+} from "@/features/reimbursements/reimbursementTypes";
 import { DEPARTMENTS } from "@/lib/constants";
 import { ReceiptUpload } from "./ReceiptUpload";
 
@@ -27,6 +31,10 @@ interface ReimbursementFormSectionProps {
 	values: FormValues;
 	errors: FormErrors;
 	isCreating: boolean;
+	isResubmitting: boolean;
+	/** The rejected request being corrected; null for a new request. */
+	editingRequest: ReimbursementRequest | null;
+	onCancelEdit: () => void;
 	isReceiptBusy: boolean;
 	isDraggingReceipt: boolean;
 	isSubmitDisabled: boolean;
@@ -47,6 +55,9 @@ export function ReimbursementFormSection({
 	values,
 	errors,
 	isCreating,
+	isResubmitting,
+	editingRequest,
+	onCancelEdit,
 	isReceiptBusy,
 	isDraggingReceipt,
 	isSubmitDisabled,
@@ -59,10 +70,40 @@ export function ReimbursementFormSection({
 	onFieldChange,
 	onSubmit,
 }: ReimbursementFormSectionProps): ReactElement {
+	const headingRef = useRef<HTMLHeadingElement>(null);
+	const editingRequestId = editingRequest?.id ?? null;
+
+	// Starting an edit happens from the request list, which sits above the form
+	// on narrow screens. Bring the form into view and move focus to it so
+	// keyboard and screen-reader users land where the edit continues.
+	useEffect(() => {
+		if (!editingRequestId) return;
+		headingRef.current?.scrollIntoView?.({
+			behavior: "smooth",
+			block: "start",
+		});
+		headingRef.current?.focus({ preventScroll: true });
+	}, [editingRequestId]);
+
 	return (
 		<GlassCard>
 			<div className="p-5 md:p-6">
-				<h2 className="mb-4 text-xl font-semibold">New request</h2>
+				<h2
+					ref={headingRef}
+					tabIndex={-1}
+					className="mb-4 text-xl font-semibold outline-none"
+				>
+					{editingRequest ? "Edit rejected request" : "New request"}
+				</h2>
+
+				{editingRequest && (
+					<Alert variant="destructive" className="mb-4">
+						<AlertTitle>Why it was rejected</AlertTitle>
+						<AlertDescription className="break-words whitespace-pre-wrap">
+							{editingRequest.rejection_reason || "No reason was given."}
+						</AlertDescription>
+					</Alert>
+				)}
 
 				<form onSubmit={onSubmit} noValidate>
 					{/* Type first: the receipt parse fills bank details into the
@@ -237,9 +278,25 @@ export function ReimbursementFormSection({
 						)}
 					</div>
 
-					<div className="mt-6 flex justify-end">
+					<div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+						{editingRequest && (
+							<Button
+								type="button"
+								variant="outline"
+								onClick={onCancelEdit}
+								disabled={isResubmitting}
+							>
+								Cancel
+							</Button>
+						)}
 						<Button type="submit" disabled={isSubmitDisabled}>
-							{isCreating ? "Submitting..." : "Submit request"}
+							{editingRequest
+								? isResubmitting
+									? "Resubmitting..."
+									: "Resubmit request"
+								: isCreating
+									? "Submitting..."
+									: "Submit request"}
 						</Button>
 					</div>
 				</form>

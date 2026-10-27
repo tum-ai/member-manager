@@ -314,6 +314,76 @@ describe("Slack interaction routes", async () => {
 		assert.deepStrictEqual(notifications, []);
 	});
 
+	test("an approve button from before a resubmission can't approve the new version", async () => {
+		resetDatabase();
+		process.env.SLACK_SIGNING_SECRET = "test-secret";
+		process.env.SLACK_BOT_TOKEN = "xoxb-test";
+		setReimbursementStatusSlackNotifier(async () => {});
+
+		// Rejected, then resubmitted with changed details: pending again,
+		// same id, round 1.
+		const row = mockDatabase.reimbursements.find(
+			(candidate) => candidate.id === MOCK_REIMBURSEMENT_OLDER_ID,
+		);
+		assert.ok(row);
+		Object.assign(row, { amount: 1000, resubmission_count: 1 });
+
+		const delayedMessages: string[] = [];
+		globalThis.fetch = (async (input, init) => {
+			const url = String(input);
+			if (url === "https://hooks.slack.test/response") {
+				delayedMessages.push(
+					String(JSON.parse(String(init?.body ?? "{}") || "{}").text ?? ""),
+				);
+				return new Response("ok", { status: 200 });
+			}
+			return new Response(
+				JSON.stringify({
+					ok: true,
+					user: { profile: { email: "admin@test.com" } },
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			);
+		}) as typeof fetch;
+
+		const click = async (value: string) => {
+			const signed = signedSlackPayload(
+				{
+					type: "block_actions",
+					user: { id: "UADMIN" },
+					response_url: "https://hooks.slack.test/response",
+					actions: [{ action_id: "reimbursement_approve", value }],
+				},
+				"test-secret",
+			);
+			const response = await app.inject({
+				method: "POST",
+				url: "/api/slack/interactions",
+				headers: signed.headers,
+				payload: signed.body,
+			});
+			assert.strictEqual(response.statusCode, 200);
+		};
+		const findOlder = () =>
+			mockDatabase.reimbursements.find(
+				(candidate) => candidate.id === MOCK_REIMBURSEMENT_OLDER_ID,
+			);
+
+		// The original DM's button carries only the id, i.e. round 0.
+		await click(MOCK_REIMBURSEMENT_OLDER_ID);
+		await waitForAssertion(() => {
+			assert.match(delayedMessages.at(-1) ?? "", /earlier version/);
+		});
+		assert.strictEqual(findOlder()?.first_approved_at ?? null, null);
+
+		// The resubmission DM's button names round 1 and works.
+		await click(`${MOCK_REIMBURSEMENT_OLDER_ID}#1`);
+		await waitForAssertion(() => {
+			assert.ok(findOlder()?.first_approved_at);
+			assert.match(delayedMessages.at(-1) ?? "", /first approval/);
+		});
+	});
+
 	test("doesn't sync to BuchhaltungsButler on a first approval", async () => {
 		resetDatabase();
 		process.env.SLACK_SIGNING_SECRET = "test-secret";

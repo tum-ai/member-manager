@@ -1,5 +1,5 @@
 import { reimbursementRequiresPayout } from "@member-manager/shared";
-import { Download, ExternalLink } from "lucide-react";
+import { Download, ExternalLink, PencilLine } from "lucide-react";
 import type React from "react";
 import { useRef } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -21,6 +21,7 @@ import {
 	hasReceiptEndpoint,
 } from "@/features/reimbursements/reimbursementReviewUtils";
 import {
+	canResubmitRequest,
 	formatAmount,
 	formatDate,
 	getRequestTypeLabel,
@@ -38,6 +39,12 @@ interface ReimbursementRequestDetailDialogProps {
 	onDownloadReceipt: () => void;
 	isOpeningReceipt: boolean;
 	isDownloadingReceipt: boolean;
+	/**
+	 * Opens the form on this rejected request so the member can fix and
+	 * resubmit it. Called once the dialog has closed, so focus can move to the
+	 * form instead of back to the list.
+	 */
+	onEditAndResubmit: () => void;
 }
 
 /**
@@ -52,10 +59,14 @@ export function ReimbursementRequestDetailDialog({
 	onDownloadReceipt,
 	isOpeningReceipt,
 	isDownloadingReceipt,
+	onEditAndResubmit,
 }: ReimbursementRequestDetailDialogProps): React.ReactElement {
 	// The list buttons are not Radix `DialogTrigger`s, so Radix has no trigger
 	// to refocus on close. Remember whichever element opened the dialog instead.
 	const returnFocusRef = useRef<HTMLElement | null>(null);
+	// Set by "Edit and resubmit": the edit starts after the close, while the
+	// focus trap no longer holds focus inside the dialog.
+	const startEditOnCloseRef = useRef(false);
 
 	return (
 		<Dialog open={open && request !== null} onOpenChange={onOpenChange}>
@@ -69,6 +80,12 @@ export function ReimbursementRequestDetailDialog({
 								: null;
 					}}
 					onCloseAutoFocus={(event) => {
+						if (startEditOnCloseRef.current) {
+							startEditOnCloseRef.current = false;
+							event.preventDefault();
+							onEditAndResubmit();
+							return;
+						}
 						const opener = returnFocusRef.current;
 						if (opener?.isConnected) {
 							event.preventDefault();
@@ -104,6 +121,27 @@ export function ReimbursementRequestDetailDialog({
 								</AlertDescription>
 							</Alert>
 						)}
+
+					{canResubmitRequest(request) && (
+						<div className="flex flex-col gap-2 rounded-lg bg-muted/50 p-3 sm:flex-row sm:items-center sm:justify-between">
+							<p className="text-sm text-muted-foreground">
+								Fix what was asked for and send this same request back to
+								review.
+							</p>
+							<Button
+								type="button"
+								size="sm"
+								className="shrink-0"
+								onClick={() => {
+									startEditOnCloseRef.current = true;
+									onOpenChange(false);
+								}}
+							>
+								<PencilLine className="size-4" />
+								Edit and resubmit
+							</Button>
+						</div>
+					)}
 
 					<Separator />
 

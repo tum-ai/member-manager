@@ -6,6 +6,7 @@ export type {
 	ReimbursementReviewAction,
 	ReimbursementStatus,
 	ReimbursementSubmissionType,
+	ResubmitReimbursementRequestPayload,
 } from "@member-manager/shared";
 
 import type {
@@ -84,6 +85,8 @@ export interface ReviewReimbursementRequestPayload {
 	requestId: string;
 	action: ReimbursementReviewAction;
 	rejection_reason?: string;
+	/** `resubmission_count` of the version shown; see the shared contract. */
+	expected_revision?: number;
 }
 
 export interface UpdateReimbursementDepartmentPayload {

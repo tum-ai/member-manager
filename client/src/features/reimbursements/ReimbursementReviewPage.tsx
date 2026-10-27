@@ -149,12 +149,16 @@ export default function ReimbursementReviewPage(): React.ReactElement {
 		requestId: string,
 		action: ReimbursementReviewAction,
 	): Promise<void> => {
+		// Pin the version on screen, so a request the member resubmitted after
+		// this page loaded isn't approved or rejected unseen.
+		const shown = requests.find((request) => request.id === requestId);
 		try {
 			await reviewRequestAsync({
 				requestId,
 				action,
 				rejection_reason:
 					action === "reject" ? rejectionReasons[requestId] : undefined,
+				expected_revision: shown?.resubmission_count ?? 0,
 			});
 			showToast("Reimbursement request updated.", "success");
 		} catch (reviewError) {
