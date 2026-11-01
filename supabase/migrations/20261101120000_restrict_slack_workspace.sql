@@ -51,3 +51,12 @@ begin
     return new;
 end;
 $$;
+
+-- Any session could read every member's directory columns straight through
+-- PostgREST, bypassing `authenticate`, so an account from another workspace
+-- created before this migration could still list all members. Nothing needs
+-- the policy: the member list loads through `/api/members` with the service
+-- role, the client never queries `members` directly, and every other policy
+-- that reads `members` checks only the caller's own row. The own-row and
+-- admin read policies and the column grants stay.
+drop policy if exists "Authenticated users can view all members" on "public"."members";

@@ -46,6 +46,13 @@ test("the trigger still creates the member row and default role", () => {
 	);
 });
 
+test("sessions can no longer read every member row directly", () => {
+	assert.match(
+		migration,
+		/drop policy if exists "Authenticated users can view all members" on "public"\."members";/,
+	);
+});
+
 function localDbUrl(): string {
 	const output = execFileSync("supabase", ["status", "-o", "env"], {
 		cwd: REPO_ROOT,
@@ -116,5 +123,36 @@ describe("Slack workspace sign-up guard against the local database", {
 
 	test("an email sign-up is unaffected", () => {
 		assert.match(insertAuthUser("email", {}), /^1$/m);
+	});
+
+	// A session for a user with no member row and no admin role, i.e. what an
+	// outsider's leftover session looks like through PostgREST.
+	test("a non-admin session sees no other member rows", () => {
+		const outsiderId = randomUUID();
+		const output = execFileSync(
+			"psql",
+			[
+				localDbUrl(),
+				"-qAt",
+				"-v",
+				"ON_ERROR_STOP=1",
+				"-c",
+				"select count(*) > 0 from public.members",
+				"-c",
+				"begin",
+				"-c",
+				"set local role authenticated",
+				"-c",
+				`select set_config('request.jwt.claims', '{"sub":"${outsiderId}","role":"authenticated"}', true)`,
+				"-c",
+				"select count(*) from public.members",
+				"-c",
+				"rollback",
+			],
+			{ encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+		);
+		const lines = output.trim().split("\n");
+		assert.strictEqual(lines[0], "t", "the local database has no members");
+		assert.strictEqual(lines.at(-1), "0");
 	});
 });
