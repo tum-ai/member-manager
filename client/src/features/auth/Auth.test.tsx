@@ -47,6 +47,24 @@ describe("Auth", () => {
 		});
 	});
 
+	it("explains a Slack sign-up rejected for the wrong workspace", () => {
+		window.history.replaceState(
+			null,
+			"",
+			"/?error=server_error&error_description=Database+error+saving+new+user",
+		);
+		try {
+			renderAuth("light");
+			expect(screen.getByRole("alert")).toHaveTextContent(
+				/only members of the tum\.ai slack workspace can sign in/i,
+			);
+			// The error is consumed, so a reload doesn't show it again.
+			expect(window.location.search).toBe("");
+		} finally {
+			window.history.replaceState(null, "", "/");
+		}
+	});
+
 	it("keeps the white logo in dark mode", () => {
 		renderAuth("dark");
 

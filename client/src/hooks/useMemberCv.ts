@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiClient } from "@/lib/apiClient";
+import { apiClient, throwApiError } from "@/lib/apiClient";
 import { supabase } from "@/lib/supabaseClient";
 
 export interface MemberCvMetadata {
@@ -98,6 +98,9 @@ export function useMemberCv(userId: string) {
 					: {},
 			},
 		);
+		if (response.status === 401) {
+			await throwApiError(response);
+		}
 		if (!response.ok) {
 			throw new Error("Failed to download CV");
 		}

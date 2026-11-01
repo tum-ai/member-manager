@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiClient } from "./apiClient";
+import { apiBlob, apiClient } from "./apiClient";
+import { takeAuthNotice, WORKSPACE_NOT_ALLOWED_NOTICE } from "./authNotice";
+import { supabase } from "./supabaseClient";
 
 vi.mock("./supabaseClient", () => ({
 	supabase: {
@@ -7,6 +9,7 @@ vi.mock("./supabaseClient", () => ({
 			getSession: vi.fn().mockResolvedValue({
 				data: { session: { access_token: "test-token" } },
 			}),
+			signOut: vi.fn().mockResolvedValue({ error: null }),
 		},
 	},
 }));
@@ -72,5 +75,58 @@ describe("apiClient", () => {
 		const headers = init.headers as Record<string, string>;
 		expect(headers["Content-Type"]).toBeUndefined();
 		expect(headers.Authorization).toBe("Bearer test-token");
+	});
+
+	it("signs out and remembers a notice when the workspace is not allowed", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({ error: "Slack workspace not allowed" }), {
+					status: 401,
+					headers: { "content-type": "application/json" },
+				}),
+			),
+		);
+
+		await expect(apiClient("/api/members/me")).rejects.toThrow(
+			"Slack workspace not allowed",
+		);
+		expect(supabase.auth.signOut).toHaveBeenCalled();
+		expect(takeAuthNotice()).toBe(WORKSPACE_NOT_ALLOWED_NOTICE);
+	});
+
+	it("signs out without a notice for an ordinary invalid token", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({ error: "Invalid token" }), {
+					status: 401,
+					headers: { "content-type": "application/json" },
+				}),
+			),
+		);
+
+		await expect(apiClient("/api/members/me")).rejects.toThrow("Invalid token");
+		expect(supabase.auth.signOut).toHaveBeenCalled();
+		expect(takeAuthNotice()).toBeNull();
+	});
+
+	it("handles a workspace rejection the same way for blob downloads", async () => {
+		vi.mocked(supabase.auth.signOut).mockClear();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({ error: "Slack workspace not allowed" }), {
+					status: 401,
+					headers: { "content-type": "application/json" },
+				}),
+			),
+		);
+
+		await expect(apiBlob("/api/contracts/submissions/1/pdf")).rejects.toThrow(
+			"Slack workspace not allowed",
+		);
+		expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);
+		expect(takeAuthNotice()).toBe(WORKSPACE_NOT_ALLOWED_NOTICE);
 	});
 });

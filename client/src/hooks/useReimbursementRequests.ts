@@ -25,8 +25,7 @@ import type {
 	UpdateReimbursementDepartmentPayload,
 	UpdateReimbursementFinanceLinksPayload,
 } from "@/features/reimbursements/reimbursementTypes";
-import { apiClient } from "@/lib/apiClient";
-import { readJsonErrorMessage } from "@/lib/httpErrors";
+import { apiClient, throwApiError } from "@/lib/apiClient";
 import { supabase } from "@/lib/supabaseClient";
 
 const REVIEW_RECEIPT_BULK_DOWNLOAD_URL =
@@ -98,7 +97,7 @@ async function apiBlobClient(
 	});
 
 	if (!response.ok) {
-		throw new Error(await readJsonErrorMessage(response));
+		await throwApiError(response);
 	}
 
 	return response.blob();

@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { getEducationalCourseDateOnly } from "@member-manager/shared";
-import type { SupabaseClient, User } from "@supabase/supabase-js";
+import type { SupabaseClient, User, UserIdentity } from "@supabase/supabase-js";
 import { apportionPostingAmount } from "../../src/lib/financeDepartments.js";
+import { TUMAI_SLACK_TEAM_ID } from "../../src/lib/slackWorkspace.js";
 
 export const MOCK_USER_ID = "user-123";
 export const MOCK_ADMIN_ID = "admin-456";
@@ -20,9 +21,34 @@ export const VALID_ADMIN_TOKEN = "valid-admin-token";
 export const VALID_OTHER_USER_TOKEN = "valid-other-user-token";
 export const INVALID_TOKEN = "invalid-token";
 
+/**
+ * A Slack identity from the TUM.ai workspace, as Supabase's `slack_oidc`
+ * provider stores it. `authenticate` rejects users without one (outside a
+ * local stack), so every mock user carries one.
+ */
+export function mockSlackIdentity(
+	userId: string,
+	teamId: string = TUMAI_SLACK_TEAM_ID,
+): UserIdentity {
+	return {
+		id: `slack-${userId}`,
+		identity_id: `slack-identity-${userId}`,
+		user_id: userId,
+		provider: "slack_oidc",
+		identity_data: {
+			sub: `U-${userId}`,
+			custom_claims: { "https://slack.com/team_id": teamId },
+		},
+		created_at: "2024-01-01T00:00:00Z",
+		last_sign_in_at: "2024-01-01T00:00:00Z",
+		updated_at: "2024-01-01T00:00:00Z",
+	};
+}
+
 export const mockUsers: Record<string, User> = {
 	[VALID_USER_TOKEN]: {
 		id: MOCK_USER_ID,
+		identities: [mockSlackIdentity(MOCK_USER_ID)],
 		email: "user@test.com",
 		app_metadata: {},
 		user_metadata: {},
@@ -31,6 +57,7 @@ export const mockUsers: Record<string, User> = {
 	},
 	[VALID_ADMIN_TOKEN]: {
 		id: MOCK_ADMIN_ID,
+		identities: [mockSlackIdentity(MOCK_ADMIN_ID)],
 		email: "admin@test.com",
 		app_metadata: {},
 		user_metadata: {},
@@ -39,6 +66,7 @@ export const mockUsers: Record<string, User> = {
 	},
 	[VALID_OTHER_USER_TOKEN]: {
 		id: MOCK_OTHER_USER_ID,
+		identities: [mockSlackIdentity(MOCK_OTHER_USER_ID)],
 		email: "other@test.com",
 		app_metadata: {},
 		user_metadata: {},
