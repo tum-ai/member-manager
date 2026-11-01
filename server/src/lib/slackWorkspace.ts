@@ -4,29 +4,18 @@ import type { User } from "@supabase/supabase-js";
  * Only members of the TUM.ai Slack workspace may use the portal. "Sign in
  * with Slack" itself accepts any workspace, so the workspace is enforced
  * twice: `public.handle_new_user` rejects foreign sign-ups (migration
- * `20261101120000_restrict_slack_workspace.sql`, which hardcodes the same
- * ID), and `authenticate` re-checks every request via
- * {@link isAllowedWorkspaceUser}.
+ * `20261101120000_restrict_slack_workspace.sql`), and `authenticate`
+ * re-checks every request via {@link isAllowedWorkspaceUser}.
  *
- * Team IDs are not secret. `ALLOWED_SLACK_TEAM_IDS` (comma-separated) can
- * override the default, but a team the migration does not also allow can
- * never sign up.
+ * The migration hardcodes the same ID, and a migration test asserts the two
+ * match. Changing the workspace means a new migration plus this constant.
+ * Team IDs are not secret.
  */
 export const TUMAI_SLACK_TEAM_ID = "T01288YLP16";
 
 export const SLACK_OIDC_PROVIDER = "slack_oidc";
 const SLACK_TEAM_ID_CLAIM = "https://slack.com/team_id";
 const LOCAL_SUPABASE_HOSTS = new Set(["127.0.0.1", "localhost"]);
-
-export function getAllowedSlackTeamIds(
-	override: string | undefined = process.env.ALLOWED_SLACK_TEAM_IDS,
-): Set<string> {
-	const configured = (override ?? "")
-		.split(",")
-		.map((entry) => entry.trim())
-		.filter(Boolean);
-	return new Set(configured.length > 0 ? configured : [TUMAI_SLACK_TEAM_ID]);
-}
 
 function readTeamId(data: Record<string, unknown> | undefined): string | null {
 	const claims = data?.custom_claims;
@@ -67,28 +56,45 @@ export function isLocalSupabase(
 	}
 }
 
+let nonSlackUsersAllowed: boolean | undefined;
+
 /**
- * Whether the authenticated user may use the API. A user who has a Slack
- * identity needs every one of those identities to come from an allowed
- * workspace. A user with no Slack identity (the seeded email/password users)
- * is accepted only against a local Supabase stack.
+ * Whether users without a Slack identity (the seeded email/password users)
+ * may use the API: only against a local Supabase stack. Resolved on first
+ * use, after the env files are loaded, then fixed for the process.
+ */
+export function allowsNonSlackUsers(): boolean {
+	nonSlackUsersAllowed ??= isLocalSupabase();
+	return nonSlackUsersAllowed;
+}
+
+/**
+ * Test seam, like `setSupabaseClient`: pins {@link allowsNonSlackUsers}
+ * regardless of the ambient `SUPABASE_URL`. `undefined` re-resolves it.
+ */
+export function setAllowNonSlackUsers(value: boolean | undefined): void {
+	nonSlackUsersAllowed = value;
+}
+
+/**
+ * Whether the authenticated user may use the API.
+ *
+ * A user passes with at least one Slack identity from the TUM.ai workspace.
+ * Requiring every identity to match would lock a member out for good after
+ * one sign-in through another workspace: Supabase links that identity to
+ * the existing account by verified email, and `handle_new_user` does not run
+ * for a link. A user whose Slack identities are all foreign is rejected. A
+ * user with no Slack identity passes only when `allowNonSlackUsers` is set.
  */
 export function isAllowedWorkspaceUser(
 	user: User,
-	options: {
-		allowedTeamIds?: Set<string>;
-		allowNonSlackUsers?: boolean;
-	} = {},
+	allowNonSlackUsers: boolean = allowsNonSlackUsers(),
 ): boolean {
-	const allowedTeamIds = options.allowedTeamIds ?? getAllowedSlackTeamIds();
 	const slackIdentities = getSlackIdentities(user);
-
 	if (slackIdentities.length === 0) {
-		return options.allowNonSlackUsers ?? isLocalSupabase();
+		return allowNonSlackUsers;
 	}
-
-	return slackIdentities.every((identity) => {
-		const teamId = readTeamId(identity.identity_data);
-		return teamId !== null && allowedTeamIds.has(teamId);
-	});
+	return slackIdentities.some(
+		(identity) => readTeamId(identity.identity_data) === TUMAI_SLACK_TEAM_ID,
+	);
 }

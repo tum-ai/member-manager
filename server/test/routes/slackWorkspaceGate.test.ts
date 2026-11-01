@@ -3,6 +3,7 @@ import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
 import { SLACK_WORKSPACE_NOT_ALLOWED_ERROR } from "@member-manager/shared";
 import type { FastifyInstance } from "fastify";
+import { setAllowNonSlackUsers } from "../../src/lib/slackWorkspace.js";
 import {
 	authHeaders,
 	closeTestApp,
@@ -68,5 +69,20 @@ describe("Slack workspace gate", async () => {
 			headers: authHeaders(EMAIL_ONLY_TOKEN),
 		});
 		assert.strictEqual(response.statusCode, 401);
+	});
+
+	test("a user without a Slack identity is accepted against a local stack", async () => {
+		resetDatabase();
+		setAllowNonSlackUsers(true);
+		try {
+			const response = await app.inject({
+				method: "GET",
+				url: `/api/members/${testUserIds.user}`,
+				headers: authHeaders(EMAIL_ONLY_TOKEN),
+			});
+			assert.strictEqual(response.statusCode, 200);
+		} finally {
+			setAllowNonSlackUsers(false);
+		}
 	});
 });

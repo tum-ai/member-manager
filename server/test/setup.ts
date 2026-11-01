@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import { setAllowNonSlackUsers } from "../src/lib/slackWorkspace.js";
 
 // Load .env file if it exists, otherwise use test defaults
 dotenv.config();
@@ -20,3 +21,7 @@ if (!process.env.CORS_ORIGIN) {
 if (!process.env.PORT) {
 	process.env.PORT = "8787";
 }
+
+// Tests run the production workspace rule (Slack identity required) even
+// when a developer's server/.env.local points SUPABASE_URL at a local stack.
+setAllowNonSlackUsers(false);

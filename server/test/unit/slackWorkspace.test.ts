@@ -1,12 +1,13 @@
 import "../setup.js";
 import assert from "node:assert";
-import { describe, test } from "node:test";
+import { afterEach, describe, test } from "node:test";
 import type { User } from "@supabase/supabase-js";
 import {
-	getAllowedSlackTeamIds,
+	allowsNonSlackUsers,
 	getSlackTeamIds,
 	isAllowedWorkspaceUser,
 	isLocalSupabase,
+	setAllowNonSlackUsers,
 	TUMAI_SLACK_TEAM_ID,
 } from "../../src/lib/slackWorkspace.js";
 import { mockSlackIdentity } from "../mocks/supabase.js";
@@ -25,6 +26,10 @@ function user(overrides: Partial<User> = {}): User {
 }
 
 describe("slackWorkspace", () => {
+	afterEach(() => {
+		setAllowNonSlackUsers(false);
+	});
+
 	test("allows a Slack identity from the TUM.ai workspace", () => {
 		const member = user({ identities: [mockSlackIdentity("user-1")] });
 		assert.strictEqual(isAllowedWorkspaceUser(member), true);
@@ -36,6 +41,8 @@ describe("slackWorkspace", () => {
 			identities: [mockSlackIdentity("user-1", FOREIGN_TEAM_ID)],
 		});
 		assert.strictEqual(isAllowedWorkspaceUser(outsider), false);
+		// Foreign Slack users stay out even where email users are allowed.
+		assert.strictEqual(isAllowedWorkspaceUser(outsider, true), false);
 	});
 
 	test("ignores a TUM.ai team id spoofed into user_metadata", () => {
@@ -57,8 +64,8 @@ describe("slackWorkspace", () => {
 		);
 	});
 
-	test("rejects when any linked Slack identity is foreign", () => {
-		const mixed = user({
+	test("keeps a member who also linked a Slack identity from another workspace", () => {
+		const member = user({
 			identities: [
 				mockSlackIdentity("user-1"),
 				{
@@ -67,41 +74,19 @@ describe("slackWorkspace", () => {
 				},
 			],
 		});
-		assert.strictEqual(isAllowedWorkspaceUser(mixed), false);
+		assert.strictEqual(isAllowedWorkspaceUser(member), true);
 	});
 
-	test("users without a Slack identity only pass against a local stack", () => {
+	test("users without a Slack identity pass only when allowed", () => {
 		const emailUser = user({ identities: [] });
-		assert.strictEqual(
-			isAllowedWorkspaceUser(emailUser, { allowNonSlackUsers: false }),
-			false,
-		);
-		assert.strictEqual(
-			isAllowedWorkspaceUser(emailUser, { allowNonSlackUsers: true }),
-			true,
-		);
-		// The test env points at https://test.supabase.co, which is not local.
+		assert.strictEqual(isAllowedWorkspaceUser(emailUser, false), false);
+		assert.strictEqual(isAllowedWorkspaceUser(emailUser, true), true);
+		// test/setup.ts pins the production rule.
+		assert.strictEqual(allowsNonSlackUsers(), false);
 		assert.strictEqual(isAllowedWorkspaceUser(user()), false);
-	});
 
-	test("an explicit allow-list replaces the default team", () => {
-		const outsider = user({
-			identities: [mockSlackIdentity("user-1", FOREIGN_TEAM_ID)],
-		});
-		assert.strictEqual(
-			isAllowedWorkspaceUser(outsider, {
-				allowedTeamIds: getAllowedSlackTeamIds(` ${FOREIGN_TEAM_ID} , `),
-			}),
-			true,
-		);
-		assert.deepStrictEqual(
-			[...getAllowedSlackTeamIds(undefined)],
-			[TUMAI_SLACK_TEAM_ID],
-		);
-		assert.deepStrictEqual(
-			[...getAllowedSlackTeamIds(" , ")],
-			[TUMAI_SLACK_TEAM_ID],
-		);
+		setAllowNonSlackUsers(true);
+		assert.strictEqual(isAllowedWorkspaceUser(user()), true);
 	});
 
 	test("isLocalSupabase only accepts loopback hosts outside production", () => {
@@ -116,6 +101,6 @@ describe("slackWorkspace", () => {
 		);
 		assert.strictEqual(isLocalSupabase("https://x.supabase.co", "test"), false);
 		assert.strictEqual(isLocalSupabase("not a url", "test"), false);
-		assert.strictEqual(isLocalSupabase(undefined, "test"), false);
+		assert.strictEqual(isLocalSupabase("", "test"), false);
 	});
 });

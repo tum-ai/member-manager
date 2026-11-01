@@ -12,6 +12,14 @@
 export const WORKSPACE_NOT_ALLOWED_NOTICE =
 	"Only members of the TUM.ai Slack workspace can sign in. Switch to your TUM.ai workspace in Slack and try again.";
 
+/**
+ * Supabase reports every failure while creating the account this way, not
+ * only the workspace check, so the text names the likely cause without
+ * claiming it.
+ */
+export const SIGNUP_REJECTED_NOTICE =
+	"We couldn't create your account. Only members of the TUM.ai Slack workspace can sign in, so make sure you chose the TUM.ai workspace in Slack. If you did, contact the IT team.";
+
 const NOTICE_STORAGE_KEY = "member-manager:auth-notice";
 const SIGNUP_REJECTED_DESCRIPTION = "Database error saving new user";
 
@@ -32,7 +40,7 @@ export function readOAuthErrorDescription(url: string): string | null {
 /** Maps an OAuth redirect error to the text shown on the sign-in page. */
 export function describeOAuthError(description: string): string {
 	return description === SIGNUP_REJECTED_DESCRIPTION
-		? WORKSPACE_NOT_ALLOWED_NOTICE
+		? SIGNUP_REJECTED_NOTICE
 		: `Slack sign-in failed: ${description}`;
 }
 
@@ -44,26 +52,78 @@ export function rememberAuthNotice(notice: string): void {
 	}
 }
 
-/** Returns the remembered notice once, then forgets it. */
-export function takeAuthNotice(): string | null {
+/** The remembered notice, if any. Reading it does not clear it. */
+export function peekAuthNotice(): string | null {
 	try {
-		const notice = window.sessionStorage.getItem(NOTICE_STORAGE_KEY);
-		window.sessionStorage.removeItem(NOTICE_STORAGE_KEY);
-		return notice;
+		return window.sessionStorage.getItem(NOTICE_STORAGE_KEY);
 	} catch {
 		return null;
 	}
 }
 
+/** Returns the remembered notice once, then forgets it. */
+export function takeAuthNotice(): string | null {
+	const notice = peekAuthNotice();
+	try {
+		window.sessionStorage.removeItem(NOTICE_STORAGE_KEY);
+	} catch {
+		// Nothing to clear when storage is unavailable.
+	}
+	return notice;
+}
+
+const OAUTH_ERROR_PARAMS = ["error", "error_code", "error_description"];
+
+/**
+ * The URL without the OAuth error parameters, in the query string or the
+ * hash, so a reload doesn't show the same error again. Returns null when
+ * there is nothing to strip.
+ */
+export function stripOAuthErrorParams(url: string): string | null {
+	try {
+		const parsed = new URL(url);
+		const hashParams = new URLSearchParams(parsed.hash.replace(/^#/, ""));
+		const hasError = OAUTH_ERROR_PARAMS.some(
+			(name) => parsed.searchParams.has(name) || hashParams.has(name),
+		);
+		if (!hasError) return null;
+		for (const name of OAUTH_ERROR_PARAMS) {
+			parsed.searchParams.delete(name);
+			hashParams.delete(name);
+		}
+		const hash = hashParams.toString();
+		parsed.hash = hash ? `#${hash}` : "";
+		return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+	} catch {
+		return null;
+	}
+}
+
+function currentUrl(): string {
+	return typeof window === "undefined" ? "" : window.location.href;
+}
+
 /**
  * The notice to show when the sign-in page opens: an OAuth redirect error
- * first, then one remembered by `apiClient`.
+ * first, then one remembered by `apiClient`. Pure, so it is safe as a state
+ * initializer (StrictMode calls those twice); pair it with
+ * {@link consumeAuthNotice} in an effect.
  */
-export function initialAuthNotice(
-	url: string = typeof window === "undefined" ? "" : window.location.href,
-): string {
+export function initialAuthNotice(url: string = currentUrl()): string {
 	const description = readOAuthErrorDescription(url);
-	const remembered = takeAuthNotice();
 	if (description) return describeOAuthError(description);
-	return remembered ?? "";
+	return peekAuthNotice() ?? "";
+}
+
+/**
+ * Clears what {@link initialAuthNotice} read, so a reload or a later visit
+ * to the sign-in page doesn't show it again: removes the OAuth error
+ * parameters from the address bar and forgets the remembered notice.
+ */
+export function consumeAuthNotice(url: string = currentUrl()): void {
+	takeAuthNotice();
+	const cleanUrl = stripOAuthErrorParams(url);
+	if (cleanUrl !== null && typeof window !== "undefined") {
+		window.history.replaceState(window.history.state, "", cleanUrl);
+	}
 }

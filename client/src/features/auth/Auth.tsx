@@ -7,7 +7,7 @@ import {
 	Sun,
 } from "lucide-react";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SlackIcon } from "@/components/icons/SlackIcon";
 import { Button } from "@/components/ui/button";
 import { InfoBox } from "@/components/ui/info-box";
@@ -18,7 +18,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { initialAuthNotice } from "@/lib/authNotice";
+import { consumeAuthNotice, initialAuthNotice } from "@/lib/authNotice";
 import { getSlackRedirectUrl } from "@/lib/authRedirect";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -68,6 +68,9 @@ function isLocalSupabaseProject(): boolean {
 
 export function Auth() {
 	const [message, setMessage] = useState(() => initialAuthNotice());
+	useEffect(() => {
+		consumeAuthNotice();
+	}, []);
 	const [localLoginInProgress, setLocalLoginInProgress] = useState<
 		"admin" | "regular" | null
 	>(null);

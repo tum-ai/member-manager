@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { apiClient } from "./apiClient";
+import { apiBlob, apiClient } from "./apiClient";
 import { takeAuthNotice, WORKSPACE_NOT_ALLOWED_NOTICE } from "./authNotice";
 import { supabase } from "./supabaseClient";
 
@@ -109,5 +109,24 @@ describe("apiClient", () => {
 		await expect(apiClient("/api/members/me")).rejects.toThrow("Invalid token");
 		expect(supabase.auth.signOut).toHaveBeenCalled();
 		expect(takeAuthNotice()).toBeNull();
+	});
+
+	it("handles a workspace rejection the same way for blob downloads", async () => {
+		vi.mocked(supabase.auth.signOut).mockClear();
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				new Response(JSON.stringify({ error: "Slack workspace not allowed" }), {
+					status: 401,
+					headers: { "content-type": "application/json" },
+				}),
+			),
+		);
+
+		await expect(apiBlob("/api/contracts/submissions/1/pdf")).rejects.toThrow(
+			"Slack workspace not allowed",
+		);
+		expect(supabase.auth.signOut).toHaveBeenCalledTimes(1);
+		expect(takeAuthNotice()).toBe(WORKSPACE_NOT_ALLOWED_NOTICE);
 	});
 });

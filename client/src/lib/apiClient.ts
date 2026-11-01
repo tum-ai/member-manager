@@ -15,6 +15,24 @@ function isSecurePageContext(): boolean {
 	);
 }
 
+/**
+ * Throws the API's error message for a failed authenticated request. A 401
+ * means the backend rejected the session (expired, invalid, or outside the
+ * TUM.ai Slack workspace), so the local session is cleared too, and a
+ * workspace rejection leaves a notice for the sign-in page. Every helper
+ * that sends the user's token should fail through here.
+ */
+export async function throwApiError(response: Response): Promise<never> {
+	const message = await readJsonErrorMessage(response);
+	if (response.status === 401) {
+		if (message === SLACK_WORKSPACE_NOT_ALLOWED_ERROR) {
+			rememberAuthNotice(WORKSPACE_NOT_ALLOWED_NOTICE);
+		}
+		await supabase.auth.signOut();
+	}
+	throw new Error(message);
+}
+
 // biome-ignore lint/suspicious/noExplicitAny: Generic API response
 export async function apiClient<T = any>(
 	endpoint: string,
@@ -46,15 +64,7 @@ export async function apiClient<T = any>(
 	});
 
 	if (!response.ok) {
-		const message = await readJsonErrorMessage(response);
-		if (response.status === 401) {
-			if (message === SLACK_WORKSPACE_NOT_ALLOWED_ERROR) {
-				rememberAuthNotice(WORKSPACE_NOT_ALLOWED_NOTICE);
-			}
-			// Clear local session if backend rejected the token as invalid/stale
-			await supabase.auth.signOut();
-		}
-		throw new Error(message);
+		await throwApiError(response);
 	}
 
 	// 204 No Content has no body; callers may still `await` the result.
@@ -87,7 +97,7 @@ export async function apiBlob(
 	});
 
 	if (!response.ok) {
-		throw new Error(await readJsonErrorMessage(response));
+		await throwApiError(response);
 	}
 
 	return response.blob();
