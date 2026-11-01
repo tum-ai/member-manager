@@ -175,7 +175,7 @@ describe("planBulkAllocation", () => {
 		assert.strictEqual(result.results[0]?.applied, true);
 	});
 
-	test("refuses a posting that is already split across targets (FR-L5)", () => {
+	test("refuses a posting that is already split across targets", () => {
 		const result = plan({
 			postingExternalIds: ["BB-split"],
 			transactions: [tx({ external_id: "BB-split" })],
@@ -218,7 +218,7 @@ describe("planBulkAllocation", () => {
 		assert.deepStrictEqual(reasons(result.results), ["zero_amount", null]);
 	});
 
-	test("refuses a posting booked outside the project's period (FR-L8)", () => {
+	test("refuses a posting booked outside the project's period", () => {
 		const result = plan({
 			postingExternalIds: ["BB-early", "BB-late", "BB-edge"],
 			transactions: [
@@ -236,7 +236,7 @@ describe("planBulkAllocation", () => {
 		]);
 	});
 
-	test("refuses a posting matched to another project's Planposten (FR-L7)", () => {
+	test("refuses a posting matched to another project's plan item", () => {
 		const result = plan({
 			postingExternalIds: ["BB-matched"],
 			transactions: [tx({ external_id: "BB-matched" })],
@@ -247,7 +247,7 @@ describe("planBulkAllocation", () => {
 		assert.deepStrictEqual(reasons(result.results), ["matched_elsewhere"]);
 	});
 
-	test("allows a posting matched to a department-level or same-project Planposten", () => {
+	test("allows a posting matched to a department-level or same-project plan item", () => {
 		const departmentLevel = plan({
 			postingExternalIds: ["BB-matched"],
 			transactions: [tx({ external_id: "BB-matched" })],
@@ -265,7 +265,7 @@ describe("planBulkAllocation", () => {
 		assert.strictEqual(sameProject.results[0]?.applied, true);
 	});
 
-	test("refuses another department's posting for a scoped member (FR-K6)", () => {
+	test("refuses another department's posting for a scoped member", () => {
 		const transactions = [
 			tx({ external_id: "BB-own", cost_location: "120" }),
 			tx({ external_id: "BB-other", cost_location: "300" }),
@@ -331,7 +331,7 @@ describe("planBulkAllocation", () => {
 });
 
 describe("applyWriteFailures", () => {
-	test("keeps successful postings applied when another one fails (FR-L6)", () => {
+	test("keeps successful postings applied when another one fails", () => {
 		const planned: FinanceAllocationResult[] = [
 			{ posting_external_id: "BB-1", applied: true, reason: null },
 			{ posting_external_id: "BB-2", applied: true, reason: null },

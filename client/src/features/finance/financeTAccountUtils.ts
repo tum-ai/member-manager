@@ -16,14 +16,14 @@ function round(value: number): number {
 
 // VAT is legally a different thing on each side of the ledger: reclaimable input
 // tax on expenses, output tax owed on income. The UI must never collapse the two
-// into a generic "USt" that hides which side it is on (FR-N2).
+// into a generic "USt" that hides which side it is on.
 export function vatLabel(direction: "expense" | "income"): string {
 	return direction === "expense" ? "Vorsteuer" : "Umsatzsteuer";
 }
 
 // Why a posting was left alone, in words. A bulk assign that silently applies to
 // 12 of 15 invoices is worse than one that refuses loudly, so every skip has to
-// be sayable (FR-L6).
+// be sayable.
 const SKIP_REASON_LABELS: Record<FinanceAllocationSkipReason, string> = {
 	already_split: "bereits aufgeteilt",
 	period_mismatch: "außerhalb des Projektzeitraums",
@@ -70,7 +70,7 @@ export function summarizeAllocationResults(
 }
 
 // One allocation of a posting, with the project resolved to its name so the
-// detail panel does not have to render a raw uuid (FR-K2).
+// detail panel does not have to render a raw uuid.
 export interface TAccountAllocationView {
 	key: string;
 	department: string | null;
@@ -81,20 +81,20 @@ export interface TAccountAllocationView {
 }
 
 // A plan-item ↔ posting match seen from one side: `label` is always the *other*
-// side (the Planposten for a posting row, the posting for a plan row), resolved
+// side (the plan item for a posting row, the posting for a plan row), resolved
 // against the lines of this department and falling back to the raw id.
 export interface TAccountMatchView {
 	key: string;
 	label: string;
 	amount: number;
 	// The (department, project) share this match spends, taken from the
-	// Planposten behind it. Match capacity is counted per scope in the database,
+	// plan item behind it. Match capacity is counted per scope in the database,
 	// so a posting split across two projects has to keep the two apart.
 	projectId: string | null;
 }
 
-// Which amount every figure in the T-view stands for (FR-N4). Gross is what the
-// bank moved; net is that minus the VAT embedded in it.
+// Which amount every figure in the T-view stands for. Gross is what the bank
+// moved; net is that minus the VAT embedded in it.
 export type TAccountAmountMode = "gross" | "net";
 
 // A line as rendered in a T-account column: either a real posting/plan line or a
@@ -106,7 +106,7 @@ export interface TAccountDisplayLine {
 	label: string;
 	category: string | null;
 	// The amount to render, already in the active mode — every subtotal and
-	// saldo is derived from this, so switching the mode switches all of them at
+	// balance is derived from this, so switching the mode switches all of them at
 	// once and none of them can disagree.
 	amount: number;
 	// The mode `amount` is in, so a row can say whether its VAT is included in
@@ -119,19 +119,19 @@ export interface TAccountDisplayLine {
 	grossAmount: number;
 	netAmount: number;
 	status: FinancePlanStatus | null;
-	// False only for a disabled Planposten (FR-M3): it still renders, but it is
-	// parked, so it must not move any plan subtotal.
+	// False only for a disabled plan item: it still renders, but it is parked, so
+	// it must not move any plan subtotal.
 	isActive: boolean;
-	// A Planposten with nothing left open: the invoices that were planned for
+	// A plan item with nothing left open: the invoices that were planned for
 	// have arrived. It stays on the response so it can still be edited or
 	// detached from, but it belongs out of the way of what is still to come.
 	isSettled: boolean;
 	// The object this line stands for. A booked line carries a posting id (what
-	// the selection collects, FR-K1), a plan line a Planposten id; a roll-up
-	// folder line neither.
+	// the selection collects), a plan line a plan-item id; a roll-up folder line
+	// neither.
 	postingExternalId: string | null;
 	planItemId: string | null;
-	// The project this line belongs to, so editing a Planposten can resend its
+	// The project this line belongs to, so editing a plan item can resend its
 	// project unchanged instead of clearing it.
 	projectId: string | null;
 	// True when the line summarises a nested project rolled into its parent.
@@ -144,9 +144,9 @@ export interface TAccountDisplayLine {
 	matches: TAccountMatchView[];
 }
 
-// Ist (booked) vs Plan (planned-only) subtotal for one column, plus the VAT
-// embedded in each (FR-N3). `plan` is the planned-only sum — the grey rows on
-// their own, not booked + planned combined.
+// Booked (`ist`) vs planned-only (`plan`) subtotal for one column, plus the VAT
+// embedded in each. `plan` is the planned-only sum — the grey rows on their own,
+// not booked + planned combined.
 export interface TAccountColumnSummary {
 	ist: number;
 	plan: number;
@@ -174,7 +174,7 @@ export interface TAccountNode {
 	incomeLines: TAccountDisplayLine[];
 	expenseSummary: TAccountColumnSummary;
 	incomeSummary: TAccountColumnSummary;
-	// Ist-Saldo = booked income − booked expenses.
+	// The actual balance: booked income − booked expenses.
 	actualSaldo: number;
 	// Forecast = (booked + planned) income − (booked + planned) expenses.
 	planSaldo: number;
@@ -194,7 +194,7 @@ function subTeamNameOf(group: FinanceTAccountGroup): string | null {
 // Every sub-team folder this department already uses — its own folders plus the
 // sub-teams its projects hang under. Backs the project dialog's sub-team picker
 // so a project lands in an existing folder by exact name instead of a typo'd
-// near-match (FR-L4).
+// near-match.
 export function collectSubTeamOptions(
 	groups: FinanceTAccountGroup[],
 	projects: ReadonlyArray<{ sub_team: string | null }>,
@@ -218,14 +218,14 @@ function groupKey(group: FinanceTAccountGroup): string {
 	return subTeam === null ? "ungrouped" : `sub:${subTeam}`;
 }
 
-// One side of a possible match (FR-M5), with what is still open on it.
+// One side of a possible match, with what is still open on it.
 export interface TAccountMatchCandidate {
 	id: string;
 	label: string;
 	direction: "expense" | "income";
-	// The scope both sides must share: the database only lets a Planposten
+	// The scope both sides must share: the database only lets a plan item
 	// absorb the part of a posting allocated to that same (department, project),
-	// so a department-level Planposten cannot take a project's invoice and vice
+	// so a department-level plan item cannot take a project's invoice and vice
 	// versa. Offering such a pair would only produce a rejection.
 	projectId: string | null;
 	// Gross, even while the view shows net: `matched_amount` is gross, so a net
@@ -239,8 +239,8 @@ export interface TAccountMatchCandidate {
 //
 // Always gross, whatever the display mode is: `matched_amount`, `posting_amount`
 // and the saved match are all gross, so measuring capacity in net would offer a
-// €100 match on a €119 invoice and leave €19 that no longer shows as open
-// (FR-N4 is about what is *rendered*, not about what is matched).
+// €100 match on a €119 invoice and leave €19 that no longer shows as open — the
+// amount mode is about what is *rendered*, not about what is matched.
 //
 // `line.grossAmount` is one (department, project) share of the posting and only
 // a match drawing on that same share consumes it — that is how the database
@@ -267,8 +267,8 @@ export function openPostingAmount(line: TAccountDisplayLine): number {
 }
 
 // Everything in the department that could still absorb a match, from both
-// sides. A parked Planposten is excluded: it refuses matches server-side
-// (FR-M8), so offering it would only produce a rejection.
+// sides. A parked plan item is excluded: it refuses matches server-side, so
+// offering it would only produce a rejection.
 export function collectMatchCandidates(nodes: TAccountNode[]): {
 	planItems: TAccountMatchCandidate[];
 	postings: TAccountMatchCandidate[];
@@ -280,7 +280,7 @@ export function collectMatchCandidates(nodes: TAccountNode[]): {
 		for (const line of [...node.expenseLines, ...node.incomeLines]) {
 			if (line.isProjectRollup) continue;
 			if (line.kind === "plan" && line.planItemId !== null) {
-				// The Planposten's still-open remainder, gross — the figure the
+				// The plan item's still-open remainder, gross — the figure the
 				// match is saved with, not the one the column happens to show.
 				// A settled one has no capacity left and is never offered.
 				if (line.isActive && !line.isSettled && line.grossAmount > 0) {
@@ -319,11 +319,11 @@ export function collectMatchCandidates(nodes: TAccountNode[]): {
 
 // Names for the ids that appear inside a line's detail payload. Built once per
 // response from the groups themselves — the server sends every project folder
-// and every plan line of the department, so no extra request is needed (FR-K3).
+// and every plan line of the department, so no extra request is needed.
 interface TAccountLookups {
 	projectNames: Map<string, string>;
 	planItemLabels: Map<string, string>;
-	// The project each Planposten belongs to — the scope a match against it
+	// The project each plan item belongs to — the scope a match against it
 	// spends. Needed for the fully matched ones above all: they have no line, so
 	// only the response-level map knows where they sit.
 	planItemProjects: Map<string, string | null>;
@@ -335,7 +335,7 @@ function buildLookups(
 	knownPlanItems: Record<string, FinanceTAccountPlanItemRef>,
 ): TAccountLookups {
 	const projectNames = new Map<string, string>();
-	// Seeded from the response so a fully matched Planposten — which has no line
+	// Seeded from the response so a fully matched plan item — which has no line
 	// of its own — is still named and placed where an invoice references it.
 	const planItemLabels = new Map<string, string>();
 	const planItemProjects = new Map<string, string | null>();
@@ -385,7 +385,7 @@ function matchViews(
 ): TAccountMatchView[] {
 	const matches = line.posting_detail?.matches ?? line.plan_detail?.matches;
 	if (!matches) return [];
-	// A posting row lists the Planposten it feeds; a plan row lists the invoices
+	// A posting row lists the plan items it feeds; a plan row lists the invoices
 	// that arrived against it.
 	const resolve =
 		line.kind === "actual"
@@ -394,7 +394,7 @@ function matchViews(
 			: (match: (typeof matches)[number]) =>
 					lookups.postingLabels.get(match.posting_external_id) ??
 					match.posting_external_id;
-	// A Planposten the response never named (undefined, not a null project) is
+	// A plan item the response never named (undefined, not a null project) is
 	// read as drawing on this line's own share: that understates what is still
 	// open rather than offering capacity the database would refuse.
 	const scopeOf = (match: (typeof matches)[number]): string | null => {
@@ -421,7 +421,7 @@ function toDisplayLine(
 		label: line.label,
 		category: line.category,
 		// Both figures come from the server, so switching modes never re-derives
-		// money on the client (FR-N6).
+		// money on the client.
 		amount: amountMode === "net" ? line.net_amount : line.amount,
 		amountMode,
 		vatAmount: line.vat_amount,
@@ -445,8 +445,9 @@ function toDisplayLine(
 	};
 }
 
-// Ist / Plan and their VAT for one column. A disabled Planposten is skipped so
-// the client subtotals agree with the server saldi, which already exclude it.
+// Booked and planned figures and their VAT for one column. A disabled plan item
+// is skipped so the client subtotals agree with the server balances, which
+// already exclude it.
 function summarise(lines: TAccountDisplayLine[]): TAccountColumnSummary {
 	let ist = 0;
 	let plan = 0;
@@ -478,7 +479,7 @@ function rollupLine(
 	amountMode: TAccountAmountMode,
 ): TAccountDisplayLine {
 	const suffix = kind === "plan" ? " (offen)" : "";
-	// The child's saldo is already in the active mode, so a folder line inherits
+	// The child's balance is already in the active mode, so a folder line inherits
 	// it rather than converting anything.
 	const amount = round(Math.abs(net));
 	return {
@@ -513,18 +514,19 @@ function rollupLine(
 // Build the nested display tree from the flat server groups. Projects nest under
 // their `parent_project_id` (when that parent is present for this department);
 // each parent shows its own lines plus a rolled-up folder line per child, and
-// per-column Ist/Plan subtotals + the Ist-Saldo / Forecast / deviation it needs.
+// per-column booked/planned subtotals plus the actual balance, forecast and
+// deviation it needs.
 //
 // Roll-ups are display-only: the department grand total still comes from the
-// server `totals`, so a child is never counted twice (keeps FR-G5 intact).
+// server `totals`, so a child is never counted twice.
 export function buildTAccountTree(
 	groups: FinanceTAccountGroup[],
 	options: {
-		// Every Planposten of the department by id, so a reference can be named
+		// Every plan item of the department by id, so a reference can be named
 		// and attributed to the project whose share it spends.
 		planItems?: Record<string, FinanceTAccountPlanItemRef>;
-		// Every amount, subtotal and saldo in the returned tree is in this mode
-		// (FR-N4). Defaults to what the bank moved.
+		// Every amount, subtotal and balance in the returned tree is in this mode.
+		// Defaults to what the bank moved.
 		amountMode?: TAccountAmountMode;
 	} = {},
 ): TAccountNode[] {
@@ -539,8 +541,8 @@ export function buildTAccountTree(
 	}
 
 	// Where a group hangs: under its parent project, else under the sub-team that
-	// owns it (FR-L4), else at the top. A sub-project inherits its placement from
-	// its parent, so the parent check wins.
+	// owns it, else at the top. A sub-project inherits its placement from its
+	// parent, so the parent check wins.
 	const parentKeyOf = (group: FinanceTAccountGroup): string | null => {
 		if (group.project_id === null) {
 			return null;

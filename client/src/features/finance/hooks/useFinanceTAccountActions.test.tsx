@@ -97,7 +97,7 @@ describe("useFinanceTAccountActions", () => {
 		});
 
 		// One posting landed, so the selection is consumed — but the refusal is
-		// spelled out rather than swallowed (FR-L6).
+		// spelled out rather than swallowed.
 		await waitFor(() => expect(onApplied).toHaveBeenCalledTimes(1));
 		expect(showToast).toHaveBeenCalledWith(
 			expect.stringContaining("1× bereits aufgeteilt"),
@@ -125,7 +125,7 @@ describe("useFinanceTAccountActions", () => {
 		});
 
 		// All refusals arrive as a successful HTTP response. Nothing was written,
-		// so the ticks must survive for the retry (FR-K7).
+		// so the ticks must survive for the retry.
 		await waitFor(() =>
 			expect(showToast).toHaveBeenCalledWith(
 				expect.stringContaining("0 von 2 Buchungen zugeordnet."),
