@@ -18,6 +18,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { initialAuthNotice } from "@/lib/authNotice";
 import { getSlackRedirectUrl } from "@/lib/authRedirect";
 import { supabase } from "@/lib/supabaseClient";
 
@@ -66,7 +67,7 @@ function isLocalSupabaseProject(): boolean {
 }
 
 export function Auth() {
-	const [message, setMessage] = useState("");
+	const [message, setMessage] = useState(() => initialAuthNotice());
 	const [localLoginInProgress, setLocalLoginInProgress] = useState<
 		"admin" | "regular" | null
 	>(null);

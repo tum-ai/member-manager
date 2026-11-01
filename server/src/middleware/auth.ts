@@ -1,3 +1,4 @@
+import { SLACK_WORKSPACE_NOT_ALLOWED_ERROR } from "@member-manager/shared";
 import type { FastifyReply, FastifyRequest } from "fastify";
 import {
 	checkAdminRole,
@@ -13,6 +14,10 @@ import {
 	checkTumaiDaysManager,
 } from "../lib/auth.js";
 import { ForbiddenError } from "../lib/errors.js";
+import {
+	getSlackTeamIds,
+	isAllowedWorkspaceUser,
+} from "../lib/slackWorkspace.js";
 import { getSupabase } from "../lib/supabase.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
@@ -35,6 +40,17 @@ export async function authenticate(
 
 	if (error || !user) {
 		return reply.status(401).send({ error: "Invalid token" });
+	}
+
+	// A valid Supabase session is not enough: Slack sign-in accepts any
+	// workspace, so only TUM.ai workspace members get through. 401 makes the
+	// client drop the session.
+	if (!isAllowedWorkspaceUser(user)) {
+		request.log.warn(
+			{ userId: user.id, slackTeamIds: getSlackTeamIds(user) },
+			"Rejected user outside the allowed Slack workspace",
+		);
+		return reply.status(401).send({ error: SLACK_WORKSPACE_NOT_ALLOWED_ERROR });
 	}
 
 	// Attach user to request

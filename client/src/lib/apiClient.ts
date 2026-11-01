@@ -1,3 +1,5 @@
+import { SLACK_WORKSPACE_NOT_ALLOWED_ERROR } from "@member-manager/shared";
+import { rememberAuthNotice, WORKSPACE_NOT_ALLOWED_NOTICE } from "./authNotice";
 import { readJsonErrorMessage } from "./httpErrors";
 import { supabase } from "./supabaseClient";
 
@@ -44,11 +46,15 @@ export async function apiClient<T = any>(
 	});
 
 	if (!response.ok) {
+		const message = await readJsonErrorMessage(response);
 		if (response.status === 401) {
+			if (message === SLACK_WORKSPACE_NOT_ALLOWED_ERROR) {
+				rememberAuthNotice(WORKSPACE_NOT_ALLOWED_NOTICE);
+			}
 			// Clear local session if backend rejected the token as invalid/stale
 			await supabase.auth.signOut();
 		}
-		throw new Error(await readJsonErrorMessage(response));
+		throw new Error(message);
 	}
 
 	// 204 No Content has no body; callers may still `await` the result.
