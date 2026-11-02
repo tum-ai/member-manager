@@ -11,7 +11,9 @@ TUM.ai member portal. pnpm workspace monorepo (Turborepo), Node 24:
 
 Data flow: client component → `lib/apiClient` → `/api/*` → Fastify route plugin →
 Supabase. Auth via Supabase (Slack OIDC in production); sensitive DB fields are encrypted at rest.
-The repository is **public**.
+Supabase Auth is also the OAuth server for nomcp (the TUM.ai Notion MCP): tokens it issues to apps
+must never reach member data (`supabase/AGENTS.md`, `docs/deployment.md`). The repository is
+**public**.
 
 ## Read These First
 

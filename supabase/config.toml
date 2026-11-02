@@ -380,14 +380,16 @@ enabled = false
 # Obtain from https://clerk.com/setup/supabase
 # domain = "example.clerk.accounts.dev"
 
-# OAuth server configuration
+# OAuth 2.1 server: lets apps such as nomcp (`tum-ai/nomcp`, the TUM.ai Notion MCP gateway) sign
+# members in. Supabase sends the browser to `site_url` + `authorization_url_path`, the SPA's consent
+# page (client/src/features/oauth). Tokens it issues carry a `client_id` claim, which the API and
+# the `oauth_clients_blocked` RLS policies refuse (migration 20261102120000_mcp_oauth.sql).
+# Production: docs/deployment.md, "OAuth server (nomcp)".
 [auth.oauth_server]
-# Enable OAuth server functionality
-enabled = false
-# Path for OAuth consent flow UI
+enabled = true
 authorization_url_path = "/oauth/consent"
-# Allow dynamic client registration
-allow_dynamic_registration = false
+# MCP clients (Claude Code, claude.ai, ChatGPT, the MCP Inspector) register themselves.
+allow_dynamic_registration = true
 
 [edge_runtime]
 enabled = true

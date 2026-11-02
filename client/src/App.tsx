@@ -35,6 +35,12 @@ import MembersInnovationPage from "./features/members/MembersInnovationPage";
 import MembersOrgChartPage from "./features/members/MembersOrgChartPage";
 import MembersOrgTreePage from "./features/members/MembersOrgTreePage";
 import MembersResearchPage from "./features/members/MembersResearchPage";
+import ConnectedAppsPage from "./features/oauth/ConnectedAppsPage";
+import OAuthConsentPage from "./features/oauth/OAuthConsentPage";
+import {
+	CONNECTED_APPS_PATH,
+	OAUTH_CONSENT_PATH,
+} from "./features/oauth/oauthUtils";
 import PartnerManagementPage from "./features/partnerManagement/PartnerManagementPage";
 import ProfilePage from "./features/profile/ProfilePage";
 import ReimbursementPage from "./features/reimbursements/ReimbursementPage";
@@ -140,7 +146,12 @@ interface AppRouterProps {
 // The partner-signing page (/contracts/sign/:token) and the board-signing page
 // (/contracts/board-sign/:token) are public — render them before the auth gate
 // so unauthenticated signers can sign without an account.
-function AppRouter({ user, onLogout }: AppRouterProps): JSX.Element {
+//
+// The OAuth consent page needs a session but renders outside the app shell:
+// Supabase's OAuth server sends members there mid-flow, so neither the
+// sidebar nor the /welcome redirect may get in the way. Without a session it
+// shows the sign-in page, which remembers the URL to return to.
+export function AppRouter({ user, onLogout }: AppRouterProps): JSX.Element {
 	const location = useLocation();
 	const isPublicSignRoute =
 		location.pathname.startsWith("/contracts/sign/") ||
@@ -156,6 +167,10 @@ function AppRouter({ user, onLogout }: AppRouterProps): JSX.Element {
 				/>
 			</Routes>
 		);
+	}
+
+	if (location.pathname === OAUTH_CONSENT_PATH) {
+		return user ? <OAuthConsentPage /> : <LoggedOutApp />;
 	}
 
 	if (!user) {
@@ -270,6 +285,7 @@ export function AuthenticatedApp({
 					element={<EngagementCertificatePage user={user} />}
 				/>
 				<Route path="/tools/jobs" element={<JobPostingsPage />} />
+				<Route path={CONNECTED_APPS_PATH} element={<ConnectedAppsPage />} />
 				<Route
 					path="/education/courses"
 					element={

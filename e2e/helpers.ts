@@ -1,4 +1,34 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { expect, type Page } from "@playwright/test";
+
+// Read a single KEY=value from a dotenv file (the same files the web servers
+// load, e.g. `client/.env.local` from `pnpm setup:local`). Returns undefined
+// if the file is missing/unreadable or the key absent. Intentionally tiny.
+export function readEnvFileValue(
+	relativePath: string,
+	key: string,
+): string | undefined {
+	let contents: string;
+	try {
+		contents = readFileSync(resolve(process.cwd(), relativePath), "utf8");
+	} catch {
+		return undefined;
+	}
+	for (const rawLine of contents.split("\n")) {
+		const line = rawLine.trim();
+		if (!line || line.startsWith("#")) continue;
+		const eq = line.indexOf("=");
+		if (eq === -1 || line.slice(0, eq).trim() !== key) continue;
+		let value = line.slice(eq + 1).trim();
+		const quoted =
+			(value.startsWith('"') && value.endsWith('"')) ||
+			(value.startsWith("'") && value.endsWith("'"));
+		if (quoted) value = value.slice(1, -1);
+		return value;
+	}
+	return undefined;
+}
 
 // Seeded local accounts (see supabase/seed.sql). All local seed users share the
 // password `password123`.

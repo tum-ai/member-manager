@@ -2,7 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AuthenticatedApp } from "./App";
+import { AppRouter, AuthenticatedApp } from "./App";
 import { ToastProvider } from "./contexts/ToastContext";
 import type { WelcomeStatus } from "./features/welcome/hooks/useWelcomeRequirements";
 import { rememberPostLoginPath } from "./lib/postLoginRedirect";
@@ -95,6 +95,18 @@ vi.mock("./features/contracts/ContractSubmissionsPage", () => ({
 
 vi.mock("./features/contracts/ContractSubmissionDetailPage", () => ({
 	default: () => <div>Contract submission detail route</div>,
+}));
+
+vi.mock("./features/oauth/OAuthConsentPage", () => ({
+	default: () => <div>OAuth consent route</div>,
+}));
+
+vi.mock("./features/oauth/ConnectedAppsPage", () => ({
+	default: () => <div>Connected apps route</div>,
+}));
+
+vi.mock("./features/auth/Auth", () => ({
+	Auth: () => <div>Sign-in page</div>,
 }));
 
 const mockUser = {
@@ -296,5 +308,58 @@ describe("AuthenticatedApp welcome redirect", () => {
 		renderAuthenticatedApp("/");
 
 		expect(await screen.findByText("Welcome route")).toBeInTheDocument();
+	});
+
+	it("opens connected apps inside the app", () => {
+		welcomeState.status = "complete";
+		renderAuthenticatedApp("/connected-apps");
+
+		expect(screen.getByText("Connected apps route")).toBeInTheDocument();
+	});
+});
+
+describe("AppRouter OAuth consent", () => {
+	const CONSENT_URL = "/oauth/consent?authorization_id=auth-1";
+
+	function renderAppRouter(user: User | null, initialRoute: string) {
+		return render(
+			<ToastProvider>
+				<MemoryRouter initialEntries={[initialRoute]}>
+					<AppRouter user={user} onLogout={vi.fn()} />
+				</MemoryRouter>
+			</ToastProvider>,
+		);
+	}
+
+	beforeEach(() => {
+		adminState.isAdmin = false;
+		adminState.isLoading = false;
+		toolAccessState.isLoading = false;
+		welcomeState.status = "incomplete";
+		window.sessionStorage.clear();
+	});
+
+	it("asks a logged-out member to sign in and remembers the request", () => {
+		renderAppRouter(null, CONSENT_URL);
+
+		expect(screen.getByText("Sign-in page")).toBeInTheDocument();
+		expect(
+			window.sessionStorage.getItem("member-manager:post-login-path"),
+		).toBe(CONSENT_URL);
+	});
+
+	it("shows the consent page without the /welcome gate", () => {
+		renderAppRouter(mockUser, CONSENT_URL);
+
+		expect(screen.getByText("OAuth consent route")).toBeInTheDocument();
+		expect(screen.queryByText("Welcome route")).not.toBeInTheDocument();
+	});
+
+	it("resumes the consent page after Slack sign-in returns to /", async () => {
+		rememberPostLoginPath(CONSENT_URL);
+		renderAppRouter(mockUser, "/");
+
+		expect(await screen.findByText("OAuth consent route")).toBeInTheDocument();
+		expect(screen.queryByText("Welcome route")).not.toBeInTheDocument();
 	});
 });

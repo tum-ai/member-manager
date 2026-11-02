@@ -1,38 +1,8 @@
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
 import type { FullConfig } from "@playwright/test";
-import { SEED_RETIRED_CONTRACT_SIGN_TOKEN } from "./helpers";
+import { readEnvFileValue, SEED_RETIRED_CONTRACT_SIGN_TOKEN } from "./helpers";
 
 const SERVER_URL = process.env.E2E_SERVER_URL ?? "http://127.0.0.1:8787";
 const CLIENT_URL = process.env.E2E_BASE_URL ?? "http://127.0.0.1:5173";
-
-// Read a single KEY=value from a dotenv file (the same files the web servers
-// load). Returns undefined if the file is missing/unreadable or the key absent.
-// This is intentionally a tiny parser — we only need the Supabase URL.
-function readEnvFileValue(
-	relativePath: string,
-	key: string,
-): string | undefined {
-	let contents: string;
-	try {
-		contents = readFileSync(resolve(process.cwd(), relativePath), "utf8");
-	} catch {
-		return undefined;
-	}
-	for (const rawLine of contents.split("\n")) {
-		const line = rawLine.trim();
-		if (!line || line.startsWith("#")) continue;
-		const eq = line.indexOf("=");
-		if (eq === -1 || line.slice(0, eq).trim() !== key) continue;
-		let value = line.slice(eq + 1).trim();
-		const quoted =
-			(value.startsWith('"') && value.endsWith('"')) ||
-			(value.startsWith("'") && value.endsWith("'"));
-		if (quoted) value = value.slice(1, -1);
-		return value;
-	}
-	return undefined;
-}
 
 // Loopback / link-local hostnames that denote a local, ephemeral stack.
 const LOCAL_HOST = /^(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[?::1\]?)$/i;

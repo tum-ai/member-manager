@@ -15,6 +15,10 @@ import {
 } from "../lib/auth.js";
 import { ForbiddenError } from "../lib/errors.js";
 import {
+	inspectBearerToken,
+	OAUTH_CLIENT_TOKEN_ERROR,
+} from "../lib/oauthClientTokens.js";
+import {
 	getSlackTeamIds,
 	isAllowedWorkspaceUser,
 } from "../lib/slackWorkspace.js";
@@ -32,6 +36,21 @@ export async function authenticate(
 	}
 
 	const token = authHeader.replace("Bearer ", "");
+
+	// Supabase accepts tokens it issued to OAuth apps (nomcp) like browser
+	// sessions, so refuse them before asking it (lib/oauthClientTokens.ts).
+	const inspection = inspectBearerToken(token);
+	if (inspection.kind === "oauth_client") {
+		request.log.warn(
+			{ clientId: inspection.clientId },
+			"Rejected an OAuth app access token",
+		);
+		return reply.status(401).send({ error: OAUTH_CLIENT_TOKEN_ERROR });
+	}
+	if (inspection.kind === "malformed") {
+		return reply.status(401).send({ error: "Invalid token" });
+	}
+
 	const {
 		data: { user },
 		error,

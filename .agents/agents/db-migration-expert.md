@@ -16,8 +16,9 @@ seed-parity, FK-embedding and RLS-test rules; this file doesn't repeat them.
 
 1. Write a **new** migration `supabase/migrations/<YYYYMMDDHHMMSS>_<name>.sql` whose timestamp sorts
    after the newest migration on `origin/main`. Never touch a merged one.
-2. Enable RLS and write policies for every new table; declare foreign keys for every relation the
-   API embeds.
+2. Enable RLS and write policies for every new table, including the restrictive
+   `oauth_clients_blocked` policy (`supabase/AGENTS.md`); declare foreign keys for every relation
+   the API embeds.
 3. Update `supabase/seed.sql` if columns or tables changed. If seeded accounts or tokens change,
    update `e2e/helpers.ts` in the same change.
 4. Add or extend the RLS/migration test in `server/test/migrations/`, and list any new file in the
