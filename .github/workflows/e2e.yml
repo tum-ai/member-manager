@@ -38,7 +38,8 @@ jobs:
         if: steps.filter.outputs.code == 'true'
         uses: supabase/setup-cli@v2
         with:
-          version: latest
+          # CLI 3.x rejects config.toml's [inbucket] section; stay on 2.x until the config moves.
+          version: 2.117.0
           github-token: ${{ github.token }}
 
       - name: Start local Supabase stack
