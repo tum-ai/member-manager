@@ -17,7 +17,7 @@ const meta = {
 	],
 	args: {
 		clientName: "Claude",
-		redirectTarget: { label: "claude.ai", isKnownApp: true },
+		redirectTarget: { label: "claude.ai", isApproved: true },
 		scopes: ["email"],
 		userEmail: "ada@example.com",
 		pendingDecision: null,
@@ -36,12 +36,10 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const KnownApp: Story = {
+export const ApprovedClient: Story = {
 	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
-		await expect(
-			canvas.queryByText(/isn't a site we know for AI apps/),
-		).not.toBeInTheDocument();
+		await expect(canvas.getByText("Approved TUM.ai MCP client")).toBeVisible();
 		await userEvent.click(canvas.getByRole("button", { name: "Approve" }));
 		await expect(args.onApprove).toHaveBeenCalledTimes(1);
 		await userEvent.click(canvas.getByRole("button", { name: "Deny" }));
@@ -49,16 +47,28 @@ export const KnownApp: Story = {
 	},
 };
 
-export const UnknownRedirect: Story = {
+// An app registered under a trusted-sounding name that sends the code to its
+// own site: it can only be denied.
+export const NotApprovedClient: Story = {
 	args: {
-		clientName: "Claude Helper",
-		redirectTarget: { label: "claude-helper.example.net", isKnownApp: false },
+		clientName: "TUM.ai Event RSVP",
+		redirectTarget: {
+			label: "tumai-event-rsvp.example.com",
+			isApproved: false,
+		},
 	},
-	play: async ({ canvasElement }) => {
+	play: async ({ args, canvasElement }) => {
 		const canvas = within(canvasElement);
 		await expect(
-			canvas.getByText(/claude-helper\.example\.net isn't a site we know/),
+			canvas.getByRole("heading", {
+				name: "This app isn't an approved TUM.ai MCP client",
+			}),
 		).toBeVisible();
+		await expect(
+			canvas.queryByRole("button", { name: "Approve" }),
+		).not.toBeInTheDocument();
+		await userEvent.click(canvas.getByRole("button", { name: "Deny" }));
+		await expect(args.onDeny).toHaveBeenCalledTimes(1);
 	},
 };
 

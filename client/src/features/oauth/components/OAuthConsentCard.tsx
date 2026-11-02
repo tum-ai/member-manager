@@ -1,6 +1,6 @@
-import { TriangleAlert } from "lucide-react";
+import { ShieldCheck, TriangleAlert } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -21,6 +21,7 @@ import {
 } from "@/features/oauth/oauthUtils";
 
 export interface OAuthConsentCardProps {
+	/** Chosen by whoever registered the app, so never the main detail. */
 	clientName: string;
 	redirectTarget: RedirectTarget;
 	scopes: string[];
@@ -32,6 +33,11 @@ export interface OAuthConsentCardProps {
 	onSwitchAccount: () => void;
 }
 
+/**
+ * The consent form. Where the app sends the member is its most prominent
+ * detail: apps name themselves, but the code only ever goes to that address.
+ * An app that isn't an approved MCP client can only be denied.
+ */
 export function OAuthConsentCard({
 	clientName,
 	redirectTarget,
@@ -44,13 +50,16 @@ export function OAuthConsentCard({
 	onSwitchAccount,
 }: OAuthConsentCardProps): JSX.Element {
 	const isPending = pendingDecision !== null;
+	const { isApproved, label } = redirectTarget;
 
 	return (
 		<Card>
 			<CardHeader>
 				<CardTitle>
 					<h2 className="text-lg leading-snug">
-						Allow {clientName} to use your TUM.ai account?
+						{isApproved
+							? "Allow this app to act as you in TUM.ai's Notion?"
+							: "This app isn't an approved TUM.ai MCP client"}
 					</h2>
 				</CardTitle>
 				{userEmail ? (
@@ -64,51 +73,83 @@ export function OAuthConsentCard({
 			</CardHeader>
 
 			<CardContent className="space-y-4 text-sm">
-				<p>
-					<strong>{clientName}</strong> will be able to read and edit the TUM.ai
-					Notion workspace as you through the TUM.ai Notion MCP (nomcp). Every
-					action is logged under your name.
-				</p>
-
-				<dl className="grid gap-1">
-					<dt className="text-muted-foreground">Sends you back to</dt>
-					<dd className="font-medium break-all">{redirectTarget.label}</dd>
-				</dl>
-				{redirectTarget.isKnownApp ? null : (
-					<InfoBox
-						variant="destructive"
-						className="flex gap-2 text-destructive"
-						data-testid="oauth-unknown-redirect"
+				<InfoBox
+					variant={isApproved ? "brand" : "destructive"}
+					className="space-y-1 p-4"
+				>
+					<p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+						Sends you back to
+					</p>
+					<p
+						className="text-xl font-semibold break-all"
+						data-testid="oauth-redirect-target"
 					>
-						<TriangleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+						{label}
+					</p>
+					<p
+						className={
+							isApproved
+								? "flex items-center gap-1.5 font-medium text-brand"
+								: "flex items-center gap-1.5 font-medium text-destructive"
+						}
+					>
+						{isApproved ? (
+							<ShieldCheck className="size-4 shrink-0" aria-hidden />
+						) : (
+							<TriangleAlert className="size-4 shrink-0" aria-hidden />
+						)}
+						{isApproved
+							? "Approved TUM.ai MCP client"
+							: "Not an approved MCP client"}
+					</p>
+					<p className="text-muted-foreground">
+						The app calls itself “{clientName}”. Any app can choose any name, so
+						go by the address above.
+					</p>
+				</InfoBox>
+
+				{isApproved ? (
+					<>
 						<p>
-							{redirectTarget.label} isn't a site we know for AI apps. Only
-							continue if you started connecting {clientName} yourself just now.
+							If you approve, this app can read and edit TUM.ai's Notion
+							workspace as you through nomcp, the TUM.ai Notion MCP. Every
+							action is logged under your name.
 						</p>
-					</InfoBox>
+						<p className="font-semibold">
+							Approve only if you just connected this app yourself.
+						</p>
+						{scopes.length > 0 ? (
+							<div className="space-y-1">
+								<p className="text-muted-foreground">It also gets to:</p>
+								<ul className="list-disc space-y-0.5 pl-5">
+									{scopes.map((scope) => (
+										<li key={scope}>{describeScope(scope)}</li>
+									))}
+								</ul>
+							</div>
+						) : null}
+						<p className="text-muted-foreground">
+							You can disconnect it at any time under{" "}
+							<Link
+								to={CONNECTED_APPS_PATH}
+								className="text-brand underline-offset-4 hover:underline"
+							>
+								Connected apps
+							</Link>
+							.
+						</p>
+					</>
+				) : (
+					<Alert variant="destructive">
+						<AlertTitle>Approving is turned off for this app</AlertTitle>
+						<AlertDescription>
+							Only the MCP clients TUM.ai supports can connect to your account,
+							and this app sends you to {label}. If you need it, ask the dev
+							team to add it. If you didn't start connecting an app just now,
+							deny it.
+						</AlertDescription>
+					</Alert>
 				)}
-
-				{scopes.length > 0 ? (
-					<div className="space-y-1">
-						<p className="text-muted-foreground">It also gets to:</p>
-						<ul className="list-disc space-y-0.5 pl-5">
-							{scopes.map((scope) => (
-								<li key={scope}>{describeScope(scope)}</li>
-							))}
-						</ul>
-					</div>
-				) : null}
-
-				<p className="text-muted-foreground">
-					You can disconnect it at any time under{" "}
-					<Link
-						to={CONNECTED_APPS_PATH}
-						className="text-brand underline-offset-4 hover:underline"
-					>
-						Connected apps
-					</Link>
-					.
-				</p>
 
 				{error ? (
 					<Alert variant="destructive">
@@ -119,7 +160,7 @@ export function OAuthConsentCard({
 
 			<CardFooter className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
 				<Button
-					variant="outline"
+					variant={isApproved ? "outline" : "default"}
 					className="w-full sm:w-auto"
 					onClick={onDeny}
 					disabled={isPending}
@@ -127,14 +168,16 @@ export function OAuthConsentCard({
 					{pendingDecision === "deny" ? <Spinner /> : null}
 					Deny
 				</Button>
-				<Button
-					className="w-full sm:w-auto"
-					onClick={onApprove}
-					disabled={isPending}
-				>
-					{pendingDecision === "approve" ? <Spinner /> : null}
-					Approve
-				</Button>
+				{isApproved ? (
+					<Button
+						className="w-full sm:w-auto"
+						onClick={onApprove}
+						disabled={isPending}
+					>
+						{pendingDecision === "approve" ? <Spinner /> : null}
+						Approve
+					</Button>
+				) : null}
 			</CardFooter>
 		</Card>
 	);

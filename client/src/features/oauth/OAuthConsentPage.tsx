@@ -38,10 +38,7 @@ export default function OAuthConsentPage(
 					onSwitchAccount={switchAccount}
 				/>
 			) : (
-				<OAuthStatusMessage
-					status={state.status}
-					message={state.status === "error" ? state.message : undefined}
-				/>
+				<OAuthStatusMessage state={state} />
 			)}
 		</OAuthPageShell>
 	);

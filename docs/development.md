@@ -76,6 +76,8 @@ root `/.well-known/oauth-authorization-server/auth/v1` form is not served locall
 sends the browser to `site_url` + `/oauth/consent`, i.e. `http://localhost:5173/oauth/consent`,
 so sign in on `localhost:5173` (a session on `127.0.0.1:5173` doesn't count there). Tokens it
 issues carry `client_id`; the API and RLS refuse them (`docs/deployment.md`, "OAuth server").
+The consent page only approves allowlisted redirect URIs ("Approved MCP clients" there); loopback
+addresses such as the Inspector's `http://localhost:6274/oauth/callback` are on the list.
 
 ## Local integrations (all optional)
 

@@ -53,37 +53,85 @@ describe("OAuthConsentPage", () => {
 
 		expect(
 			await screen.findByRole("heading", {
-				name: "Allow Claude to use your TUM.ai account?",
+				name: "Allow this app to act as you in TUM.ai's Notion?",
 			}),
 		).toBeInTheDocument();
+		expect(screen.getByTestId("oauth-redirect-target")).toHaveTextContent(
+			/^claude\.ai$/,
+		);
+		expect(screen.getByText("Approved TUM.ai MCP client")).toBeVisible();
+		expect(screen.getByText(/calls itself “Claude”/)).toBeVisible();
 		expect(screen.getByText(/signed in as ada@example\.com/i)).toBeVisible();
 		expect(
 			screen.getByText(
-				/read and edit the TUM\.ai Notion workspace as you through the TUM\.ai Notion MCP \(nomcp\)/,
+				/can read and edit TUM\.ai's Notion workspace as you through nomcp.*every action is logged under your name/i,
 			),
 		).toBeVisible();
 		expect(
-			screen.getByText(/every action is logged under your name/i),
+			screen.getByText("Approve only if you just connected this app yourself."),
 		).toBeVisible();
-		expect(screen.getByText("claude.ai")).toBeVisible();
 		expect(screen.getByText("See your email address")).toBeVisible();
 		expect(
 			screen.getByRole("link", { name: "Connected apps" }),
 		).toHaveAttribute("href", "/connected-apps");
-		expect(screen.queryByTestId("oauth-unknown-redirect")).toBeNull();
+		expect(screen.getByRole("button", { name: "Approve" })).toBeEnabled();
 	});
 
-	it("warns when the app sends you somewhere unknown", async () => {
-		oauth.getAuthorizationDetails.mockResolvedValue(
-			details("https://claude-ai.example.net/callback"),
-		);
-		renderPage();
+	it("only lets the member deny an app that isn't an approved MCP client", async () => {
+		oauth.getAuthorizationDetails.mockResolvedValue({
+			data: {
+				...details("https://tumai-event-rsvp.example.com/callback").data,
+				client: { id: "client-2", name: "TUM.ai Event RSVP" },
+			},
+			error: null,
+		});
+		oauth.denyAuthorization.mockResolvedValue({
+			data: {
+				redirect_url:
+					"https://tumai-event-rsvp.example.com/callback?error=access_denied",
+			},
+			error: null,
+		});
+		const { redirect } = renderPage();
 
 		expect(
-			await screen.findByTestId("oauth-unknown-redirect"),
-		).toHaveTextContent(
-			/claude-ai\.example\.net isn't a site we know for AI apps/,
+			await screen.findByRole("heading", {
+				name: "This app isn't an approved TUM.ai MCP client",
+			}),
+		).toBeInTheDocument();
+		expect(screen.getByTestId("oauth-redirect-target")).toHaveTextContent(
+			/^tumai-event-rsvp\.example\.com$/,
 		);
+		expect(screen.getByText("Not an approved MCP client")).toBeVisible();
+		expect(screen.getByRole("alert")).toHaveTextContent(
+			/ask the dev team to add it/,
+		);
+		expect(screen.queryByRole("button", { name: /approve/i })).toBeNull();
+		expect(screen.queryByText(/through nomcp/)).toBeNull();
+
+		await userEvent.click(screen.getByRole("button", { name: "Deny" }));
+
+		expect(
+			await screen.findByText(/you denied access\. nothing was shared/i),
+		).toBeVisible();
+		expect(oauth.denyAuthorization).toHaveBeenCalledWith("auth-1", {
+			skipBrowserRedirect: true,
+		});
+		expect(oauth.approveAuthorization).not.toHaveBeenCalled();
+		expect(redirect).not.toHaveBeenCalled();
+	});
+
+	it("explains why it didn't follow an earlier approval to an unapproved site", async () => {
+		oauth.getAuthorizationDetails.mockResolvedValue({
+			data: { redirect_url: "https://evil.example/callback?code=abc" },
+			error: null,
+		});
+		const { redirect } = renderPage();
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			/isn't an approved TUM\.ai MCP client.*evil\.example.*nothing was shared/,
+		);
+		expect(redirect).not.toHaveBeenCalled();
 	});
 
 	it("disables both buttons while the decision is saved", async () => {

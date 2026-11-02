@@ -70,9 +70,84 @@ describe("useOAuthConsent", () => {
 		await waitFor(() => expect(result.current.state.status).toBe("consent"));
 		expect(result.current.state).toMatchObject({
 			request: { clientName: "Claude", scopes: ["email"] },
-			redirectTarget: { label: "claude.ai", isKnownApp: true },
+			redirectTarget: { label: "claude.ai", isApproved: true },
 		});
 		expect(oauth.getAuthorizationDetails).toHaveBeenCalledWith("auth-1");
+	});
+
+	describe("an app that isn't an approved MCP client", () => {
+		const PHISHING_DETAILS = {
+			...CONSENT_DETAILS,
+			redirect_uri: "https://tumai-event-rsvp.example.com/callback",
+			client: { id: "client-2", name: "TUM.ai Event RSVP" },
+		};
+
+		it("can't be approved", async () => {
+			oauth.getAuthorizationDetails.mockResolvedValue({
+				data: PHISHING_DETAILS,
+				error: null,
+			});
+			const { result } = renderConsentHook();
+			await waitFor(() => expect(result.current.state.status).toBe("consent"));
+			expect(result.current.state).toMatchObject({
+				redirectTarget: {
+					label: "tumai-event-rsvp.example.com",
+					isApproved: false,
+				},
+			});
+
+			act(() => result.current.approve());
+
+			expect(result.current.pendingDecision).toBeNull();
+			expect(oauth.approveAuthorization).not.toHaveBeenCalled();
+		});
+
+		it("is denied without sending the member there", async () => {
+			oauth.getAuthorizationDetails.mockResolvedValue({
+				data: PHISHING_DETAILS,
+				error: null,
+			});
+			oauth.denyAuthorization.mockResolvedValue({
+				data: {
+					redirect_url:
+						"https://tumai-event-rsvp.example.com/callback?error=access_denied",
+				},
+				error: null,
+			});
+			const { result, redirect } = renderConsentHook();
+			await waitFor(() => expect(result.current.state.status).toBe("consent"));
+
+			act(() => result.current.deny());
+
+			await waitFor(() =>
+				expect(result.current.state).toEqual({ status: "denied" }),
+			);
+			expect(oauth.denyAuthorization).toHaveBeenCalledWith("auth-1", {
+				skipBrowserRedirect: true,
+			});
+			expect(redirect).not.toHaveBeenCalled();
+		});
+
+		// An app approved once for an approved redirect URI may have registered
+		// a second one; Supabase then auto-approves and returns a code for it.
+		it("never gets a code from an earlier approval", async () => {
+			oauth.getAuthorizationDetails.mockResolvedValue({
+				data: {
+					redirect_url:
+						"https://tumai-event-rsvp.example.com/callback?code=abc",
+				},
+				error: null,
+			});
+			const { result, redirect } = renderConsentHook();
+
+			await waitFor(() =>
+				expect(result.current.state).toEqual({
+					status: "refused",
+					redirectLabel: "tumai-event-rsvp.example.com",
+				}),
+			);
+			expect(redirect).not.toHaveBeenCalled();
+		});
 	});
 
 	it("sends a member who already approved the app straight back", async () => {
@@ -95,7 +170,7 @@ describe("useOAuthConsent", () => {
 		});
 		const { result, redirect } = renderConsentHook();
 
-		await waitFor(() => expect(result.current.state.status).toBe("error"));
+		await waitFor(() => expect(result.current.state.status).toBe("refused"));
 		expect(redirect).not.toHaveBeenCalled();
 	});
 

@@ -12,8 +12,10 @@ TUM.ai member portal. pnpm workspace monorepo (Turborepo), Node 24:
 Data flow: client component → `lib/apiClient` → `/api/*` → Fastify route plugin →
 Supabase. Auth via Supabase (Slack OIDC in production); sensitive DB fields are encrypted at rest.
 Supabase Auth is also the OAuth server for nomcp (the TUM.ai Notion MCP): tokens it issues to apps
-must never reach member data (`supabase/AGENTS.md`, `docs/deployment.md`). The repository is
-**public**.
+must never reach member data (`supabase/AGENTS.md`, `docs/deployment.md`). Its tokens name no
+audience and anyone can register an app, so the consent page only approves the MCP clients in
+`APPROVED_MCP_CLIENT_REDIRECTS` (`client/src/features/oauth/oauthUtils.ts`). Never relax it to a
+warning. The repository is **public**.
 
 ## Read These First
 

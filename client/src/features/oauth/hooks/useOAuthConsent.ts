@@ -10,7 +10,6 @@ import {
 } from "@/features/oauth/oauthApi";
 import {
 	describeRedirectTarget,
-	isFollowableRedirect,
 	type RedirectTarget,
 	readAuthorizationId,
 } from "@/features/oauth/oauthUtils";
@@ -22,7 +21,16 @@ export type OAuthConsentState =
 	| { status: "loading" }
 	| { status: "error"; message: string }
 	| { status: "redirecting" }
+	/**
+	 * Supabase returned a redirect (with a code) for an app the member approved
+	 * earlier, but it points somewhere that isn't an approved MCP client, e.g.
+	 * a second redirect URI registered next to an approved one.
+	 */
+	| { status: "refused"; redirectLabel: string }
+	/** The member denied an app that isn't approved; it isn't visited. */
+	| { status: "denied" }
 	| {
+			/** `redirectTarget.isApproved` false: the member can only deny. */
 			status: "consent";
 			request: Extract<AuthorizationRequest, { kind: "consent" }>;
 			redirectTarget: RedirectTarget;
@@ -33,8 +41,10 @@ export interface UseOAuthConsentOptions {
 	redirect?: (url: string) => void;
 }
 
-const UNSAFE_REDIRECT_MESSAGE =
-	"This app asked to be sent to an address that isn't allowed, so the connection was stopped.";
+type Exit =
+	| { kind: "redirecting" }
+	| { kind: "refused"; redirectLabel: string }
+	| { kind: "denied" };
 
 function followRedirect(url: string): void {
 	window.location.assign(url);
@@ -50,14 +60,18 @@ function errorMessage(error: unknown): string {
  * State and actions for the OAuth consent page: loads the authorization
  * request from `?authorization_id=`, then records the member's decision and
  * hands the browser back to the app.
+ *
+ * Only apps whose redirect URI is an approved MCP client
+ * (`APPROVED_MCP_CLIENT_REDIRECTS`) can be approved, and the browser only
+ * follows a redirect to an approved address. A denial for any other app is
+ * recorded without sending the member there.
  */
 export function useOAuthConsent({
 	redirect = followRedirect,
 }: UseOAuthConsentOptions = {}) {
 	const { search } = useLocation();
 	const authorizationId = readAuthorizationId(search);
-	const [redirecting, setRedirecting] = useState(false);
-	const [redirectError, setRedirectError] = useState<string | null>(null);
+	const [exit, setExit] = useState<Exit | null>(null);
 
 	// A logged-out visit remembered this URL to resume it after sign-in.
 	// Forget it now, so a later visit doesn't reopen a used request.
@@ -66,13 +80,17 @@ export function useOAuthConsent({
 	}, []);
 
 	const leaveFor = useCallback(
-		(url: string) => {
-			if (!isFollowableRedirect(url)) {
-				setRedirectError(UNSAFE_REDIRECT_MESSAGE);
-				return;
+		(url: string, outcome: "approved" | "denied") => {
+			const target = describeRedirectTarget(url);
+			if (target.isApproved) {
+				setExit({ kind: "redirecting" });
+				redirect(url);
+			} else if (outcome === "denied") {
+				setExit({ kind: "denied" });
+			} else {
+				// Never hand a code to an address that isn't an approved client.
+				setExit({ kind: "refused", redirectLabel: target.label });
 			}
-			setRedirecting(true);
-			redirect(url);
 		},
 		[redirect],
 	);
@@ -90,23 +108,26 @@ export function useOAuthConsent({
 
 	useEffect(() => {
 		if (request?.kind === "redirect") {
-			leaveFor(request.redirectUrl);
+			leaveFor(request.redirectUrl, "approved");
 		}
 	}, [request, leaveFor]);
 
 	const decision = useMutation({
 		mutationFn: (choice: ConsentDecision) =>
 			submitConsentDecision(authorizationId ?? "", choice),
-		onSuccess: leaveFor,
+		onSuccess: (redirectUrl, choice) =>
+			leaveFor(redirectUrl, choice === "approve" ? "approved" : "denied"),
 	});
 
 	let state: OAuthConsentState;
 	if (authorizationId === null) {
 		state = { status: "missing-request" };
-	} else if (redirectError !== null) {
-		state = { status: "error", message: redirectError };
-	} else if (redirecting) {
+	} else if (exit?.kind === "redirecting") {
 		state = { status: "redirecting" };
+	} else if (exit?.kind === "refused") {
+		state = { status: "refused", redirectLabel: exit.redirectLabel };
+	} else if (exit?.kind === "denied") {
+		state = { status: "denied" };
 	} else if (requestQuery.isError) {
 		state = { status: "error", message: errorMessage(requestQuery.error) };
 	} else if (!request || request.kind === "redirect") {
@@ -123,7 +144,11 @@ export function useOAuthConsent({
 		state,
 		pendingDecision: decision.isPending ? decision.variables : null,
 		decisionError: decision.isError ? errorMessage(decision.error) : null,
-		approve: () => decision.mutate("approve"),
+		approve: () => {
+			if (state.status === "consent" && state.redirectTarget.isApproved) {
+				decision.mutate("approve");
+			}
+		},
 		deny: () => decision.mutate("deny"),
 		// Signing out shows the sign-in page on this same URL, which remembers
 		// it and returns here after the next sign-in.
