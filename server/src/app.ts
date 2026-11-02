@@ -20,6 +20,7 @@ import { engagementCertificateRoutes } from "./routes/engagementCertificates.js"
 import { financeRoutes } from "./routes/finance.js";
 import { financeManagementRoutes } from "./routes/financeManagement.js";
 import { jobRoutes } from "./routes/jobs.js";
+import { mcpAccessRoutes } from "./routes/mcpAccess.js";
 import { memberRoutes } from "./routes/members.js";
 import { partnerRoutes } from "./routes/partners.js";
 import { permissionRoutes } from "./routes/permissions.js";
@@ -115,6 +116,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			await api.register(cvRoutes);
 			await api.register(consentRoutes);
 			await api.register(doorPinRoutes);
+			await api.register(mcpAccessRoutes);
 			await api.register(partnerExportRoutes);
 			await api.register(educationalCourseRoutes);
 			await api.register(sepaRoutes);

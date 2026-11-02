@@ -88,6 +88,7 @@ interface MockData {
 	reimbursements: Array<Record<string, unknown>>;
 	member_cvs: Array<Record<string, unknown>>;
 	member_door_pins: Array<Record<string, unknown>>;
+	mcp_access: Array<Record<string, unknown>>;
 	department_permissions: Array<Record<string, unknown>>;
 	contract_templates: Array<Record<string, unknown>>;
 	contract_template_variables: Array<Record<string, unknown>>;
@@ -231,6 +232,7 @@ export const mockDatabase: MockData = {
 	job_posting_requests: [],
 	member_cvs: [],
 	member_door_pins: [],
+	mcp_access: [],
 	department_permissions: [
 		{
 			department: "Legal & Finance",
@@ -2778,6 +2780,7 @@ export function resetMockDatabase(): void {
 	mockDatabase.job_posting_requests = [];
 	mockDatabase.member_cvs = [];
 	mockDatabase.member_door_pins = [];
+	mockDatabase.mcp_access = [];
 	mockDatabase.department_permissions = [
 		{
 			department: "Legal & Finance",

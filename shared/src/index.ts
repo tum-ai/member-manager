@@ -8,6 +8,7 @@ export * from "./educationCourses.js";
 export * from "./finance.js";
 export * from "./iban.js";
 export * from "./jobs.js";
+export * from "./mcpAccess.js";
 export * from "./member.js";
 export * from "./partners.js";
 export * from "./permissions.js";

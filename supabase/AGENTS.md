@@ -42,10 +42,16 @@
   `server/test/migrations/mcpOauthMigration.test.ts` fails otherwise (offline for later migrations,
   against the catalog with `RUN_LOCAL_SUPABASE_RLS_TESTS`). It also fails on a public table without
   RLS. App tokens may only read `public.mcp_principal()`; don't grant them anything else.
+- **`mcp_principal()` is nomcp's contract.** Its result (v2: `user_id`, `display_name`, `email`,
+  `member_status`, `slack_team_ok`, `access_status`, `access_role`) and its null cases are what
+  nomcp decides on. A migration that redefines it must keep them, or ship with the matching nomcp
+  release. It writes (`mcp_access` requests and `last_seen_at`), so it stays `VOLATILE`.
 
 ## RLS and migration tests
 
 `server/test/migrations/*` run against a local stack only when `RUN_LOCAL_SUPABASE_RLS_TESTS=true`.
+`localDatabase.ts` there has the psql helpers (`runInRollback`, `asRequest`); set
+`SUPABASE_TEST_PROJECT_DIR` to run them against a stack started from another directory.
 CI runs them in `e2e.yml` by listing each file explicitly, so a **new** RLS test file must also be
 added to that command or it never runs in CI.
 

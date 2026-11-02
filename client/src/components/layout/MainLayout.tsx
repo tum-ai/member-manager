@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import {
 	Award,
 	BookOpen,
+	Bot,
 	Briefcase,
 	Building2,
 	CalendarDays,
@@ -294,6 +295,12 @@ export function MainLayout({
 					label: "Job Postings",
 					to: "/admin/job-requests",
 					icon: Briefcase,
+					visible: isAdmin,
+				},
+				{
+					label: "Notion MCP Access",
+					to: "/admin/mcp-access",
+					icon: Bot,
 					visible: isAdmin,
 				},
 				{

@@ -1,11 +1,10 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, test } from "node:test";
-import { fileURLToPath } from "node:url";
 import { TUMAI_SLACK_TEAM_ID } from "../../src/lib/slackWorkspace.js";
 import "../setup.js";
+import { asRequest, runInRollback } from "./localDatabase.js";
 
 const MIGRATIONS_DIR = new URL(
 	"../../../supabase/migrations/",
@@ -14,9 +13,6 @@ const MIGRATIONS_DIR = new URL(
 const MIGRATION_FILE = "20261102120000_mcp_oauth.sql";
 const migration = readFileSync(new URL(MIGRATION_FILE, MIGRATIONS_DIR), "utf8");
 const RUN_LOCAL_RLS_TESTS = process.env.RUN_LOCAL_SUPABASE_RLS_TESTS === "true";
-const REPO_ROOT =
-	process.env.SUPABASE_TEST_PROJECT_DIR ??
-	fileURLToPath(new URL("../../..", import.meta.url));
 
 // The seeded local admin (supabase/seed.sql), who can read every member row.
 const SEED_ADMIN_ID = "00000000-0000-0000-0000-000000000001";
@@ -92,42 +88,6 @@ test("later migrations add the restrictive policy to each public table they crea
 	}
 	assert.deepStrictEqual(missing, []);
 });
-
-let dbUrl: string | undefined;
-
-function localDbUrl(): string {
-	if (dbUrl) return dbUrl;
-	const output = execFileSync("supabase", ["status", "-o", "env"], {
-		cwd: REPO_ROOT,
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "ignore"],
-	});
-	const match = output.match(/^DB_URL=['"]?([^'"\n]+)['"]?$/m);
-	assert.ok(match, "supabase status did not report DB_URL");
-	dbUrl = match[1];
-	return dbUrl;
-}
-
-/** Runs the statements in one rolled-back transaction; returns stdout lines. */
-function runInRollback(statements: string[]): string[] {
-	const args = [localDbUrl(), "-qAt", "-v", "ON_ERROR_STOP=1", "-c", "begin"];
-	for (const statement of statements) args.push("-c", statement);
-	args.push("-c", "rollback");
-	return execFileSync("psql", args, {
-		encoding: "utf8",
-		stdio: ["ignore", "pipe", "pipe"],
-	})
-		.split("\n")
-		.filter((line) => line !== "");
-}
-
-/** Statements that make the rest of the transaction run as a PostgREST request with these claims. */
-function asRequest(claims: Record<string, unknown>, role = "authenticated") {
-	return [
-		`set local role ${role}`,
-		`do $$ begin perform set_config('request.jwt.claims', '${JSON.stringify(claims)}', true); end $$`,
-	];
-}
 
 const sessionClaims = (sub: string) => ({ sub, role: "authenticated" });
 const appClaims = (sub: string, extra: Record<string, unknown> = {}) => ({
@@ -226,6 +186,8 @@ describe("OAuth app tokens against the local database", {
 
 	const principal = "select public.mcp_principal()";
 
+	// Contract v2 (20261102180000_nomcp_access_approval.sql) adds the access
+	// fields; the seeded admin is approved as an editor.
 	test("mcp_principal returns the member an OAuth app token belongs to", () => {
 		const [expected] = runInRollback([
 			`select jsonb_build_object(
@@ -233,7 +195,9 @@ describe("OAuth app tokens against the local database", {
 				'display_name', btrim(m.given_name || ' ' || m.surname),
 				'email', u.email,
 				'member_status', m.member_status,
-				'slack_team_ok', false
+				'slack_team_ok', false,
+				'access_status', 'approved',
+				'access_role', 'editor'
 			) from public.members m join auth.users u on u.id = m.user_id
 			where m.user_id = '${SEED_ADMIN_ID}'`,
 		]);
@@ -243,6 +207,8 @@ describe("OAuth app tokens against the local database", {
 		]);
 		assert.deepStrictEqual(JSON.parse(actual), JSON.parse(expected));
 		assert.deepStrictEqual(Object.keys(JSON.parse(actual)).sort(), [
+			"access_role",
+			"access_status",
 			"display_name",
 			"email",
 			"member_status",

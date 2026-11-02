@@ -1554,3 +1554,15 @@ values
     ('c0000000-0000-4000-8000-000000000031',
      'c0000000-0000-4000-8000-000000000021', 'BB-1077', 840, 'manual')
 on conflict (id) do nothing;
+
+-- nomcp access (migration 20261102180000_nomcp_access_approval.sql): admins
+-- start out approved as editors, like in production. Locally the migration
+-- runs before the admins are seeded, so repeat it here. Every other member
+-- files a pending request the first time they connect an AI app.
+insert into public.mcp_access (user_id, status, role, requested_at, decided_at, decision_note)
+select distinct r.user_id, 'approved', 'editor', now(), now(),
+    'Approved automatically: admin when nomcp access approval was introduced'
+from public.user_roles r
+join public.members m on m.user_id = r.user_id
+where r.role = 'admin'
+on conflict (user_id) do nothing;

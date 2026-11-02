@@ -45,6 +45,10 @@ vi.mock("./features/admin/AdminDatabaseView", () => ({
 	AdminDatabaseView: () => <div>Admin route</div>,
 }));
 
+vi.mock("./features/admin/AdminMcpAccessPage", () => ({
+	default: () => <div>Notion MCP access route</div>,
+}));
+
 vi.mock("./features/profile/ProfilePage", () => ({
 	default: () => <div>Profile route</div>,
 }));
@@ -144,6 +148,24 @@ describe("AuthenticatedApp admin routing", () => {
 		renderAuthenticatedApp("/admin");
 
 		expect(screen.getByText("Admin route")).toBeInTheDocument();
+	});
+
+	it("opens Notion MCP access for admins and sends others home", () => {
+		adminState.isAdmin = true;
+		adminState.isLoading = false;
+		const adminView = renderAuthenticatedApp("/admin/mcp-access");
+		expect(screen.getByText("Notion MCP access route")).toBeInTheDocument();
+		expect(
+			screen.getByRole("link", { name: "Notion MCP Access" }),
+		).toHaveAttribute("href", "/admin/mcp-access");
+		adminView.unmount();
+
+		adminState.isAdmin = false;
+		renderAuthenticatedApp("/admin/mcp-access");
+		expect(screen.getByText("Profile route")).toBeInTheDocument();
+		expect(
+			screen.queryByRole("link", { name: "Notion MCP Access" }),
+		).toBeNull();
 	});
 });
 
