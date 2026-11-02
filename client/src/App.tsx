@@ -18,6 +18,7 @@ import AdminCertificateRequestsPage from "./features/admin/AdminCertificateReque
 import AdminChangeRequestsPage from "./features/admin/AdminChangeRequestsPage";
 import { AdminDatabaseView } from "./features/admin/AdminDatabaseView";
 import AdminJobRequestsPage from "./features/admin/AdminJobRequestsPage";
+import AdminMcpAccessPage from "./features/admin/AdminMcpAccessPage";
 import { Auth } from "./features/auth/Auth";
 import EngagementCertificatePage from "./features/certificate/EngagementCertificatePage";
 import ContractBoardSignPage from "./features/contracts/ContractBoardSignPage";
@@ -362,6 +363,10 @@ export function AuthenticatedApp({
 				<Route
 					path="/admin/job-requests"
 					element={adminRoute(<AdminJobRequestsPage />)}
+				/>
+				<Route
+					path="/admin/mcp-access"
+					element={adminRoute(<AdminMcpAccessPage />)}
 				/>
 				<Route path="*" element={<Navigate to="/" replace />} />
 			</Routes>

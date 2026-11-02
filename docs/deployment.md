@@ -279,6 +279,35 @@ Example: VS Code may use `https://vscode.dev/redirect`, which isn't on the list.
 supported client by hand would enforce the same rule in Supabase. Not every MCP client can use a
 pre-registered client ID, though.
 
+### Access approval
+
+Members don't get nomcp access automatically: an admin approves each one, as a `reader` (search
+and read) or an `editor` (also create, edit and comment).
+
+- **Where:** Administration → Notion MCP Access (`/admin/mcp-access`). Pending requests come
+  first (approve as reader or editor, or deny), then approved members (change the role, or
+  revoke), then declined ones (approve again). Denying and revoking ask for confirmation and take
+  an optional note that only admins see. Each entry shows when the member last used nomcp and with
+  which app.
+- **How a request appears:** the first time an active member of the TUM.ai Slack workspace
+  connects an AI app, nomcp calls `mcp_principal()`, which files a `pending` row in
+  `public.mcp_access`. Inactive members, alumni and other workspaces get no row; nomcp refuses
+  them anyway.
+- **What members see:** `/connected-apps` shows "Notion MCP access: waiting for approval",
+  "approved as editor" (or reader), "declined", or "not requested yet".
+- **When a decision takes effect:** nomcp caches `mcp_principal()` per token for about a minute,
+  so approvals, role changes and revocations apply within a minute.
+- **Admins:** everyone who was an admin when migration `20261102180000_nomcp_access_approval.sql`
+  ran was approved as an editor. New admins file a request like anyone else and can approve
+  themselves.
+
+**Release order.** `mcp_principal()` contract v2 adds `access_status` (`pending`, `approved` or
+`denied`) and `access_role` (`reader` or `editor` while approved, otherwise `null`). The migration
+must be live in production before the nomcp release that reads these fields; the old function
+doesn't return them. The function is now `VOLATILE` because it writes (the pending row, and
+`last_seen_at` with the last client at most once a minute), so PostgREST runs
+`POST /rest/v1/rpc/mcp_principal` read-write. Change the contract only together with nomcp.
+
 ## Field encryption and rotation
 
 These secrets encrypt sensitive member, SEPA, reimbursement, and door PIN

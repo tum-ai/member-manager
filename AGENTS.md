@@ -15,7 +15,10 @@ Supabase Auth is also the OAuth server for nomcp (the TUM.ai Notion MCP): tokens
 must never reach member data (`supabase/AGENTS.md`, `docs/deployment.md`). Its tokens name no
 audience and anyone can register an app, so the consent page only approves the MCP clients in
 `APPROVED_MCP_CLIENT_REDIRECTS` (`client/src/features/oauth/oauthUtils.ts`). Never relax it to a
-warning. The repository is **public**.
+warning. Admins approve nomcp access per member (`public.mcp_access`, `/admin/mcp-access`), and
+nomcp reads it through `public.mcp_principal()`: that function is nomcp's contract, so change its
+result only together with nomcp (`docs/deployment.md`, "Access approval"). The repository is
+**public**.
 
 ## Read These First
 
