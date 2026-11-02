@@ -38,7 +38,8 @@ jobs:
         if: steps.filter.outputs.code == 'true'
         uses: supabase/setup-cli@v2
         with:
-          version: latest
+          # CLI 3.x rejects config.toml's [inbucket] section; stay on 2.x until the config moves.
+          version: 2.117.0
           github-token: ${{ github.token }}
 
       - name: Start local Supabase stack
@@ -62,7 +63,7 @@ jobs:
 
       - name: Run finance RLS integration tests
         if: steps.filter.outputs.code == 'true'
-        run: RUN_LOCAL_SUPABASE_RLS_TESTS=true pnpm --filter @member-manager/server exec tsx --test test/migrations/financeManagementRls.test.ts test/migrations/vividReimbursementMigration.test.ts test/migrations/memberConsentsMigration.test.ts test/migrations/memberDoorPinsMigration.test.ts test/migrations/restrictSlackWorkspaceMigration.test.ts
+        run: RUN_LOCAL_SUPABASE_RLS_TESTS=true pnpm --filter @member-manager/server exec tsx --test test/migrations/financeManagementRls.test.ts test/migrations/vividReimbursementMigration.test.ts test/migrations/memberConsentsMigration.test.ts test/migrations/memberDoorPinsMigration.test.ts test/migrations/restrictSlackWorkspaceMigration.test.ts test/migrations/mcpOauthMigration.test.ts
 
       - name: Cache Playwright browsers
         if: steps.filter.outputs.code == 'true'

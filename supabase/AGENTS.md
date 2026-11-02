@@ -28,6 +28,20 @@
 - **Declare foreign keys you embed.** PostgREST can only embed a related table (`select("*, sepa(*)")`)
   through a declared FK. Without one, Supabase returns PGRST200 and the API answers with a generic 500.
   A `not valid` FK is enough for the embed.
+- **Every new table: RLS on, plus the OAuth block.** Supabase's OAuth server issues apps (nomcp,
+  the TUM.ai Notion MCP) member JWTs with a `client_id` claim, which RLS treats like the member.
+  `20261102120000_mcp_oauth.sql` gave every existing RLS table this policy; a new public table
+  needs it too, in the same migration that creates it:
+
+  ```sql
+  create policy "oauth_clients_blocked" on "public"."<table>" as restrictive for all to authenticated
+      using ((select auth.jwt() ->> 'client_id') is null)
+      with check ((select auth.jwt() ->> 'client_id') is null);
+  ```
+
+  `server/test/migrations/mcpOauthMigration.test.ts` fails otherwise (offline for later migrations,
+  against the catalog with `RUN_LOCAL_SUPABASE_RLS_TESTS`). It also fails on a public table without
+  RLS. App tokens may only read `public.mcp_principal()`; don't grant them anything else.
 
 ## RLS and migration tests
 

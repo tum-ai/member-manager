@@ -24,6 +24,7 @@ import {
 	ShieldCheck,
 	Sun,
 	Target,
+	Unplug,
 	User as UserIcon,
 	Users,
 	Wallet,
@@ -62,6 +63,7 @@ import {
 	SidebarProvider,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { CONNECTED_APPS_PATH } from "@/features/oauth/oauthUtils";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useToolAccess } from "@/hooks/useToolAccess";
 import { TUM_AI_LOGO_MARK_DARK, TUM_AI_LOGO_MARK_LIGHT } from "@/lib/branding";
@@ -416,6 +418,12 @@ export function MainLayout({
 										{userEmail || "Signed in"}
 									</DropdownMenuLabel>
 									<DropdownMenuSeparator />
+									<DropdownMenuItem asChild>
+										<RouterLink to={CONNECTED_APPS_PATH}>
+											<Unplug />
+											Connected apps
+										</RouterLink>
+									</DropdownMenuItem>
 									<DropdownMenuItem onClick={onLogout}>
 										<LogOut />
 										Log out

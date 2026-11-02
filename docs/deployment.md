@@ -120,6 +120,9 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 - Client ID / Secret from the Slack app
 - Supabase shows a callback URL: `https://<project-ref>.supabase.co/auth/v1/callback` — copy it for step 3.
 
+**Authentication → OAuth Server (nomcp):** see [OAuth server (nomcp)](#oauth-server-nomcp) below. It
+stays off until its migration is live.
+
 ### 3. Slack app configuration
 
 In the TUM.ai Slack app → OAuth & Permissions → Redirect URLs:
@@ -201,6 +204,80 @@ The original sequence, kept for reference and for step 6:
 6. Change the GitHub repository visibility to private. GitHub Free provides only 2,000 shared Actions minutes per month, does not provide private-environment secrets, and skips CodeQL/dependency review for private repositories without paid Code Security. The Vercel deployment secrets remain repository Actions secrets, so validate them again after the visibility change.
 
 Rollback: if the Actions deployment or smoke checks fail before the cutover is accepted, reconnect the Vercel Git integration to restore the prior deployment path, then investigate the failed SHA. Preserve migration ordering and do not treat a Vercel build as proof that the database migration or runtime probes succeeded. After recovery, repeat the cutover with fresh secret and workflow evidence.
+
+## OAuth server (nomcp)
+
+nomcp (the private repo `tum-ai/nomcp`) is the TUM.ai Notion MCP gateway: members'
+AI agents (claude.ai, ChatGPT, Claude Code, Cursor) reach the TUM.ai Notion through it. Members sign
+in to it with their member-manager account. Supabase Auth's OAuth 2.1 server (beta) is the
+authorization server, and member-manager's `/oauth/consent` page is where a member approves an
+app. Members see and disconnect approved apps under `/connected-apps` (account menu → Connected
+apps).
+
+A token Supabase issues to an app is a normal member JWT with an extra `client_id` claim.
+member-manager refuses such tokens: the `oauth_clients_blocked` RLS policies hide every row from
+them, and `authenticate` answers 401. The one thing they can read is `rpc/mcp_principal`, which
+nomcp calls to learn who the member is. All of this comes from migration
+`20261102120000_mcp_oauth.sql` and the matching API change, so the order below matters.
+
+1. **Wait until the migration is live in production.** The `Production Supabase Migrations` job on
+   `main` must have applied `20261102120000`. Until then, an app token could read member data as
+   the member.
+2. **Turn off password sign-in.** Authentication → Providers → Email: disable it (production
+   sign-in is Slack only). An app token can call `PUT /auth/v1/user` and set the member's password;
+   with email sign-in enabled, that password then opens a full session as the member. This was
+   checked against the local auth server. It stays a prerequisite: the client allowlist below
+   doesn't change it.
+3. **Authentication → OAuth Server:**
+   - Enable the OAuth server.
+   - Authorization Path: `/oauth/consent`. Supabase sends members to `Site URL` + this path, so
+     `Site URL` must be the production domain.
+   - Allow dynamic client registration: on. MCP clients register themselves; the consent page
+     only lets members approve the clients on the allowlist below.
+4. **Check discovery:**
+   `curl https://<project-ref>.supabase.co/auth/v1/.well-known/oauth-authorization-server` returns
+   the issuer, `registration_endpoint` and `code_challenge_methods_supported: ["S256", …]`.
+
+Asymmetric JWT signing keys (JWT Keys → ES256/RS256) are only needed for the `openid` scope (ID
+tokens). nomcp uses access tokens only.
+
+To switch it off, disable the OAuth server. Tokens it already issued stay valid until they expire
+(`jwt_expiry`, 1 h), so revoke an app from `/connected-apps` (or delete its sessions) if it must
+lose access at once.
+
+### Approved MCP clients
+
+The consent page only lets a member approve an app whose redirect URI belongs to a supported MCP
+client. For every other app it shows "This app isn't an approved TUM.ai MCP client" with only a
+Deny button. It records the denial without sending the member to that address. It also refuses to
+follow a redirect that Supabase auto-approved from an earlier consent to an unapproved address.
+
+| Allowed redirect | For |
+| --- | --- |
+| `https://` on `claude.ai`, `claude.com`, `chatgpt.com`, `openai.com` (subdomains included) | claude.ai and Claude Desktop, ChatGPT |
+| `http://` or `https://` on `localhost`, `127.0.0.1`, `[::1]`, any port | Claude Code, the MCP Inspector, other CLI clients |
+| `cursor://`, `vscode://`, `vscode-insiders://`, `windsurf://` | Cursor, VS Code, Windsurf |
+
+**Why it exists.** Supabase's access tokens carry `aud: "authenticated"` and no resource
+indicator, so nomcp can't tell whether a token was meant for it. Dynamic client registration is
+open, so anyone can register an app under a trusted-sounding name ("TUM.ai Event RSVP") with their
+own redirect URI. If a member approved it, the code, and with it an access and refresh token,
+would go to that site, which could replay them at nomcp and edit TUM.ai's Notion as the member.
+The app's name is the attacker's choice, but the redirect URI is not: the code only ever goes
+there. So the consent page shows the address first and checks it against the list. Supabase has no
+server-side setting for this: the auth server's OAuth options are only `enabled`, the authorization
+path, dynamic registration, and the default scope (checked in gotrue v2.197.0 and the CLI).
+
+**Adding a client.** Edit `APPROVED_MCP_CLIENT_REDIRECTS` in
+`client/src/features/oauth/oauthUtils.ts`, add cases to `oauthUtils.test.ts`, and update the table
+above. Only add an https domain the client's vendor controls end to end, or the client's own URL
+scheme, never a site where other people can publish content. Check the redirect URI the client
+actually uses first, e.g. with the MCP Inspector or by reading the authorize URL it opens.
+Example: VS Code may use `https://vscode.dev/redirect`, which isn't on the list.
+
+**Server-side option (not built).** Turning dynamic registration off and registering each
+supported client by hand would enforce the same rule in Supabase. Not every MCP client can use a
+pre-registered client ID, though.
 
 ## Field encryption and rotation
 

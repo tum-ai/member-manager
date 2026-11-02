@@ -21,7 +21,10 @@ In production it runs as one Vercel function (`api/[...path].ts` imports `server
   - `supabase.ts` — `getSupabase()` (service client). The only Supabase entry point.
 - `src/plugins/errorHandler.ts` — central handler mapping typed errors → HTTP responses.
 - `src/middleware/auth.ts` — `authenticate` + `require*` preHandlers (`requireAdmin`,
-  `requireFinanceViewer`, `requireCronOrTumaiDaysManager`, …).
+  `requireFinanceViewer`, `requireCronOrTumaiDaysManager`, …). `authenticate` answers 401 to
+  tokens Supabase's OAuth server issued to apps (a `client_id` claim, `lib/oauthClientTokens.ts`)
+  and to users outside the TUM.ai Slack workspace (`lib/slackWorkspace.ts`). Any new path that
+  accepts a member token goes through `authenticate`.
 - `src/scripts/` — maintenance scripts (`rotate:encryption`, `backfill:encryption`,
   `backfill:member-cvs`).
 - `test/` — `tsx --test` suites (`routes/`, `lib/`, `unit/`, `migrations/`, `mocks/`); `test/setup.ts`

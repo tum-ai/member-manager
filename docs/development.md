@@ -67,6 +67,18 @@ The wrapper script `scripts/supabase-start.mjs` loads `supabase/.env.local` into
 
 **The redirect-URL trailing-slash trap (GoTrue):** `additional_redirect_urls` in `supabase/config.toml` is matched *exactly*, including trailing slash. The app asks for `http://localhost:5173/` but with only `http://localhost:5173` whitelisted, GoTrue silently falls back to `site_url` and you get mysterious redirects. The committed `config.toml` already lists all four variants (`localhost`/`127.0.0.1`, with/without `/`) — keep it that way if you touch it.
 
+### OAuth server (nomcp)
+
+The local stack runs Supabase's OAuth 2.1 server with dynamic client registration, so an MCP
+client (the MCP Inspector, Claude Code) can sign in to a local nomcp with a seeded account.
+Metadata lives at `http://127.0.0.1:54321/auth/v1/.well-known/oauth-authorization-server` (the
+root `/.well-known/oauth-authorization-server/auth/v1` form is not served locally). `/authorize`
+sends the browser to `site_url` + `/oauth/consent`, i.e. `http://localhost:5173/oauth/consent`,
+so sign in on `localhost:5173` (a session on `127.0.0.1:5173` doesn't count there). Tokens it
+issues carry `client_id`; the API and RLS refuse them (`docs/deployment.md`, "OAuth server").
+The consent page only approves allowlisted redirect URIs ("Approved MCP clients" there); loopback
+addresses such as the Inspector's `http://localhost:6274/oauth/callback` are on the list.
+
 ## Local integrations (all optional)
 
 Every integration below is off unless its env vars are set in `server/.env.local`. Without them the feature degrades gracefully, and the local stack stubs the ones that could reach production.
