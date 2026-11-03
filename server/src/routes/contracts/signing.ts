@@ -288,7 +288,11 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			) {
 				return reply.status(410).send({ error: "Board signing link expired" });
 			}
-			if (data.admin_signed_at || data.status !== "partner_signed") {
+			if (
+				data.admin_signed_at ||
+				data.status !== "partner_signed" ||
+				!data.signed_at
+			) {
 				return reply
 					.status(409)
 					.send({ error: "Contract is not awaiting a board signature" });
@@ -320,7 +324,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			const { data: submission, error: fetchError } = await getSupabase()
 				.from("contract_submissions")
 				.select(
-					"id, status, renderer_engine, board_signature_token_expires_at, admin_signed_at, active_document_version_id, form_data_encrypted",
+					"id, status, renderer_engine, board_signature_token_expires_at, signed_at, admin_signed_at, active_document_version_id, form_data_encrypted",
 				)
 				.eq("board_signature_token", request.params.token)
 				.maybeSingle();
@@ -342,9 +346,12 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			) {
 				return reply.status(410).send({ error: "Board signing link expired" });
 			}
+			// Same precondition as the authenticated board-signature route: the
+			// partner's signature must be on record, not only the status.
 			if (
 				submission.admin_signed_at ||
-				submission.status !== "partner_signed"
+				submission.status !== "partner_signed" ||
+				!submission.signed_at
 			) {
 				return reply
 					.status(409)
@@ -372,6 +379,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			}
 			const parent = await getReadyDocxVersion(
 				submission.active_document_version_id,
+				String(submission.id),
 			);
 			const { error: signerError } = await getSupabase()
 				.from("contract_submissions")
@@ -553,6 +561,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			}
 			const parent = await getReadyDocxVersion(
 				submission.sent_document_version_id,
+				String(submission.id),
 			);
 			const { error: signerError } = await getSupabase()
 				.from("contract_submissions")
@@ -625,6 +634,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			}
 			const parent = await getReadyDocxVersion(
 				current.active_document_version_id,
+				String(current.id),
 			);
 			const { error: signerError } = await getSupabase()
 				.from("contract_submissions")
@@ -690,6 +700,7 @@ export async function contractSigningRoutes(server: FastifyInstance) {
 			try {
 				const version = await getReadyDocxVersion(
 					current.active_document_version_id,
+					String(current.id),
 				);
 				const { error: finalVersionError } = await getSupabase()
 					.from("contract_submissions")
