@@ -48,10 +48,10 @@ describe("readDevMcpConfig", () => {
 	test("trims values and the URL's trailing slash", () => {
 		assert.deepEqual(
 			readDevMcpConfig({
-				DEV_MCP_URL: " https://dev-mcp.tum-ai.com/ ",
+				DEV_MCP_URL: " https://tumai-dev-mcp.vercel.app/ ",
 				DEV_MCP_SERVICE_TOKEN: " token ",
 			}),
-			{ url: "https://dev-mcp.tum-ai.com", serviceToken: "token" },
+			{ url: "https://tumai-dev-mcp.vercel.app", serviceToken: "token" },
 		);
 		assert.deepEqual(readDevMcpConfig({ DEV_MCP_URL: " " }), {
 			url: null,

@@ -91,7 +91,7 @@ test("an active member always has a role and nobody else has one", () => {
 test("the production resource is dev-mcp's /mcp URL", () => {
 	assert.match(
 		migration,
-		/values \('dev_mcp', 'https:\/\/dev-mcp\.tum-ai\.com\/mcp'\)\s+on conflict \("key"\) do nothing;/,
+		/values \('dev_mcp', 'https:\/\/tumai-dev-mcp\.vercel\.app\/mcp'\)\s+on conflict \("key"\) do nothing;/,
 	);
 });
 
