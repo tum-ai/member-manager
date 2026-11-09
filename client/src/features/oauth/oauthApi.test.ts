@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	bindAuthorization,
 	fetchAuthorizationRequest,
 	fetchConnectedApps,
 	revokeConnectedApp,
@@ -14,7 +15,11 @@ const oauth = vi.hoisted(() => ({
 	revokeGrant: vi.fn(),
 }));
 
-vi.mock("@/lib/supabaseClient", () => ({ supabase: { auth: { oauth } } }));
+const rpc = vi.hoisted(() => vi.fn());
+
+vi.mock("@/lib/supabaseClient", () => ({
+	supabase: { auth: { oauth }, rpc },
+}));
 
 const authError = Object.assign(new Error("authorization not found"), {
 	status: 404,
@@ -167,5 +172,33 @@ describe("oauthApi", () => {
 		oauth.revokeGrant.mockResolvedValue({ data: null, error: authError });
 
 		await expect(revokeConnectedApp("client-1")).rejects.toBe(authError);
+	});
+
+	it("binds an authorization through the database", async () => {
+		rpc.mockResolvedValue({ data: null, error: null });
+
+		await bindAuthorization("auth-1");
+
+		expect(rpc).toHaveBeenCalledWith("bind_oauth_authorization", {
+			authorization_id: "auth-1",
+		});
+	});
+
+	it("throws the database's message when binding fails", async () => {
+		rpc.mockResolvedValue({
+			data: null,
+			error: {
+				message: "This app is already connected to another TUM.ai server.",
+			},
+		});
+
+		await expect(bindAuthorization("auth-1")).rejects.toThrow(
+			"This app is already connected to another TUM.ai server.",
+		);
+
+		rpc.mockResolvedValue({ data: null, error: { message: "" } });
+		await expect(bindAuthorization("auth-1")).rejects.toThrow(
+			"This app couldn't be connected.",
+		);
 	});
 });

@@ -11,6 +11,7 @@
 		"backfill:encryption": "tsx src/scripts/rotateSensitiveData.ts --apply --plaintext-only",
 		"rotate:encryption": "tsx src/scripts/rotateSensitiveData.ts",
 		"backfill:member-cvs": "tsx src/scripts/backfillMemberCvs.ts",
+		"import:dev-mcp-access": "tsx src/scripts/importDevMcpAccess.ts",
 		"start": "node dist/index.js",
 		"lint": "biome check .",
 		"lint:apply": "biome check . --write",

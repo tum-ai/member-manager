@@ -298,7 +298,7 @@ export function MainLayout({
 					visible: isAdmin,
 				},
 				{
-					label: "Notion MCP Access",
+					label: "MCP Access",
 					to: "/admin/mcp-access",
 					icon: Bot,
 					visible: isAdmin,

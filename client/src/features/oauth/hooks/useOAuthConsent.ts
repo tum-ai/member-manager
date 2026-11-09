@@ -1,8 +1,9 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import {
 	type AuthorizationRequest,
+	bindAuthorization,
 	type ConsentDecision,
 	fetchAuthorizationRequest,
 	oauthQueryKeys,
@@ -27,6 +28,12 @@ export type OAuthConsentState =
 	 * a second redirect URI registered next to an approved one.
 	 */
 	| { status: "refused"; redirectLabel: string }
+	/**
+	 * An app the member approved earlier asked again, but it can't be bound to
+	 * the TUM.ai server it asked for (it is bound to another one, or named
+	 * none), so its code isn't handed over.
+	 */
+	| { status: "unbound"; message: string }
 	/** The member denied an app that isn't approved; it isn't visited. */
 	| { status: "denied" }
 	| {
@@ -44,6 +51,7 @@ export interface UseOAuthConsentOptions {
 type Exit =
 	| { kind: "redirecting" }
 	| { kind: "refused"; redirectLabel: string }
+	| { kind: "unbound"; message: string }
 	| { kind: "denied" };
 
 function followRedirect(url: string): void {
@@ -65,6 +73,11 @@ function errorMessage(error: unknown): string {
  * (`APPROVED_MCP_CLIENT_REDIRECTS`) can be approved, and the browser only
  * follows a redirect to an approved address. A denial for any other app is
  * recorded without sending the member there.
+ *
+ * Before approving, and before following the redirect of an app approved
+ * earlier, the app is bound to the TUM.ai MCP server it asked for
+ * (`bindAuthorization`). If that fails, nothing is approved and the browser
+ * stays here with the reason.
  */
 export function useOAuthConsent({
 	redirect = followRedirect,
@@ -72,6 +85,8 @@ export function useOAuthConsent({
 	const { search } = useLocation();
 	const authorizationId = readAuthorizationId(search);
 	const [exit, setExit] = useState<Exit | null>(null);
+	// The redirect already being bound, so a re-render doesn't bind twice.
+	const boundRedirect = useRef<string | null>(null);
 
 	// A logged-out visit remembered this URL to resume it after sign-in.
 	// Forget it now, so a later visit doesn't reopen a used request.
@@ -107,14 +122,28 @@ export function useOAuthConsent({
 	const request = requestQuery.data;
 
 	useEffect(() => {
-		if (request?.kind === "redirect") {
-			leaveFor(request.redirectUrl, "approved");
+		if (request?.kind !== "redirect") return;
+		const url = request.redirectUrl;
+		if (!describeRedirectTarget(url).isApproved) {
+			leaveFor(url, "approved");
+			return;
 		}
-	}, [request, leaveFor]);
+		if (boundRedirect.current === url) return;
+		boundRedirect.current = url;
+		bindAuthorization(authorizationId ?? "").then(
+			() => leaveFor(url, "approved"),
+			(error: unknown) =>
+				setExit({ kind: "unbound", message: errorMessage(error) }),
+		);
+	}, [request, leaveFor, authorizationId]);
 
 	const decision = useMutation({
-		mutationFn: (choice: ConsentDecision) =>
-			submitConsentDecision(authorizationId ?? "", choice),
+		mutationFn: async (choice: ConsentDecision) => {
+			if (choice === "approve") {
+				await bindAuthorization(authorizationId ?? "");
+			}
+			return submitConsentDecision(authorizationId ?? "", choice);
+		},
 		onSuccess: (redirectUrl, choice) =>
 			leaveFor(redirectUrl, choice === "approve" ? "approved" : "denied"),
 	});
@@ -126,6 +155,8 @@ export function useOAuthConsent({
 		state = { status: "redirecting" };
 	} else if (exit?.kind === "refused") {
 		state = { status: "refused", redirectLabel: exit.redirectLabel };
+	} else if (exit?.kind === "unbound") {
+		state = { status: "unbound", message: exit.message };
 	} else if (exit?.kind === "denied") {
 		state = { status: "denied" };
 	} else if (requestQuery.isError) {

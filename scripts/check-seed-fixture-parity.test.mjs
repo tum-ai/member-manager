@@ -26,6 +26,8 @@ export function extractSeedConstants(source) {
 		regularEmail: grab("SEED_REGULAR_MEMBER_EMAIL"),
 		noBankDetailsEmail: grab("SEED_NO_BANK_DETAILS_MEMBER_EMAIL"),
 		newJoinerEmail: grab("SEED_NEW_JOINER_EMAIL"),
+		devMcpEmail: grab("SEED_DEV_MCP_MEMBER_EMAIL"),
+		devMcpSlackUserId: grab("SEED_DEV_MCP_SLACK_USER_ID"),
 		signToken: grab("SEED_RETIRED_CONTRACT_SIGN_TOKEN"),
 	};
 }
@@ -40,6 +42,8 @@ test("extractSeedConstants parses exported string constants", () => {
 		"export const SEED_REGULAR_MEMBER_EMAIL = 'regular@example.com';",
 		'export const SEED_NO_BANK_DETAILS_MEMBER_EMAIL = "nobank@example.com";',
 		'export const SEED_NEW_JOINER_EMAIL = "new@example.com";',
+		'export const SEED_DEV_MCP_MEMBER_EMAIL = "dev@example.com";',
+		'export const SEED_DEV_MCP_SLACK_USER_ID = "U0DEV";',
 		'export const SEED_RETIRED_CONTRACT_SIGN_TOKEN = "tok-123";',
 	].join("\n");
 	assert.deepEqual(extractSeedConstants(sample), {
@@ -47,6 +51,8 @@ test("extractSeedConstants parses exported string constants", () => {
 		regularEmail: "regular@example.com",
 		noBankDetailsEmail: "nobank@example.com",
 		newJoinerEmail: "new@example.com",
+		devMcpEmail: "dev@example.com",
+		devMcpSlackUserId: "U0DEV",
 		signToken: "tok-123",
 	});
 });
@@ -109,4 +115,18 @@ test("the new-joiner persona is excluded from the catch-all agreements seed", ()
 			`the catch-all public.${table} insert must skip ${newJoinerEmail} (${personaId}); e2e/welcome.spec.ts relies on that member having undecided consents.`,
 		);
 	}
+});
+
+test("the dev-mcp persona has the seeded TUM.ai Slack identity", () => {
+	const { devMcpEmail, devMcpSlackUserId } = extractSeedConstants(
+		readRepoFile("e2e/helpers.ts"),
+	);
+	const seed = readRepoFile("supabase/seed.sql");
+	const personaId = seedPersonaId(seed, devMcpEmail);
+	assert.ok(personaId, `no seed user row found for ${devMcpEmail}`);
+	assert.match(
+		seed,
+		new RegExp(`'${personaId}',\\s*'slack_oidc',\\s*'${devMcpSlackUserId}'`),
+		`supabase/seed.sql must give ${devMcpEmail} a slack_oidc identity with provider_id ${devMcpSlackUserId}; e2e/dev-mcp-access.spec.ts looks them up by that Slack ID.`,
+	);
 });

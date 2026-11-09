@@ -1,7 +1,5 @@
 import type { OwnMcpAccess } from "@member-manager/shared";
-import { Bot } from "lucide-react";
-import { InfoBox } from "@/components/ui/info-box";
-import { Skeleton } from "@/components/ui/skeleton";
+import { McpAccessStatusBox } from "@/features/oauth/components/McpAccessStatusBox";
 
 const STATUS_TEXT: Record<
 	OwnMcpAccess["status"],
@@ -39,24 +37,16 @@ export function NotionMcpAccessStatus({
 	isLoading: boolean;
 	hasError: boolean;
 }): JSX.Element | null {
-	if (isLoading) {
-		return <Skeleton className="h-16 w-full rounded-xl" />;
-	}
-	if (hasError || !access) {
-		return null;
-	}
-	const { summary, detail } = STATUS_TEXT[access.status](access.role);
+	const text = access ? STATUS_TEXT[access.status](access.role) : null;
 	return (
-		<InfoBox
-			variant={access.status === "denied" ? "destructive" : "brand"}
-			className="flex gap-3 p-4 text-sm"
-			data-testid="notion-mcp-access-status"
-		>
-			<Bot className="mt-0.5 size-5 shrink-0 text-brand" aria-hidden />
-			<div>
-				<p className="font-medium">Notion MCP access: {summary}</p>
-				<p className="text-muted-foreground">{detail}</p>
-			</div>
-		</InfoBox>
+		<McpAccessStatusBox
+			label="Notion MCP access"
+			summary={text?.summary ?? null}
+			detail={text?.detail ?? ""}
+			isWarning={access?.status === "denied"}
+			isLoading={isLoading}
+			hasError={hasError}
+			testId="notion-mcp-access-status"
+		/>
 	);
 }

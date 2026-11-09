@@ -155,17 +155,16 @@ describe("AuthenticatedApp admin routing", () => {
 		adminState.isLoading = false;
 		const adminView = renderAuthenticatedApp("/admin/mcp-access");
 		expect(screen.getByText("Notion MCP access route")).toBeInTheDocument();
-		expect(
-			screen.getByRole("link", { name: "Notion MCP Access" }),
-		).toHaveAttribute("href", "/admin/mcp-access");
+		expect(screen.getByRole("link", { name: "MCP Access" })).toHaveAttribute(
+			"href",
+			"/admin/mcp-access",
+		);
 		adminView.unmount();
 
 		adminState.isAdmin = false;
 		renderAuthenticatedApp("/admin/mcp-access");
 		expect(screen.getByText("Profile route")).toBeInTheDocument();
-		expect(
-			screen.queryByRole("link", { name: "Notion MCP Access" }),
-		).toBeNull();
+		expect(screen.queryByRole("link", { name: "MCP Access" })).toBeNull();
 	});
 });
 

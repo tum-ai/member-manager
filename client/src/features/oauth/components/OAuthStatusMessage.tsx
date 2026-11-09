@@ -47,6 +47,16 @@ export function OAuthStatusMessage({
 					</AlertDescription>
 				</Alert>
 			);
+		case "unbound":
+			return (
+				<Alert variant="destructive">
+					<AlertTitle>This app can't connect to this TUM.ai server</AlertTitle>
+					<AlertDescription>
+						<p>{state.message}</p>
+						<p>You weren't sent back, and nothing was shared.</p>
+					</AlertDescription>
+				</Alert>
+			);
 		case "denied":
 			return (
 				<InfoBox variant="card" className="p-6 text-sm" role="status">

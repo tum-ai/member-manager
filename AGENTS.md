@@ -11,14 +11,24 @@ TUM.ai member portal. pnpm workspace monorepo (Turborepo), Node 24:
 
 Data flow: client component → `lib/apiClient` → `/api/*` → Fastify route plugin →
 Supabase. Auth via Supabase (Slack OIDC in production); sensitive DB fields are encrypted at rest.
-Supabase Auth is also the OAuth server for nomcp (the TUM.ai Notion MCP): tokens it issues to apps
-must never reach member data (`supabase/AGENTS.md`, `docs/deployment.md`). Its tokens name no
-audience and anyone can register an app, so the consent page only approves the MCP clients in
-`APPROVED_MCP_CLIENT_REDIRECTS` (`client/src/features/oauth/oauthUtils.ts`). Never relax it to a
-warning. Admins approve nomcp access per member (`public.mcp_access`, `/admin/mcp-access`), and
-nomcp reads it through `public.mcp_principal()`: that function is nomcp's contract, so change its
-result only together with nomcp (`docs/deployment.md`, "Access approval"). The repository is
-**public**.
+Supabase Auth is also the OAuth server for TUM.ai's MCP servers, nomcp (the TUM.ai Notion MCP) and
+dev-mcp (Dev Claude's tools): tokens it issues to apps must never reach member data
+(`supabase/AGENTS.md`, `docs/deployment.md`). Its tokens name no audience and anyone can register
+an app, so the consent page only approves the MCP clients in `APPROVED_MCP_CLIENT_REDIRECTS`
+(`client/src/features/oauth/oauthUtils.ts`), and binds each app to the one server it asked for
+(`public.bind_oauth_authorization`) before approving. Never relax either to a warning. Admins
+decide access per member on `/admin/mcp-access`:
+
+- nomcp: `public.mcp_access`, read by nomcp through `public.mcp_principal()`. That function is
+  nomcp's contract; change its result only together with nomcp (`docs/deployment.md`, "Access
+  approval").
+- dev-mcp (Dev tab): `public.dev_mcp_access` and `dev_mcp_tool_grants`, read by dev-mcp through
+  the service API (`/api/internal/dev-mcp/*`, `DEV_MCP_SERVICE_TOKEN`) and
+  `public.dev_mcp_principal()`. The access record, `member_slack_user_id()`, the service API and
+  the resource binding are dev-mcp's contract; change them only together with dev-mcp
+  (`docs/deployment.md`, "Dev MCP access").
+
+The repository is **public**.
 
 ## Read These First
 

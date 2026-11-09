@@ -24,7 +24,7 @@ export const CONNECTED_APPS_PATH = "/connected-apps";
  *
  * Adding a client: add its https domain, or its own URL scheme, here; add a
  * case to `oauthUtils.test.ts`; and list it in docs/deployment.md ("OAuth
- * server (nomcp)"). Only add an address the client's vendor controls.
+ * server (MCP servers)"). Only add an address the client's vendor controls.
  */
 export const APPROVED_MCP_CLIENT_REDIRECTS = {
 	/** https only, subdomains included: claude.ai and Claude Desktop, ChatGPT. */

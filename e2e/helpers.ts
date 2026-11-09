@@ -43,6 +43,12 @@ export const SEED_NO_BANK_DETAILS_MEMBER_EMAIL = "no-bank-details@example.com";
 // The one seeded member with no `member_agreements` row (consents undecided),
 // so their login is redirected to /welcome.
 export const SEED_NEW_JOINER_EMAIL = "new-joiner@example.com";
+// The one seeded member with a TUM.ai Slack identity, so the dev-mcp service
+// API (`/api/internal/dev-mcp/access/:slackUserId`) finds them by Slack ID.
+// The seed also files their dev-mcp access request.
+export const SEED_DEV_MCP_MEMBER_EMAIL =
+	"software-development-lead@example.com";
+export const SEED_DEV_MCP_SLACK_USER_ID = "U0DEVSEED19";
 
 // Fake door PINs behind the seeded `member_door_pins` ciphertext (the seed only
 // stores ciphertext). no-bank-details@example.com has no PIN; the new joiner

@@ -41,11 +41,26 @@
 
   `server/test/migrations/mcpOauthMigration.test.ts` fails otherwise (offline for later migrations,
   against the catalog with `RUN_LOCAL_SUPABASE_RLS_TESTS`). It also fails on a public table without
-  RLS. App tokens may only read `public.mcp_principal()`; don't grant them anything else.
+  RLS. App tokens may only call `public.mcp_principal()` and `public.dev_mcp_principal()`; don't
+  grant them anything else.
 - **`mcp_principal()` is nomcp's contract.** Its result (v2: `user_id`, `display_name`, `email`,
   `member_status`, `slack_team_ok`, `access_status`, `access_role`) and its null cases are what
   nomcp decides on. A migration that redefines it must keep them, or ship with the matching nomcp
   release. It writes (`mcp_access` requests and `last_seen_at`), so it stays `VOLATILE`.
+- **dev-mcp's contract** (migration `20261109120000_dev_mcp_access.sql`, `docs/deployment.md`,
+  "Dev MCP access"): `member_slack_user_id(user_id)` (the TUM.ai Slack ID), the access record of
+  `dev_mcp_access_for(slack_user_id)` / `dev_mcp_access_record(user_id)` (`user_id`,
+  `slack_user_id`, `display_name`, `member_status`, `slack_team_ok`, `status`, `role`, `tools`),
+  and `dev_mcp_principal()` with its null cases. Change them only together with dev-mcp.
+  `dev_mcp_principal()` writes (requests, `last_seen_at`), so it stays `VOLATILE`.
+- **dev-mcp access changes go through `dev_mcp_apply_change` / `dev_mcp_file_request`** (service
+  role only), which write the `dev_mcp_access_events` row in the same transaction and enforce the
+  last-admin rule. Don't write `dev_mcp_access` or `dev_mcp_tool_grants` directly from the API.
+- **OAuth token binding.** `bind_oauth_authorization(authorization_id)` (browser sessions only)
+  binds an OAuth client to the RFC 8707 resource of its authorization in `mcp_client_resources`;
+  `mcp_resource_settings` holds each server's resource URL (`dev_mcp`; the seed overrides it to
+  `http://localhost:3000/mcp`). It reads GoTrue's `auth.oauth_authorizations`, whose columns
+  belong to the auth server: re-check them when upgrading Supabase.
 
 ## RLS and migration tests
 

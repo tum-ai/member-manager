@@ -77,6 +77,8 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 | `PARTNER_PORTAL_API_URL` | Partner Portal origin, e.g. `https://partners.tum-ai.com` | optional preferred base URL for partner management; falls back to the origin of `PARTNER_PORTAL_JOBS_API_URL` |
 | `PARTNER_PORTAL_API_TOKEN` | shared Partner Portal `MM_API_TOKEN` | optional preferred partner-management token; falls back to `PARTNER_PORTAL_JOBS_API_TOKEN` |
 | `PARTNER_EXPORT_TOKEN` | strong random bearer secret | authorizes the internal CV export endpoint the Partner Portal calls; separate from the jobs token |
+| `DEV_MCP_SERVICE_TOKEN` | strong random bearer secret (`openssl rand -base64 48`) | shared with dev-mcp in both directions: dev-mcp presents it to `/api/internal/dev-mcp/*`, member-manager sends it to dev-mcp's `/service/catalog`. Unset, the service API answers 401 and the Dev tab can't approve. See [Dev MCP access](#dev-mcp-access) |
+| `DEV_MCP_URL` | dev-mcp's base URL, e.g. `https://tumai-dev-mcp.vercel.app` | where the tool catalog for the Dev tab of `/admin/mcp-access` comes from |
 | `BUCHHALTUNGSBUTLER_SYNC_ENABLED` | `true` | required to enable live BuchhaltungsButler sync |
 | `BUCHHALTUNGSBUTLER_API_CLIENT` | BuchhaltungsButler API client | required with sync enabled |
 | `BUCHHALTUNGSBUTLER_API_SECRET` | BuchhaltungsButler API secret | required with sync enabled |
@@ -120,8 +122,8 @@ Settings → Environment Variables. Set for Production (and Preview if you want 
 - Client ID / Secret from the Slack app
 - Supabase shows a callback URL: `https://<project-ref>.supabase.co/auth/v1/callback` — copy it for step 3.
 
-**Authentication → OAuth Server (nomcp):** see [OAuth server (nomcp)](#oauth-server-nomcp) below. It
-stays off until its migration is live.
+**Authentication → OAuth Server (nomcp, dev-mcp):** see [OAuth server (MCP servers)](#oauth-server-mcp-servers)
+below. It stays off until its migration is live.
 
 ### 3. Slack app configuration
 
@@ -205,20 +207,25 @@ The original sequence, kept for reference and for step 6:
 
 Rollback: if the Actions deployment or smoke checks fail before the cutover is accepted, reconnect the Vercel Git integration to restore the prior deployment path, then investigate the failed SHA. Preserve migration ordering and do not treat a Vercel build as proof that the database migration or runtime probes succeeded. After recovery, repeat the cutover with fresh secret and workflow evidence.
 
-## OAuth server (nomcp)
+## OAuth server (MCP servers)
 
-nomcp (the private repo `tum-ai/nomcp`) is the TUM.ai Notion MCP gateway: members'
-AI agents (claude.ai, ChatGPT, Claude Code, Cursor) reach the TUM.ai Notion through it. Members sign
-in to it with their member-manager account. Supabase Auth's OAuth 2.1 server (beta) is the
-authorization server, and member-manager's `/oauth/consent` page is where a member approves an
-app. Members see and disconnect approved apps under `/connected-apps` (account menu → Connected
-apps).
+Members connect their AI agents (claude.ai, ChatGPT, Claude Code, Cursor) to two TUM.ai MCP
+servers, and sign in to both with their member-manager account:
+
+- **nomcp** (the private repo `tum-ai/nomcp`), the TUM.ai Notion MCP gateway;
+- **dev-mcp** (`tum-ai/dev-mcp`), Dev Claude's tools (mailboxes, GitHub invites, Notion pages).
+  Dev Claude itself keeps using its own run tokens; see [Dev MCP access](#dev-mcp-access).
+
+Supabase Auth's OAuth 2.1 server (beta) is the authorization server, and member-manager's
+`/oauth/consent` page is where a member approves an app. Members see and disconnect approved apps
+under `/connected-apps` (account menu → Connected apps).
 
 A token Supabase issues to an app is a normal member JWT with an extra `client_id` claim.
 member-manager refuses such tokens: the `oauth_clients_blocked` RLS policies hide every row from
-them, and `authenticate` answers 401. The one thing they can read is `rpc/mcp_principal`, which
-nomcp calls to learn who the member is. All of this comes from migration
-`20261102120000_mcp_oauth.sql` and the matching API change, so the order below matters.
+them, and `authenticate` answers 401. The only things they can call are `rpc/mcp_principal`, which
+nomcp calls to learn who the member is, and `rpc/dev_mcp_principal`, its dev-mcp counterpart. All
+of this comes from migration `20261102120000_mcp_oauth.sql` and the matching API change, so the
+order below matters.
 
 1. **Wait until the migration is live in production.** The `Production Supabase Migrations` job on
    `main` must have applied `20261102120000`. Until then, an app token could read member data as
@@ -279,12 +286,43 @@ Example: VS Code may use `https://vscode.dev/redirect`, which isn't on the list.
 supported client by hand would enforce the same rule in Supabase. Not every MCP client can use a
 pre-registered client ID, though.
 
+### One server per app (token binding)
+
+Supabase's tokens name no audience, so without more, a token a member's app got for nomcp would
+also work at dev-mcp. MCP clients send the server they connect to as the RFC 8707 `resource`
+parameter. GoTrue validates it and stores it in `auth.oauth_authorizations.resource`, but doesn't
+show it to the consent page, doesn't put it in the token, and deletes the row once the code is
+exchanged (checked on 2026-11-09). So member-manager binds each OAuth client to one resource:
+
+- Before approving, and before following the redirect of an app the member approved earlier, the
+  consent page calls `rpc/bind_oauth_authorization` with the authorization ID (the member's browser
+  session, never an app token). The function reads the client and resource of that member's
+  authorization from GoTrue's table and records `client_id → resource` in
+  `public.mcp_client_resources`. Binding the same client to the same resource again is fine.
+- If the client is already bound to another resource, it raises an error. The page shows it ("This
+  app is already connected to another TUM.ai server. Add it again in your AI app for this one.")
+  and neither approves nor redirects. MCP clients register one client per server, so adding the
+  server again gives a fresh client.
+- An authorization without a `resource` (a client older than the June 2025 MCP spec) binds
+  nothing and doesn't fail, so such a client keeps working with nomcp. dev-mcp refuses it.
+- `dev_mcp_principal()` answers only for a client bound to dev-mcp's resource URL
+  (`public.mcp_resource_settings`, key `dev_mcp`; the migration seeds
+  `https://tumai-dev-mcp.vercel.app/mcp`, `supabase/seed.sql` sets `http://localhost:3000/mcp`). Change
+  it in SQL only, and only together with dev-mcp's `PUBLIC_BASE_URL`; the value must equal the
+  `resource` in dev-mcp's RFC 9728 metadata, character for character.
+- nomcp doesn't check the binding yet, so a dev-mcp token still works at nomcp (the lower-risk
+  direction). Enforcing it there is a change to nomcp's contract.
+
+Clients connected before the binding existed have none, so dev-mcp refuses them until they
+connect again; nomcp is unaffected. A client that sends no `resource` can't be approved at all
+any more, for either server.
+
 ### Access approval
 
 Members don't get nomcp access automatically: an admin approves each one, as a `reader` (search
 and read) or an `editor` (also create, edit and comment).
 
-- **Where:** Administration → Notion MCP Access (`/admin/mcp-access`). Pending requests come
+- **Where:** Administration → MCP Access (`/admin/mcp-access`), Notion tab. Pending requests come
   first (approve as reader or editor, or deny), then approved members (change the role, or
   revoke), then declined ones (approve again). Denying and revoking ask for confirmation and take
   an optional note that only admins see. Each entry shows when the member last used nomcp and with
@@ -307,6 +345,96 @@ must be live in production before the nomcp release that reads these fields; the
 doesn't return them. The function is now `VOLATILE` because it writes (the pending row, and
 `last_seen_at` with the last client at most once a minute), so PostgREST runs
 `POST /rest/v1/rpc/mcp_principal` read-write. Change the contract only together with nomcp.
+
+## Dev MCP access
+
+dev-mcp (`tum-ai/dev-mcp`) is the MCP server behind Dev Claude. It keeps enforcing everything
+(roles, its code policy `src/access/policy.ts`, confirmations and approval requests in Slack); only
+the data behind "who may use it, with which role and tools" lives here, in
+`public.dev_mcp_access`, `public.dev_mcp_tool_grants` and the append-only
+`public.dev_mcp_access_events` (migration `20261109120000_dev_mcp_access.sql`). Runtime tool
+switches (`tool_settings`, a kill switch per tool for everyone) stay in dev-mcp.
+
+- **Where:** Administration → MCP Access, Dev tab (`/admin/mcp-access?tab=dev`). Requests can be
+  approved as member, lead or admin, which grants that role's preset: every tool the role may run,
+  except destructive ones. Active members can change role (a demotion drops grants the new role
+  doesn't allow), have their tools edited (only tools the role allows; destructive ones are flagged)
+  or be suspended. Suspended and declined members can be approved again. Suspending and denying ask
+  for confirmation and take an admin-only note. Nobody can remove the last active admin.
+- **The tool catalog** comes from dev-mcp (`GET <DEV_MCP_URL>/service/catalog`, Bearer
+  `DEV_MCP_SERVICE_TOKEN`), cached for a minute. While dev-mcp can't be reached the tab says so;
+  approving and changing roles or tools need it, suspending and denying don't.
+- **How a request appears:** Dev Claude's "request access" calls the service API below, and the
+  first OAuth use by an active member of the TUM.ai Slack workspace files one through
+  `dev_mcp_principal()`.
+- **What members see:** `/connected-apps` shows "Dev MCP access: …" next to the Notion status.
+- **When a change applies:** dev-mcp caches answers for up to a minute.
+
+Every change goes through `dev_mcp_apply_change` or `dev_mcp_file_request` (service role only),
+which write the event row in the same transaction and re-check the status, the role and the
+last-admin rule under a lock.
+
+### Contract with dev-mcp
+
+Members are identified by their TUM.ai Slack user ID, `public.member_slack_user_id(user_id)`: the
+`slack_oidc` identity of team `T01288YLP16`,
+`coalesce(identity_data->'custom_claims'->>'https://slack.com/user_id', identity_data->>'sub')`,
+only if it matches `^[UW][A-Z0-9]{2,20}$`.
+
+The **access record** (`public.dev_mcp_access_for(slack_user_id)`, the same shape everywhere):
+
+```json
+{ "user_id": "<uuid>", "slack_user_id": "U…", "display_name": "…",
+  "member_status": "active", "slack_team_ok": true,
+  "status": "requested | active | suspended | denied | none",
+  "role": "member | lead | admin | null",
+  "tools": ["create_notion_page"] }
+```
+
+`status: "none"`: no row. `role` is set and `tools` non-empty only while `active`.
+
+**Service API** (dev-mcp → member-manager), `Authorization: Bearer <DEV_MCP_SERVICE_TOKEN>`,
+compared in constant time; 401 without it:
+
+- `GET /api/internal/dev-mcp/access/:slackUserId` → `200 { access }`, or
+  `404 { "error": "not_found" }` when no member-manager account has that Slack ID.
+- `POST /api/internal/dev-mcp/access/:slackUserId/request`, body `{ "display_name"?: string }`:
+  creates a `requested` row or moves `denied` back to `requested` → `201 { access, created: true }`;
+  otherwise `200 { access, created: false }`; 404 as above.
+
+**RPC** `POST <SUPABASE_URL>/rest/v1/rpc/dev_mcp_principal` with the member's OAuth token returns
+the access record or `null`: no `client_id`, a revoked session, no member row, no TUM.ai Slack ID,
+or a client not bound to dev-mcp's resource (see [token binding](#one-server-per-app-token-binding)).
+It files a `requested` row on first use by an active TUM.ai Slack member and refreshes
+`last_seen_at` and the last client at most once a minute. Executable by `authenticated` only.
+
+**Role presets** must match `presetTools` in dev-mcp's `src/access/resolver.ts`: every catalog
+tool whose `minRole` the role meets (member < lead < admin), except destructive ones.
+
+### Importing dev-mcp's access list
+
+`pnpm --filter @member-manager/server import:dev-mcp-access <export.json> [--apply] [--overwrite]`
+copies dev-mcp's `members` and `member_tools` into the new tables, matching Slack IDs to
+member-manager accounts. It runs dry by default, skips members who already have a row unless
+`--overwrite`, and always lists the Slack IDs it can't map (people with dev-mcp access but no
+member-manager account with that Slack identity). The export command is in the script's header;
+keep the file under `/data` (gitignored). `BOOTSTRAP_ADMIN_SLACK_IDS` stay in dev-mcp's env and
+need no import.
+
+### Rollout order
+
+1. Merge member-manager and wait for `Production Supabase Migrations`. Set `DEV_MCP_SERVICE_TOKEN`
+   and `DEV_MCP_URL` in Vercel (the same token as dev-mcp's `MEMBER_MANAGER_SERVICE_TOKEN`) and
+   redeploy.
+2. Run the import dry against production, review the unmapped Slack IDs (each must sign in to
+   member-manager with Slack first, or be accepted as losing access), then run it with `--apply`.
+3. Deploy dev-mcp with the remote access source configured. This is the cutover: from then on
+   access comes from member-manager.
+4. Deploy dev-claude with the "Review in member manager" links.
+5. Announce how to connect directly: `claude mcp add --transport http tumai-dev https://tumai-dev-mcp.vercel.app/mcp`.
+
+The OAuth server must already be enabled ([above](#oauth-server-mcp-servers)) for step 5; Dev
+Claude runs don't depend on it.
 
 ## Field encryption and rotation
 
