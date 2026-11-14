@@ -77,7 +77,7 @@ function renderPanel(
 }
 
 describe("FinancePlanItemDetailPanel", () => {
-	it("states the Planposten's plan, actual and delta", () => {
+	it("states the plan item's plan, actual and delta", () => {
 		renderPanel(
 			planned({ planned_amount: 3570, matched_amount: 2380, delta: -1190 }),
 		);
@@ -108,7 +108,7 @@ describe("FinancePlanItemDetailPanel", () => {
 		expect(screen.getByText("Vertrag folgt.")).toBeInTheDocument();
 	});
 
-	// A planned VAT rate that was never set is unknown, not zero (FR-N5).
+	// A planned VAT rate that was never set is unknown, not zero.
 	it("renders an unset rate as an em dash", () => {
 		renderPanel(planned({ vat_rate: null }));
 
@@ -130,8 +130,8 @@ describe("FinancePlanItemDetailPanel", () => {
 		expect(screen.getByText("Umsatzsteuer (geplant)")).toBeInTheDocument();
 	});
 
-	// FR-M3: a parked Planposten still renders, flagged as parked.
-	it("flags a disabled Planposten", () => {
+	// A parked plan item still renders, flagged as parked.
+	it("flags a disabled plan item", () => {
 		renderPanel(planned({ is_active: false }), {
 			interaction: interaction(),
 		});
@@ -159,7 +159,7 @@ describe("FinancePlanItemDetailPanel", () => {
 		).not.toBeInTheDocument();
 	});
 
-	it("edits, matches and parks an active Planposten", async () => {
+	it("edits, matches and parks an active plan item", async () => {
 		const actions = interaction();
 		const display = renderPanel(planned(), { interaction: actions });
 
@@ -174,7 +174,7 @@ describe("FinancePlanItemDetailPanel", () => {
 		expect(actions.onTogglePlanItem).toHaveBeenCalledWith("plan-venue", false);
 	});
 
-	// FR-M6: correcting only makes sense once money arrived and the two disagree.
+	// Correcting only makes sense once money arrived and the two disagree.
 	it("offers the plan-to-actual correction only when they disagree", async () => {
 		const actions = interaction();
 		renderPanel(planned({ matched_amount: 2380, delta: -1190 }), {
@@ -211,8 +211,8 @@ describe("FinancePlanItemDetailPanel", () => {
 		).not.toBeInTheDocument();
 	});
 
-	// FR-M7: money that already arrived is detached deliberately, not deleted out
-	// from under.
+	// Money that already arrived is detached deliberately, not deleted out from
+	// under.
 	it("offers deletion only while nothing is matched", async () => {
 		const actions = interaction();
 		renderPanel(planned(), { interaction: actions });

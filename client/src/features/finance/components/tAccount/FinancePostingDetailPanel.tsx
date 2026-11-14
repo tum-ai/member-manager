@@ -38,8 +38,8 @@ function costLocationValue(detail: FinanceTAccountPostingDetail): string {
 		: costLocation;
 }
 
-// The expanded detail of a booked invoice (FR-K2). Everything shown here travels
-// inline on the T-account line, so opening a row costs no request (FR-K3).
+// The expanded detail of a booked invoice. Everything shown here travels inline
+// on the T-account line, so opening a row costs no request.
 export function FinancePostingDetailPanel({
 	line,
 	detail,
@@ -49,14 +49,14 @@ export function FinancePostingDetailPanel({
 	line: TAccountDisplayLine;
 	detail: FinanceTAccountPostingDetail;
 	interaction?: TAccountInteraction;
-	// Absent for a read-only viewer (FR-K6); present, this files just this one
-	// invoice into an existing project (FR-L2).
+	// Absent for a read-only viewer; present, this files just this one invoice
+	// into an existing project.
 	onAssignToProject?: () => void;
 }): ReactElement {
 	// `line.grossAmount` is this department's share after allocation splits, while
 	// `posting_amount` is what the bank booked — on a split posting they differ,
 	// and showing both is the point of the panel. Both are gross, so the row
-	// appears for a real split and not for every VAT-bearing line in Netto mode.
+	// appears for a real split and not for every VAT-bearing line in net mode.
 	const isSplitShare =
 		Math.abs(Math.abs(detail.posting_amount) - line.grossAmount) >= 0.01;
 
@@ -152,7 +152,7 @@ export function FinancePostingDetailPanel({
 						<Target />
 						Zu Projekt hinzufügen
 					</Button>
-					{/* FR-M5 from the invoice side: pick the Planposten this invoice
+					{/* Matching from the invoice side: pick the plan item this invoice
 					    settles. */}
 					<Button
 						type="button"
@@ -172,11 +172,11 @@ export function FinancePostingDetailPanel({
 						<Send />
 						Umverteilung beantragen
 					</Button>
-					{/* The only direct allocation editor left since Abgleich retired
-					    (FR-O), so it has to be reachable for a posting that is not split
-					    yet as well — otherwise a first percentage split cannot be made
-					    anywhere. Gated on the reviewer bit, not on `canWrite`: the save
-					    behind it is the reviewer-only replace endpoint (FR-L5). */}
+					{/* The only direct allocation editor left since Abgleich retired, so
+					    it has to be reachable for a posting that is not split yet as
+					    well — otherwise a first percentage split cannot be made anywhere.
+					    Gated on the reviewer bit, not on `canWrite`: the save behind it
+					    is the reviewer-only replace endpoint. */}
 					{interaction?.canReview === true ? (
 						<Button
 							type="button"

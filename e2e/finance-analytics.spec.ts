@@ -9,7 +9,8 @@ import {
 const FINANCE_ANALYTICS_ROUTE = "/tools/finance/analytics";
 
 // Expand every T-account folder. A folder header is the only disclosure that
-// carries a Zielsaldo or a Profit, which keeps line-row disclosures out of it.
+// carries a target balance or a profit, which keeps line-row disclosures out of
+// it.
 // Repeated because expanding a folder can reveal nested ones.
 async function expandAllFolders(page: Page): Promise<void> {
 	// Wait for the tree itself first. Called too early, the loop below would find
@@ -88,7 +89,7 @@ test.describe("Finance Analytics tool", () => {
 	test("shows the category breakdown and labels a second cost location", async ({
 		page,
 	}) => {
-		// The category breakdown is a panel of Übersicht now (FR-O), not a tab.
+		// The category breakdown is a panel of Übersicht now, not a tab.
 		await expect(page.getByText("Ausgaben pro Kategorie")).toBeVisible();
 
 		// The category editor lives under Einstellungen, below the department one.
@@ -115,7 +116,7 @@ test.describe("Finance Analytics tool", () => {
 	test("shows the account breakdown and labels a ledger account", async ({
 		page,
 	}) => {
-		// The account breakdown is a panel of Übersicht now (FR-O), not a tab.
+		// The account breakdown is a panel of Übersicht now, not a tab.
 		await expect(page.getByText("Ausgaben pro Konto")).toBeVisible();
 
 		// The account editor lives under Einstellungen, below the others.
@@ -154,7 +155,7 @@ test.describe("Finance Analytics tool", () => {
 		await expect(page.getByText("Budget gespeichert.")).toBeVisible();
 	});
 
-	test("shows a department T-account with Ist- and Plan-Saldo", async ({
+	test("shows a department T-account with an actual and a planned balance", async ({
 		page,
 	}) => {
 		await page.getByRole("tab", { name: "T-Konto" }).click();
@@ -165,7 +166,7 @@ test.describe("Finance Analytics tool", () => {
 		await page.getByLabel("Department").click();
 		await page.getByRole("option", { name: "Makeathon", exact: true }).click();
 
-		// The T-account renders both salden and the Ausgaben/Einnahmen columns.
+		// The T-account renders both balances and the expense/income columns.
 		await expect(page.getByText("Ist-Saldo").first()).toBeVisible({
 			timeout: 20000,
 		});
@@ -173,8 +174,7 @@ test.describe("Finance Analytics tool", () => {
 		await expect(page.getByText("Ausgaben").first()).toBeVisible();
 		await expect(page.getByText("Einnahmen").first()).toBeVisible();
 
-		// The amount mode is stated, not implied, and the toggle switches it
-		// (FR-N4).
+		// The amount mode is stated, not implied, and the toggle switches it.
 		await expect(page.getByText(/Beträge brutto/)).toBeVisible();
 		await page.getByRole("radio", { name: "Nettobeträge" }).click();
 		await expect(page.getByText(/Beträge netto/)).toBeVisible();
@@ -187,7 +187,7 @@ test.describe("Finance Analytics tool", () => {
 		// Community is the department the T-Konto fixtures are seeded for: cost
 		// location 111 → Community / Onboarding, with "Onboarding SS Catering"
 		// already allocated to the seeded "Onboarding SS26" project and matched to
-		// one of its Planposten.
+		// one of its plan items.
 		await page.getByLabel("Department").click();
 		await page.getByRole("option", { name: "Community", exact: true }).click();
 		await expect(page.getByText("Ist-Saldo").first()).toBeVisible({
@@ -206,7 +206,7 @@ test.describe("Finance Analytics tool", () => {
 		await expect(freeInvoice).toBeVisible({ timeout: 20000 });
 		await freeInvoice.check();
 
-		// "Onboarding SS Catering" funds a Planposten of the seeded "Onboarding
+		// "Onboarding SS Catering" funds a plan item of the seeded "Onboarding
 		// SS26" project, so it can never be moved — it stays put on every run.
 		const matchedInvoice = page.getByRole("checkbox", {
 			name: "Onboarding SS Catering auswählen",
@@ -214,11 +214,11 @@ test.describe("Finance Analytics tool", () => {
 		await expect(matchedInvoice).toBeVisible();
 		await matchedInvoice.check();
 
-		// Selection spans folders and states its size (FR-K1/FR-K5).
+		// Selection spans folders and states its size.
 		const selectionBar = page.getByRole("region", { name: "Auswahl" });
 		await expect(selectionBar.getByText("2 Buchungen")).toBeVisible();
 
-		// One call creates the project and files what may legally be filed (FR-L1).
+		// One call creates the project and files what may legally be filed.
 		const projectName = `E2E Sammelprojekt ${Date.now()}`;
 		await selectionBar
 			.getByRole("button", { name: /Neues Projekt aus Auswahl/ })
@@ -230,8 +230,8 @@ test.describe("Finance Analytics tool", () => {
 		await dialog.getByLabel("Name").fill(projectName);
 		await dialog.getByRole("button", { name: "Anlegen" }).click();
 
-		// The invoice funding another project's Planposten is refused by name
-		// rather than silently moved (FR-L6/FR-L7).
+		// The invoice funding another project's plan item is refused by name
+		// rather than silently moved.
 		await expect(page.getByText(/1 von 2 Buchungen zugeordnet/)).toBeVisible({
 			timeout: 20000,
 		});
@@ -239,7 +239,7 @@ test.describe("Finance Analytics tool", () => {
 			page.getByText(/Planposten eines anderen Projekts verknüpft/),
 		).toBeVisible();
 
-		// The selection is consumed (FR-K7) and the free invoice now sits in the
+		// The selection is consumed and the free invoice now sits in the
 		// new project folder.
 		await expect(selectionBar).toBeHidden();
 		const projectFolder = page.getByRole("button", { name: projectName });
@@ -278,9 +278,9 @@ test.describe("Finance Analytics tool", () => {
 		});
 		await expandAllFolders(page);
 
-		// Plan in the folder the invoice actually sits in (FR-M1). It has to be that
-		// folder: a Planposten can only absorb the part of a posting allocated to
-		// its own department *and* project, so a department-level Planposten cannot
+		// Plan in the folder the invoice actually sits in. It has to be that
+		// folder: a plan item can only absorb the part of a posting allocated to
+		// its own department *and* project, so a department-level plan item cannot
 		// take an invoice that belongs to a project. Which folder that is depends on
 		// what earlier specs did with the invoice, so it is looked up rather than
 		// assumed. The amount is deliberately larger than the invoice, so the
@@ -306,7 +306,7 @@ test.describe("Finance Analytics tool", () => {
 			timeout: 20000,
 		});
 
-		// It shows up as a planned line and expands to its own detail (FR-K4).
+		// It shows up as a planned line and expands to its own detail.
 		await expandAllFolders(page);
 		const planRow = page.getByRole("button", {
 			name: new RegExp(`^${planLabel}`),
@@ -314,7 +314,7 @@ test.describe("Finance Analytics tool", () => {
 		await expect(planRow).toBeVisible({ timeout: 20000 });
 		await planRow.click();
 
-		// Match an invoice to it from the Planposten side (FR-M5).
+		// Match an invoice to it from the plan item side.
 		await page.getByRole("button", { name: "Buchung zuordnen" }).click();
 		const matchDialog = page.getByRole("dialog");
 		await matchDialog.getByLabel("Buchung").click();
@@ -324,14 +324,14 @@ test.describe("Finance Analytics tool", () => {
 			page.getByText("Buchung dem Planposten zugeordnet."),
 		).toBeVisible({ timeout: 20000 });
 
-		// The match moved the status on its own: planned → committed (FR-M4).
+		// The match moved the status on its own: planned → committed.
 		await expandAllFolders(page);
 		await page
 			.getByRole("button", { name: new RegExp(`^${planLabel}`) })
 			.click();
 		await expect(page.getByText("Zugesagt").first()).toBeVisible();
 
-		// Plan 5.000 vs Ist 600 — correcting sets the plan to what arrived (FR-M6).
+		// Planned 5.000 vs actual 600 — correcting sets the plan to what arrived.
 		await page
 			.getByRole("button", { name: /Plan auf Ist korrigieren/ })
 			.click();
@@ -341,7 +341,7 @@ test.describe("Finance Analytics tool", () => {
 
 		// Fully matched now: no open remainder, so it leaves the open plan lines
 		// and moves into "Erledigt" — still reachable, since the plan tab that
-		// used to list it is gone (FR-O).
+		// used to list it is gone.
 		await expandAllFolders(page);
 		await expect(
 			page.getByRole("button", { name: new RegExp(`^${planLabel}`) }),
@@ -356,7 +356,7 @@ test.describe("Finance Analytics tool", () => {
 		).toBeVisible();
 
 		// Detaching from the invoice side restores the open remainder and walks the
-		// status back (FR-M7) — which also returns the seeded invoice to the state
+		// status back — which also returns the seeded invoice to the state
 		// the other specs expect, so this one can run again without a reset.
 		await page
 			.getByRole("button", { name: /Onboarding SS Location/ })
@@ -391,7 +391,7 @@ test.describe("Finance Analytics tool", () => {
 		await drilldown.click();
 
 		// The T-Konto tab is now active with a department preselected, so the
-		// "pick a department" prompt is gone and the salden are shown.
+		// "pick a department" prompt is gone and the balances are shown.
 		await expect(page.getByText("Ist-Saldo").first()).toBeVisible({
 			timeout: 20000,
 		});
@@ -403,7 +403,7 @@ test.describe("Finance Analytics tool", () => {
 	}) => {
 		// Four journeys in one spec, across three browser contexts (reviewer, admin
 		// and department lead, each with its own login). Consolidating the tool
-		// (FR-O) added a reload and a second Einstellungen pass to it, which pushed
+		// added a reload and a second Einstellungen pass to it, which pushed
 		// the run past Playwright's 30s default — it takes ~35s locally and longer
 		// on a CI runner. The steps are all genuinely needed: the approval flows
 		// only mean something after the template and budget baseline exist, and the
@@ -417,7 +417,7 @@ test.describe("Finance Analytics tool", () => {
 		const templateName = `E2E Event Template ${unique}`;
 		const planItemName = `E2E Venue Plan ${unique}`;
 
-		// Plan templates moved to Einstellungen (FR-O); project creation moved to
+		// Plan templates moved to Einstellungen; project creation moved to
 		// the T-view and is covered by its own spec, so this one creates the
 		// project through the API and stays focused on approvals and reporting.
 		await page.getByRole("tab", { name: "Einstellungen" }).click();
@@ -455,7 +455,7 @@ test.describe("Finance Analytics tool", () => {
 		}, projectName);
 
 		// The template is applied from Einstellungen now that project rows are
-		// gone (FR-O).
+		// gone.
 		await page.reload();
 		await page.getByRole("tab", { name: "Einstellungen" }).click();
 		const assignRegion = page.getByRole("region", {
@@ -490,7 +490,7 @@ test.describe("Finance Analytics tool", () => {
 			const { apiClient } = await import("/src/lib/apiClient.ts");
 			// Assign the Makeathon cost location (161 — venue & catering) to the
 			// Makeathon department. There is no automatic department fallback, so a
-			// department member only sees postings mapped to them via the Zuordnung.
+			// department member only sees postings mapped to them via that assignment.
 			await apiClient("/api/finance/department-mappings/161", {
 				method: "PUT",
 				body: JSON.stringify({ department: "Makeathon", bereich: null }),
@@ -560,7 +560,7 @@ test.describe("Finance Analytics tool", () => {
 		).toBeVisible();
 
 		// Asking another department to take a posting now starts at the invoice
-		// itself, in the T-view (FR-O).
+		// itself, in the T-view.
 		await departmentPage.getByRole("tab", { name: "T-Konto" }).click();
 		await expandAllFolders(departmentPage);
 		await departmentPage

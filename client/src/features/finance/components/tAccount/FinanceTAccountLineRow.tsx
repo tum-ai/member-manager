@@ -19,9 +19,8 @@ import type { TAccountInteraction } from "./tAccountInteraction";
 
 // The embedded VAT, stated in words next to the amount rather than hidden in a
 // hover tooltip: it must be readable on touch and by a screen reader, and it
-// must name its side of the ledger (FR-N1/FR-N2). The preposition follows the
-// amount mode — in Netto the VAT is not in the number shown, it comes on top
-// of it (FR-N4).
+// must name its side of the ledger. The preposition follows the amount mode —
+// in net mode the VAT is not in the number shown, it comes on top of it.
 function VatNote({ line }: { line: TAccountDisplayLine }): ReactElement | null {
 	if (line.vatAmount === null || line.vatAmount <= 0) {
 		return null;
@@ -71,10 +70,9 @@ function LineAmount({ line }: { line: TAccountDisplayLine }): ReactElement {
 	);
 }
 
-// One row of a T-account column. Real lines (a booked posting or a Planposten)
-// expand in place to their detail (FR-K2/FR-K4); a rolled-up child-project
-// folder line has no detail of its own and stays static — the child renders as
-// its own node below.
+// One row of a T-account column. Real lines (a booked posting or a plan item)
+// expand in place to their detail; a rolled-up child-project folder line has no
+// detail of its own and stays static — the child renders as its own node below.
 export function FinanceTAccountLineRow({
 	line,
 	interaction,
@@ -101,8 +99,8 @@ export function FinanceTAccountLineRow({
 	}
 
 	// Only booked invoices are selectable, and only for someone who may write the
-	// department (FR-K1/FR-K6). A Planposten is not an invoice; a read-only user
-	// still gets the disclosure.
+	// department. A plan item is not an invoice; a read-only user still gets the
+	// disclosure.
 	const postingExternalId = line.postingExternalId;
 	const selectable =
 		interaction?.canWrite === true &&
@@ -152,7 +150,7 @@ export function FinanceTAccountLineRow({
 								selectable
 									? () =>
 											// The assign dialog states what is about to move; it
-											// stays gross in Netto mode, like the selection bar's
+											// stays gross in net mode, like the selection bar's
 											// sum it shares a sentence with.
 											interaction.onAssignPosting(
 												postingExternalId,

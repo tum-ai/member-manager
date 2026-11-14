@@ -7,7 +7,7 @@ import {
 	FinanceMatchPlanItemDialog,
 } from "./FinanceMatchPlanItemDialog";
 
-// Started from an invoice: the posting is fixed, a Planposten is picked.
+// Started from an invoice: the posting is fixed, a plan item is picked.
 const fromPosting: FinanceMatchDialogPreset = {
 	from: "posting",
 	postingExternalId: "BB-1",
@@ -20,7 +20,7 @@ const fromPosting: FinanceMatchDialogPreset = {
 	],
 };
 
-// Started from a Planposten: the plan item is fixed, a booking is picked.
+// Started from a plan item: the plan item is fixed, a posting is picked.
 const fromPlanItem: FinanceMatchDialogPreset = {
 	from: "planItem",
 	postingExternalId: null,
@@ -54,9 +54,9 @@ describe("FinanceMatchPlanItemDialog", () => {
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 	});
 
-	// FR-M5: the same dialog serves both directions, naming whichever side is
-	// still to be picked.
-	it("asks for a Planposten when started from an invoice", () => {
+	// The same dialog serves both directions, naming whichever side is still to
+	// be picked.
+	it("asks for a plan item when started from an invoice", () => {
 		renderDialog(fromPosting);
 
 		expect(
@@ -68,7 +68,7 @@ describe("FinanceMatchPlanItemDialog", () => {
 		).toBeInTheDocument();
 	});
 
-	it("asks for a booking when started from a Planposten", () => {
+	it("asks for a booking when started from a plan item", () => {
 		renderDialog(fromPlanItem);
 
 		expect(
@@ -87,7 +87,7 @@ describe("FinanceMatchPlanItemDialog", () => {
 	});
 
 	// Defaulting to the smaller of the two open sides means the common
-	// "this invoice settles this Planposten" case needs no arithmetic.
+	// "this invoice settles this plan item" case needs no arithmetic.
 	it("drops the amount to the candidate's open remainder when it is smaller", async () => {
 		renderDialog(fromPosting);
 
@@ -163,7 +163,7 @@ describe("FinanceMatchPlanItemDialog", () => {
 		expect(onSubmit).not.toHaveBeenCalled();
 	});
 
-	it("submits the picked Planposten against the fixed invoice", async () => {
+	it("submits the picked plan item against the fixed invoice", async () => {
 		const { onSubmit } = renderDialog(fromPosting);
 
 		await userEvent.click(screen.getByRole("combobox", { name: "Planposten" }));
@@ -181,7 +181,7 @@ describe("FinanceMatchPlanItemDialog", () => {
 
 	// The other direction swaps which side comes from the preset and which from
 	// the picker — the payload shape stays the same.
-	it("submits the picked booking against the fixed Planposten", async () => {
+	it("submits the picked booking against the fixed plan item", async () => {
 		const { onSubmit } = renderDialog(fromPlanItem);
 
 		await userEvent.click(screen.getByRole("combobox", { name: "Buchung" }));

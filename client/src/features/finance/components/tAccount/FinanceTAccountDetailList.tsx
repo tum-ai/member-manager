@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import type { TAccountMatchView } from "@/features/finance/financeTAccountUtils";
 import { formatFinanceAmount } from "@/features/finance/financeUtils";
 
-// Shared building blocks for the two detail panels (FR-K2/FR-K4), so a posting
-// and a Planposten read as the same object with different fields.
+// Shared building blocks for the two detail panels, so a posting and a plan
+// item read as the same object with different fields.
 
 export function DetailList({
 	children,
@@ -20,7 +20,7 @@ export function DetailList({
 }
 
 // A missing value renders as an em dash, never as "0 €" — an unknown VAT rate
-// and a zero-rated invoice are different facts (FR-N5).
+// and a zero-rated invoice are different facts.
 export function DetailField({
 	label,
 	value,
@@ -60,8 +60,8 @@ export function TAccountMatchList({
 }: {
 	matches: TAccountMatchView[];
 	emptyLabel: string;
-	// Detaching restores the open remainder and walks the Planposten's status
-	// back (FR-M7). Absent for a read-only viewer.
+	// Detaching restores the open remainder and walks the plan item's status
+	// back. Absent for a read-only viewer.
 	onDetach?: (matchId: string) => void;
 }): ReactElement {
 	if (matches.length === 0) {

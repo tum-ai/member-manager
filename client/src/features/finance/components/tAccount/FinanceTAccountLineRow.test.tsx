@@ -64,8 +64,8 @@ describe("FinanceTAccountLineRow", () => {
 		expect(screen.getByText(/119,00/)).toBeInTheDocument();
 	});
 
-	// FR-N1/N4: in gross mode the VAT sits inside the number shown, so it reads
-	// "inkl."; in net mode it comes on top of it.
+	// In gross mode the VAT sits inside the number shown, so it reads "inkl."; in
+	// net mode it comes on top of it.
 	it("states the embedded VAT as included in gross mode", () => {
 		renderRow(booked);
 
@@ -100,7 +100,7 @@ describe("FinanceTAccountLineRow", () => {
 		expect(screen.getByText("Geplant")).toBeInTheDocument();
 	});
 
-	it("marks a parked Planposten as disabled", () => {
+	it("marks a parked plan item as disabled", () => {
 		renderRow(
 			tAccountLine({
 				kind: "plan",
@@ -159,7 +159,7 @@ describe("FinanceTAccountLineRow", () => {
 		expect(screen.getByText("Delta")).toBeInTheDocument();
 	});
 
-	// FR-K1/K6: only booked invoices are selectable, and only for a writer.
+	// Only booked invoices are selectable, and only for a writer.
 	it("offers a checkbox for a writable booked line", async () => {
 		const actions = interaction();
 		renderRow(booked, actions);
@@ -195,7 +195,7 @@ describe("FinanceTAccountLineRow", () => {
 		expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
 	});
 
-	// A Planposten is not an invoice, so it is never selectable.
+	// A plan item is not an invoice, so it is never selectable.
 	it("withholds the checkbox from a planned line", () => {
 		renderRow(
 			tAccountLine({
