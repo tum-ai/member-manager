@@ -22,8 +22,10 @@ export const DEFAULT_MEMBER_STATUS: MemberStatus = "active";
 
 // Operational TUM.ai departments members are assigned to. Used e.g. to map
 // BuchhaltungsButler cost locations to a department in the finance analytics
-// tool. Keep in sync with the `department` values seeded in supabase/seed.sql.
+// tool. Every `department` value seeded in supabase/seed.sql must appear here;
+// a department without seeded members (Alumni Relations) is fine.
 export const TUMAI_DEPARTMENTS = [
+	"Alumni Relations",
 	"Community",
 	"Innovation Department",
 	"Legal & Finance",
