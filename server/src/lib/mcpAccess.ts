@@ -28,7 +28,7 @@ interface McpAccessRow {
 	last_client_name: string | null;
 }
 
-interface MemberSummary {
+export interface MemberSummary {
 	user_id: string;
 	given_name: string | null;
 	surname: string | null;
@@ -39,7 +39,7 @@ interface MemberSummary {
 const ROW_COLUMNS =
 	"user_id, status, role, requested_at, decided_at, decided_by, decision_note, last_seen_at, last_client_id, last_client_name";
 
-function memberName(member: MemberSummary | undefined): string | null {
+export function memberName(member: MemberSummary | undefined): string | null {
 	if (!member) return null;
 	const name = [member.given_name, member.surname]
 		.map((part) => part?.trim())
@@ -48,7 +48,7 @@ function memberName(member: MemberSummary | undefined): string | null {
 	return name || null;
 }
 
-async function readMemberSummaries(
+export async function readMemberSummaries(
 	userIds: string[],
 ): Promise<Map<string, MemberSummary>> {
 	if (userIds.length === 0) return new Map();

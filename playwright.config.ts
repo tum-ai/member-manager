@@ -14,6 +14,10 @@ const CLIENT_PORT = new URL(CLIENT_URL).port || "5173";
 const SERVER_PORT = new URL(SERVER_URL).port || "8787";
 const PARTNER_PORTAL_STUB_PORT = process.env.PARTNER_PORTAL_STUB_PORT ?? "8791";
 const PARTNER_PORTAL_STUB_URL = `http://127.0.0.1:${PARTNER_PORTAL_STUB_PORT}`;
+const DEV_MCP_STUB_PORT = process.env.DEV_MCP_STUB_PORT ?? "8792";
+const DEV_MCP_STUB_URL = `http://127.0.0.1:${DEV_MCP_STUB_PORT}`;
+// Shared with e2e/dev-mcp-stub.mjs and e2e/dev-mcp-access.spec.ts.
+const DEV_MCP_SERVICE_TOKEN = "e2e-dev-mcp-service-token";
 const USE_REAL_BB_POSTINGS = process.env.E2E_BB_LIVE === "true";
 const serverEnvPath = resolve("server/.env.local");
 const serverLocalEnv = existsSync(serverEnvPath)
@@ -71,6 +75,14 @@ export default defineConfig({
 			stderr: "pipe",
 		},
 		{
+			command: "node e2e/dev-mcp-stub.mjs",
+			url: `${DEV_MCP_STUB_URL}/health`,
+			reuseExistingServer: !process.env.CI,
+			timeout: 30_000,
+			stdout: "pipe",
+			stderr: "pipe",
+		},
+		{
 			command: "pnpm --filter @member-manager/server dev:local",
 			url: `${SERVER_URL}/health`,
 			// Never reuse an API process with unknown finance settings. The E2E
@@ -87,6 +99,8 @@ export default defineConfig({
 				DOTENV_CONFIG_PATH: "/dev/null",
 				PARTNER_PORTAL_API_URL: PARTNER_PORTAL_STUB_URL,
 				PARTNER_PORTAL_API_TOKEN: "e2e-partner-management-token",
+				DEV_MCP_URL: DEV_MCP_STUB_URL,
+				DEV_MCP_SERVICE_TOKEN,
 				BUCHHALTUNGSBUTLER_POSTINGS_USE_REAL_API: USE_REAL_BB_POSTINGS
 					? "true"
 					: "false",

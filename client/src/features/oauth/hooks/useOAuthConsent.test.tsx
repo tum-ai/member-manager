@@ -2,12 +2,13 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { PropsWithChildren } from "react";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { rememberPostLoginPath } from "@/lib/postLoginRedirect";
 import { createTestQueryClient } from "@/test/renderWithClient";
 import { useOAuthConsent } from "./useOAuthConsent";
 
-const { oauth, signOut } = vi.hoisted(() => ({
+const { oauth, signOut, rpc } = vi.hoisted(() => ({
+	rpc: vi.fn(),
 	oauth: {
 		getAuthorizationDetails: vi.fn(),
 		approveAuthorization: vi.fn(),
@@ -17,7 +18,7 @@ const { oauth, signOut } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabaseClient", () => ({
-	supabase: { auth: { oauth, signOut } },
+	supabase: { auth: { oauth, signOut }, rpc },
 }));
 
 const CONSENT_DETAILS = {
@@ -47,6 +48,10 @@ function renderConsentHook(search = "?authorization_id=auth-1") {
 }
 
 describe("useOAuthConsent", () => {
+	beforeEach(() => {
+		rpc.mockResolvedValue({ data: null, error: null });
+	});
+
 	afterEach(() => {
 		vi.clearAllMocks();
 		window.sessionStorage.clear();
@@ -171,6 +176,71 @@ describe("useOAuthConsent", () => {
 		const { result, redirect } = renderConsentHook();
 
 		await waitFor(() => expect(result.current.state.status).toBe("refused"));
+		expect(redirect).not.toHaveBeenCalled();
+		// Nothing to bind for an address the code never goes to.
+		expect(rpc).not.toHaveBeenCalled();
+	});
+
+	it("binds an earlier approval once before following it", async () => {
+		oauth.getAuthorizationDetails.mockResolvedValue({
+			data: { redirect_url: "https://claude.ai/cb?code=abc" },
+			error: null,
+		});
+		const { redirect } = renderConsentHook();
+
+		await waitFor(() =>
+			expect(redirect).toHaveBeenCalledWith("https://claude.ai/cb?code=abc"),
+		);
+		expect(rpc).toHaveBeenCalledTimes(1);
+		expect(rpc).toHaveBeenCalledWith("bind_oauth_authorization", {
+			authorization_id: "auth-1",
+		});
+	});
+
+	it("stays with the reason when an earlier approval can't be bound", async () => {
+		oauth.getAuthorizationDetails.mockResolvedValue({
+			data: { redirect_url: "https://claude.ai/cb?code=abc" },
+			error: null,
+		});
+		rpc.mockResolvedValue({
+			data: null,
+			error: {
+				message: "This app is already connected to another TUM.ai server.",
+			},
+		});
+		const { result, redirect } = renderConsentHook();
+
+		await waitFor(() =>
+			expect(result.current.state).toEqual({
+				status: "unbound",
+				message: "This app is already connected to another TUM.ai server.",
+			}),
+		);
+		expect(redirect).not.toHaveBeenCalled();
+	});
+
+	it("doesn't approve when binding fails", async () => {
+		oauth.getAuthorizationDetails.mockResolvedValue({
+			data: CONSENT_DETAILS,
+			error: null,
+		});
+		rpc.mockResolvedValue({
+			data: null,
+			error: {
+				message: "This app is already connected to another TUM.ai server.",
+			},
+		});
+		const { result, redirect } = renderConsentHook();
+		await waitFor(() => expect(result.current.state.status).toBe("consent"));
+
+		act(() => result.current.approve());
+
+		await waitFor(() =>
+			expect(result.current.decisionError).toBe(
+				"This app is already connected to another TUM.ai server.",
+			),
+		);
+		expect(oauth.approveAuthorization).not.toHaveBeenCalled();
 		expect(redirect).not.toHaveBeenCalled();
 	});
 

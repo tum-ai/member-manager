@@ -40,6 +40,7 @@ In production it runs as one Vercel function (`api/[...path].ts` imports `server
 | Bug reports | `lib/githubIssues.ts`, `routes/bugReports.ts` | GitHub App creates issues |
 | Receipts | `lib/receiptProcessing.ts`, `lib/reimbursementReceipts.ts` | OpenAI extraction; files in Supabase Storage |
 | Partner portal / jobs | `lib/partnerPortal.ts`, `routes/partners.ts`, `routes/jobs.ts` | CV export for partners |
+| dev-mcp (Dev Claude) | `lib/devMcpAccess.ts`, `lib/devMcpCatalog.ts`, `routes/devMcpAccess.ts`, `scripts/importDevMcpAccess.ts` | Access per member for dev-mcp; service API + catalog share `DEV_MCP_SERVICE_TOKEN`. `docs/deployment.md`, "Dev MCP access" |
 | Crons | `vercel.json` `crons` | `/api/tum-ai-days/send-pending` (10 min), `/api/contracts/render-jobs` (1 min); authorized by `CRON_SECRET` |
 
 **Mock vs live.** Local and E2E runs must not reach real services. The local stack stubs bug-report

@@ -58,8 +58,13 @@ export function formatMcpAccessTime(value: string | null): string | null {
 	});
 }
 
-/** When and with which AI app the member last used nomcp. */
-export function describeLastUse(entry: McpAccessEntry): string {
+/** When and with which AI app the member last used the MCP server. */
+export function describeLastUse(
+	entry: Pick<
+		McpAccessEntry,
+		"last_seen_at" | "last_client_id" | "last_client_name"
+	>,
+): string {
 	const seen = formatMcpAccessTime(entry.last_seen_at);
 	if (!seen) return "Hasn't used it yet";
 	const client = entry.last_client_name?.trim() || entry.last_client_id;

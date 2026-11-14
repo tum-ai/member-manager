@@ -89,6 +89,9 @@ interface MockData {
 	member_cvs: Array<Record<string, unknown>>;
 	member_door_pins: Array<Record<string, unknown>>;
 	mcp_access: Array<Record<string, unknown>>;
+	dev_mcp_access: Array<Record<string, unknown>>;
+	dev_mcp_tool_grants: Array<Record<string, unknown>>;
+	dev_mcp_access_events: Array<Record<string, unknown>>;
 	department_permissions: Array<Record<string, unknown>>;
 	contract_templates: Array<Record<string, unknown>>;
 	contract_template_variables: Array<Record<string, unknown>>;
@@ -129,6 +132,16 @@ export const mockSupabaseErrors = {
 	// Forces a specific RPC to fail, keyed by function name.
 	rpc: {} as Record<string, unknown>,
 };
+
+/**
+ * Stand-ins for RPCs a test file implements itself (e.g. the dev-mcp access
+ * functions in `test/routes/devMcpAccess.test.ts`), keyed by function name. Cleared
+ * by `resetMockDatabase`.
+ */
+export const mockRpcHandlers: Record<
+	string,
+	(params: Record<string, unknown>) => { data: unknown; error: unknown }
+> = {};
 
 export const mockDatabase: MockData = {
 	members: [
@@ -233,6 +246,9 @@ export const mockDatabase: MockData = {
 	member_cvs: [],
 	member_door_pins: [],
 	mcp_access: [],
+	dev_mcp_access: [],
+	dev_mcp_tool_grants: [],
+	dev_mcp_access_events: [],
 	department_permissions: [
 		{
 			department: "Legal & Finance",
@@ -2301,6 +2317,10 @@ export function createMockSupabaseClient(): SupabaseClient {
 						error: mockSupabaseErrors.rpc[fnName],
 					});
 				}
+				const handler = mockRpcHandlers[fnName];
+				if (handler) {
+					return Promise.resolve(handler(params));
+				}
 				if (fnName === "merge_duplicate_member") {
 					return mergeDuplicateMember(params);
 				}
@@ -2781,6 +2801,12 @@ export function resetMockDatabase(): void {
 	mockDatabase.member_cvs = [];
 	mockDatabase.member_door_pins = [];
 	mockDatabase.mcp_access = [];
+	mockDatabase.dev_mcp_access = [];
+	mockDatabase.dev_mcp_tool_grants = [];
+	mockDatabase.dev_mcp_access_events = [];
+	for (const name of Object.keys(mockRpcHandlers)) {
+		delete mockRpcHandlers[name];
+	}
 	mockDatabase.department_permissions = [
 		{
 			department: "Legal & Finance",

@@ -1566,3 +1566,85 @@ from public.user_roles r
 join public.members m on m.user_id = r.user_id
 where r.role = 'admin'
 on conflict (user_id) do nothing;
+
+-- Dev MCP access (migration 20261109120000_dev_mcp_access.sql).
+--
+-- Locally dev-mcp listens on port 3000, so OAuth clients connect with this
+-- resource. Production keeps the migration's https://tumai-dev-mcp.vercel.app/mcp.
+insert into public.mcp_resource_settings (key, resource)
+values ('dev_mcp', 'http://localhost:3000/mcp')
+on conflict (key) do update set
+    resource = excluded.resource,
+    updated_at = now();
+
+-- A TUM.ai Slack identity for software-development-lead@example.com (Sofia
+-- Software), so member_slack_user_id() and the dev-mcp service API find
+-- someone locally (e2e/dev-mcp-access.spec.ts, SEED_DEV_MCP_SLACK_USER_ID).
+-- Every other seeded user only has an email identity.
+insert into auth.identities (
+    id,
+    user_id,
+    provider,
+    provider_id,
+    identity_data,
+    last_sign_in_at,
+    created_at,
+    updated_at
+)
+values (
+    gen_random_uuid(),
+    '00000000-0000-0000-0000-000000000019',
+    'slack_oidc',
+    'U0DEVSEED19',
+    jsonb_build_object(
+        'sub', 'U0DEVSEED19',
+        'email', 'software-development-lead@example.com',
+        'custom_claims', jsonb_build_object(
+            'https://slack.com/team_id', 'T01288YLP16',
+            'https://slack.com/user_id', 'U0DEVSEED19'
+        )
+    ),
+    now(),
+    now(),
+    now()
+)
+on conflict (provider, provider_id) do nothing;
+
+-- The local admins are dev-mcp admins with the admin preset: every
+-- non-destructive tool in dev-mcp's WORKFLOW_POLICY (src/access/policy.ts),
+-- so the approvers aren't locked out. Production gets its rows from the import
+-- script (server/src/scripts/importDevMcpAccess.ts) instead.
+insert into public.dev_mcp_access (user_id, status, role, requested_at, decided_at, decision_note)
+select distinct r.user_id, 'active', 'admin', now(), now(),
+    'Approved automatically: local seed admin'
+from public.user_roles r
+join public.members m on m.user_id = r.user_id
+where r.role = 'admin'
+on conflict (user_id) do nothing;
+
+insert into public.dev_mcp_tool_grants (user_id, tool)
+select a.user_id, preset.tool
+from public.dev_mcp_access a
+cross join unnest(array[
+    'add_to_github_org',
+    'create_mailbox',
+    'create_notion_page',
+    'create_shared_mailbox',
+    'whoami'
+]) as preset(tool)
+where a.status = 'active' and a.role = 'admin'
+on conflict (user_id, tool) do nothing;
+
+insert into public.dev_mcp_access_events (user_id, source, action, details)
+select a.user_id, 'system', 'member_approved',
+    jsonb_build_object('status', 'active', 'role', 'admin', 'seed', true)
+from public.dev_mcp_access a
+where a.status = 'active' and a.role = 'admin';
+
+-- Sofia's request waits on the Dev tab of /admin/mcp-access.
+select public.dev_mcp_file_request(
+    '00000000-0000-0000-0000-000000000019',
+    'system',
+    null,
+    '{"seed": true}'::jsonb
+);

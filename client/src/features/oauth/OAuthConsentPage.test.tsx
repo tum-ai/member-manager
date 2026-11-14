@@ -1,11 +1,12 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithClient } from "@/test/renderWithClient";
 import OAuthConsentPage from "./OAuthConsentPage";
 
-const { oauth } = vi.hoisted(() => ({
+const { oauth, rpc } = vi.hoisted(() => ({
+	rpc: vi.fn(),
 	oauth: {
 		getAuthorizationDetails: vi.fn(),
 		approveAuthorization: vi.fn(),
@@ -14,7 +15,7 @@ const { oauth } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/supabaseClient", () => ({
-	supabase: { auth: { oauth, signOut: vi.fn() } },
+	supabase: { auth: { oauth, signOut: vi.fn() }, rpc },
 }));
 
 function details(redirectUri: string) {
@@ -41,8 +42,81 @@ function renderPage(search = "?authorization_id=auth-1") {
 }
 
 describe("OAuthConsentPage", () => {
+	beforeEach(() => {
+		rpc.mockResolvedValue({ data: null, error: null });
+	});
+
 	afterEach(() => {
 		vi.clearAllMocks();
+	});
+
+	it("binds the app to its server before approving", async () => {
+		oauth.getAuthorizationDetails.mockResolvedValue(
+			details("https://claude.ai/api/mcp/auth_callback"),
+		);
+		oauth.approveAuthorization.mockResolvedValue({
+			data: { redirect_url: "https://claude.ai/cb?code=abc" },
+			error: null,
+		});
+		const { redirect } = renderPage();
+
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Approve" }),
+		);
+
+		await waitFor(() =>
+			expect(redirect).toHaveBeenCalledWith("https://claude.ai/cb?code=abc"),
+		);
+		expect(rpc).toHaveBeenCalledWith("bind_oauth_authorization", {
+			authorization_id: "auth-1",
+		});
+		expect(rpc.mock.invocationCallOrder[0]).toBeLessThan(
+			oauth.approveAuthorization.mock.invocationCallOrder[0],
+		);
+	});
+
+	it("doesn't approve an app bound to another TUM.ai server", async () => {
+		oauth.getAuthorizationDetails.mockResolvedValue(
+			details("https://claude.ai/api/mcp/auth_callback"),
+		);
+		rpc.mockResolvedValue({
+			data: null,
+			error: {
+				message:
+					"This app is already connected to another TUM.ai server. Add it again in your AI app for this one.",
+			},
+		});
+		const { redirect } = renderPage();
+
+		await userEvent.click(
+			await screen.findByRole("button", { name: "Approve" }),
+		);
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			/already connected to another TUM\.ai server/,
+		);
+		expect(oauth.approveAuthorization).not.toHaveBeenCalled();
+		expect(redirect).not.toHaveBeenCalled();
+	});
+
+	it("doesn't follow an earlier approval that can't be bound", async () => {
+		oauth.getAuthorizationDetails.mockResolvedValue({
+			data: { redirect_url: "https://claude.ai/cb?code=abc" },
+			error: null,
+		});
+		rpc.mockResolvedValue({
+			data: null,
+			error: {
+				message:
+					"This app is already connected to another TUM.ai server. Add it again in your AI app for this one.",
+			},
+		});
+		const { redirect } = renderPage();
+
+		expect(await screen.findByRole("alert")).toHaveTextContent(
+			/can't connect to this TUM\.ai server.*already connected to another TUM\.ai server/,
+		);
+		expect(redirect).not.toHaveBeenCalled();
 	});
 
 	it("explains what the app gets before asking", async () => {
@@ -53,7 +127,7 @@ describe("OAuthConsentPage", () => {
 
 		expect(
 			await screen.findByRole("heading", {
-				name: "Allow this app to act as you in TUM.ai's Notion?",
+				name: "Allow this app to act as you on a TUM.ai MCP server?",
 			}),
 		).toBeInTheDocument();
 		expect(screen.getByTestId("oauth-redirect-target")).toHaveTextContent(
@@ -64,7 +138,7 @@ describe("OAuthConsentPage", () => {
 		expect(screen.getByText(/signed in as ada@example\.com/i)).toBeVisible();
 		expect(
 			screen.getByText(
-				/can read and edit TUM\.ai's Notion workspace as you through nomcp.*every action is logged under your name/i,
+				/act as you on the TUM\.ai MCP server.*Notion MCP \(nomcp\).*Dev MCP.*every action is logged under your name/i,
 			),
 		).toBeVisible();
 		expect(
@@ -107,7 +181,9 @@ describe("OAuthConsentPage", () => {
 			/ask the dev team to add it/,
 		);
 		expect(screen.queryByRole("button", { name: /approve/i })).toBeNull();
-		expect(screen.queryByText(/through nomcp/)).toBeNull();
+		expect(
+			screen.queryByText(/act as you on the TUM\.ai MCP server/),
+		).toBeNull();
 
 		await userEvent.click(screen.getByRole("button", { name: "Deny" }));
 

@@ -58,7 +58,7 @@ export function OAuthConsentCard({
 				<CardTitle>
 					<h2 className="text-lg leading-snug">
 						{isApproved
-							? "Allow this app to act as you in TUM.ai's Notion?"
+							? "Allow this app to act as you on a TUM.ai MCP server?"
 							: "This app isn't an approved TUM.ai MCP client"}
 					</h2>
 				</CardTitle>
@@ -111,9 +111,16 @@ export function OAuthConsentCard({
 				{isApproved ? (
 					<>
 						<p>
-							If you approve, this app can read and edit TUM.ai's Notion
-							workspace as you through nomcp, the TUM.ai Notion MCP. Every
-							action is logged under your name.
+							If you approve, this app can act as you on the TUM.ai MCP server
+							you are connecting it to: the Notion MCP (nomcp), which reads and
+							edits TUM.ai's Notion workspace, or Dev MCP, Dev Claude's tools
+							for mailboxes, GitHub invites and Notion pages. It gets only what
+							an admin approved for you there, and every action is logged under
+							your name.
+						</p>
+						<p className="text-muted-foreground">
+							Each app connects to one TUM.ai server. To use both, add the app
+							once for each.
 						</p>
 						<p className="font-semibold">
 							Approve only if you just connected this app yourself.

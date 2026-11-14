@@ -66,6 +66,26 @@ export async function submitConsentDecision(
 	return data.redirect_url;
 }
 
+/**
+ * Binds the app behind this authorization to the TUM.ai MCP server it asked
+ * for (its RFC 8707 `resource`, which only the database sees), through
+ * `public.bind_oauth_authorization`. Supabase's tokens name no audience, so
+ * this is what keeps a token issued for one server (nomcp) from working at
+ * another (dev-mcp). Throws with a message for the member when the app is
+ * already bound to another server or named none; then the page must not
+ * approve or follow the redirect.
+ */
+export async function bindAuthorization(
+	authorizationId: string,
+): Promise<void> {
+	const { error } = await supabase.rpc("bind_oauth_authorization", {
+		authorization_id: authorizationId,
+	});
+	if (error) {
+		throw new Error(error.message || "This app couldn't be connected.");
+	}
+}
+
 export async function fetchConnectedApps(): Promise<ConnectedApp[]> {
 	const { data, error } = await supabase.auth.oauth.listGrants();
 	if (error) throw error;

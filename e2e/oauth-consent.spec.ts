@@ -74,14 +74,14 @@ test("a member connects an app through the consent page and disconnects it", asy
 	// A loopback redirect (like Claude Code's) is an approved MCP client.
 	await expect(
 		page.getByRole("heading", {
-			name: "Allow this app to act as you in TUM.ai's Notion?",
+			name: "Allow this app to act as you on a TUM.ai MCP server?",
 		}),
 	).toBeVisible();
 	await expect(page.getByTestId("oauth-redirect-target")).toHaveText(
 		"localhost:9999",
 	);
 	await expect(page.getByText(`calls itself “${clientName}”`)).toBeVisible();
-	await expect(page.getByText(/as you through nomcp/)).toBeVisible();
+	await expect(page.getByText(/Notion MCP \(nomcp\).*Dev MCP/)).toBeVisible();
 
 	await page.getByRole("button", { name: "Approve", exact: true }).click();
 	await page.waitForURL(/localhost:9999\/callback\?/);

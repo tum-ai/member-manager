@@ -384,7 +384,7 @@ enabled = false
 # members in. Supabase sends the browser to `site_url` + `authorization_url_path`, the SPA's consent
 # page (client/src/features/oauth). Tokens it issues carry a `client_id` claim, which the API and
 # the `oauth_clients_blocked` RLS policies refuse (migration 20261102120000_mcp_oauth.sql).
-# Production: docs/deployment.md, "OAuth server (nomcp)".
+# Production: docs/deployment.md, "OAuth server (MCP servers)".
 [auth.oauth_server]
 enabled = true
 authorization_url_path = "/oauth/consent"
