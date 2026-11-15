@@ -11,6 +11,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { getAuthProfiles } from "../lib/authEmails.js";
 import { ConflictError, DatabaseError } from "../lib/errors.js";
+import { decryptMemberForResponse } from "../lib/memberDecryption.js";
 import {
 	BOARD_MEMBER_ROLE,
 	buildDuplicateMemberNameKey,
@@ -341,28 +342,6 @@ const RoleHistoryCreateSchema = z
 		},
 	);
 
-// Shapes a member row that was just written for the admin response. A field
-// that cannot be decrypted (for example one encrypted with a key that is no
-// longer configured) is returned blank and logged. Decrypting strictly here
-// turned an already-committed save into a 500, so admins saw "Internal Server
-// Error" for a change that had gone through.
-function decryptSavedMember<T extends Record<string, unknown>>(
-	member: T,
-	userId: string,
-	request: FastifyRequest,
-): T {
-	return decryptRecordSafely(
-		member,
-		SENSITIVE_MEMBER_FIELDS,
-		({ field, error }) => {
-			request.log.warn(
-				{ err: error, userId, field },
-				"Failed to decrypt member field; returning blank value",
-			);
-		},
-	);
-}
-
 export async function adminRoutes(server: FastifyInstance) {
 	server.get(
 		"/admin/members",
@@ -405,15 +384,10 @@ export async function adminRoutes(server: FastifyInstance) {
 				) =>
 					rawMembers.map((member) => {
 						const profile = profileMap.get(String(member.user_id));
-						const decryptedMember = decryptRecordSafely(
+						const decryptedMember = decryptMemberForResponse(
 							member,
-							SENSITIVE_MEMBER_FIELDS,
-							({ field, error }) => {
-								request.log.warn(
-									{ err: error, userId: member.user_id, field },
-									"Failed to decrypt member field; returning blank value",
-								);
-							},
+							member.user_id,
+							request,
 						);
 						return {
 							...decryptedMember,
@@ -1152,7 +1126,7 @@ export async function adminRoutes(server: FastifyInstance) {
 			}
 
 			return {
-				...decryptSavedMember(updatedMember, userId, request),
+				...decryptMemberForResponse(updatedMember, userId, request),
 				access_role: parsed.data.access_role,
 			};
 		},
@@ -1215,7 +1189,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return decryptSavedMember(data, userId, request);
+			return decryptMemberForResponse(data, userId, request);
 		},
 	);
 
@@ -1281,7 +1255,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return decryptSavedMember(data, userId, request);
+			return decryptMemberForResponse(data, userId, request);
 		},
 	);
 

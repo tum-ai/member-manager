@@ -12,6 +12,7 @@ import {
 	isLocalAdminBootstrapEnabled,
 	isLocalAdminEmail,
 } from "../lib/localAdmin.js";
+import { decryptMemberForResponse } from "../lib/memberDecryption.js";
 import {
 	DEFAULT_MEMBER_ROLE,
 	DEFAULT_MEMBER_STATUS,
@@ -22,7 +23,6 @@ import {
 	resolveDepartmentForMemberRole,
 } from "../lib/memberMetadata.js";
 import {
-	decryptRecordSafely,
 	encryptRecord,
 	SENSITIVE_MEMBER_FIELDS,
 	SENSITIVE_SEPA_FIELDS,
@@ -401,16 +401,7 @@ export async function memberRoutes(server: FastifyInstance) {
 					throw new DatabaseError();
 				}
 				return {
-					...decryptRecordSafely(
-						memberData,
-						SENSITIVE_MEMBER_FIELDS,
-						({ field, error }) => {
-							request.log.warn(
-								{ err: error, userId: body.user_id, field },
-								"Failed to decrypt member field; returning blank value",
-							);
-						},
-					),
+					...decryptMemberForResponse(memberData, body.user_id, request),
 					email: user.email ?? "",
 				};
 			}
@@ -458,16 +449,7 @@ export async function memberRoutes(server: FastifyInstance) {
 			}
 
 			return {
-				...decryptRecordSafely(
-					data,
-					SENSITIVE_MEMBER_FIELDS,
-					({ field, error }) => {
-						request.log.warn(
-							{ err: error, userId: body.user_id, field },
-							"Failed to decrypt member field; returning blank value",
-						);
-					},
-				),
+				...decryptMemberForResponse(data, body.user_id, request),
 				email: user.email ?? "",
 			};
 		},
@@ -556,16 +538,7 @@ export async function memberRoutes(server: FastifyInstance) {
 				const profile = (await getAuthProfiles([userId])).get(userId);
 
 				return {
-					...decryptRecordSafely(
-						data,
-						SENSITIVE_MEMBER_FIELDS,
-						({ field, error }) => {
-							request.log.warn(
-								{ err: error, userId, field },
-								"Failed to decrypt member field; returning blank value",
-							);
-						},
-					),
+					...decryptMemberForResponse(data, userId, request),
 					email: profile?.email ?? "",
 					// Slack profile picture (from auth metadata) so the profile page
 					// can render the member's avatar.
@@ -734,16 +707,7 @@ export async function memberRoutes(server: FastifyInstance) {
 				const profile = (await getAuthProfiles([userId])).get(userId);
 
 				return {
-					...decryptRecordSafely(
-						data,
-						SENSITIVE_MEMBER_FIELDS,
-						({ field, error }) => {
-							request.log.warn(
-								{ err: error, userId, field },
-								"Failed to decrypt member field; returning blank value",
-							);
-						},
-					),
+					...decryptMemberForResponse(data, userId, request),
 					email: profile?.email ?? "",
 					// Slack profile picture (from auth metadata) so the profile page
 					// can render the member's avatar.
