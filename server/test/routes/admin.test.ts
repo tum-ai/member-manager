@@ -19,6 +19,10 @@ import { mockDatabase, mockSupabaseErrors } from "../mocks/supabase.js";
 
 const MERGE_TARGET_ID = "11111111-1111-4111-8111-111111111111";
 const MERGE_SOURCE_ID = "22222222-2222-4222-8222-222222222222";
+// Shaped like an `enc-v1:` value, but no configured key can decrypt it. Stands
+// in for a field encrypted with a key that is no longer available.
+const UNDECRYPTABLE_VALUE =
+	"enc-v1:AAAAAAAAAAAAAAAA:BBBBBBBBBBBBBBBBBBBBBB:CCCC";
 
 function makeMergeMember(
 	userId: string,
@@ -681,6 +685,26 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(payload.member_role, "Team Lead");
 		});
 
+		test("saves the role when a sensitive field cannot be decrypted", async () => {
+			resetDatabase();
+			mockDatabase.members[0].city = UNDECRYPTABLE_VALUE;
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/role`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ member_role: "Team Lead" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.member_role, "Team Lead");
+			assert.strictEqual(payload.city, "");
+		});
+
 		test("president and vice-president clear their operational department", async () => {
 			resetDatabase();
 			const response = await app.inject({
@@ -791,6 +815,26 @@ describe("Admin Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			const payload = JSON.parse(response.payload);
 			assert.strictEqual(payload.department, "Community");
+		});
+
+		test("saves the department when a sensitive field cannot be decrypted", async () => {
+			resetDatabase();
+			mockDatabase.members[0].city = UNDECRYPTABLE_VALUE;
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}/department`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ department: "Community" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.department, "Community");
+			assert.strictEqual(payload.city, "");
 		});
 
 		test("accepts Research as a member department", async () => {
@@ -981,6 +1025,41 @@ describe("Admin Routes", async () => {
 				(entry) => entry.user_id === testUserIds.user,
 			);
 			assert.strictEqual(updatedRole?.role, "admin");
+		});
+
+		// The write used to succeed and the response then failed with a 500,
+		// because building the response decrypted the row strictly.
+		test("reports success when a sensitive field cannot be decrypted", async () => {
+			resetDatabase();
+			mockDatabase.members[0].city = UNDECRYPTABLE_VALUE;
+
+			const response = await app.inject({
+				method: "PATCH",
+				url: `/api/admin/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.admin),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					department: "Community",
+					member_role: "Member",
+					board_role: null,
+					member_status: "alumni",
+					access_role: "user",
+					batch: "WS23",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const payload = JSON.parse(response.payload);
+			assert.strictEqual(payload.member_status, "alumni");
+			assert.strictEqual(payload.city, "");
+			const updatedMember = mockDatabase.members.find(
+				(entry) => entry.user_id === testUserIds.user,
+			);
+			assert.strictEqual(updatedMember?.member_status, "alumni");
+			// The stored ciphertext is left alone; only the response is blanked.
+			assert.strictEqual(updatedMember?.city, UNDECRYPTABLE_VALUE);
 		});
 
 		test("admin can assign a research member to a research project", async () => {

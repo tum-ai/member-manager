@@ -11,6 +11,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { getAuthProfiles } from "../lib/authEmails.js";
 import { ConflictError, DatabaseError } from "../lib/errors.js";
+import { decryptMemberForResponse } from "../lib/memberDecryption.js";
 import {
 	BOARD_MEMBER_ROLE,
 	buildDuplicateMemberNameKey,
@@ -28,7 +29,6 @@ import {
 	statusToLegacyActive,
 } from "../lib/memberMetadata.js";
 import {
-	decryptRecord,
 	decryptRecordSafely,
 	SENSITIVE_MEMBER_FIELDS,
 	SENSITIVE_SEPA_FIELDS,
@@ -384,15 +384,10 @@ export async function adminRoutes(server: FastifyInstance) {
 				) =>
 					rawMembers.map((member) => {
 						const profile = profileMap.get(String(member.user_id));
-						const decryptedMember = decryptRecordSafely(
+						const decryptedMember = decryptMemberForResponse(
 							member,
-							SENSITIVE_MEMBER_FIELDS,
-							({ field, error }) => {
-								request.log.warn(
-									{ err: error, userId: member.user_id, field },
-									"Failed to decrypt member field; returning blank value",
-								);
-							},
+							member.user_id,
+							request,
 						);
 						return {
 							...decryptedMember,
@@ -1131,7 +1126,7 @@ export async function adminRoutes(server: FastifyInstance) {
 			}
 
 			return {
-				...decryptRecord(updatedMember, SENSITIVE_MEMBER_FIELDS),
+				...decryptMemberForResponse(updatedMember, userId, request),
 				access_role: parsed.data.access_role,
 			};
 		},
@@ -1194,7 +1189,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return decryptRecord(data, SENSITIVE_MEMBER_FIELDS);
+			return decryptMemberForResponse(data, userId, request);
 		},
 	);
 
@@ -1260,7 +1255,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return decryptRecord(data, SENSITIVE_MEMBER_FIELDS);
+			return decryptMemberForResponse(data, userId, request);
 		},
 	);
 
