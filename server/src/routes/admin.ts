@@ -28,7 +28,6 @@ import {
 	statusToLegacyActive,
 } from "../lib/memberMetadata.js";
 import {
-	decryptRecord,
 	decryptRecordSafely,
 	SENSITIVE_MEMBER_FIELDS,
 	SENSITIVE_SEPA_FIELDS,
@@ -341,6 +340,28 @@ const RoleHistoryCreateSchema = z
 			path: ["ended_at"],
 		},
 	);
+
+// Shapes a member row that was just written for the admin response. A field
+// that cannot be decrypted (for example one encrypted with a key that is no
+// longer configured) is returned blank and logged. Decrypting strictly here
+// turned an already-committed save into a 500, so admins saw "Internal Server
+// Error" for a change that had gone through.
+function decryptSavedMember<T extends Record<string, unknown>>(
+	member: T,
+	userId: string,
+	request: FastifyRequest,
+): T {
+	return decryptRecordSafely(
+		member,
+		SENSITIVE_MEMBER_FIELDS,
+		({ field, error }) => {
+			request.log.warn(
+				{ err: error, userId, field },
+				"Failed to decrypt member field; returning blank value",
+			);
+		},
+	);
+}
 
 export async function adminRoutes(server: FastifyInstance) {
 	server.get(
@@ -1131,7 +1152,7 @@ export async function adminRoutes(server: FastifyInstance) {
 			}
 
 			return {
-				...decryptRecord(updatedMember, SENSITIVE_MEMBER_FIELDS),
+				...decryptSavedMember(updatedMember, userId, request),
 				access_role: parsed.data.access_role,
 			};
 		},
@@ -1194,7 +1215,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return decryptRecord(data, SENSITIVE_MEMBER_FIELDS);
+			return decryptSavedMember(data, userId, request);
 		},
 	);
 
@@ -1260,7 +1281,7 @@ export async function adminRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			return decryptRecord(data, SENSITIVE_MEMBER_FIELDS);
+			return decryptSavedMember(data, userId, request);
 		},
 	);
 
