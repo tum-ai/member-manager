@@ -236,6 +236,122 @@ describe("Contract Routes", async () => {
 		assert.match(JSON.parse(response.payload).error, /not configured/);
 	});
 
+	// A ready DOCX version for the seeded submission (or another one), enough for
+	// the signing routes to pick it as the parent of the signed version.
+	function pushReadyDocxVersion(id: string, submissionId: string): void {
+		mockDatabase.contract_document_versions.push({
+			id,
+			submission_id: submissionId,
+			renderer_engine: "docx",
+			artifact_status: "ready",
+			source: "generated",
+		});
+	}
+
+	function makeSeededSubmissionDocx(): Record<string, unknown> {
+		const submission = mockDatabase.contract_submissions.find(
+			(row) => row.id === SUBMISSION_ID,
+		);
+		assert.ok(submission);
+		submission.renderer_engine = "docx";
+		submission.form_data = {};
+		submission.form_data_encrypted = encryptContractJson({
+			partner_company_name: "Partner GmbH",
+			partner_contact_email: "partner@example.com",
+		});
+		return submission;
+	}
+
+	test("public board signing needs the partner's signature on record", async () => {
+		resetDatabase();
+		const versionId = "44444444-4444-4444-8444-444444444444";
+		pushReadyDocxVersion(versionId, SUBMISSION_ID);
+		const submission = makeSeededSubmissionDocx();
+		submission.status = "partner_signed";
+		submission.signed_at = null;
+		submission.admin_signed_at = null;
+		submission.active_document_version_id = versionId;
+		submission.board_signature_token = "unsigned-board-token";
+		submission.board_signature_token_expires_at = "2099-01-01T00:00:00Z";
+
+		const pageResponse = await app.inject({
+			method: "GET",
+			url: "/api/contracts/board-sign/unsigned-board-token",
+		});
+		assert.equal(pageResponse.statusCode, 409);
+
+		const signResponse = await app.inject({
+			method: "POST",
+			url: "/api/contracts/board-sign/unsigned-board-token",
+			headers: { "content-type": "application/json" },
+			payload: JSON.stringify({
+				signature_data: SIGNATURE_DATA_URL,
+				signer_name: "Board Signer",
+			}),
+		});
+		assert.equal(signResponse.statusCode, 409);
+		assert.equal(mockDatabase.contract_render_jobs.length, 0);
+		assert.equal(submission.admin_signer_name ?? null, null);
+	});
+
+	test("partner signing refuses a document version of another contract", async () => {
+		resetDatabase();
+		const foreignVersionId = "55555555-5555-4555-8555-555555555555";
+		pushReadyDocxVersion(
+			foreignVersionId,
+			"66666666-6666-4666-8666-666666666666",
+		);
+		const submission = makeSeededSubmissionDocx();
+		submission.status = "sent_to_partner";
+		submission.signed_at = null;
+		submission.signature_token = "foreign-version-token";
+		submission.signature_token_expires_at = "2099-01-01T00:00:00Z";
+		submission.sent_document_version_id = foreignVersionId;
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/contracts/sign/foreign-version-token",
+			headers: { "content-type": "application/json" },
+			payload: JSON.stringify({
+				signature_data: SIGNATURE_DATA_URL,
+				signer_name: "Partner Signer",
+			}),
+		});
+		assert.equal(response.statusCode, 400);
+		assert.match(JSON.parse(response.payload).error, /does not belong/);
+		assert.equal(mockDatabase.contract_render_jobs.length, 0);
+		assert.equal(mockDatabase.contract_document_versions.length, 1);
+	});
+
+	test("public board signing refuses a document version of another contract", async () => {
+		resetDatabase();
+		const foreignVersionId = "77777777-7777-4777-8777-777777777777";
+		pushReadyDocxVersion(
+			foreignVersionId,
+			"88888888-8888-4888-8888-888888888888",
+		);
+		const submission = makeSeededSubmissionDocx();
+		submission.status = "partner_signed";
+		submission.signed_at = "2026-05-28T10:00:00Z";
+		submission.admin_signed_at = null;
+		submission.active_document_version_id = foreignVersionId;
+		submission.board_signature_token = "foreign-board-token";
+		submission.board_signature_token_expires_at = "2099-01-01T00:00:00Z";
+
+		const response = await app.inject({
+			method: "POST",
+			url: "/api/contracts/board-sign/foreign-board-token",
+			headers: { "content-type": "application/json" },
+			payload: JSON.stringify({
+				signature_data: SIGNATURE_DATA_URL,
+				signer_name: "Board Signer",
+			}),
+		});
+		assert.equal(response.statusCode, 400);
+		assert.match(JSON.parse(response.payload).error, /does not belong/);
+		assert.equal(mockDatabase.contract_render_jobs.length, 0);
+	});
+
 	test("returns a clear retired response for historical text PDFs", async () => {
 		resetDatabase();
 		const response = await app.inject({

@@ -311,6 +311,11 @@ async function renderSignature(
 		"contract_document_versions",
 		version.parent_document_version_id,
 	);
+	if (parent.submission_id !== version.submission_id) {
+		throw new ValidationError(
+			"Signature render job's source version belongs to another contract",
+		);
+	}
 	const pdf = await downloadArtifactFromRow(parent, "pdf");
 	const anchors = parseStoredContractSignatureAnchors(parent.signature_anchors);
 	const stamped = await stampContractPdfSignature({
@@ -702,8 +707,15 @@ export async function hydrateDocxSubmissions(
 	});
 }
 
+/**
+ * Loads a ready DOCX document version. Pass `submissionId` whenever the
+ * version id comes from a submission row: the version must then belong to
+ * that submission, so a row pointing at another contract's document can't
+ * have that document signed, sent or finalized under its name.
+ */
 export async function getReadyDocxVersion(
 	versionId: unknown,
+	submissionId?: string,
 ): Promise<Record<string, unknown>> {
 	if (typeof versionId !== "string") {
 		throw new ValidationError("Contract document is not ready");
@@ -714,6 +726,11 @@ export async function getReadyDocxVersion(
 		version.artifact_status !== "ready"
 	) {
 		throw new ValidationError("Contract document is not ready");
+	}
+	if (submissionId !== undefined && version.submission_id !== submissionId) {
+		throw new ValidationError(
+			"Contract document does not belong to this contract",
+		);
 	}
 	return version;
 }

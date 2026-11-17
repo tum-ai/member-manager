@@ -620,7 +620,10 @@ export async function contractRoutes(server: FastifyInstance) {
 				});
 			}
 			if (body.status === "approved") {
-				await getReadyDocxVersion(current?.active_document_version_id);
+				await getReadyDocxVersion(
+					current?.active_document_version_id,
+					request.params.id,
+				);
 			}
 			const submissionUrl = `${getAppBaseUrl(request)}/contracts/submissions/${request.params.id}`;
 			// Record the status event + notify legal/creator once the final row is
@@ -792,6 +795,7 @@ export async function contractRoutes(server: FastifyInstance) {
 			if (current && shouldSendToPartner) {
 				const readyVersion = await getReadyDocxVersion(
 					current.active_document_version_id,
+					request.params.id,
 				);
 				update.sent_document_version_id = readyVersion.id;
 			}
@@ -873,6 +877,7 @@ export async function contractRoutes(server: FastifyInstance) {
 				try {
 					const sentVersion = await getReadyDocxVersion(
 						submission.sent_document_version_id,
+						request.params.id,
 					);
 					const pdf = await downloadReadyVersionPdf(sentVersion.id);
 					const anchors = parseStoredContractSignatureAnchors(

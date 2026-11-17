@@ -363,6 +363,104 @@ describe("Member Change Request Routes", async () => {
 		assert.strictEqual(updatedMember?.department, null);
 	});
 
+	// A row inserted outside the API could carry member columns the admin card
+	// never shows. Approving it must not write them (or anything else).
+	test("approval refuses stored changes outside the allowed fields", async () => {
+		resetDatabase();
+		const member = mockDatabase.members.find(
+			(entry) => entry.user_id === testUserIds.user,
+		);
+		if (!member) throw new Error("Expected test member to exist");
+		member.member_status = "alumni";
+		member.active = false;
+		const originalMember = structuredClone(member);
+		mockDatabase.member_change_requests.push({
+			id: "request-smuggled",
+			user_id: testUserIds.user,
+			status: "pending",
+			changes: {
+				degree: "M.Sc. Informatics",
+				educational_course_role: "administrator",
+				board_role: "Board Member",
+				active: true,
+			},
+			reason: "Finished my master",
+			created_at: "2026-04-24T10:00:00Z",
+		});
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: "/api/admin/member-change-requests/request-smuggled",
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ decision: "approved" }),
+		});
+
+		assert.strictEqual(response.statusCode, 400);
+		assert.match(response.payload, /can't be applied/);
+		assert.deepStrictEqual(
+			mockDatabase.members.find((entry) => entry.user_id === testUserIds.user),
+			originalMember,
+		);
+		assert.strictEqual(
+			mockDatabase.member_change_requests.find(
+				(entry) => entry.id === "request-smuggled",
+			)?.status,
+			"pending",
+		);
+	});
+
+	test("approval refuses a stored status outside the allowed values", async () => {
+		resetDatabase();
+		mockDatabase.member_change_requests.push({
+			id: "request-bad-status",
+			user_id: testUserIds.user,
+			status: "pending",
+			changes: { member_status: "superuser" },
+			reason: null,
+			created_at: "2026-04-24T10:00:00Z",
+		});
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: "/api/admin/member-change-requests/request-bad-status",
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ decision: "approved" }),
+		});
+
+		assert.strictEqual(response.statusCode, 400);
+	});
+
+	test("a request with unsupported fields can still be rejected", async () => {
+		resetDatabase();
+		mockDatabase.member_change_requests.push({
+			id: "request-smuggled-reject",
+			user_id: testUserIds.user,
+			status: "pending",
+			changes: { degree: "M.Sc. Informatics", board_role: "Board Member" },
+			reason: null,
+			created_at: "2026-04-24T10:00:00Z",
+		});
+
+		const response = await app.inject({
+			method: "PATCH",
+			url: "/api/admin/member-change-requests/request-smuggled-reject",
+			headers: {
+				...authHeaders(testTokens.admin),
+				"content-type": "application/json",
+			},
+			payload: JSON.stringify({ decision: "rejected" }),
+		});
+
+		assert.strictEqual(response.statusCode, 200);
+		assert.strictEqual(JSON.parse(response.payload).status, "rejected");
+	});
+
 	test("admin can reject a member change request without mutating the member", async () => {
 		resetDatabase();
 		mockDatabase.member_change_requests.push({

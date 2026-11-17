@@ -13,23 +13,28 @@ import { getSupabase } from "../lib/supabase.js";
 import { authenticate, requireAdmin } from "../middleware/auth.js";
 import type { AuthenticatedRequest } from "../types/index.js";
 
-const ChangeFieldsSchema = z
-	.object({
-		department: z
-			.string()
-			.nullish()
-			.transform(normalizeNullableText)
-			.optional(),
-		member_role: memberRoleSchema.optional(),
-		member_status: memberStatusSchema.optional(),
-		degree: z.string().nullish().transform(normalizeNullableText).optional(),
-		school: z.string().nullish().transform(normalizeNullableText).optional(),
-		batch: z.string().nullish().transform(normalizeNullableText).optional(),
-	})
-	.refine(
-		(changes) => Object.values(changes).some((value) => value !== undefined),
-		"At least one requested change is required",
-	);
+/** The member fields a change request may touch. */
+const ChangeFieldsObjectSchema = z.object({
+	department: z.string().nullish().transform(normalizeNullableText).optional(),
+	member_role: memberRoleSchema.optional(),
+	member_status: memberStatusSchema.optional(),
+	degree: z.string().nullish().transform(normalizeNullableText).optional(),
+	school: z.string().nullish().transform(normalizeNullableText).optional(),
+	batch: z.string().nullish().transform(normalizeNullableText).optional(),
+});
+
+const ChangeFieldsSchema = ChangeFieldsObjectSchema.refine(
+	(changes) => Object.values(changes).some((value) => value !== undefined),
+	"At least one requested change is required",
+);
+
+/**
+ * Approval re-validates the stored `changes` before writing them to
+ * `members` with the service role. The admin review card only shows the
+ * fields above, so a stored key outside them must never be applied: it would
+ * change a column (a role, `active`) the admin never saw.
+ */
+const StoredChangeFieldsSchema = ChangeFieldsObjectSchema.strict();
 
 const CreateChangeRequestSchema = z.object({
 	changes: ChangeFieldsSchema,
@@ -224,6 +229,20 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 			}
 
 			if (review.decision === "approved") {
+				const storedChanges = StoredChangeFieldsSchema.safeParse(
+					changeRequest.changes,
+				);
+				if (!storedChanges.success) {
+					request.log.warn(
+						{ requestId },
+						"Refused to apply a change request with unsupported fields",
+					);
+					return reply.status(400).send({
+						error:
+							"This change request contains changes that can't be applied. Reject it instead.",
+					});
+				}
+
 				const { data: existingMember, error: memberLookupError } =
 					await getSupabase()
 						.from("members")
@@ -239,15 +258,13 @@ export async function changeRequestRoutes(server: FastifyInstance) {
 					throw new DatabaseError();
 				}
 
-				const rawChanges = changeRequest.changes;
-				const requestedStatus =
-					typeof rawChanges.member_status === "string"
-						? memberStatusSchema.parse(rawChanges.member_status)
-						: undefined;
-				const requestedRole =
-					typeof rawChanges.member_role === "string"
-						? rawChanges.member_role
-						: undefined;
+				const rawChanges: Record<string, unknown> = Object.fromEntries(
+					Object.entries(storedChanges.data).filter(
+						([, value]) => value !== undefined,
+					),
+				);
+				const requestedStatus = storedChanges.data.member_status;
+				const requestedRole = storedChanges.data.member_role;
 				const hasRequestedDepartment =
 					typeof rawChanges.department === "string" ||
 					(requestedRole !== undefined && rawChanges.department === null);
