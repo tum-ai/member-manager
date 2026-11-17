@@ -530,8 +530,8 @@ export async function createPlanItemPostingMatch(
 				"Posting direction does not match the plan item direction",
 			);
 		}
-		// FR-M8: a disabled Planposten is excluded from every plan total, so
-		// letting it absorb a posting would hide that money from the forecast.
+		// A disabled plan item is excluded from every plan total, so letting it
+		// absorb a posting would hide that money from the forecast.
 		if (message.includes("plan item is disabled")) {
 			throw new ConflictError(
 				"This plan item is disabled and cannot take new matches",
@@ -545,9 +545,9 @@ export async function createPlanItemPostingMatch(
 	return parseMatch(data);
 }
 
-// Goes through the RPC rather than a plain delete so the Planposten's status
-// walks back with the match that is being detached (FR-M7) — a plain delete
-// would leave an item marked "spent" with nothing matched against it.
+// Goes through the RPC rather than a plain delete so the plan item's status
+// walks back with the match that is being detached — a plain delete would
+// leave an item marked "spent" with nothing matched against it.
 export async function deletePlanItemPostingMatch(
 	matchId: string,
 ): Promise<void> {

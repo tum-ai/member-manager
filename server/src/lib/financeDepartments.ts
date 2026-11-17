@@ -43,7 +43,7 @@ export function buildMappingLookup(
 	return lookup;
 }
 
-// The sub-team label a cost location maps to (2nd Kostenstelle digit), or null.
+// The sub-team label a cost location maps to (2nd cost-location digit), or null.
 // Used by the T-account to group a department's direct postings per sub-team.
 //
 // `effectiveDepartment` is the department the posting is being rendered under
@@ -426,7 +426,7 @@ export async function loadDepartmentMappings(): Promise<
 }
 
 // Upsert a single mapping. Keyed on the normalized cost location so the same
-// Kostenstelle can never end up split across padded/unpadded rows.
+// location can never end up split across padded/unpadded rows.
 export async function upsertDepartmentMapping(input: {
 	costLocation: string;
 	department: string | null;
@@ -615,7 +615,7 @@ export function aggregateByDepartment(
 
 // Build the rows the mapping editor shows: every stored mapping unioned with
 // the cost locations actually seen in the postings, enriched with usage stats
-// so the LnF can tell which Kostenstellen still need assigning.
+// so the LnF can tell which cost locations still need assigning.
 export function buildMappingRows(
 	transactions: BuchhaltungsButlerTransaction[],
 	mappings: FinanceDepartmentMapping[],

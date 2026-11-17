@@ -71,8 +71,8 @@ export function useFinanceTAccount({
 		});
 
 	// The department's projects for this period back the "add to project" dialog
-	// (FR-L2) and are refetched by the same invalidation as the T-account, so a
-	// project created from the T-view appears in the picker immediately.
+	// and are refetched by the same invalidation as the T-account, so a project
+	// created from the T-view appears in the picker immediately.
 	const projectsQuery = useQuery<FinanceProjectsResponse>({
 		queryKey: [
 			FINANCE_MANAGEMENT_QUERY_KEYS.projects,

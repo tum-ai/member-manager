@@ -10,8 +10,8 @@ import type {
 import { apiClient } from "@/lib/apiClient";
 import { FINANCE_T_ACCOUNT_QUERY_KEY } from "./useFinanceTAccount";
 
-// Everything the Planposten dialog collects. `id` present = edit in place
-// (FR-M2), absent = create on the node the dialog was opened from (FR-M1).
+// Everything the plan-item dialog collects. `id` present = edit in place,
+// absent = create on the node the dialog was opened from.
 export interface TAccountPlanItemInput {
 	id: string | null;
 	label: string;
@@ -98,10 +98,10 @@ export function useFinanceTAccountPlanActions({
 			reportError(error, "Planposten konnte nicht gespeichert werden."),
 	});
 
-	// FR-M3. Optimistic because the flip is the whole point of the control: the
-	// row must mute (and leave the plan subtotals) the moment it is clicked. The
-	// client recomputes every column subtotal from the lines, so patching the
-	// flag in the cache is enough to keep them honest until the refetch lands.
+	// Optimistic because the flip is the whole point of the control: the row must
+	// mute (and leave the plan subtotals) the moment it is clicked. The client
+	// recomputes every column subtotal from the lines, so patching the flag in
+	// the cache is enough to keep them honest until the refetch lands.
 	const toggleActiveMutation = useMutation({
 		mutationFn: async (input: { planItemId: string; isActive: boolean }) =>
 			await putPlanItem(input.planItemId, { is_active: input.isActive }),
@@ -134,8 +134,8 @@ export function useFinanceTAccountPlanActions({
 					: "Planposten deaktiviert.",
 				"success",
 				{
-					// Parking a Planposten is one click, so undoing it has to be one
-					// click too, right where the confirmation appears (FR-M3).
+					// Parking a plan item is one click, so undoing it has to be one click
+					// too, right where the confirmation appears.
 					action: {
 						label: "Rückgängig",
 						onClick: () => {
@@ -151,9 +151,9 @@ export function useFinanceTAccountPlanActions({
 		},
 	});
 
-	// FR-M6: the plan was an estimate, the invoices are the truth. The database
-	// refuses a planned amount below the matched total, so setting it *to* that
-	// total is always allowed.
+	// The plan was an estimate, the invoices are the truth. The database refuses
+	// a planned amount below the matched total, so setting it *to* that total is
+	// always allowed.
 	const correctToActualMutation = useMutation({
 		mutationFn: async (input: { planItemId: string; matchedAmount: number }) =>
 			await putPlanItem(input.planItemId, {
@@ -185,9 +185,9 @@ export function useFinanceTAccountPlanActions({
 			reportError(error, "Zuordnung konnte nicht gespeichert werden."),
 	});
 
-	// The plan tab used to own this; with that tab gone (FR-O) the T-view is the
-	// only place a Planposten can be removed, so the capability moves here rather
-	// than disappearing. Parking (FR-M3) stays the softer, reversible option.
+	// The plan tab used to own this; with that tab gone the T-view is the only
+	// place a plan item can be removed, so the capability moves here rather than
+	// disappearing. Parking stays the softer, reversible option.
 	const deleteMutation = useMutation({
 		mutationFn: async (planItemId: string) =>
 			await apiClient(
@@ -209,7 +209,7 @@ export function useFinanceTAccountPlanActions({
 				{ method: "DELETE" },
 			),
 		onSuccess: () => {
-			// The server walks the status back with the match (FR-M7).
+			// The server walks the status back with the match.
 			showToast("Zuordnung entfernt.", "success");
 			invalidate();
 		},
@@ -242,8 +242,8 @@ export function useFinanceTAccountPlanActions({
 }
 
 // Flip `is_active` on one plan line wherever it appears, leaving the rest of the
-// response untouched. Server-computed group saldi and the department totals stay
-// as they were until the refetch — the columns the user is looking at are
+// response untouched. Server-computed group balances and the department totals
+// stay as they were until the refetch — the columns the user is looking at are
 // derived client-side and update immediately.
 function patchPlanItemActive(
 	response: FinanceTAccountResponse,

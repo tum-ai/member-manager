@@ -103,9 +103,9 @@ export async function createPlanItem(
 		p_expected_month: input.expected_month ?? null,
 		p_status: input.status ?? "planned",
 		p_note: input.note ?? null,
-		// FR-M1: a Planposten created on a T-view node lands in that node's
-		// project straight away. Previously dropped here, so only template
-		// assignment could ever set it.
+		// A plan item created on a T-view node lands in that node's project
+		// straight away. Previously dropped here, so only template assignment
+		// could ever set it.
 		p_project_id: input.project_id ?? null,
 		p_is_active: input.is_active ?? true,
 		p_vat_rate: input.vat_rate ?? null,
@@ -128,7 +128,7 @@ export async function createPlanItem(
 // Resolve an optional update field: absent means "leave as it is", an explicit
 // null means "clear it". The RPC assigns most columns unconditionally, so
 // without this an update that omits a field would wipe it — which is exactly
-// how a Planposten edited from the plan tab used to lose its project and its
+// how a plan item edited from the plan tab used to lose its project and its
 // VAT rate (both are omitted by that form).
 function keepUnlessProvided<T>(next: T | undefined, current: T): T {
 	return next === undefined ? current : next;
@@ -204,7 +204,7 @@ function round(value: number): number {
 // Planned (Σ line items) vs budget (Σ ceilings) vs actual (Σ gross expenses)
 // for the scope. The unmapped bucket never counts toward actual.
 //
-// Disabled Planposten (FR-M3) are excluded from every planned figure: disabling
+// Disabled plan items are excluded from every planned figure: disabling
 // is how a department parks an item it is not going to spend, so counting it
 // would keep inflating the plan against the budget ceiling.
 export function computePlanTotals(

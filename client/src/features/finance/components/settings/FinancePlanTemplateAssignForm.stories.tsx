@@ -61,7 +61,7 @@ export default meta;
 
 type Story = StoryObj<typeof meta>;
 
-// Applying a template moved here when the project table went away (FR-O).
+// Applying a template moved here when the project table went away.
 export const AssignsATemplate: Story = {
 	args: {
 		period,

@@ -29,8 +29,8 @@ describe("DetailField", () => {
 		expect(screen.getByText("RE-2026-0042")).toBeInTheDocument();
 	});
 
-	// An unknown value and a zero value are different facts (FR-N5): a missing
-	// one must read as an em dash, never as "0".
+	// An unknown value and a zero value are different facts: a missing one must
+	// read as an em dash, never as "0".
 	it("falls back to an em dash for a missing value", () => {
 		renderWithClient(
 			<DetailList>
@@ -71,7 +71,7 @@ describe("TAccountMatchList", () => {
 		expect(screen.getByText(/2\.380,00/)).toBeInTheDocument();
 	});
 
-	// A read-only viewer sees the match but cannot break it (FR-K6).
+	// A read-only viewer sees the match but cannot break it.
 	it("omits the detach button without an onDetach handler", () => {
 		renderWithClient(<TAccountMatchList matches={[match]} emptyLabel="leer" />);
 

@@ -67,7 +67,7 @@ const baseArgs = {
 };
 
 // The inbox as LnF sees it: both kinds of request in one place, with the open
-// count stated up front (FR-O).
+// count stated up front.
 export const OpenRequests: Story = {
 	args: {
 		...baseArgs,

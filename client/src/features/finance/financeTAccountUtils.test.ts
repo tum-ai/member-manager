@@ -19,7 +19,7 @@ import {
 const MAKEATHON = "11111111-1111-4111-8111-111111111111";
 const HACKATHON = "22222222-2222-4222-8222-222222222222";
 
-describe("buildTAccountTree amount mode (FR-N4)", () => {
+describe("buildTAccountTree amount mode", () => {
 	// 119 gross / 100 net on the expense side, 11.900 / 10.000 on the income
 	// side — the classic 19 % pair, so every figure below is checkable by hand.
 	function groups() {
@@ -71,7 +71,7 @@ describe("buildTAccountTree amount mode (FR-N4)", () => {
 		expect(node.planSaldo).toBe(10_591);
 	});
 
-	it("switches every amount, subtotal and saldo to net (FR-N4)", () => {
+	it("switches every amount, subtotal and balance to net", () => {
 		const [node] = buildTAccountTree(groups(), { amountMode: "net" });
 
 		// Both directions, booked and planned.
@@ -104,9 +104,9 @@ describe("buildTAccountTree amount mode (FR-N4)", () => {
 		expect(net.expenseLines[0]?.amountMode).toBe("net");
 	});
 
-	it("measures match capacity gross in both modes (FR-N4 is display only)", () => {
-		// A €119 invoice and a €119 Planposten, both 19 % VAT. `matched_amount` is
-		// gross whatever the T-view shows, so switching to Netto must not offer a
+	it("measures match capacity gross in both modes", () => {
+		// A €119 invoice and a €119 plan item, both 19 % VAT. `matched_amount` is
+		// gross whatever the T-view shows, so switching to net mode must not offer a
 		// €100 match: that would save €100 gross and strand €19 that no longer
 		// reads as open.
 		const matchable = () => [
@@ -262,7 +262,7 @@ describe("collectMatchCandidates", () => {
 						label: "Recruiting",
 						plan_item_id: "plan-recruiting",
 					}),
-					// Parked: refuses matches server-side (FR-M8), so never offered.
+					// Parked: refuses matches server-side, so never offered.
 					line({
 						kind: "plan",
 						amount: 500,
@@ -284,7 +284,7 @@ describe("collectMatchCandidates", () => {
 		]);
 	}
 
-	it("offers open invoices and active Planposten with their open amounts", () => {
+	it("offers open invoices and active plan item with their open amounts", () => {
 		const { planItems, postings } = collectMatchCandidates(tree());
 
 		expect(postings.map((entry) => [entry.label, entry.openAmount])).toEqual([
@@ -296,12 +296,12 @@ describe("collectMatchCandidates", () => {
 			["Recruiting", "expense"],
 			["Sponsoring (offen)", "income"],
 		]);
-		// The parked Planposten is not on offer.
+		// The parked plan item is not on offer.
 		expect(planItems.some((entry) => entry.label === "Gestrichen")).toBe(false);
 	});
 
-	it("carries the scope a match has to share (FR-M5)", () => {
-		// A Planposten can only absorb the share of a posting allocated to its own
+	it("carries the scope a match has to share", () => {
+		// A plan item can only absorb the share of a posting allocated to its own
 		// project, so both sides carry the project they belong to and the caller
 		// pairs like with like.
 		const candidates = collectMatchCandidates(
@@ -392,7 +392,7 @@ describe("collectMatchCandidates", () => {
 					],
 				}),
 			],
-			// The Makeathon Planposten is fully matched, so it has no line of its
+			// The Makeathon plan item is fully matched, so it has no line of its
 			// own: only the response-level map says which share its match spends.
 			{
 				planItems: {
@@ -462,7 +462,7 @@ describe("summarizeAllocationResults", () => {
 		expect(summary.message).toBe("2 Buchungen zugeordnet.");
 	});
 
-	it("names every skip, grouped by reason (FR-L6)", () => {
+	it("names every skip, grouped by reason", () => {
 		const summary = summarizeAllocationResults([
 			{ posting_external_id: "BB-1", applied: true, reason: null },
 			{ posting_external_id: "BB-2", applied: false, reason: "already_split" },
@@ -503,7 +503,7 @@ describe("summarizeAllocationResults", () => {
 });
 
 describe("collectSubTeamOptions", () => {
-	it("offers every sub-team folder the department already uses (FR-L4)", () => {
+	it("offers every sub-team folder the department already uses", () => {
 		const options = collectSubTeamOptions(
 			[
 				group({ project_id: null, project_name: null }),
@@ -532,7 +532,7 @@ describe("collectSubTeamOptions", () => {
 });
 
 describe("vatLabel", () => {
-	it("names the side of the ledger instead of a generic USt (FR-N2)", () => {
+	it("names the side of the ledger instead of a generic USt", () => {
 		expect(vatLabel("expense")).toBe("Vorsteuer");
 		expect(vatLabel("income")).toBe("Umsatzsteuer");
 	});
@@ -565,7 +565,8 @@ describe("buildTAccountTree", () => {
 			vatIst: 0,
 			vatPlan: 0,
 		});
-		// Ist-Saldo = booked income − booked expenses; Forecast folds in planned.
+		// The actual balance is booked income − booked expenses; the forecast folds
+		// in planned.
 		expect(node.actualSaldo).toBe(1460);
 		expect(node.planSaldo).toBe(660);
 	});
@@ -612,7 +613,7 @@ describe("buildTAccountTree", () => {
 			["actual", 15_420],
 			["plan", 1100],
 		]);
-		// Parent income Ist = own 3.000 + rolled 15.420; planned-only = 1.100.
+		// Parent booked income = own 3.000 + rolled 15.420; planned-only = 1.100.
 		expect(makeathon.incomeSummary).toEqual({
 			ist: 18_420,
 			plan: 1100,
@@ -649,7 +650,7 @@ describe("buildTAccountTree", () => {
 		expect(zeroTarget.deviation).toBeNull();
 	});
 
-	it("nests a project inside the sub-team folder that owns it (FR-L4)", () => {
+	it("nests a project inside the sub-team folder that owns it", () => {
 		const tree = buildTAccountTree([
 			group({
 				project_name: "Big Makeathon",
@@ -740,11 +741,11 @@ describe("buildTAccountTree", () => {
 		expect(ungrouped?.actualSaldo).toBe(-120);
 	});
 
-	it("sums VAT per column, booked and planned separately (FR-N3)", () => {
+	it("sums VAT per column, booked and planned separately", () => {
 		const [node] = buildTAccountTree([
 			group({
 				expense_lines: [
-					// Vorsteuer on the expense side — invisible before FR-N1.
+					// Input tax on the expense side.
 					line({ kind: "actual", amount: 119, vat_amount: 19, vat_rate: 19 }),
 					line({ kind: "actual", amount: 214, vat_amount: 14, vat_rate: 7 }),
 					line({
@@ -781,7 +782,7 @@ describe("buildTAccountTree", () => {
 		});
 	});
 
-	it("marks a fully matched Planposten as settled and stops offering it", () => {
+	it("marks a fully matched plan item as settled and stops offering it", () => {
 		// Nothing open left, but it still has to be reachable: since the plan tab
 		// retired, the T-view is the only place it can be edited from.
 		const [node] = buildTAccountTree([
@@ -811,7 +812,7 @@ describe("buildTAccountTree", () => {
 		expect(collectMatchCandidates([node]).planItems).toEqual([]);
 	});
 
-	it("keeps a disabled Planposten visible but out of every plan subtotal", () => {
+	it("keeps a disabled plan item visible but out of every plan subtotal", () => {
 		const [node] = buildTAccountTree([
 			group({
 				expense_lines: [
@@ -852,7 +853,7 @@ describe("buildTAccountTree", () => {
 		expect(node.planSaldo).toBe(-900);
 	});
 
-	it("excludes a child's disabled Planposten from the parent roll-up", () => {
+	it("excludes a child's disabled plan item from the parent roll-up", () => {
 		const tree = buildTAccountTree([
 			group({ project_id: MAKEATHON, project_name: "Makeathon" }),
 			group({
@@ -878,7 +879,7 @@ describe("buildTAccountTree", () => {
 		expect(makeathon.planSaldo).toBe(0);
 	});
 
-	it("names a Planposten that has no line of its own", () => {
+	it("names a plan item that has no line of its own", () => {
 		// Fully matched, so the server emits no plan line for it — the invoice that
 		// funds it must still show its name rather than a bare "Planposten".
 		const [node] = buildTAccountTree(
@@ -911,7 +912,7 @@ describe("buildTAccountTree", () => {
 		]);
 	});
 
-	it("resolves allocation projects and match counterparts to names (FR-K2)", () => {
+	it("resolves allocation projects and match counterparts to names", () => {
 		const [node] = buildTAccountTree([
 			group({
 				project_id: HACKATHON,
@@ -969,11 +970,11 @@ describe("buildTAccountTree", () => {
 				projectName: "Hackathon",
 			}),
 		]);
-		// A posting row names the Planposten it feeds…
+		// A posting row names the plan item it feeds…
 		expect(posting.matches.map((m) => m.label)).toEqual([
 			"Preisgeld (geplant)",
 		]);
-		// …and the Planposten names the invoice that arrived against it.
+		// …and the plan item names the invoice that arrived against it.
 		const plan = node.expenseLines[1];
 		expect(plan.matches).toEqual([
 			expect.objectContaining({ label: "Preise", amount: 2000 }),

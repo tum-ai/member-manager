@@ -35,8 +35,8 @@ function collectPostingAmounts(
 
 // Selection is scoped to the whole department view, not to one folder, so
 // invoices from different sub-teams and projects can be collected into one new
-// project (FR-K1). It is deliberately *not* derived from the query data: a
-// background refetch must not drop what the user has ticked (FR-K7).
+// project. It is deliberately *not* derived from the query data: a background
+// refetch must not drop what the user has ticked.
 export function useFinanceTAccountSelection({
 	groups,
 	department,

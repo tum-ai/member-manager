@@ -35,8 +35,8 @@ const STATUS_OPTIONS: ReadonlyArray<{
 ];
 
 // What the node (or the line) the dialog was opened from already decides. A
-// create presets the project from its folder (FR-M1); an edit carries the
-// Planposten's current values (FR-M2).
+// create presets the project from its folder; an edit carries the plan item's
+// current values.
 export interface FinancePlanItemDialogPreset {
 	id: string | null;
 	projectId: string | null;
@@ -49,7 +49,7 @@ export interface FinancePlanItemDialogPreset {
 	status: FinancePlanStatus;
 	note: string | null;
 	vatRate: number | null;
-	// A Planposten with postings matched to it cannot change direction, and the
+	// A plan item with postings matched to it cannot change direction, and the
 	// planned amount cannot go below what is already matched — the server
 	// enforces both; saying so up front beats a rejected save.
 	matchedAmount: number;
@@ -79,7 +79,7 @@ export function FinancePlanItemDialog({
 	const [note, setNote] = useState("");
 	const [error, setError] = useState<string | null>(null);
 
-	// Adopt the preset whenever a different Planposten (or a fresh create) opens
+	// Adopt the preset whenever a different plan item (or a fresh create) opens
 	// the dialog, so an edit starts from the item's own values.
 	useEffect(() => {
 		if (preset === null) return;

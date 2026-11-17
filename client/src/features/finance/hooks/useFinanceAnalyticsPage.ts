@@ -14,9 +14,9 @@ import { useFinanceTAccountActions } from "./useFinanceTAccountActions";
 import { useFinanceTAccountPlanActions } from "./useFinanceTAccountPlanActions";
 import { useFinanceTAccountSelection } from "./useFinanceTAccountSelection";
 
-// Six tabs (FR-O1). Kategorien, Konten and the VAT summary are panels of
-// Übersicht now; Planung, Projekte and Abgleich were absorbed by the T-Konto
-// and the new Anträge inbox.
+// Six tabs. Kategorien, Konten and the VAT summary are panels of Übersicht now;
+// Planung, Projekte and Abgleich were absorbed by the T-Konto and the new
+// Anträge inbox.
 export type FinanceAnalyticsTab =
 	| "overview"
 	| "budget"
@@ -28,8 +28,8 @@ export type FinanceAnalyticsTab =
 export function useFinanceAnalyticsPage() {
 	const { permissions, department } = useToolAccess();
 	const canManage = permissions.includes("finance.review");
-	// FR-O2: LnF lands on the org-wide overview, a department-scoped member on
-	// the surface they actually work in.
+	// LnF lands on the org-wide overview, a department-scoped member on the
+	// surface they actually work in.
 	const [activeTab, setActiveTab] = useState<FinanceAnalyticsTab>(
 		canManage ? "overview" : "t-account",
 	);
@@ -62,7 +62,7 @@ export function useFinanceAnalyticsPage() {
 		department: tAccount.department,
 		period: tAccount.period,
 		// A bulk action consumes the selection; clearing it here means the bar
-		// disappears exactly when the work is done (FR-K7).
+		// disappears exactly when the work is done.
 		onApplied: tAccountSelection.clear,
 	});
 	const tAccountPlanActions = useFinanceTAccountPlanActions({
@@ -82,10 +82,10 @@ export function useFinanceAnalyticsPage() {
 	});
 
 	// Drill down from the budget overview into one department's T-account
-	// ("rauf/runterstufen" — FR-H2). Only reviewers pick a department; scoped
-	// members are already pinned to their own. Carry the budget's active period
-	// across so the T-account shows the same semester/year the user was viewing,
-	// not its own independent default.
+	// ("rauf/runterstufen"). Only reviewers pick a department; scoped members are
+	// already pinned to their own. Carry the budget's active period across so the
+	// T-account shows the same semester/year the user was viewing, not its own
+	// independent default.
 	function openDepartmentTAccount(nextDepartment: string): void {
 		tAccount.setPeriod(budgets.period);
 		tAccount.setDepartment(nextDepartment);
@@ -105,16 +105,16 @@ export function useFinanceAnalyticsPage() {
 		budgets,
 		tAccount,
 		// Everything the T-view needs to be a working surface, in one prop bag the
-		// page can spread onto the section (FR-K5–K7, FR-L).
+		// page can spread onto the section.
 		tAccountWorkbench: {
 			// The server is the authority (assertCanWriteDepartment); this only
-			// decides whether the UI offers the actions at all (FR-K6). A viewer
-			// without a department never gets a T-account to write to.
+			// decides whether the UI offers the actions at all. A viewer without a
+			// department never gets a T-account to write to.
 			canWrite: canManage || department !== null,
 			// Narrower than `canWrite`: replacing a posting's whole allocation is
 			// guarded by requireReimbursementReviewer (`finance.review`) on the
 			// server, so the split editor is offered to reviewers only — a department
-			// member would get a 403 on save (FR-L5).
+			// member would get a 403 on save.
 			canReview: canManage,
 			projects: tAccount.projects,
 			selection: tAccountSelection,
@@ -130,7 +130,7 @@ export function useFinanceAnalyticsPage() {
 					postingExternalIds,
 				});
 			},
-			// Planposten live next to the actuals they plan (FR-M).
+			// Plan items live next to the actuals they plan.
 			isSavingPlanItem: tAccountPlanActions.isSavingPlanItem,
 			isMatching: tAccountPlanActions.isMatching,
 			onSavePlanItem: tAccountPlanActions.savePlanItem,

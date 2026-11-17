@@ -33,10 +33,10 @@ interface FinanceSplitAllocationDialogProps {
 }
 
 // The split editor, moved into the invoice it edits. The bulk assign refuses an
-// already-split posting and points here (FR-L5); with the Abgleich tab gone
-// (FR-O) this is where "here" is — for the first split of a posting as much as
-// for a later edit of one. Writing a split replaces every allocation of the
-// posting, which is why it stays reviewer-only, exactly as the endpoint is.
+// already-split posting and points here; with the Abgleich tab gone this is
+// where "here" is — for the first split of a posting as much as for a later
+// edit of one. Writing a split replaces every allocation of the posting, which
+// is why it stays reviewer-only, exactly as the endpoint is.
 export function FinanceSplitAllocationDialog({
 	preset,
 	projects,

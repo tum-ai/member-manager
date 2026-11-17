@@ -40,7 +40,7 @@ interface FinanceTAccountChromeProps {
 	canChooseDepartment: boolean;
 	department: string | null;
 	groups: FinanceTAccountGroupData[];
-	// Name and project for Planposten that have no line of their own (fully
+	// Name and project for plan items that have no line of their own (fully
 	// matched ones), so an expanded invoice can still say what it funds and which
 	// project's share of it that match spends.
 	planItems?: Record<string, FinanceTAccountPlanItemRef>;
@@ -52,9 +52,9 @@ interface FinanceTAccountChromeProps {
 	onDepartmentChange: (department: string) => void;
 }
 
-// The write surface (FR-K5–K7, FR-L, FR-M) travels straight through to the
-// workbench. All optional: omitted, the view is read-only — rows still expand,
-// nothing is selectable or writable (FR-K6).
+// The write surface travels straight through to the workbench. All optional:
+// omitted, the view is read-only — rows still expand, nothing is selectable or
+// writable.
 type FinanceTAccountSectionProps = FinanceTAccountChromeProps &
 	Partial<Omit<FinanceTAccountWorkbenchProps, TAccountBodyOwnedProp>>;
 
@@ -163,15 +163,15 @@ function TAccountBody({
 	// per data change, before any early return so the hook order stays stable.
 	// Gross is the default: it is what the bank moved and what an invoice says.
 	// Net is the working view for anyone reasoning about the department's real
-	// cost, and the header always states which one is on (FR-N4).
+	// cost, and the header always states which one is on.
 	const [amountMode, setAmountMode] = useState<TAccountAmountMode>("gross");
 	const tree = useMemo(
 		() => buildTAccountTree(groups, { planItems, amountMode }),
 		[groups, planItems, amountMode],
 	);
-	// The sub-team folders the project dialog may drop a new project into
-	// (FR-L4). Derived from the groups rather than the display tree, so a folder
-	// with no lines of its own is still offered.
+	// The sub-team folders the project dialog may drop a new project into. Derived
+	// from the groups rather than the display tree, so a folder with no lines of
+	// its own is still offered.
 	const subTeamOptions = useMemo(
 		() => collectSubTeamOptions(groups, projects),
 		[groups, projects],
