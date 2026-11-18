@@ -2,7 +2,7 @@ import {
 	BANK_DETAILS_REMOVAL_MESSAGE,
 	hasBankDetailsInput,
 } from "@member-manager/shared";
-import type { UseFormReturn } from "react-hook-form";
+import type { FieldPath, UseFormReturn } from "react-hook-form";
 import { buildSelfServiceMemberUpdatePayload } from "@/features/profile/profileFormUtils";
 import {
 	normalizeSerializedTextValue,
@@ -167,4 +167,34 @@ export function buildProfileMemberPayload(
 
 export function parseProfileSepaForSave(values: ProfileSepaInput) {
 	return profileSepaSchema.parse(values);
+}
+
+function fieldChangedDuringSave<T extends Record<string, unknown>>(
+	beforeReset: T,
+	atSubmit: T,
+	key: keyof T,
+): boolean {
+	return !Object.is(beforeReset[key], atSubmit[key]);
+}
+
+/**
+ * After save, align the form with the server response without retaining dirty
+ * flags on fields that were just persisted. Re-applies only edits made while
+ * the request was in flight (compare to the submit-time snapshot, not the
+ * response — normalization may differ).
+ */
+export function reconcileFormAfterSave<T extends Record<string, unknown>>(
+	form: UseFormReturn<T>,
+	savedBaseline: T,
+	snapshotAtSubmit: T,
+): void {
+	const valuesBeforeReset = form.getValues();
+	form.reset(savedBaseline);
+	for (const key of Object.keys(snapshotAtSubmit) as (keyof T)[]) {
+		if (fieldChangedDuringSave(valuesBeforeReset, snapshotAtSubmit, key)) {
+			form.setValue(key as FieldPath<T>, valuesBeforeReset[key] as never, {
+				shouldDirty: true,
+			});
+		}
+	}
 }

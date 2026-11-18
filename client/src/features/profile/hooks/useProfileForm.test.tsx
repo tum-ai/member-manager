@@ -746,6 +746,44 @@ describe("useProfileForm", () => {
 		expect(result.current.memberForm.formState.dirtyFields.city).toBe(true);
 	});
 
+	it("clears dirty state when the server trims a saved text field", async () => {
+		memberData = {
+			given_name: "Ada",
+			surname: "Lovelace",
+			date_of_birth: "1990-01-01",
+			street: "Main",
+			number: "1",
+			postal_code: "80333",
+			city: "Munich",
+			country: "Germany",
+			batch: "SS25",
+			public_location: "Munich",
+		};
+		updateMemberAsync.mockResolvedValue({
+			...memberData,
+			public_location: "Munich",
+		});
+
+		const { result } = renderHook(() => useProfileForm(user));
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		act(() => {
+			result.current.memberForm.setValue("public_location", "Munich ", {
+				shouldDirty: true,
+			});
+		});
+		expect(result.current.isDirty).toBe(true);
+
+		await act(async () => {
+			await result.current.onSubmit();
+		});
+
+		await waitFor(() => expect(result.current.isDirty).toBe(false));
+		expect(result.current.memberForm.getValues("public_location")).toBe(
+			"Munich",
+		);
+	});
+
 	it("clears dirty state after a successful save", async () => {
 		memberData = { given_name: "Ada", surname: "Lovelace", batch: "SS25" };
 		updateMemberAsync.mockResolvedValue({

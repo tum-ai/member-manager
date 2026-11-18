@@ -11,6 +11,7 @@ import {
 	buildProfileMemberPayload,
 	describeSaveOutcome,
 	parseProfileSepaForSave,
+	reconcileFormAfterSave,
 	toSavePart,
 	validateProfileBeforeSave,
 } from "@/features/profile/profileFormSubmit";
@@ -159,8 +160,10 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			}
 
 			const memberValues = memberForm.getValues();
+			const memberSnapshot = memberValues;
 			const memberPayload = buildProfileMemberPayload(memberValues, isAdmin);
 			const { sepaValues, sendsSepa } = validation;
+			const sepaSnapshot = sepaValues;
 
 			const [memberResult, sepaResult] = await Promise.allSettled([
 				updateMemberAsync(memberPayload as Partial<MemberSchema>),
@@ -171,16 +174,19 @@ export function useProfileForm(user: User): UseProfileFormResult {
 
 			if (memberResult.status === "fulfilled") {
 				const saved = memberResult.value as Record<string, unknown> | undefined;
-				memberForm.reset(
+				reconcileFormAfterSave(
+					memberForm,
 					saved ? toMemberFormValues(saved, userId) : memberValues,
-					{ keepDirtyValues: true },
+					memberSnapshot,
 				);
 			}
 			if (sendsSepa && sepaResult.status === "fulfilled") {
 				const saved = sepaResult.value as Record<string, unknown> | undefined;
-				sepaForm.reset(saved ? toSepaFormValues(saved) : sepaValues, {
-					keepDirtyValues: true,
-				});
+				reconcileFormAfterSave(
+					sepaForm,
+					saved ? toSepaFormValues(saved) : sepaValues,
+					sepaSnapshot,
+				);
 			}
 			const feedback = describeSaveOutcome({
 				member: toSavePart(memberResult),
