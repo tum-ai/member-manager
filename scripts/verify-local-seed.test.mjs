@@ -13,14 +13,24 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
-function readAnonKey() {
+function readEnvValue(file, name) {
 	try {
-		const raw = readFileSync(resolve(repoRoot, "client/.env.local"), "utf8");
-		const match = raw.match(/^VITE_SUPABASE_ANON_KEY=(.+)$/m);
+		const raw = readFileSync(resolve(repoRoot, file), "utf8");
+		const match = raw.match(new RegExp(`^${name}=(.+)$`, "m"));
 		return match ? match[1].trim() : null;
 	} catch {
 		return null;
 	}
+}
+
+function readAnonKey() {
+	return readEnvValue("client/.env.local", "VITE_SUPABASE_ANON_KEY");
+}
+
+// The server-side key written by `pnpm setup:local`; it bypasses RLS and the
+// table grants, so the seed can be checked on tables browsers cannot read.
+function readServiceRoleKey() {
+	return readEnvValue("server/.env.local", "SUPABASE_SERVICE_ROLE_KEY");
 }
 
 async function authHealth() {
@@ -136,11 +146,9 @@ test("seed populates the feature tables (jobs, contracts, tumai days)", async (t
 	const { body } = await signIn(anonKey, "admin@example.com", "password123");
 	assert.ok(body.access_token, "expected admin access_token");
 
-	for (const table of [
-		"job_posting_requests",
-		"contract_submissions",
-		"tumai_days",
-	]) {
+	// contract_submissions is checked separately below: it is server-only
+	// (#392), so a browser token gets 403 even as admin.
+	for (const table of ["job_posting_requests", "tumai_days"]) {
 		const { status, count } = await countRows(
 			anonKey,
 			body.access_token,
@@ -149,4 +157,32 @@ test("seed populates the feature tables (jobs, contracts, tumai days)", async (t
 		assert.equal(status, 200, `expected 200 reading ${table}, got ${status}`);
 		assert.ok(count > 0, `expected seeded rows in ${table}, got ${count}`);
 	}
+});
+
+test("seed populates contract_submissions (server-only, read with the service role)", async (t) => {
+	if (!(await authHealth())) {
+		t.skip("local Supabase not reachable at 127.0.0.1:54321");
+		return;
+	}
+
+	const serviceKey = readServiceRoleKey();
+	if (!serviceKey) {
+		t.skip("server/.env.local missing; run `pnpm setup:local` first");
+		return;
+	}
+
+	const { status, count } = await countRows(
+		serviceKey,
+		serviceKey,
+		"contract_submissions",
+	);
+	assert.equal(
+		status,
+		200,
+		`expected 200 reading contract_submissions, got ${status}`,
+	);
+	assert.ok(
+		count > 0,
+		`expected seeded rows in contract_submissions, got ${count}`,
+	);
 });
