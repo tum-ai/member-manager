@@ -247,6 +247,7 @@ describe("ProfilePage (render)", () => {
 		);
 		expect(screen.getByLabelText("IBAN")).toHaveValue("");
 
+		await userEv.type(screen.getByLabelText("Public location"), " Munich");
 		const [saveButton] = screen.getAllByRole("button", {
 			name: /save changes/i,
 		});

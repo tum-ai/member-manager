@@ -7,6 +7,7 @@ import { CardContent } from "@/components/ui/card";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
+import { UnsavedChangesNotice } from "@/features/profile/components/UnsavedChangesNotice";
 import type { NavItem } from "@/features/profile/profileTypes";
 import { proxiedAvatarUrl } from "@/lib/avatarUrl";
 import { getMemberStatusLabel } from "@/lib/memberMetadata";
@@ -21,6 +22,7 @@ interface ProfileSidebarProps {
 	memberStatus?: string;
 	completeness: number;
 	missingProfileFields: string[];
+	isDirty: boolean;
 	isGeneratingPdf: boolean;
 	canDownloadProof: boolean;
 	onDownloadMembershipProof: () => void;
@@ -39,6 +41,7 @@ export function ProfileSidebar({
 	memberStatus,
 	completeness,
 	missingProfileFields,
+	isDirty,
 	isGeneratingPdf,
 	canDownloadProof,
 	onDownloadMembershipProof,
@@ -93,6 +96,9 @@ export function ProfileSidebar({
 							<span className="font-medium">{completeness}%</span>
 						</div>
 						<Progress value={completeness} />
+						{isDirty && (
+							<UnsavedChangesNotice explainCompleteness className="mt-2" />
+						)}
 						{missingProfileFields.length > 0 && (
 							<div className="mt-2 text-xs text-muted-foreground">
 								<p>Still missing:</p>
@@ -153,14 +159,14 @@ export function ProfileSidebar({
 				type="submit"
 				size="lg"
 				className="hidden w-full lg:flex"
-				disabled={isUpdating}
+				disabled={isUpdating || !isDirty}
 			>
 				{isUpdating ? (
 					<Spinner className="size-5" />
 				) : (
 					<Save className="size-4" />
 				)}
-				{isUpdating ? "Saving..." : "Save Changes"}
+				{isUpdating ? "Saving..." : isDirty ? "Save Changes" : "Saved"}
 			</Button>
 		</aside>
 	);

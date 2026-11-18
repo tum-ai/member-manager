@@ -333,3 +333,9 @@ export async function getAuthProfiles(
 
 	return profiles;
 }
+
+/** Clears the in-memory auth profile caches. Test-only. */
+export function clearAuthEmailCachesForTests(): void {
+	authUserIdByEmailCache.clear();
+	authProfileByUserIdCache.clear();
+}

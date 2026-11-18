@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useForm } from "react-hook-form";
 import { describe, expect, it } from "vitest";
-import type { LinkedinSchema } from "@/lib/schemas";
+import type { MemberSchema } from "@/lib/schemas";
 import { LinksSection } from "./LinksSection";
 
 const ids = { linkedinUrl: "linkedin-url", publicLocation: "public-location" };
@@ -14,12 +14,12 @@ function Harness({
 	isLinkedinUrlValid?: boolean;
 	normalizedLinkedinUrl?: string;
 }) {
-	const linkedinForm = useForm<LinkedinSchema>({
+	const memberForm = useForm<MemberSchema>({
 		defaultValues: { linkedin_profile_url: "", public_location: "" },
 	});
 	return (
 		<LinksSection
-			linkedinForm={linkedinForm}
+			memberForm={memberForm}
 			isLinkedinUrlValid={isLinkedinUrlValid}
 			normalizedLinkedinUrl={normalizedLinkedinUrl}
 			ids={ids}

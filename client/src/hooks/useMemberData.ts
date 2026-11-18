@@ -20,7 +20,7 @@ export function useMemberData(userId: string) {
 
 	const mutation = useMutation({
 		mutationFn: async (data: Partial<MemberSchema>) => {
-			await apiClient(`/api/members/${userId}`, {
+			return await apiClient(`/api/members/${userId}`, {
 				method: "PUT",
 				body: JSON.stringify(data),
 			});

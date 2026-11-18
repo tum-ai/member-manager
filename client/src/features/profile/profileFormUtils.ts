@@ -1,4 +1,82 @@
-import type { MemberSchema } from "@/lib/schemas";
+import type { MemberSchema, ProfileSepaInput } from "@/lib/schemas";
+
+type StoredRecord = Record<string, unknown> | null | undefined;
+
+const textOf = (value: unknown): string =>
+	typeof value === "string" ? value : "";
+
+/**
+ * The member form as it is stored. Nothing is invented here: a field the
+ * member never saved is blank, so the form's baseline (and its dirty state)
+ * always means "what the server has". Suggestions such as the Slack name or
+ * the current batch are applied on top as unsaved edits (`useProfileForm`).
+ */
+export function toMemberFormValues(
+	stored: StoredRecord,
+	userId: string,
+): MemberSchema {
+	const existing = stored ?? {};
+	const active = existing.active ?? true;
+
+	return {
+		active: Boolean(active),
+		member_status:
+			textOf(existing.member_status) || (active ? "active" : "inactive"),
+		salutation: textOf(existing.salutation),
+		title: textOf(existing.title),
+		surname: textOf(existing.surname),
+		given_name: textOf(existing.given_name),
+		date_of_birth: textOf(existing.date_of_birth),
+		street: textOf(existing.street),
+		number: textOf(existing.number),
+		postal_code: textOf(existing.postal_code),
+		city: textOf(existing.city),
+		country: textOf(existing.country) || "Germany",
+		user_id: userId,
+		batch: textOf(existing.batch),
+		department: textOf(existing.department),
+		member_role: textOf(existing.member_role),
+		research_project_id: textOf(existing.research_project_id),
+		degree: textOf(existing.degree),
+		school: textOf(existing.school),
+		reimbursement_slack_notifications_enabled:
+			existing.reimbursement_slack_notifications_enabled === true,
+		linkedin_profile_url: textOf(existing.linkedin_profile_url),
+		public_location: textOf(existing.public_location),
+	};
+}
+
+export function toSepaFormValues(stored: StoredRecord): ProfileSepaInput {
+	const existing = stored ?? {};
+
+	return {
+		iban: textOf(existing.iban),
+		bic: textOf(existing.bic),
+		bank_name: textOf(existing.bank_name),
+		mandate_agreed: existing.mandate_agreed === true,
+		privacy_agreed: existing.privacy_agreed === true,
+	};
+}
+
+export interface ProfileFormBaseline {
+	member: MemberSchema;
+	sepa: ProfileSepaInput;
+}
+
+/**
+ * Single Server → form mapping. Slack suggestions are applied separately as
+ * dirty overlays so the baseline stays "what the server has".
+ */
+export function toProfileFormValues(
+	member: StoredRecord,
+	sepa: StoredRecord,
+	userId: string,
+): ProfileFormBaseline {
+	return {
+		member: toMemberFormValues(member, userId),
+		sepa: toSepaFormValues(sepa),
+	};
+}
 
 interface BuildSelfServiceMemberUpdatePayloadOptions {
 	includeAdminManagedFields?: boolean;
@@ -32,7 +110,6 @@ export function buildSelfServiceMemberUpdatePayload(
 
 interface ProfileCompletenessInput {
 	member: Partial<MemberSchema>;
-	linkedin: { linkedin_profile_url?: string; public_location?: string };
 	sepa: {
 		iban?: string;
 		bank_name?: string;
@@ -53,7 +130,6 @@ interface CompletenessField {
 // (the breakdown of what's still needed to reach 100%).
 function getCompletenessFields({
 	member,
-	linkedin,
 	sepa,
 	consentsDecided,
 }: ProfileCompletenessInput): CompletenessField[] {
@@ -79,11 +155,11 @@ function getCompletenessFields({
 		// from completeness so a fully-filled editable profile reaches 100%.
 		{
 			label: "LinkedIn profile",
-			filled: isFilledText(linkedin.linkedin_profile_url),
+			filled: isFilledText(member.linkedin_profile_url),
 		},
 		{
 			label: "Public location",
-			filled: isFilledText(linkedin.public_location),
+			filled: isFilledText(member.public_location),
 		},
 		{ label: "IBAN", filled: isFilledText(sepa.iban) },
 		{ label: "Bank name", filled: isFilledText(sepa.bank_name) },

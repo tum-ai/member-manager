@@ -5,6 +5,7 @@ export type {
 } from "@member-manager/shared";
 export { profileSepaSchema, sepaSchema } from "@member-manager/shared";
 
+import { MEMBER_BATCH_REGEX } from "@member-manager/shared";
 import { z } from "zod";
 import { ENGAGEMENT_SPECIAL_ROLES } from "./constants";
 import { LINKEDIN_PROFILE_URL_REGEX } from "./linkedin";
@@ -16,8 +17,6 @@ function isValidDate(dateString: string): boolean {
 	if (Number.isNaN(date.getTime())) return false;
 	return date.toISOString().slice(0, 10) === dateString;
 }
-
-const BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
 
 function isValidEngagementSpecialRole(role: string | undefined): boolean {
 	return (
@@ -56,7 +55,7 @@ export const memberSchema = z.object({
 				value === null ||
 				value === undefined ||
 				value === "" ||
-				BATCH_REGEX.test(value),
+				MEMBER_BATCH_REGEX.test(value),
 			"Choose a valid batch",
 		),
 	department: z.string().nullish(),
@@ -66,6 +65,15 @@ export const memberSchema = z.object({
 	degree: z.string().nullish(),
 	school: z.string().nullish(),
 	reimbursement_slack_notifications_enabled: z.boolean().optional(),
+	// LinkedIn fields live on the member row and share the profile save.
+	linkedin_profile_url: z
+		.string()
+		.optional()
+		.refine(
+			(v) => !v || v.trim() === "" || LINKEDIN_PROFILE_URL_REGEX.test(v.trim()),
+			"Must be a valid LinkedIn profile URL (https://linkedin.com/in/…)",
+		),
+	public_location: z.string().optional(),
 });
 
 export const engagementSchema = z

@@ -5,12 +5,12 @@ import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import {
-	Select,
+	ProfileSelect,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
+} from "@/features/profile/components/ProfileSelect";
 import {
 	fromSelectValue,
 	NONE_VALUE,
@@ -60,7 +60,7 @@ export function PersonalInfoSection({
 						htmlFor={ids.salutation}
 						error={errors.salutation?.message}
 					>
-						<Select
+						<ProfileSelect
 							value={toSelectValue(memberForm.watch("salutation") || "")}
 							onValueChange={(value) =>
 								memberForm.setValue("salutation", fromSelectValue(value), {
@@ -82,10 +82,10 @@ export function PersonalInfoSection({
 								<SelectItem value="Ms.">Ms.</SelectItem>
 								<SelectItem value="Mx.">Mx.</SelectItem>
 							</SelectContent>
-						</Select>
+						</ProfileSelect>
 					</Field>
 					<Field className="sm:col-span-8" label="Title" htmlFor={ids.title}>
-						<Select
+						<ProfileSelect
 							value={toSelectValue(memberForm.watch("title") || "")}
 							onValueChange={(value) =>
 								memberForm.setValue("title", fromSelectValue(value), {
@@ -105,7 +105,7 @@ export function PersonalInfoSection({
 								<SelectItem value="Dr.">Dr.</SelectItem>
 								<SelectItem value="Prof.">Prof.</SelectItem>
 							</SelectContent>
-						</Select>
+						</ProfileSelect>
 					</Field>
 
 					<Field

@@ -1,42 +1,37 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
-	BANK_DETAILS_REMOVAL_MESSAGE,
 	hasBankDetailsInput,
 	type MemberConsents,
 } from "@member-manager/shared";
-import type { User } from "@supabase/supabase-js";
-import { useEffect } from "react";
-import { type UseFormReturn, useForm } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { useToast } from "@/contexts/ToastContext";
+import { useProfileFormHydration } from "@/features/profile/hooks/useProfileFormHydration";
 import {
-	buildSelfServiceMemberUpdatePayload,
+	buildProfileMemberPayload,
+	describeSaveOutcome,
+	parseProfileSepaForSave,
+	toSavePart,
+	validateProfileBeforeSave,
+} from "@/features/profile/profileFormSubmit";
+import {
 	computeProfileCompleteness,
 	getMissingProfileFields,
+	toMemberFormValues,
+	toSepaFormValues,
 } from "@/features/profile/profileFormUtils";
-import {
-	extractSlackProfile,
-	normalizeSerializedTextValue,
-	normalizeTextValue,
-} from "@/features/profile/profileUtils";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { useMemberConsents } from "@/hooks/useMemberConsents";
 import { useMemberData } from "@/hooks/useMemberData";
 import { useResearchProjects } from "@/hooks/useResearchProjects";
 import { useSepaData } from "@/hooks/useSepaData";
-import { getCurrentBatch } from "@/lib/constants";
+import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import {
 	isLinkedinProfileUrl,
 	normalizeLinkedinProfileUrl,
 } from "@/lib/linkedin";
-import {
-	getEducationEntries,
-	resolveDepartmentForMemberRole,
-	serializeEducationEntries,
-} from "@/lib/memberMetadata";
+import { resolveDepartmentForMemberRole } from "@/lib/memberMetadata";
 import { getResearchProjectSelectValue } from "@/lib/researchProjects";
 import {
-	type LinkedinSchema,
-	linkedinSchema,
 	type MemberSchema,
 	memberSchema,
 	type ProfileSepaInput,
@@ -44,15 +39,9 @@ import {
 } from "@/lib/schemas";
 import type { ResearchProject } from "@/types";
 
-// The Data Privacy Notice consents are not part of the profile form: they are
-// managed per purpose on /welcome (`useMemberConsents`), and the profile only
-// summarises them. Leaving them out keeps a profile save from touching them.
-const AGREEMENT_FIELDS = ["mandate_agreed", "privacy_agreed"] as const;
-
 export interface UseProfileFormResult {
-	memberForm: UseFormReturn<MemberSchema>;
-	linkedinForm: UseFormReturn<LinkedinSchema>;
-	sepaForm: UseFormReturn<ProfileSepaInput>;
+	memberForm: ReturnType<typeof useForm<MemberSchema>>;
+	sepaForm: ReturnType<typeof useForm<ProfileSepaInput>>;
 	// biome-ignore lint/suspicious/noExplicitAny: member is untyped API data
 	memberData: any;
 	isAdmin: boolean;
@@ -60,6 +49,7 @@ export interface UseProfileFormResult {
 	isUpdating: boolean;
 	isLoadingResearchProjects: boolean;
 	onSubmit: () => Promise<void>;
+	isDirty: boolean;
 	completeness: number;
 	missingProfileFields: string[];
 	normalizedLinkedinUrl: string;
@@ -72,7 +62,34 @@ export interface UseProfileFormResult {
 	memberConsents: MemberConsents | undefined;
 }
 
-export function useProfileForm(user: User): UseProfileFormResult {
+function createEmptyMemberForm(userId: string): MemberSchema {
+	return {
+		active: true,
+		member_status: "active",
+		salutation: "",
+		title: "",
+		surname: "",
+		given_name: "",
+		date_of_birth: "",
+		street: "",
+		number: "",
+		postal_code: "",
+		city: "",
+		country: "Germany",
+		user_id: userId,
+		batch: "",
+		department: "",
+		member_role: "",
+		degree: "",
+		school: "",
+		reimbursement_slack_notifications_enabled: false,
+		linkedin_profile_url: "",
+		public_location: "",
+	};
+}
+
+/** Profile inputs are keyed by member id + API data, not Supabase auth objects. */
+export function useProfileForm(userId: string): UseProfileFormResult {
 	const { showToast } = useToast();
 
 	const {
@@ -80,9 +97,9 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		isLoading: isLoadingMember,
 		updateMemberAsync,
 		isUpdating: isUpdatingMember,
-	} = useMemberData(user.id);
-	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(user.id);
-	const { consents: memberConsents } = useMemberConsents(user.id);
+	} = useMemberData(userId);
+	const { isAdmin, isLoading: isLoadingAdminRole } = useIsAdmin(userId);
+	const { consents: memberConsents } = useMemberConsents(userId);
 	const { researchProjects, isLoading: isLoadingResearchProjects } =
 		useResearchProjects();
 	const {
@@ -90,48 +107,13 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		isLoading: isLoadingSepa,
 		updateSepaAsync,
 		isUpdating: isUpdatingSepa,
-	} = useSepaData(user.id);
-
-	const linkedinForm = useForm<LinkedinSchema>({
-		resolver: zodResolver(linkedinSchema),
-		defaultValues: {
-			linkedin_profile_url: "",
-			public_location: "",
-		},
-	});
-
-	const linkedinUrl = linkedinForm.watch("linkedin_profile_url");
-	const normalizedLinkedinUrl = normalizeLinkedinProfileUrl(linkedinUrl);
-	const isLinkedinUrlValid = isLinkedinProfileUrl(linkedinUrl);
+	} = useSepaData(userId);
 
 	const memberForm = useForm<MemberSchema>({
 		resolver: zodResolver(memberSchema),
-		defaultValues: {
-			active: true,
-			member_status: "active",
-			salutation: "",
-			title: "",
-			surname: "",
-			given_name: "",
-			date_of_birth: "",
-			street: "",
-			number: "",
-			postal_code: "",
-			city: "",
-			country: "Germany",
-			user_id: user.id,
-			batch: "",
-			department: "",
-			member_role: "",
-			degree: "",
-			school: "",
-			reimbursement_slack_notifications_enabled: false,
-		},
+		defaultValues: createEmptyMemberForm(userId),
 	});
 
-	// Bank details are optional as a group. Once a bank field is filled,
-	// profileSepaSchema requires a valid IBAN, a bank name and all three
-	// agreements; without bank details the agreements can be saved alone.
 	const sepaForm = useForm<ProfileSepaInput>({
 		resolver: zodResolver(profileSepaSchema),
 		defaultValues: {
@@ -143,153 +125,62 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		},
 	});
 
-	// Once bank details are stored they can be edited but not cleared; the
-	// server enforces the same rule.
+	const isLoading = isLoadingMember || isLoadingSepa || isLoadingAdminRole;
+	const isDirty = memberForm.formState.isDirty || sepaForm.formState.isDirty;
+
+	useProfileFormHydration({
+		userId,
+		memberData,
+		sepaData,
+		isReady: !isLoading,
+		memberForm,
+		sepaForm,
+	});
+
+	const linkedinUrl = memberForm.watch("linkedin_profile_url");
+	const normalizedLinkedinUrl = normalizeLinkedinProfileUrl(linkedinUrl);
+	const isLinkedinUrlValid = isLinkedinProfileUrl(linkedinUrl);
 	const hasSavedBankDetails = hasBankDetailsInput(sepaData ?? {});
-
-	useEffect(() => {
-		if (isLoadingMember) return;
-
-		const slackProfile = extractSlackProfile(user);
-		const slackBatch = getCurrentBatch();
-		const existing = memberData ?? {};
-
-		memberForm.reset({
-			active: existing.active ?? true,
-			member_status:
-				existing.member_status || (existing.active ? "active" : "inactive"),
-			salutation: existing.salutation || "",
-			title: existing.title || "",
-			surname: existing.surname || slackProfile.surname,
-			given_name: existing.given_name || slackProfile.given_name,
-			date_of_birth: existing.date_of_birth || "",
-			street: existing.street || "",
-			number: existing.number || "",
-			postal_code: existing.postal_code || "",
-			city: existing.city || "",
-			country: existing.country || "Germany",
-			user_id: user.id,
-			batch: existing.batch || slackBatch,
-			department: existing.department || "",
-			member_role: existing.member_role || "",
-			research_project_id: existing.research_project_id || "",
-			degree: existing.degree || "",
-			school: existing.school || "",
-			reimbursement_slack_notifications_enabled:
-				existing.reimbursement_slack_notifications_enabled ?? false,
-		});
-
-		// Populate LinkedIn form from DB data
-		linkedinForm.reset({
-			linkedin_profile_url:
-				((existing as Record<string, unknown>)
-					.linkedin_profile_url as string) || "",
-			public_location:
-				((existing as Record<string, unknown>).public_location as string) || "",
-		});
-	}, [memberData, isLoadingMember, memberForm, linkedinForm, user]);
-
-	useEffect(() => {
-		if (sepaData) {
-			sepaForm.reset({
-				iban: sepaData.iban || "",
-				bic: sepaData.bic || "",
-				bank_name: sepaData.bank_name || "",
-				mandate_agreed: sepaData.mandate_agreed || false,
-				privacy_agreed: sepaData.privacy_agreed || false,
-			});
-		}
-	}, [sepaData, sepaForm]);
 
 	const onSubmit = async (): Promise<void> => {
 		try {
-			const memberValid = await memberForm.trigger();
-			const linkedinValid = await linkedinForm.trigger();
-			const sepaSchemaValid = await sepaForm.trigger();
-
-			const sepaValues = sepaForm.getValues();
-			const includeBankDetails = hasBankDetailsInput(sepaValues);
-			const agreementsChanged = AGREEMENT_FIELDS.some(
-				(field) => Boolean(sepaValues[field]) !== Boolean(sepaData?.[field]),
-			);
-			const isRemovingSavedBankDetails =
-				hasSavedBankDetails && !includeBankDetails;
-			if (isRemovingSavedBankDetails) {
-				sepaForm.setError("iban", {
-					type: "manual",
-					message: BANK_DETAILS_REMOVAL_MESSAGE,
-				});
-			}
-			const sepaValid = sepaSchemaValid && !isRemovingSavedBankDetails;
-
-			if (!memberValid || !linkedinValid || !sepaValid) {
-				let message =
-					"Please complete all required profile fields before saving.";
-				if (isRemovingSavedBankDetails) {
-					message = BANK_DETAILS_REMOVAL_MESSAGE;
-				} else if (!sepaValid) {
-					message =
-						"Please complete all required fields and agreements before saving.";
-				}
-				showToast(message, "error");
+			const validation = await validateProfileBeforeSave({
+				memberForm,
+				sepaForm,
+				sepaData,
+				hasSavedBankDetails,
+			});
+			if (!validation.ok) {
+				showToast(validation.toastMessage, "error");
 				return;
 			}
 
-			const promises: Promise<unknown>[] = [];
 			const memberValues = memberForm.getValues();
-			const linkedinValues = linkedinForm.getValues();
-			const educationValues = serializeEducationEntries(
-				getEducationEntries(memberValues.degree, memberValues.school),
-			);
-			const memberPayload = {
-				...buildSelfServiceMemberUpdatePayload(memberValues, {
-					includeAdminManagedFields: isAdmin,
-				}),
-				degree: normalizeSerializedTextValue(educationValues.degree),
-				school: normalizeSerializedTextValue(educationValues.school),
-				// LinkedIn fields submitted with the member payload
-				linkedin_profile_url: normalizeTextValue(
-					linkedinValues.linkedin_profile_url,
-				),
-				public_location: normalizeTextValue(linkedinValues.public_location),
-			};
-			let effectiveProfileDepartment = normalizeTextValue(
-				memberValues.department,
-			);
-			if (isAdmin) {
-				Object.assign(memberPayload, {
-					batch: normalizeTextValue(memberValues.batch),
-				});
-				const normalizedRole = normalizeTextValue(memberValues.member_role);
-				effectiveProfileDepartment = resolveDepartmentForMemberRole(
-					normalizedRole || "Member",
-					normalizeTextValue(memberValues.department),
-				);
-				Object.assign(memberPayload, {
-					member_role: normalizedRole || "Member",
-					department: effectiveProfileDepartment,
-				});
-			}
-			if (effectiveProfileDepartment === "Research") {
-				Object.assign(memberPayload, {
-					research_project_id: normalizeTextValue(
-						memberValues.research_project_id,
-					),
-				});
-			} else if (isAdmin) {
-				Object.assign(memberPayload, { research_project_id: null });
-			} else {
-				delete memberPayload.research_project_id;
-			}
-			promises.push(updateMemberAsync(memberPayload));
-			// With blank bank fields the PUT saves only the agreements, so it is
-			// skipped entirely when those are unchanged too.
-			if (includeBankDetails || agreementsChanged) {
-				promises.push(updateSepaAsync(profileSepaSchema.parse(sepaValues)));
-			}
+			const memberPayload = buildProfileMemberPayload(memberValues, isAdmin);
+			const { sepaValues, sendsSepa } = validation;
 
-			await Promise.all(promises);
-			showToast("Profile saved successfully!", "success");
+			const [memberResult, sepaResult] = await Promise.allSettled([
+				updateMemberAsync(memberPayload as Partial<MemberSchema>),
+				sendsSepa
+					? updateSepaAsync(parseProfileSepaForSave(sepaValues))
+					: Promise.resolve(),
+			]);
+
+			if (memberResult.status === "fulfilled") {
+				const saved = memberResult.value as Record<string, unknown> | undefined;
+				memberForm.reset(
+					saved ? toMemberFormValues(saved, userId) : memberValues,
+				);
+			}
+			if (sendsSepa && sepaResult.status === "fulfilled") {
+				const saved = sepaResult.value as Record<string, unknown> | undefined;
+				sepaForm.reset(saved ? toSepaFormValues(saved) : sepaValues);
+			}
+			const feedback = describeSaveOutcome({
+				member: toSavePart(memberResult),
+				sepa: toSavePart(sendsSepa ? sepaResult : "skipped"),
+			});
+			showToast(feedback.message, feedback.type);
 		} catch (error: unknown) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
@@ -297,17 +188,13 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		}
 	};
 
-	const isLoading = isLoadingMember || isLoadingSepa || isLoadingAdminRole;
-	const isUpdating = isUpdatingMember || isUpdatingSepa;
+	useUnsavedChangesWarning(isDirty);
 
 	const completenessInput = {
 		member: memberForm.watch(),
-		linkedin: linkedinForm.watch(),
 		sepa: sepaForm.watch(),
 		consentsDecided: Boolean(memberConsents?.consents_decided_at),
 	};
-	const completeness = computeProfileCompleteness(completenessInput);
-	const missingProfileFields = getMissingProfileFields(completenessInput);
 	const currentRole = memberForm.watch("member_role") || "Member";
 	const currentDepartment = memberForm.watch("department") || "";
 	const effectiveProfileDepartment = resolveDepartmentForMemberRole(
@@ -318,32 +205,29 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		const status = project.status?.trim().toLowerCase();
 		return !status || ["ongoing", "active", "in progress"].includes(status);
 	});
-	const researchProjectSelectValue = getResearchProjectSelectValue(
-		memberForm.watch("research_project_id"),
-		researchProjectOptions,
-	);
-	const isResearchDepartmentSelected =
-		effectiveProfileDepartment === "Research";
 
 	return {
 		memberForm,
-		linkedinForm,
 		sepaForm,
 		memberData,
 		isAdmin,
 		isLoading,
-		isUpdating,
+		isUpdating: isUpdatingMember || isUpdatingSepa,
 		isLoadingResearchProjects,
 		onSubmit,
-		completeness,
-		missingProfileFields,
+		isDirty,
+		completeness: computeProfileCompleteness(completenessInput),
+		missingProfileFields: getMissingProfileFields(completenessInput),
 		normalizedLinkedinUrl,
 		isLinkedinUrlValid,
 		currentRole,
 		currentDepartment,
-		isResearchDepartmentSelected,
+		isResearchDepartmentSelected: effectiveProfileDepartment === "Research",
 		researchProjectOptions,
-		researchProjectSelectValue,
+		researchProjectSelectValue: getResearchProjectSelectValue(
+			memberForm.watch("research_project_id"),
+			researchProjectOptions,
+		),
 		memberConsents,
 	};
 }

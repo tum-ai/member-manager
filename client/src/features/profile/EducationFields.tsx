@@ -3,12 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-	Select,
+	ProfileSelect,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
+} from "@/features/profile/components/ProfileSelect";
 import {
 	DEGREE_PROGRAM_CUSTOM_OPTION,
 	DEGREE_PROGRAM_PRESETS,
@@ -187,7 +187,7 @@ export function EducationFields({
 							<div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 								<div className="grid gap-1.5">
 									<Label htmlFor={degreeId}>Degree</Label>
-									<Select
+									<ProfileSelect
 										value={toSelectValue(type)}
 										onValueChange={(value) =>
 											updateEntry(index, { type: fromSelectValue(value) })
@@ -208,12 +208,12 @@ export function EducationFields({
 												</SelectItem>
 											))}
 										</SelectContent>
-									</Select>
+									</ProfileSelect>
 								</div>
 
 								<div className="grid gap-1.5">
 									<Label htmlFor={programId}>Program</Label>
-									<Select
+									<ProfileSelect
 										value={toSelectValue(selectedProgramOption)}
 										onValueChange={(rawChosen) => {
 											const chosen = fromSelectValue(rawChosen);
@@ -250,7 +250,7 @@ export function EducationFields({
 												Other (custom)
 											</SelectItem>
 										</SelectContent>
-									</Select>
+									</ProfileSelect>
 								</div>
 
 								{selectedProgramOption === DEGREE_PROGRAM_CUSTOM_OPTION && (
@@ -268,7 +268,7 @@ export function EducationFields({
 
 								<div className="col-span-full grid gap-1.5">
 									<Label htmlFor={schoolId}>School / University</Label>
-									<Select
+									<ProfileSelect
 										value={toSelectValue(selectedSchoolOption)}
 										onValueChange={(rawChosen) => {
 											const chosen = fromSelectValue(rawChosen);
@@ -305,7 +305,7 @@ export function EducationFields({
 												Other (custom)
 											</SelectItem>
 										</SelectContent>
-									</Select>
+									</ProfileSelect>
 								</div>
 
 								{selectedSchoolOption === SCHOOL_CUSTOM_OPTION && (

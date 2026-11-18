@@ -50,6 +50,7 @@ import TumaiDaysPage from "./features/tools/TumaiDaysPage";
 import WelcomePage from "./features/welcome/WelcomePage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import { useToolAccess } from "./hooks/useToolAccess";
+import { shouldSyncAuthUserToReact } from "./lib/authStateSync";
 import { rememberPostLoginPath } from "./lib/postLoginRedirect";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
@@ -92,11 +93,14 @@ export default function App(): JSX.Element {
 			});
 
 		const { data: listener } = supabase.auth.onAuthStateChange(
-			(_event, session) => {
+			(event, session) => {
+				if (!shouldSyncAuthUserToReact(event)) return;
 				if (!session) {
 					queryClient.clear();
+					setUser(null);
+					return;
 				}
-				setUser(session?.user ?? null);
+				setUser(session.user);
 			},
 		);
 

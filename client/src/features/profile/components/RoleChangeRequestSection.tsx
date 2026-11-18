@@ -5,13 +5,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Label } from "@/components/ui/label";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import {
 	Tooltip,
@@ -19,6 +12,13 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+	ProfileSelect,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/features/profile/components/ProfileSelect";
 import {
 	fromSelectValue,
 	NONE_VALUE,
@@ -75,7 +75,7 @@ export function RoleChangeRequestSection({
 
 				<div className="grid grid-cols-1 gap-4">
 					<Field label="Requested role" htmlFor={ids.requestedRole}>
-						<Select
+						<ProfileSelect
 							value={toSelectValue(requestedRole)}
 							onValueChange={(value) =>
 								setRequestedRole(fromSelectValue(value))
@@ -96,14 +96,14 @@ export function RoleChangeRequestSection({
 									</SelectItem>
 								))}
 							</SelectContent>
-						</Select>
+						</ProfileSelect>
 					</Field>
 					<Field
 						label="Requested department"
 						htmlFor={ids.requestedDepartment}
 						description="Department changes are reviewed by an admin."
 					>
-						<Select
+						<ProfileSelect
 							value={toSelectValue(requestedDepartment)}
 							onValueChange={(value) =>
 								setRequestedDepartment(fromSelectValue(value))
@@ -124,7 +124,7 @@ export function RoleChangeRequestSection({
 									</SelectItem>
 								))}
 							</SelectContent>
-						</Select>
+						</ProfileSelect>
 					</Field>
 					<div>
 						<div className="flex items-center gap-1">

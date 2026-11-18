@@ -25,6 +25,7 @@ function renderSidebar(
 		activeSection: "personal",
 		onNavClick: vi.fn(),
 		isUpdating: false,
+		isDirty: true,
 		...overrides,
 	};
 	render(<ProfileSidebar {...props} />);
@@ -95,5 +96,19 @@ describe("ProfileSidebar", () => {
 		renderSidebar({ isUpdating: true });
 
 		expect(screen.getByRole("button", { name: /saving/i })).toBeDisabled();
+	});
+
+	it("shows a saved state when nothing is dirty", () => {
+		renderSidebar({ isDirty: false });
+
+		expect(screen.getByRole("button", { name: /^saved$/i })).toBeDisabled();
+		expect(screen.queryByRole("status")).not.toBeInTheDocument();
+	});
+
+	it("announces unsaved changes under the completeness meter", () => {
+		renderSidebar({ isDirty: true });
+
+		expect(screen.getByRole("status")).toHaveTextContent(/unsaved changes/i);
+		expect(screen.getByRole("button", { name: /save changes/i })).toBeEnabled();
 	});
 });

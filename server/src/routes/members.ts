@@ -19,9 +19,8 @@ import {
 	memberRoleSchema,
 	normalizeMemberBatch,
 	normalizeOperationalDepartment,
-	requiresDepartmentForMemberRole,
-	resolveDepartmentForMemberRole,
 } from "../lib/memberMetadata.js";
+import { buildMemberProfileUpdate } from "../lib/memberProfileUpdate.js";
 import {
 	encryptRecord,
 	SENSITIVE_MEMBER_FIELDS,
@@ -576,29 +575,21 @@ export async function memberRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
-			const updatePayload: Record<string, unknown> = {
-				...body,
-				user_id: userId,
-			};
-			const hasResearchProjectUpdate = Object.hasOwn(
-				body,
-				"research_project_id",
-			);
-			let existingMemberForManagedFields: {
+			const needsExistingMember =
+				Object.hasOwn(body, "department") ||
+				Object.hasOwn(body, "member_role") ||
+				Object.hasOwn(body, "research_project_id");
+
+			let existingMember: {
 				member_role?: string | null;
 				department?: string | null;
 			} | null = null;
-			const fetchExistingMemberForManagedFields = async () => {
-				if (existingMemberForManagedFields) {
-					return existingMemberForManagedFields;
-				}
-
-				const { data: existingMember, error: existingMemberError } =
-					await getSupabase()
-						.from("members")
-						.select("member_role, department")
-						.eq("user_id", userId)
-						.single();
+			if (needsExistingMember) {
+				const { data, error: existingMemberError } = await getSupabase()
+					.from("members")
+					.select("member_role, department")
+					.eq("user_id", userId)
+					.single();
 
 				if (existingMemberError && !isNotFoundError(existingMemberError)) {
 					request.log.error(
@@ -608,86 +599,27 @@ export async function memberRoutes(server: FastifyInstance) {
 					throw new DatabaseError();
 				}
 
-				existingMemberForManagedFields =
-					(existingMember as {
+				existingMember =
+					(data as {
 						member_role?: string | null;
 						department?: string | null;
 					} | null) ?? null;
-				return existingMemberForManagedFields;
-			};
-
-			if (!isAdmin) {
-				// member_role and department are admin-managed; members request
-				// changes through member_change_requests rather than editing them
-				// directly. Silently drop any attempt to set them here. The research
-				// project is resolved against the member's existing department.
-				delete updatePayload.member_role;
-				delete updatePayload.department;
-				if (hasResearchProjectUpdate) {
-					const existingMember = await fetchExistingMemberForManagedFields();
-					const currentRole = String(
-						existingMember?.member_role ?? DEFAULT_MEMBER_ROLE,
-					);
-					const effectiveDepartment = resolveDepartmentForMemberRole(
-						currentRole,
-						existingMember?.department,
-					);
-					updatePayload.research_project_id =
-						effectiveDepartment === "Research"
-							? (body.research_project_id ?? null)
-							: null;
-				}
-			} else if (
-				Object.hasOwn(body, "department") ||
-				Object.hasOwn(body, "member_role") ||
-				hasResearchProjectUpdate
-			) {
-				const existingMember = await fetchExistingMemberForManagedFields();
-				const updatesRoleOrDepartment =
-					Object.hasOwn(body, "department") ||
-					Object.hasOwn(body, "member_role");
-				let effectiveDepartment = normalizeOperationalDepartment(
-					existingMember?.department,
-				);
-
-				if (updatesRoleOrDepartment) {
-					const nextRole =
-						body.member_role ??
-						String(existingMember?.member_role ?? DEFAULT_MEMBER_ROLE);
-					const requestedDepartment = Object.hasOwn(body, "department")
-						? body.department
-						: existingMember?.department;
-					effectiveDepartment = resolveDepartmentForMemberRole(
-						nextRole,
-						requestedDepartment,
-					);
-					if (
-						requiresDepartmentForMemberRole(nextRole) &&
-						!effectiveDepartment
-					) {
-						return reply.status(400).send({
-							error: "Department is required for Member and Team Lead roles",
-						});
-					}
-
-					updatePayload.member_role = nextRole;
-					updatePayload.department = effectiveDepartment;
-				}
-
-				if (hasResearchProjectUpdate) {
-					updatePayload.research_project_id =
-						effectiveDepartment === "Research"
-							? (body.research_project_id ?? null)
-							: null;
-				} else if (
-					updatesRoleOrDepartment &&
-					effectiveDepartment !== "Research"
-				) {
-					updatePayload.research_project_id = null;
-				}
 			}
 
-			const memberData = encryptRecord(updatePayload, SENSITIVE_MEMBER_FIELDS);
+			const updateResult = buildMemberProfileUpdate({
+				body,
+				isAdmin,
+				existingMember,
+				userId,
+			});
+			if (!updateResult.ok) {
+				return reply.status(400).send({ error: updateResult.error });
+			}
+
+			const memberData = encryptRecord(
+				updateResult.payload,
+				SENSITIVE_MEMBER_FIELDS,
+			);
 
 			const { data, error } = await getSupabase()
 				.from("members")
@@ -714,8 +646,18 @@ export async function memberRoutes(server: FastifyInstance) {
 					avatar_url: profile?.avatar_url ?? "",
 				};
 			} catch (authError) {
-				request.log.error({ err: authError }, "Failed to fetch auth profile");
-				throw new DatabaseError();
+				// The row is already written; failing the request here would make the
+				// client think the save was lost (#396-class). Return the member with
+				// blank auth extras instead.
+				request.log.error(
+					{ err: authError },
+					"Failed to fetch auth profile after member update",
+				);
+				return {
+					...decryptMemberForResponse(data, userId, request),
+					email: "",
+					avatar_url: "",
+				};
 			}
 		},
 	);

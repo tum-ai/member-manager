@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	computeProfileCompleteness,
 	getMissingProfileFields,
+	toProfileFormValues,
 } from "./profileFormUtils";
 
 const completeInput = {
@@ -14,10 +15,8 @@ const completeInput = {
 		postal_code: "80333",
 		city: "Munich",
 		country: "Germany",
-		batch: "24",
+		batch: "WS24",
 		degree: "M.Sc. Informatics",
-	},
-	linkedin: {
 		linkedin_profile_url: "https://linkedin.com/in/alice",
 		public_location: "Munich",
 	},
@@ -30,6 +29,50 @@ const completeInput = {
 	consentsDecided: true,
 };
 
+describe("toProfileFormValues", () => {
+	it("maps stored member and sepa rows into form baselines", () => {
+		expect(
+			toProfileFormValues(
+				{
+					given_name: "Ada",
+					surname: "Lovelace",
+					batch: "SS25",
+					salutation: "Ms.",
+					linkedin_profile_url: "https://linkedin.com/in/ada",
+					public_location: "Munich",
+					active: true,
+				},
+				{
+					iban: "DE89370400440532013000",
+					bank_name: "Test Bank",
+					mandate_agreed: true,
+					privacy_agreed: false,
+				},
+				"user-1",
+			),
+		).toEqual({
+			member: expect.objectContaining({
+				user_id: "user-1",
+				given_name: "Ada",
+				surname: "Lovelace",
+				batch: "SS25",
+				salutation: "Ms.",
+				linkedin_profile_url: "https://linkedin.com/in/ada",
+				public_location: "Munich",
+				member_status: "active",
+				country: "Germany",
+			}),
+			sepa: {
+				iban: "DE89370400440532013000",
+				bic: "",
+				bank_name: "Test Bank",
+				mandate_agreed: true,
+				privacy_agreed: false,
+			},
+		});
+	});
+});
+
 describe("computeProfileCompleteness", () => {
 	it("returns 100 when every tracked field is filled", () => {
 		expect(computeProfileCompleteness(completeInput)).toBe(100);
@@ -39,7 +82,6 @@ describe("computeProfileCompleteness", () => {
 		expect(
 			computeProfileCompleteness({
 				member: {},
-				linkedin: {},
 				sepa: {},
 				consentsDecided: false,
 			}),

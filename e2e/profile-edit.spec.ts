@@ -88,3 +88,77 @@ test("member without bank details saves a degree change", async ({ page }) => {
 	);
 	await expect(page.getByLabel("IBAN")).toHaveValue("");
 });
+
+// Issue #397: salutation and batch were cleared after leaving the page and
+// coming back, even when the PUT had persisted them.
+test("saved salutation and batch survive a page change (#397)", async ({
+	page,
+}) => {
+	await loginAsLocalMember(page);
+
+	const salutation = page.getByRole("combobox", {
+		name: /salutation \(optional\)/i,
+	});
+	await salutation.click();
+	await page.getByRole("option", { name: "Ms.", exact: true }).click();
+	await expect(salutation).toContainText("Ms.");
+
+	const batch = page.getByRole("combobox", { name: /^batch$/i });
+	await batch.click();
+	await page.getByRole("option", { name: "SS25", exact: true }).click();
+	await expect(batch).toContainText("SS25");
+
+	await page
+		.getByRole("button", { name: /save changes/i })
+		.first()
+		.click();
+	await expectToast(page, /profile saved successfully/i);
+
+	await page.getByRole("link", { name: /job board/i }).click();
+	await expect(page).toHaveURL(/\/tools\/jobs/);
+
+	await page
+		.getByRole("link", { name: /profile/i })
+		.first()
+		.click();
+	await expect(page).toHaveURL(/\/$/);
+	await expect(
+		page.getByRole("combobox", { name: /salutation \(optional\)/i }),
+	).toContainText("Ms.");
+	await expect(page.getByRole("combobox", { name: /^batch$/i })).toContainText(
+		"SS25",
+	);
+});
+
+// Refocus does not clear unsaved field values (Supabase auth + query refetch).
+test("unsaved profile edits survive a browser tab refocus", async ({
+	page,
+}) => {
+	await loginAsLocalMember(page);
+
+	const location = page.getByLabel("Public location");
+	await expect(location).toBeVisible();
+	const nextLocation = `After refocus (${Date.now()})`;
+	await location.fill(nextLocation);
+	await expect(page.getByRole("status").first()).toContainText(
+		/unsaved changes/i,
+	);
+
+	await page.evaluate(() => {
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			get: () => "hidden",
+		});
+		document.dispatchEvent(new Event("visibilitychange"));
+		Object.defineProperty(document, "visibilityState", {
+			configurable: true,
+			get: () => "visible",
+		});
+		document.dispatchEvent(new Event("visibilitychange"));
+	});
+
+	await expect(page.getByLabel("Public location")).toHaveValue(nextLocation);
+	await expect(page.getByRole("status").first()).toContainText(
+		/unsaved changes/i,
+	);
+});

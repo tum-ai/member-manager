@@ -909,5 +909,74 @@ describe("Members Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 400);
 		});
+
+		test("keeps salutation and batch when another field is updated (#397)", async () => {
+			resetDatabase();
+			const member = mockDatabase.members.find(
+				(row) => row.user_id === testUserIds.user,
+			);
+			assert.ok(member);
+			member.salutation = "Ms.";
+			member.batch = "SS25";
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({
+					given_name: "Grace",
+				}),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const storedAfter = mockDatabase.members.find(
+				(row) => row.user_id === testUserIds.user,
+			);
+			assert.strictEqual(storedAfter?.given_name, "Grace");
+			assert.strictEqual(storedAfter?.salutation, "Ms.");
+			assert.strictEqual(storedAfter?.batch, "SS25");
+		});
+
+		test("answers 200 when the auth profile lookup fails after a write", async () => {
+			const { clearAuthEmailCachesForTests } = await import(
+				"../../src/lib/authEmails.js"
+			);
+			const { mockSupabaseErrors } = await import("../mocks/supabase.js");
+			resetDatabase();
+			clearAuthEmailCachesForTests();
+			mockSupabaseErrors.listUsers = { message: "auth unavailable" };
+
+			try {
+				const response = await app.inject({
+					method: "PUT",
+					url: `/api/members/${testUserIds.user}`,
+					headers: {
+						...authHeaders(testTokens.user),
+						"content-type": "application/json",
+					},
+					payload: JSON.stringify({
+						given_name: "Still",
+						surname: "Saved",
+					}),
+				});
+
+				assert.strictEqual(response.statusCode, 200);
+				const body = JSON.parse(response.payload);
+				assert.strictEqual(body.given_name, "Still");
+				assert.strictEqual(body.surname, "Saved");
+				assert.strictEqual(body.email, "");
+				assert.strictEqual(body.avatar_url, "");
+				const storedAfter = mockDatabase.members.find(
+					(row) => row.user_id === testUserIds.user,
+				);
+				assert.strictEqual(storedAfter?.given_name, "Still");
+			} finally {
+				mockSupabaseErrors.listUsers = null;
+				clearAuthEmailCachesForTests();
+			}
+		});
 	});
 });

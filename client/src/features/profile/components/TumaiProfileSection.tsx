@@ -4,14 +4,14 @@ import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import {
-	Select,
+	ProfileSelect,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
+} from "@/features/profile/components/ProfileSelect";
 import { EducationFields } from "@/features/profile/EducationFields";
 import {
 	fromSelectValue,
@@ -70,7 +70,7 @@ export function TumaiProfileSection({
 						htmlFor={ids.batch}
 						error={errors.batch?.message}
 					>
-						<Select
+						<ProfileSelect
 							value={toSelectValue(memberForm.watch("batch") || "")}
 							onValueChange={(value) =>
 								memberForm.setValue("batch", fromSelectValue(value), {
@@ -94,11 +94,11 @@ export function TumaiProfileSection({
 									</SelectItem>
 								))}
 							</SelectContent>
-						</Select>
+						</ProfileSelect>
 					</Field>
 					<Field label="Department" htmlFor={ids.department}>
 						{isAdmin ? (
-							<Select
+							<ProfileSelect
 								value={toSelectValue(currentDepartment)}
 								onValueChange={(rawValue) => {
 									const value = fromSelectValue(rawValue);
@@ -127,7 +127,7 @@ export function TumaiProfileSection({
 										</SelectItem>
 									))}
 								</SelectContent>
-							</Select>
+							</ProfileSelect>
 						) : (
 							<>
 								<Input
@@ -146,7 +146,7 @@ export function TumaiProfileSection({
 					<Field label="Role in TUM.ai" htmlFor={ids.role}>
 						{isAdmin ? (
 							<>
-								<Select
+								<ProfileSelect
 									value={currentRole}
 									onValueChange={(value) => {
 										memberForm.setValue("member_role", value, {
@@ -182,7 +182,7 @@ export function TumaiProfileSection({
 											</SelectItem>
 										))}
 									</SelectContent>
-								</Select>
+								</ProfileSelect>
 								<p className="text-xs text-muted-foreground">
 									Admins manage role assignments.
 								</p>
@@ -202,7 +202,7 @@ export function TumaiProfileSection({
 							htmlFor={ids.researchProject}
 							description="Pick the research project you are part of."
 						>
-							<Select
+							<ProfileSelect
 								value={toSelectValue(researchProjectSelectValue)}
 								onValueChange={(value) =>
 									memberForm.setValue(
@@ -230,7 +230,7 @@ export function TumaiProfileSection({
 										</SelectItem>
 									))}
 								</SelectContent>
-							</Select>
+							</ProfileSelect>
 						</Field>
 					)}
 					<EducationFields

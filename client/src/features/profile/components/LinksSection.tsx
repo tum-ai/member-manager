@@ -5,12 +5,12 @@ import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
-import type { LinkedinSchema } from "@/lib/schemas";
+import type { MemberSchema } from "@/lib/schemas";
 import { cn } from "@/lib/utils";
 import { SectionHeading } from "./SectionHeading";
 
 interface LinksSectionProps {
-	linkedinForm: UseFormReturn<LinkedinSchema>;
+	memberForm: UseFormReturn<MemberSchema>;
 	isLinkedinUrlValid: boolean;
 	normalizedLinkedinUrl: string;
 	ids: {
@@ -20,7 +20,7 @@ interface LinksSectionProps {
 }
 
 export function LinksSection({
-	linkedinForm,
+	memberForm,
 	isLinkedinUrlValid,
 	normalizedLinkedinUrl,
 	ids,
@@ -39,15 +39,15 @@ export function LinksSection({
 						className="sm:col-span-2"
 						label="LinkedIn Profile URL"
 						htmlFor={ids.linkedinUrl}
-						error={linkedinForm.formState.errors.linkedin_profile_url?.message}
+						error={memberForm.formState.errors.linkedin_profile_url?.message}
 					>
 						<div className="relative">
 							<Input
 								id={ids.linkedinUrl}
 								placeholder="https://linkedin.com/in/your-profile"
-								{...linkedinForm.register("linkedin_profile_url")}
+								{...memberForm.register("linkedin_profile_url")}
 								aria-invalid={
-									!!linkedinForm.formState.errors.linkedin_profile_url
+									!!memberForm.formState.errors.linkedin_profile_url
 								}
 								className={cn(isLinkedinUrlValid && "pr-10")}
 							/>
@@ -80,7 +80,7 @@ export function LinksSection({
 						<Input
 							id={ids.publicLocation}
 							placeholder="Munich, Germany"
-							{...linkedinForm.register("public_location")}
+							{...memberForm.register("public_location")}
 						/>
 					</Field>
 				</div>

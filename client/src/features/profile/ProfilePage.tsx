@@ -12,6 +12,7 @@ import { ProfileSidebar } from "./components/ProfileSidebar";
 import { RoleChangeRequestSection } from "./components/RoleChangeRequestSection";
 import { SepaPanel } from "./components/SepaPanel";
 import { TumaiProfileSection } from "./components/TumaiProfileSection";
+import { UnsavedChangesNotice } from "./components/UnsavedChangesNotice";
 import { useDoorPin } from "./hooks/useDoorPin";
 import { useMemberChangeRequestForm } from "./hooks/useMemberChangeRequestForm";
 import { useMembershipProof } from "./hooks/useMembershipProof";
@@ -30,7 +31,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 	const {
 		memberForm,
-		linkedinForm,
 		sepaForm,
 		memberData,
 		memberConsents,
@@ -39,6 +39,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		isUpdating,
 		isLoadingResearchProjects,
 		onSubmit,
+		isDirty,
 		completeness,
 		missingProfileFields,
 		normalizedLinkedinUrl,
@@ -48,7 +49,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		isResearchDepartmentSelected,
 		researchProjectOptions,
 		researchProjectSelectValue,
-	} = useProfileForm(user);
+	} = useProfileForm(user.id);
 
 	const { isGeneratingPdf, handleDownloadMembershipProof } =
 		useMembershipProof(memberData);
@@ -105,6 +106,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 						memberStatus={memberForm.watch("member_status")}
 						completeness={completeness}
 						missingProfileFields={missingProfileFields}
+						isDirty={isDirty}
 						isGeneratingPdf={isGeneratingPdf}
 						canDownloadProof={Boolean(memberData)}
 						onDownloadMembershipProof={handleDownloadMembershipProof}
@@ -160,7 +162,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 						/>
 
 						<LinksSection
-							linkedinForm={linkedinForm}
+							memberForm={memberForm}
 							isLinkedinUrlValid={isLinkedinUrlValid}
 							normalizedLinkedinUrl={normalizedLinkedinUrl}
 							ids={{
@@ -221,18 +223,20 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 							}}
 						/>
 
+						{isDirty && <UnsavedChangesNotice className="lg:hidden" />}
+
 						<Button
 							type="submit"
 							size="lg"
 							className="w-full lg:hidden"
-							disabled={isUpdating}
+							disabled={isUpdating || !isDirty}
 						>
 							{isUpdating ? (
 								<Spinner className="size-5" />
 							) : (
 								<Save className="size-4" />
 							)}
-							{isUpdating ? "Saving..." : "Save Changes"}
+							{isUpdating ? "Saving..." : isDirty ? "Save Changes" : "Saved"}
 						</Button>
 					</div>
 				</div>
