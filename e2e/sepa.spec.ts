@@ -22,6 +22,8 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 // fixtures used elsewhere). Reused deterministically; we assert persistence via
 // reload, not against a clean slate.
 const VALID_IBAN = "DE89370400440532013000";
+// The same IBAN as the profile field shows it: grouped in blocks of four.
+const VALID_IBAN_DISPLAY = "DE89 3704 0044 0532 0130 00";
 const VALID_BIC = "COBADEFFXXX";
 
 // An invalid IBAN that is rejected before the profile request is sent.
@@ -137,7 +139,7 @@ test.describe("SEPA mandate setup", () => {
 
 		// Reload to prove the values + mandate state were written server-side.
 		await page.reload();
-		await expect(page.getByLabel("IBAN")).toHaveValue(VALID_IBAN);
+		await expect(page.getByLabel("IBAN")).toHaveValue(VALID_IBAN_DISPLAY);
 		await expect(page.getByLabel("BIC")).toHaveValue(VALID_BIC);
 		await expect(page.getByLabel("Bank Name")).toHaveValue(bankName);
 		await expect(
