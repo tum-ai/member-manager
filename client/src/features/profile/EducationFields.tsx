@@ -39,9 +39,17 @@ interface EducationFieldsProps {
 	onChange: (values: { degree: string; school: string }) => void;
 }
 
-interface EditableEducationEntry extends EducationEntry {
+// The degree is held as its two parts while editing. The stored degree is
+// trimmed, so reading the program back out of it on every keystroke would drop
+// the space a member has just typed before the next word (#400).
+interface EditableEducationEntry {
 	id: string;
+	type: string;
+	program: string;
+	school: string;
 }
+
+type EducationEntryPatch = Partial<Omit<EditableEducationEntry, "id">>;
 
 let nextEducationEntryId = 0;
 
@@ -49,7 +57,11 @@ function createEditableEducationEntry(
 	entry: EducationEntry = { degree: "", school: "" },
 ): EditableEducationEntry {
 	nextEducationEntryId += 1;
-	return { ...entry, id: `education-entry-${nextEducationEntryId}` };
+	return {
+		id: `education-entry-${nextEducationEntryId}`,
+		...splitDegree(entry.degree),
+		school: entry.school,
+	};
 }
 
 function getEditableEducationEntries(
@@ -101,7 +113,12 @@ export function EducationFields({
 	}, [degreeValue, schoolValue]);
 
 	const commitEntries = (nextEntries: EditableEducationEntry[]): void => {
-		const entriesToStore = nextEntries.map(({ id: _id, ...entry }) => entry);
+		const entriesToStore = nextEntries.map(
+			(entry): EducationEntry => ({
+				degree: joinDegree(entry.type, entry.program),
+				school: entry.school,
+			}),
+		);
 		const serializedValues = serializeEducationEntries(entriesToStore);
 		lastCommittedValues.current = serializedValues;
 		setEntries(
@@ -110,7 +127,7 @@ export function EducationFields({
 		onChange(serializedValues);
 	};
 
-	const updateEntry = (index: number, patch: Partial<EducationEntry>): void => {
+	const updateEntry = (index: number, patch: EducationEntryPatch): void => {
 		const nextEntries = entries.map((entry, entryIndex) =>
 			entryIndex === index ? { ...entry, ...patch } : entry,
 		);
@@ -135,7 +152,7 @@ export function EducationFields({
 				</div>
 
 				{entries.map((entry, index) => {
-					const { type, program } = splitDegree(entry.degree);
+					const { type, program } = entry;
 					const isPresetProgram = (
 						DEGREE_PROGRAM_PRESETS as readonly string[]
 					).includes(program);
@@ -173,9 +190,7 @@ export function EducationFields({
 									<Select
 										value={toSelectValue(type)}
 										onValueChange={(value) =>
-											updateEntry(index, {
-												degree: joinDegree(fromSelectValue(value), program),
-											})
+											updateEntry(index, { type: fromSelectValue(value) })
 										}
 									>
 										<SelectTrigger
@@ -207,14 +222,14 @@ export function EducationFields({
 													...current,
 													[entry.id]: true,
 												}));
-												updateEntry(index, { degree: joinDegree(type, "") });
+												updateEntry(index, { program: "" });
 												return;
 											}
 											setCustomProgramRows((current) => ({
 												...current,
 												[entry.id]: false,
 											}));
-											updateEntry(index, { degree: joinDegree(type, chosen) });
+											updateEntry(index, { program: chosen });
 										}}
 									>
 										<SelectTrigger
@@ -245,9 +260,7 @@ export function EducationFields({
 											id={customProgramId}
 											value={program}
 											onChange={(event) =>
-												updateEntry(index, {
-													degree: joinDegree(type, event.target.value),
-												})
+												updateEntry(index, { program: event.target.value })
 											}
 										/>
 									</div>
