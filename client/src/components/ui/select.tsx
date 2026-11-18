@@ -5,9 +5,27 @@ import type * as React from "react";
 import { cn } from "@/lib/utils";
 
 function Select({
+	onValueChange,
 	...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-	return <SelectPrimitive.Root data-slot="select" {...props} />;
+	return (
+		<SelectPrimitive.Root
+			data-slot="select"
+			// Inside a <form>, Radix mirrors a changed value into a hidden native
+			// select and reports that select's change event. While the matching
+			// <option> is not registered yet (e.g. right after a page remounts with
+			// stored data) the event carries "". Items cannot have a blank value, so
+			// a blank report is never a user choice; forwarding it cleared the
+			// profile's salutation and batch (#397).
+			onValueChange={
+				onValueChange &&
+				((value) => {
+					if (value !== "") onValueChange(value);
+				})
+			}
+			{...props}
+		/>
+	);
 }
 
 function SelectGroup({
