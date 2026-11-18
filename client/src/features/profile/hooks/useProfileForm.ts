@@ -5,14 +5,21 @@ import {
 	type MemberConsents,
 } from "@member-manager/shared";
 import type { User } from "@supabase/supabase-js";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { useToast } from "@/contexts/ToastContext";
 import {
+	buildLinkedinFormValues,
+	buildMemberFormValues,
 	buildSelfServiceMemberUpdatePayload,
+	buildSepaFormValues,
 	computeProfileCompleteness,
 	getMissingProfileFields,
 } from "@/features/profile/profileFormUtils";
+import {
+	describeSaveOutcome,
+	toSavePart,
+} from "@/features/profile/profileSaveResult";
 import {
 	extractSlackProfile,
 	normalizeSerializedTextValue,
@@ -60,6 +67,8 @@ export interface UseProfileFormResult {
 	isUpdating: boolean;
 	isLoadingResearchProjects: boolean;
 	onSubmit: () => Promise<void>;
+	/** True while any form differs from what the server last returned. */
+	isDirty: boolean;
 	completeness: number;
 	missingProfileFields: string[];
 	normalizedLinkedinUrl: string;
@@ -147,57 +156,57 @@ export function useProfileForm(user: User): UseProfileFormResult {
 	// server enforces the same rule.
 	const hasSavedBankDetails = hasBankDetailsInput(sepaData ?? {});
 
+	// Slack-derived name suggestions are read as primitives: `user` gets a new
+	// identity on every auth event (App.tsx), which must not re-run the effect.
+	const { given_name: slackGivenName, surname: slackSurname } =
+		extractSlackProfile(user);
+	const suggestionsAppliedFor = useRef<string | null>(null);
+
+	// The server is the baseline. `keepDirtyValues` makes a refetch (window
+	// focus, a save in another tab) update untouched fields while whatever the
+	// member is typing stays, so nothing unsaved is overwritten (#397).
 	useEffect(() => {
 		if (isLoadingMember) return;
 
-		const slackProfile = extractSlackProfile(user);
-		const slackBatch = getCurrentBatch();
-		const existing = memberData ?? {};
-
-		memberForm.reset({
-			active: existing.active ?? true,
-			member_status:
-				existing.member_status || (existing.active ? "active" : "inactive"),
-			salutation: existing.salutation || "",
-			title: existing.title || "",
-			surname: existing.surname || slackProfile.surname,
-			given_name: existing.given_name || slackProfile.given_name,
-			date_of_birth: existing.date_of_birth || "",
-			street: existing.street || "",
-			number: existing.number || "",
-			postal_code: existing.postal_code || "",
-			city: existing.city || "",
-			country: existing.country || "Germany",
-			user_id: user.id,
-			batch: existing.batch || slackBatch,
-			department: existing.department || "",
-			member_role: existing.member_role || "",
-			research_project_id: existing.research_project_id || "",
-			degree: existing.degree || "",
-			school: existing.school || "",
-			reimbursement_slack_notifications_enabled:
-				existing.reimbursement_slack_notifications_enabled ?? false,
+		memberForm.reset(buildMemberFormValues(memberData, user.id), {
+			keepDirtyValues: true,
+		});
+		linkedinForm.reset(buildLinkedinFormValues(memberData), {
+			keepDirtyValues: true,
 		});
 
-		// Populate LinkedIn form from DB data
-		linkedinForm.reset({
-			linkedin_profile_url:
-				((existing as Record<string, unknown>)
-					.linkedin_profile_url as string) || "",
-			public_location:
-				((existing as Record<string, unknown>).public_location as string) || "",
-		});
-	}, [memberData, isLoadingMember, memberForm, linkedinForm, user]);
+		// Suggestions (Slack name, current batch) are offered once per page
+		// visit, as unsaved edits: they show in the form and the completeness
+		// meter, flag the page as having unsaved changes, and only reach the
+		// server with the next save.
+		if (suggestionsAppliedFor.current === user.id) return;
+		suggestionsAppliedFor.current = user.id;
+		const stored = buildMemberFormValues(memberData, user.id);
+		const suggestions = {
+			surname: slackSurname,
+			given_name: slackGivenName,
+			batch: getCurrentBatch(),
+		} as const;
+		for (const field of Object.keys(suggestions) as Array<
+			keyof typeof suggestions
+		>) {
+			if (!stored[field] && !memberForm.getValues(field)) {
+				memberForm.setValue(field, suggestions[field], { shouldDirty: true });
+			}
+		}
+	}, [
+		memberData,
+		isLoadingMember,
+		memberForm,
+		linkedinForm,
+		user.id,
+		slackGivenName,
+		slackSurname,
+	]);
 
 	useEffect(() => {
 		if (sepaData) {
-			sepaForm.reset({
-				iban: sepaData.iban || "",
-				bic: sepaData.bic || "",
-				bank_name: sepaData.bank_name || "",
-				mandate_agreed: sepaData.mandate_agreed || false,
-				privacy_agreed: sepaData.privacy_agreed || false,
-			});
+			sepaForm.reset(buildSepaFormValues(sepaData), { keepDirtyValues: true });
 		}
 	}, [sepaData, sepaForm]);
 
@@ -235,7 +244,6 @@ export function useProfileForm(user: User): UseProfileFormResult {
 				return;
 			}
 
-			const promises: Promise<unknown>[] = [];
 			const memberValues = memberForm.getValues();
 			const linkedinValues = linkedinForm.getValues();
 			const educationValues = serializeEducationEntries(
@@ -281,15 +289,35 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			} else {
 				delete memberPayload.research_project_id;
 			}
-			promises.push(updateMemberAsync(memberPayload));
 			// With blank bank fields the PUT saves only the agreements, so it is
 			// skipped entirely when those are unchanged too.
-			if (includeBankDetails || agreementsChanged) {
-				promises.push(updateSepaAsync(profileSepaSchema.parse(sepaValues)));
+			const sendsSepa = includeBankDetails || agreementsChanged;
+			const [memberResult, sepaResult] = await Promise.allSettled([
+				updateMemberAsync(memberPayload),
+				sendsSepa
+					? updateSepaAsync(profileSepaSchema.parse(sepaValues))
+					: Promise.resolve(),
+			]);
+			// A part that was saved becomes the new baseline, so the page stops
+			// reporting unsaved changes; a part that failed stays dirty.
+			if (memberResult.status === "fulfilled") {
+				const saved = memberResult.value as Record<string, unknown> | undefined;
+				memberForm.reset(
+					saved ? buildMemberFormValues(saved, user.id) : memberValues,
+				);
+				linkedinForm.reset(
+					saved ? buildLinkedinFormValues(saved) : linkedinValues,
+				);
 			}
-
-			await Promise.all(promises);
-			showToast("Profile saved successfully!", "success");
+			if (sendsSepa && sepaResult.status === "fulfilled") {
+				const saved = sepaResult.value as Record<string, unknown> | undefined;
+				sepaForm.reset(saved ? buildSepaFormValues(saved) : sepaValues);
+			}
+			const feedback = describeSaveOutcome({
+				member: toSavePart(memberResult),
+				sepa: toSavePart(sendsSepa ? sepaResult : "skipped"),
+			});
+			showToast(feedback.message, feedback.type);
 		} catch (error: unknown) {
 			const errorMessage =
 				error instanceof Error ? error.message : "Unknown error";
@@ -306,6 +334,10 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		sepa: sepaForm.watch(),
 		consentsDecided: Boolean(memberConsents?.consents_decided_at),
 	};
+	const isDirty =
+		memberForm.formState.isDirty ||
+		linkedinForm.formState.isDirty ||
+		sepaForm.formState.isDirty;
 	const completeness = computeProfileCompleteness(completenessInput);
 	const missingProfileFields = getMissingProfileFields(completenessInput);
 	const currentRole = memberForm.watch("member_role") || "Member";
@@ -335,6 +367,7 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		isUpdating,
 		isLoadingResearchProjects,
 		onSubmit,
+		isDirty,
 		completeness,
 		missingProfileFields,
 		normalizedLinkedinUrl,

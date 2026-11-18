@@ -41,6 +41,35 @@ export type TumaiDepartment = (typeof TUMAI_DEPARTMENTS)[number];
 // Batch identifiers look like WS24 / SS25 (semester + two-digit year >= 20).
 export const MEMBER_BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
 
+export const memberBatchSchema = z
+	.string()
+	.refine((value) => MEMBER_BATCH_REGEX.test(value), "Invalid batch");
+
+/** A blank batch is stored as null; anything else must be a valid batch. */
+export function normalizeMemberBatch(value?: string | null): string | null {
+	const normalized = normalizeNullableText(value);
+	if (!normalized) {
+		return null;
+	}
+	return memberBatchSchema.parse(normalized);
+}
+
+/**
+ * Batch as the profile form holds it: blank or a valid batch. The server
+ * normalizes with `normalizeMemberBatch`; both read `MEMBER_BATCH_REGEX`.
+ */
+export const memberBatchFormFieldSchema = z
+	.string()
+	.nullish()
+	.refine(
+		(value) => !value || MEMBER_BATCH_REGEX.test(value),
+		"Choose a valid batch",
+	);
+
+// Options of the optional salutation and title selects on the profile.
+export const MEMBER_SALUTATIONS = ["Mr.", "Ms.", "Mx."] as const;
+export const MEMBER_TITLES = ["Dr.", "Prof."] as const;
+
 const NON_OPERATIONAL_DEPARTMENTS = new Set(["Board"]);
 
 export function normalizeNullableText(value?: string | null): string | null {

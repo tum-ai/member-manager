@@ -1,9 +1,4 @@
-import {
-	MEMBER_BATCH_REGEX,
-	MEMBER_ROLES,
-	MEMBER_STATUSES,
-	normalizeNullableText,
-} from "@member-manager/shared";
+import { MEMBER_ROLES, MEMBER_STATUSES } from "@member-manager/shared";
 import { z } from "zod";
 
 // Domain types, constants, and pure helpers now live in @member-manager/shared
@@ -16,14 +11,3 @@ export * from "@member-manager/shared";
 // `instanceof ZodError` mismatches in the error handler.
 export const memberRoleSchema = z.enum(MEMBER_ROLES);
 export const memberStatusSchema = z.enum(MEMBER_STATUSES);
-export const memberBatchSchema = z
-	.string()
-	.refine((value) => MEMBER_BATCH_REGEX.test(value), "Invalid batch");
-
-export function normalizeMemberBatch(value?: string | null): string | null {
-	const normalized = normalizeNullableText(value);
-	if (!normalized) {
-		return null;
-	}
-	return memberBatchSchema.parse(normalized);
-}

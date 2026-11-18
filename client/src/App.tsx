@@ -50,6 +50,7 @@ import TumaiDaysPage from "./features/tools/TumaiDaysPage";
 import WelcomePage from "./features/welcome/WelcomePage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import { useToolAccess } from "./hooks/useToolAccess";
+import { reuseUserIfUnchanged } from "./lib/authUser";
 import { rememberPostLoginPath } from "./lib/postLoginRedirect";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
@@ -78,7 +79,9 @@ export default function App(): JSX.Element {
 			.getSession()
 			.then(({ data: { session } }) => {
 				if (cancelled) return;
-				setUser(session?.user ?? null);
+				setUser((current) =>
+					reuseUserIfUnchanged(current, session?.user ?? null),
+				);
 				setLoading(false);
 			})
 			.catch((error) => {
@@ -96,7 +99,9 @@ export default function App(): JSX.Element {
 				if (!session) {
 					queryClient.clear();
 				}
-				setUser(session?.user ?? null);
+				setUser((current) =>
+					reuseUserIfUnchanged(current, session?.user ?? null),
+				);
 			},
 		);
 

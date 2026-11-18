@@ -5,6 +5,7 @@ export type {
 } from "@member-manager/shared";
 export { profileSepaSchema, sepaSchema } from "@member-manager/shared";
 
+import { memberBatchFormFieldSchema } from "@member-manager/shared";
 import { z } from "zod";
 import { ENGAGEMENT_SPECIAL_ROLES } from "./constants";
 import { LINKEDIN_PROFILE_URL_REGEX } from "./linkedin";
@@ -16,8 +17,6 @@ function isValidDate(dateString: string): boolean {
 	if (Number.isNaN(date.getTime())) return false;
 	return date.toISOString().slice(0, 10) === dateString;
 }
-
-const BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
 
 function isValidEngagementSpecialRole(role: string | undefined): boolean {
 	return (
@@ -48,17 +47,7 @@ export const memberSchema = z.object({
 	city: z.string(),
 	country: z.string(),
 	user_id: z.string(),
-	batch: z
-		.string()
-		.nullish()
-		.refine(
-			(value) =>
-				value === null ||
-				value === undefined ||
-				value === "" ||
-				BATCH_REGEX.test(value),
-			"Choose a valid batch",
-		),
+	batch: memberBatchFormFieldSchema,
 	department: z.string().nullish(),
 	member_role: z.string().nullish(),
 	board_role: z.string().nullish(),

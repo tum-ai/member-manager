@@ -2,6 +2,7 @@ import "../setup.js";
 import assert from "node:assert";
 import { after, before, describe, test } from "node:test";
 import type { FastifyInstance } from "fastify";
+import { clearAuthLookupCaches } from "../../src/lib/authEmails.js";
 import {
 	decryptRecord,
 	SENSITIVE_SEPA_FIELDS,
@@ -15,7 +16,7 @@ import {
 	testTokens,
 	testUserIds,
 } from "../helpers.js";
-import { mockDatabase } from "../mocks/supabase.js";
+import { mockDatabase, mockSupabaseErrors } from "../mocks/supabase.js";
 
 function restoreEnvVar(
 	key: "SUPABASE_URL" | "LOCAL_ADMIN_EMAILS" | "ENABLE_LOCAL_ADMIN_BOOTSTRAP",
@@ -890,6 +891,69 @@ describe("Members Routes", async () => {
 			assert.strictEqual(storedAfter?.batch, "SS25");
 			const body = JSON.parse(response.payload);
 			assert.strictEqual(body.batch, "SS25");
+		});
+
+		test("user-facing PUT saves salutation and batch and keeps the other fields (#397)", async () => {
+			resetDatabase();
+			const storedBefore = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			const surnameBefore = storedBefore?.surname;
+			const cityBefore = storedBefore?.city;
+
+			const response = await app.inject({
+				method: "PUT",
+				url: `/api/members/${testUserIds.user}`,
+				headers: {
+					...authHeaders(testTokens.user),
+					"content-type": "application/json",
+				},
+				payload: JSON.stringify({ salutation: "Ms.", batch: "WS25" }),
+			});
+
+			assert.strictEqual(response.statusCode, 200);
+			const storedAfter = mockDatabase.members.find(
+				(member) => member.user_id === testUserIds.user,
+			);
+			assert.strictEqual(storedAfter?.salutation, "Ms.");
+			assert.strictEqual(storedAfter?.batch, "WS25");
+			assert.strictEqual(storedAfter?.surname, surnameBefore);
+			assert.strictEqual(storedAfter?.city, cityBefore);
+			const body = JSON.parse(response.payload);
+			assert.strictEqual(body.salutation, "Ms.");
+			assert.strictEqual(body.batch, "WS25");
+		});
+
+		test("still answers 200 for a saved profile when the auth profile lookup fails (#397)", async () => {
+			resetDatabase();
+			clearAuthLookupCaches();
+			mockSupabaseErrors.authAdminListUsers = { message: "auth down" };
+
+			try {
+				const response = await app.inject({
+					method: "PUT",
+					url: `/api/members/${testUserIds.user}`,
+					headers: {
+						...authHeaders(testTokens.user),
+						"content-type": "application/json",
+					},
+					payload: JSON.stringify({ salutation: "Mx.", batch: "SS24" }),
+				});
+
+				assert.strictEqual(response.statusCode, 200);
+				const body = JSON.parse(response.payload);
+				assert.strictEqual(body.salutation, "Mx.");
+				assert.strictEqual(body.batch, "SS24");
+				assert.strictEqual(body.email, "");
+				assert.strictEqual(body.avatar_url, "");
+				const stored = mockDatabase.members.find(
+					(member) => member.user_id === testUserIds.user,
+				);
+				assert.strictEqual(stored?.batch, "SS24");
+			} finally {
+				mockSupabaseErrors.authAdminListUsers = null;
+				clearAuthLookupCaches();
+			}
 		});
 
 		test("rejects invalid batch formats", async () => {

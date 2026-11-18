@@ -20,14 +20,22 @@ export function useMemberData(userId: string) {
 
 	const mutation = useMutation({
 		mutationFn: async (data: Partial<MemberSchema>) => {
-			await apiClient(`/api/members/${userId}`, {
+			return await apiClient(`/api/members/${userId}`, {
 				method: "PUT",
 				body: JSON.stringify(data),
 			});
 		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["member", userId] });
-			queryClient.invalidateQueries({ queryKey: ["members-list"] });
+		// Returned so that `updateMemberAsync` settles only after the member is
+		// fresh again: the form is baselined on the refetched data, and the
+		// "saved" toast must not appear before it.
+		onSuccess: async (saved) => {
+			if (saved && typeof saved === "object") {
+				queryClient.setQueryData(["member", userId], saved);
+			}
+			await Promise.all([
+				queryClient.invalidateQueries({ queryKey: ["member", userId] }),
+				queryClient.invalidateQueries({ queryKey: ["members-list"] }),
+			]);
 		},
 	});
 

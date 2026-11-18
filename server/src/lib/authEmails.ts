@@ -39,6 +39,12 @@ const authProfileByUserIdCache = new Map<
 	{ profile: AuthProfile; expiresAt: number }
 >();
 
+/** Drops every cached auth lookup. For tests that need a fresh lookup. */
+export function clearAuthLookupCaches(): void {
+	authUserIdByEmailCache.clear();
+	authProfileByUserIdCache.clear();
+}
+
 // Vercel's built-in TS cannot resolve inherited GoTrueClient methods through
 // pnpm's strict node_modules layout, so we access .admin via a cast.
 function getAuthAdmin() {

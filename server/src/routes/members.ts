@@ -689,6 +689,10 @@ export async function memberRoutes(server: FastifyInstance) {
 
 			const memberData = encryptRecord(updatePayload, SENSITIVE_MEMBER_FIELDS);
 
+			// Upsert, not update: it also saves the profile of an account whose
+			// member row is missing (GET answers 404 for it, and nothing else
+			// creates the row). Every account normally has one, created by
+			// `handle_new_user`.
 			const { data, error } = await getSupabase()
 				.from("members")
 				.upsert(memberData, { onConflict: "user_id" })
@@ -703,20 +707,26 @@ export async function memberRoutes(server: FastifyInstance) {
 				throw new DatabaseError();
 			}
 
+			// The row is committed. The email and avatar only decorate the
+			// response, so a failing auth lookup must not turn a saved profile into
+			// a 500 (the client would report a failed save and show stale values).
+			let profile: { email?: string; avatar_url?: string } | undefined;
 			try {
-				const profile = (await getAuthProfiles([userId])).get(userId);
-
-				return {
-					...decryptMemberForResponse(data, userId, request),
-					email: profile?.email ?? "",
-					// Slack profile picture (from auth metadata) so the profile page
-					// can render the member's avatar.
-					avatar_url: profile?.avatar_url ?? "",
-				};
+				profile = (await getAuthProfiles([userId])).get(userId);
 			} catch (authError) {
-				request.log.error({ err: authError }, "Failed to fetch auth profile");
-				throw new DatabaseError();
+				request.log.warn(
+					{ err: authError, userId },
+					"Profile saved, but the auth profile lookup failed; omitting email and avatar",
+				);
 			}
+
+			return {
+				...decryptMemberForResponse(data, userId, request),
+				email: profile?.email ?? "",
+				// Slack profile picture (from auth metadata) so the profile page
+				// can render the member's avatar.
+				avatar_url: profile?.avatar_url ?? "",
+			};
 		},
 	);
 }

@@ -43,6 +43,20 @@ describe("ProfileSidebar", () => {
 		expect(screen.getByText(/active member/i)).toBeInTheDocument();
 	});
 
+	it("flags that the completeness includes unsaved changes", () => {
+		renderSidebar({ hasUnsavedChanges: true });
+
+		expect(screen.getByRole("status")).toHaveTextContent(
+			/unsaved changes.*the percentage above includes them/i,
+		);
+	});
+
+	it("shows no unsaved-changes notice for a saved profile", () => {
+		renderSidebar();
+
+		expect(screen.queryByRole("status")).not.toBeInTheDocument();
+	});
+
 	it("lists which fields are still missing", () => {
 		renderSidebar();
 

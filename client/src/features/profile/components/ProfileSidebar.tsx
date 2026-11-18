@@ -7,6 +7,7 @@ import { CardContent } from "@/components/ui/card";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/spinner";
+import { UnsavedChangesNotice } from "@/features/profile/components/UnsavedChangesNotice";
 import type { NavItem } from "@/features/profile/profileTypes";
 import { proxiedAvatarUrl } from "@/lib/avatarUrl";
 import { getMemberStatusLabel } from "@/lib/memberMetadata";
@@ -28,6 +29,8 @@ interface ProfileSidebarProps {
 	activeSection: string;
 	onNavClick: (event: React.MouseEvent<HTMLAnchorElement>, id: string) => void;
 	isUpdating: boolean;
+	/** The completeness above counts values the server does not have yet. */
+	hasUnsavedChanges?: boolean;
 }
 
 export function ProfileSidebar({
@@ -46,6 +49,7 @@ export function ProfileSidebar({
 	activeSection,
 	onNavClick,
 	isUpdating,
+	hasUnsavedChanges = false,
 }: ProfileSidebarProps): JSX.Element {
 	return (
 		<aside className="flex flex-col gap-4 self-start lg:col-span-4 lg:sticky lg:top-20">
@@ -93,6 +97,9 @@ export function ProfileSidebar({
 							<span className="font-medium">{completeness}%</span>
 						</div>
 						<Progress value={completeness} />
+						{hasUnsavedChanges && (
+							<UnsavedChangesNotice explainCompleteness className="mt-2" />
+						)}
 						{missingProfileFields.length > 0 && (
 							<div className="mt-2 text-xs text-muted-foreground">
 								<p>Still missing:</p>

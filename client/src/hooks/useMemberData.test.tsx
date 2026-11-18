@@ -53,4 +53,30 @@ describe("useMemberData", () => {
 			body: { given_name: "Grace" },
 		});
 	});
+
+	it("resolves an update only once the member has been refetched", async () => {
+		let stored = { id: "user-1", given_name: "Ada" };
+		server.use(
+			http.get("/api/members/user-1", () => HttpResponse.json(stored)),
+			http.put("/api/members/user-1", async ({ request }) => {
+				stored = { ...stored, ...((await request.json()) as object) };
+				return HttpResponse.json(stored);
+			}),
+		);
+
+		const { result } = renderHookWithClient(() => useMemberData("user-1"));
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		const saved = await result.current.updateMemberAsync({
+			given_name: "Grace",
+		});
+
+		expect(saved).toEqual({ id: "user-1", given_name: "Grace" });
+		await waitFor(() =>
+			expect(result.current.member).toEqual({
+				id: "user-1",
+				given_name: "Grace",
+			}),
+		);
+	});
 });

@@ -1,3 +1,4 @@
+import { MEMBER_SALUTATIONS, MEMBER_TITLES } from "@member-manager/shared";
 import { UserRound } from "lucide-react";
 import type { UseFormReturn } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
@@ -78,9 +79,11 @@ export function PersonalInfoSection({
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value={NONE_VALUE}>None</SelectItem>
-								<SelectItem value="Mr.">Mr.</SelectItem>
-								<SelectItem value="Ms.">Ms.</SelectItem>
-								<SelectItem value="Mx.">Mx.</SelectItem>
+								{MEMBER_SALUTATIONS.map((salutation) => (
+									<SelectItem key={salutation} value={salutation}>
+										{salutation}
+									</SelectItem>
+								))}
 							</SelectContent>
 						</Select>
 					</Field>
@@ -102,8 +105,11 @@ export function PersonalInfoSection({
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value={NONE_VALUE}>None</SelectItem>
-								<SelectItem value="Dr.">Dr.</SelectItem>
-								<SelectItem value="Prof.">Prof.</SelectItem>
+								{MEMBER_TITLES.map((title) => (
+									<SelectItem key={title} value={title}>
+										{title}
+									</SelectItem>
+								))}
 							</SelectContent>
 						</Select>
 					</Field>

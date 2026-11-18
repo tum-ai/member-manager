@@ -2,6 +2,7 @@ import { Save } from "lucide-react";
 import { useId, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { useUnsavedChangesWarning } from "@/hooks/useUnsavedChangesWarning";
 import { CvPanel } from "./CvPanel";
 import { DoorPinSection } from "./components/DoorPinSection";
 import { LinksSection } from "./components/LinksSection";
@@ -12,6 +13,7 @@ import { ProfileSidebar } from "./components/ProfileSidebar";
 import { RoleChangeRequestSection } from "./components/RoleChangeRequestSection";
 import { SepaPanel } from "./components/SepaPanel";
 import { TumaiProfileSection } from "./components/TumaiProfileSection";
+import { UnsavedChangesNotice } from "./components/UnsavedChangesNotice";
 import { useDoorPin } from "./hooks/useDoorPin";
 import { useMemberChangeRequestForm } from "./hooks/useMemberChangeRequestForm";
 import { useMembershipProof } from "./hooks/useMembershipProof";
@@ -37,6 +39,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		isAdmin,
 		isLoading,
 		isUpdating,
+		isDirty,
 		isLoadingResearchProjects,
 		onSubmit,
 		completeness,
@@ -49,6 +52,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		researchProjectOptions,
 		researchProjectSelectValue,
 	} = useProfileForm(user);
+
+	useUnsavedChangesWarning(isDirty);
 
 	const { isGeneratingPdf, handleDownloadMembershipProof } =
 		useMembershipProof(memberData);
@@ -220,6 +225,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 								privacy: `${fieldId}-privacy`,
 							}}
 						/>
+
+						{isDirty && <UnsavedChangesNotice className="lg:hidden" />}
 
 						<Button
 							type="submit"
