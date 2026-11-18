@@ -139,6 +139,28 @@ describe("EducationFields", () => {
 		);
 	});
 
+	it("keeps the spaces typed into a custom program name (#400)", async () => {
+		const userEv = userEvent.setup();
+		render(
+			<EducationFields
+				degreeValue="Bachelor"
+				schoolValue=""
+				onChange={onChange}
+			/>,
+		);
+
+		await chooseOption(userEv, /program/i, /other \(custom\)/i);
+
+		const customInput = await screen.findByLabelText(/custom program name/i);
+		await userEv.type(customInput, "Quantum Studies");
+
+		expect(customInput).toHaveValue("Quantum Studies");
+		expect(onChange).toHaveBeenLastCalledWith({
+			degree: "Bachelor Quantum Studies",
+			school: "",
+		});
+	});
+
 	it("reveals and stores a custom school when Other is selected", async () => {
 		const userEv = userEvent.setup();
 		render(
