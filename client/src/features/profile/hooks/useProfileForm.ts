@@ -3,6 +3,7 @@ import {
 	hasBankDetailsInput,
 	type MemberConsents,
 } from "@member-manager/shared";
+import type { User } from "@supabase/supabase-js";
 import { useForm } from "react-hook-form";
 import { useToast } from "@/contexts/ToastContext";
 import { useProfileFormHydration } from "@/features/profile/hooks/useProfileFormHydration";
@@ -88,8 +89,9 @@ function createEmptyMemberForm(userId: string): MemberSchema {
 	};
 }
 
-/** Profile inputs are keyed by member id + API data, not Supabase auth objects. */
-export function useProfileForm(userId: string): UseProfileFormResult {
+/** Profile state keys off `user.id` + API data; `user_metadata` is prefill only. */
+export function useProfileForm(user: User): UseProfileFormResult {
+	const userId = user.id;
 	const { showToast } = useToast();
 
 	const {
@@ -135,6 +137,7 @@ export function useProfileForm(userId: string): UseProfileFormResult {
 		isReady: !isLoading,
 		memberForm,
 		sepaForm,
+		authMetadata: user.user_metadata,
 	});
 
 	const linkedinUrl = memberForm.watch("linkedin_profile_url");
@@ -170,11 +173,14 @@ export function useProfileForm(userId: string): UseProfileFormResult {
 				const saved = memberResult.value as Record<string, unknown> | undefined;
 				memberForm.reset(
 					saved ? toMemberFormValues(saved, userId) : memberValues,
+					{ keepDirtyValues: true },
 				);
 			}
 			if (sendsSepa && sepaResult.status === "fulfilled") {
 				const saved = sepaResult.value as Record<string, unknown> | undefined;
-				sepaForm.reset(saved ? toSepaFormValues(saved) : sepaValues);
+				sepaForm.reset(saved ? toSepaFormValues(saved) : sepaValues, {
+					keepDirtyValues: true,
+				});
 			}
 			const feedback = describeSaveOutcome({
 				member: toSavePart(memberResult),

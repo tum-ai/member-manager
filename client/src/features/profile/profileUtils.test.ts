@@ -2,6 +2,7 @@ import type { User } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import {
 	extractSlackProfile,
+	extractSlackProfileFromMetadata,
 	fromSelectValue,
 	NONE_VALUE,
 	normalizeSerializedTextValue,
@@ -38,33 +39,45 @@ describe("normalizeSerializedTextValue", () => {
 	});
 });
 
-describe("extractSlackProfile", () => {
+describe("extractSlackProfileFromMetadata", () => {
 	it("prefers explicit given/family name fields", () => {
 		expect(
-			extractSlackProfile(
-				makeUser({ given_name: " Ada ", family_name: "Lovelace" }),
-			),
+			extractSlackProfileFromMetadata({
+				given_name: " Ada ",
+				family_name: "Lovelace",
+			}),
 		).toEqual({ given_name: "Ada", surname: "Lovelace" });
 	});
 
 	it("falls back to first/last name aliases", () => {
 		expect(
-			extractSlackProfile(
-				makeUser({ first_name: "Grace", last_name: "Hopper" }),
-			),
+			extractSlackProfileFromMetadata({
+				first_name: "Grace",
+				last_name: "Hopper",
+			}),
 		).toEqual({ given_name: "Grace", surname: "Hopper" });
 	});
 
 	it("splits a full name when discrete fields are missing", () => {
 		expect(
-			extractSlackProfile(makeUser({ name: "Alan Mathison Turing" })),
+			extractSlackProfileFromMetadata({ name: "Alan Mathison Turing" }),
 		).toEqual({ given_name: "Alan", surname: "Mathison Turing" });
 	});
 
 	it("returns empty strings when no metadata is present", () => {
-		expect(extractSlackProfile(makeUser({}))).toEqual({
+		expect(extractSlackProfileFromMetadata({})).toEqual({
 			given_name: "",
 			surname: "",
 		});
+	});
+});
+
+describe("extractSlackProfile", () => {
+	it("reads user_metadata from the auth user", () => {
+		expect(
+			extractSlackProfile(
+				makeUser({ given_name: "Ada", family_name: "Lovelace" }),
+			),
+		).toEqual({ given_name: "Ada", surname: "Lovelace" });
 	});
 });

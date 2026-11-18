@@ -1,5 +1,11 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import { act, renderHook } from "@testing-library/react";
+import { useForm } from "react-hook-form";
 import { describe, expect, it } from "vitest";
+import { getCurrentBatch } from "@/lib/constants";
+import { type MemberSchema, memberSchema } from "@/lib/schemas";
 import {
+	applyProfileFieldSuggestions,
 	computeProfileCompleteness,
 	getMissingProfileFields,
 	toProfileFormValues,
@@ -28,6 +34,62 @@ const completeInput = {
 	},
 	consentsDecided: true,
 };
+
+describe("applyProfileFieldSuggestions", () => {
+	const authMetadata = { given_name: "Ada", family_name: "Lovelace" };
+
+	it("sets slack name and batch as dirty when stored values are empty", () => {
+		const { result } = renderHook(() =>
+			useForm<MemberSchema>({
+				resolver: zodResolver(memberSchema),
+				defaultValues: {
+					user_id: "user-1",
+					given_name: "",
+					surname: "",
+					batch: "",
+				} as MemberSchema,
+			}),
+		);
+
+		act(() => {
+			applyProfileFieldSuggestions(result.current, undefined, authMetadata);
+		});
+
+		expect(result.current.getValues("given_name")).toBe("Ada");
+		expect(result.current.getValues("surname")).toBe("Lovelace");
+		expect(result.current.getValues("batch")).toBe(getCurrentBatch());
+		expect(result.current.formState.dirtyFields).toEqual({
+			given_name: true,
+			surname: true,
+			batch: true,
+		});
+	});
+
+	it("skips fields that are already stored on the member row", () => {
+		const { result } = renderHook(() =>
+			useForm<MemberSchema>({
+				resolver: zodResolver(memberSchema),
+				defaultValues: {
+					user_id: "user-1",
+					given_name: "Grace",
+					surname: "Hopper",
+					batch: "WS25",
+				} as MemberSchema,
+			}),
+		);
+
+		applyProfileFieldSuggestions(
+			result.current,
+			{ given_name: "Grace", surname: "Hopper", batch: "WS25" },
+			authMetadata,
+		);
+
+		expect(result.current.getValues("given_name")).toBe("Grace");
+		expect(result.current.getValues("surname")).toBe("Hopper");
+		expect(result.current.getValues("batch")).toBe("WS25");
+		expect(result.current.formState.isDirty).toBe(false);
+	});
+});
 
 describe("toProfileFormValues", () => {
 	it("maps stored member and sepa rows into form baselines", () => {

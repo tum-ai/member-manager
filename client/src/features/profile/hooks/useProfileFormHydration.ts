@@ -1,6 +1,10 @@
 import { useEffect } from "react";
 import type { UseFormReturn } from "react-hook-form";
-import { toProfileFormValues } from "@/features/profile/profileFormUtils";
+import {
+	applyProfileFieldSuggestions,
+	toProfileFormValues,
+} from "@/features/profile/profileFormUtils";
+import type { ProfileAuthPrefill } from "@/features/profile/profileTypes";
 import type { MemberSchema, ProfileSepaInput } from "@/lib/schemas";
 
 /**
@@ -14,6 +18,7 @@ export function useProfileFormHydration({
 	isReady,
 	memberForm,
 	sepaForm,
+	authMetadata,
 }: {
 	userId: string;
 	// biome-ignore lint/suspicious/noExplicitAny: API row
@@ -23,6 +28,7 @@ export function useProfileFormHydration({
 	isReady: boolean;
 	memberForm: UseFormReturn<MemberSchema>;
 	sepaForm: UseFormReturn<ProfileSepaInput>;
+	authMetadata: ProfileAuthPrefill;
 }): void {
 	useEffect(() => {
 		if (!isReady) return;
@@ -31,4 +37,9 @@ export function useProfileFormHydration({
 		memberForm.reset(baseline.member, { keepDirtyValues: true });
 		sepaForm.reset(baseline.sepa, { keepDirtyValues: true });
 	}, [isReady, memberData, sepaData, userId, memberForm, sepaForm]);
+
+	useEffect(() => {
+		if (!isReady) return;
+		applyProfileFieldSuggestions(memberForm, memberData, authMetadata);
+	}, [isReady, memberData, memberForm, authMetadata]);
 }

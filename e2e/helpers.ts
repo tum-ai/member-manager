@@ -106,3 +106,13 @@ export async function expectToast(
 ): Promise<void> {
 	await expect(page.getByText(message).first()).toBeVisible();
 }
+
+// The profile page hydrates SEPA/banking fields after GET /api/sepa. Interact
+// with agreement checkboxes only after that finishes so a late reset cannot
+// overwrite clicks. Only for personas seeded with bank details (non-empty IBAN).
+export async function waitForProfileBankingHydrated(page: Page): Promise<void> {
+	await expect(
+		page.getByRole("heading", { name: "Banking & agreements" }),
+	).toBeVisible();
+	await expect(page.getByLabel("IBAN")).not.toHaveValue("");
+}

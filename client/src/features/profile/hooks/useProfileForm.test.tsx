@@ -1,6 +1,7 @@
 import type { User } from "@supabase/supabase-js";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { getCurrentBatch } from "@/lib/constants";
 import type { ProfileSepaInput } from "@/lib/schemas";
 import { type UseProfileFormResult, useProfileForm } from "./useProfileForm";
 
@@ -80,16 +81,37 @@ beforeEach(() => {
 describe("useProfileForm", () => {
 	it("stays loading until member, sepa and role queries settle", () => {
 		isLoadingMember = true;
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		expect(result.current.isLoading).toBe(true);
 	});
 
-	it("starts from empty personal fields when the member row is missing", async () => {
-		const { result } = renderHook(() => useProfileForm(user.id));
+	it("prefills slack name and current batch as dirty when the member row is missing", async () => {
+		const { result } = renderHook(() => useProfileForm(user));
 
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
-		expect(result.current.memberForm.getValues("given_name")).toBe("");
-		expect(result.current.memberForm.getValues("surname")).toBe("");
+		expect(result.current.memberForm.getValues("given_name")).toBe("Ada");
+		expect(result.current.memberForm.getValues("surname")).toBe("Lovelace");
+		expect(result.current.memberForm.getValues("batch")).toBe(
+			getCurrentBatch(),
+		);
+		await waitFor(() =>
+			expect(result.current.memberForm.formState.isDirty).toBe(true),
+		);
+	});
+
+	it("does not overlay slack suggestions when the member row already has names", async () => {
+		memberData = { given_name: "Grace", surname: "Hopper", batch: "SS25" };
+		const namelessUser = {
+			id: "user-2",
+			user_metadata: { given_name: "Ada", family_name: "Lovelace" },
+		} as unknown as User;
+
+		const { result } = renderHook(() => useProfileForm(namelessUser));
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		expect(result.current.memberForm.getValues("given_name")).toBe("Grace");
+		expect(result.current.memberForm.getValues("surname")).toBe("Hopper");
+		expect(result.current.memberForm.getValues("batch")).toBe("SS25");
 	});
 
 	it("hydrates member, linkedin and sepa forms from fetched data", async () => {
@@ -111,7 +133,7 @@ describe("useProfileForm", () => {
 			data_privacy_notice_agreed: true,
 		};
 
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 
 		await waitFor(() =>
 			expect(result.current.memberForm.getValues("given_name")).toBe("Grace"),
@@ -137,7 +159,7 @@ describe("useProfileForm", () => {
 	});
 
 	it("blocks submit and toasts when required member fields are missing", async () => {
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
@@ -178,7 +200,7 @@ describe("useProfileForm", () => {
 		};
 
 		async function renderLoaded() {
-			const rendered = renderHook(() => useProfileForm(user.id));
+			const rendered = renderHook(() => useProfileForm(user));
 			await waitFor(() =>
 				expect(rendered.result.current.isLoading).toBe(false),
 			);
@@ -458,7 +480,7 @@ describe("useProfileForm", () => {
 	});
 
 	it("submits only the member payload for a self-service member without sepa", async () => {
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
@@ -494,7 +516,7 @@ describe("useProfileForm", () => {
 
 	it("includes admin-managed fields and resolves research department for admins", async () => {
 		isAdmin = true;
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
@@ -520,7 +542,7 @@ describe("useProfileForm", () => {
 
 	it("nulls research_project_id for admins outside the research department", async () => {
 		isAdmin = true;
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
@@ -550,7 +572,7 @@ describe("useProfileForm", () => {
 		};
 		memberData = { given_name: "Ada", surname: "Lovelace" };
 
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 		await waitFor(() =>
 			expect(result.current.sepaForm.getValues("iban")).toBe(
@@ -572,7 +594,7 @@ describe("useProfileForm", () => {
 
 	it("surfaces a toast when a mutation rejects", async () => {
 		updateMemberAsync.mockRejectedValue(new Error("network down"));
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
@@ -594,7 +616,7 @@ describe("useProfileForm", () => {
 
 	it("falls back to Unknown error when the rejection is not an Error", async () => {
 		updateMemberAsync.mockRejectedValue("boom");
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
@@ -620,7 +642,7 @@ describe("useProfileForm", () => {
 			{ id: "rp-done", title: "Done", status: "completed" },
 			{ id: "rp-blank", title: "Blank", status: "" },
 		];
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		expect(result.current.researchProjectOptions.map((p) => p.id)).toEqual([
@@ -632,7 +654,7 @@ describe("useProfileForm", () => {
 	});
 
 	it("flags the research department when the current role resolves to research", async () => {
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
@@ -652,8 +674,8 @@ describe("useProfileForm", () => {
 			batch: "SS25",
 		};
 		const { result, rerender } = renderHook(
-			({ userId }) => useProfileForm(userId),
-			{ initialProps: { userId: user.id } },
+			({ authUser }) => useProfileForm(authUser),
+			{ initialProps: { authUser: user } },
 		);
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 		await waitFor(() =>
@@ -670,11 +692,58 @@ describe("useProfileForm", () => {
 		});
 		expect(result.current.isDirty).toBe(true);
 
-		rerender({ userId: user.id });
+		rerender({ authUser: user });
 
 		expect(result.current.memberForm.getValues("salutation")).toBe("Mx.");
 		expect(result.current.memberForm.getValues("batch")).toBe("WS25");
 		expect(result.current.isDirty).toBe(true);
+	});
+
+	it("keeps member edits made while a save request is in flight", async () => {
+		memberData = {
+			given_name: "Ada",
+			surname: "Lovelace",
+			date_of_birth: "1990-01-01",
+			street: "Main",
+			number: "1",
+			postal_code: "80333",
+			city: "Munich",
+			country: "Germany",
+			batch: "SS25",
+		};
+		sepaData = {
+			iban: "DE89370400440532013000",
+			bank_name: "Test Bank",
+			mandate_agreed: true,
+			privacy_agreed: true,
+		};
+		let resolveSave!: (value: Record<string, unknown>) => void;
+		const pendingSave = new Promise<Record<string, unknown>>((resolve) => {
+			resolveSave = resolve;
+		});
+		updateMemberAsync.mockReturnValue(pendingSave);
+		updateSepaAsync.mockResolvedValue(sepaData);
+
+		const { result } = renderHook(() => useProfileForm(user));
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		await act(async () => {
+			const submitPromise = result.current.onSubmit();
+			await waitFor(() => expect(updateMemberAsync).toHaveBeenCalled());
+			act(() => {
+				result.current.memberForm.setValue("city", "Berlin", {
+					shouldDirty: true,
+				});
+			});
+			resolveSave({
+				...memberData,
+				city: "Munich",
+			});
+			await submitPromise;
+		});
+
+		expect(result.current.memberForm.getValues("city")).toBe("Berlin");
+		expect(result.current.memberForm.formState.dirtyFields.city).toBe(true);
 	});
 
 	it("clears dirty state after a successful save", async () => {
@@ -686,7 +755,7 @@ describe("useProfileForm", () => {
 			salutation: "Ms.",
 		});
 
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 
 		act(() => {
@@ -726,7 +795,7 @@ describe("useProfileForm", () => {
 		});
 		updateSepaAsync.mockRejectedValue(new Error("sepa down"));
 
-		const { result } = renderHook(() => useProfileForm(user.id));
+		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
 		await waitFor(() =>
 			expect(result.current.sepaForm.getValues("iban")).toBe(

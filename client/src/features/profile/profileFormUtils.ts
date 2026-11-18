@@ -1,3 +1,7 @@
+import type { UseFormReturn } from "react-hook-form";
+import type { ProfileAuthPrefill } from "@/features/profile/profileTypes";
+import { extractSlackProfileFromMetadata } from "@/features/profile/profileUtils";
+import { getCurrentBatch } from "@/lib/constants";
 import type { MemberSchema, ProfileSepaInput } from "@/lib/schemas";
 
 type StoredRecord = Record<string, unknown> | null | undefined;
@@ -5,11 +9,44 @@ type StoredRecord = Record<string, unknown> | null | undefined;
 const textOf = (value: unknown): string =>
 	typeof value === "string" ? value : "";
 
+const storedText = (stored: StoredRecord, key: string): string =>
+	textOf(stored?.[key]);
+
+function trySuggestMemberField(
+	memberForm: UseFormReturn<MemberSchema>,
+	stored: StoredRecord,
+	name: "given_name" | "surname" | "batch",
+	suggestion: string,
+): void {
+	if (!suggestion.trim()) return;
+	if (storedText(stored, name).trim()) return;
+	if (memberForm.formState.dirtyFields[name]) return;
+	const current = memberForm.getValues(name);
+	if (typeof current === "string" && current.trim()) return;
+	memberForm.setValue(name, suggestion, { shouldDirty: true });
+}
+
+/**
+ * After a server baseline reset, prefill empty stored fields from Slack auth
+ * metadata and the current batch. Marked dirty so the baseline stays "what
+ * the server has" until the member saves.
+ */
+export function applyProfileFieldSuggestions(
+	memberForm: UseFormReturn<MemberSchema>,
+	memberData: StoredRecord,
+	authMetadata: ProfileAuthPrefill,
+): void {
+	const slack = extractSlackProfileFromMetadata(authMetadata);
+	trySuggestMemberField(memberForm, memberData, "given_name", slack.given_name);
+	trySuggestMemberField(memberForm, memberData, "surname", slack.surname);
+	trySuggestMemberField(memberForm, memberData, "batch", getCurrentBatch());
+}
+
 /**
  * The member form as it is stored. Nothing is invented here: a field the
  * member never saved is blank, so the form's baseline (and its dirty state)
- * always means "what the server has". Suggestions such as the Slack name or
- * the current batch are applied on top as unsaved edits (`useProfileForm`).
+ * always means "what the server has". Slack/batch suggestions are applied
+ * after reset in `useProfileFormHydration` via `applyProfileFieldSuggestions`.
  */
 export function toMemberFormValues(
 	stored: StoredRecord,
@@ -63,10 +100,7 @@ export interface ProfileFormBaseline {
 	sepa: ProfileSepaInput;
 }
 
-/**
- * Single Server → form mapping. Slack suggestions are applied separately as
- * dirty overlays so the baseline stays "what the server has".
- */
+/** Single server → form mapping (see `applyProfileFieldSuggestions`). */
 export function toProfileFormValues(
 	member: StoredRecord,
 	sepa: StoredRecord,

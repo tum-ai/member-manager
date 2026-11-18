@@ -49,7 +49,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 		isResearchDepartmentSelected,
 		researchProjectOptions,
 		researchProjectSelectValue,
-	} = useProfileForm(user.id);
+	} = useProfileForm(user);
 
 	const { isGeneratingPdf, handleDownloadMembershipProof } =
 		useMembershipProof(memberData);

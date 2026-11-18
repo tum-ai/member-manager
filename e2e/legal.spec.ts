@@ -1,5 +1,9 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
-import { expectToast, loginAsLocalMember } from "./helpers";
+import {
+	expectToast,
+	loginAsLocalMember,
+	waitForProfileBankingHydrated,
+} from "./helpers";
 
 // Agreement / privacy acceptance flow (issue #222).
 //
@@ -39,15 +43,16 @@ function panelCheckbox(page: Page, name: RegExp): Locator {
 // state. The "Save Changes" button exists twice (sidebar + mobile); the first
 // visible one submits the same form.
 async function saveProfile(page: Page): Promise<void> {
+	const saveButton = page
+		.getByRole("button", { name: /save changes/i })
+		.first();
+	await expect(saveButton).toBeEnabled();
 	const saved = page.waitForResponse(
 		(response) =>
 			response.url().includes("/api/sepa/") &&
 			response.request().method() === "PUT",
 	);
-	await page
-		.getByRole("button", { name: /save changes/i })
-		.first()
-		.click();
+	await saveButton.click();
 	await saved;
 	await expectToast(page, /profile saved successfully/i);
 }
@@ -103,11 +108,7 @@ async function expectConsentSummary(
 test.describe("legal agreement acceptance flow", () => {
 	test.beforeEach(async ({ page }) => {
 		await loginAsLocalMember(page);
-		// The profile page is the index route. The banking/agreements panel is the
-		// anchor for everything below.
-		await expect(
-			page.getByRole("heading", { name: "Banking & agreements" }),
-		).toBeVisible();
+		await waitForProfileBankingHydrated(page);
 	});
 
 	test("Privacy Policy modal gates Confirm on the consent checkbox", async ({
@@ -167,6 +168,9 @@ test.describe("legal agreement acceptance flow", () => {
 		if (await panelPrivacy.isChecked()) {
 			await panelPrivacy.click();
 		}
+		await expect(panelPrivacy).not.toBeChecked();
+		await saveProfile(page);
+
 		await panelPrivacy.click();
 		const dialog = page.getByRole("dialog");
 		await dialog

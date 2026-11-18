@@ -1,5 +1,9 @@
 import { expect, type Page, test } from "@playwright/test";
-import { expectToast, loginAsLocalMember } from "./helpers";
+import {
+	expectToast,
+	loginAsLocalMember,
+	waitForProfileBankingHydrated,
+} from "./helpers";
 
 // SEPA mandate setup, exercised end-to-end against the real seeded stack as the
 // regular member. The profile page is the index route ("/"); the SEPA controls
@@ -38,6 +42,7 @@ async function resetAgreementUnchecked(
 	page: Page,
 	name: RegExp,
 ): Promise<void> {
+	await waitForProfileBankingHydrated(page);
 	const checkbox = page.getByRole("checkbox", { name });
 	if (await checkbox.isChecked()) {
 		await checkbox.click();

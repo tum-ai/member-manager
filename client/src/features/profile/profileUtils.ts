@@ -22,11 +22,13 @@ export function normalizeSerializedTextValue(
 	return value.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
 
-export function extractSlackProfile(user: User): {
+export function extractSlackProfileFromMetadata(
+	userMetadata: User["user_metadata"],
+): {
 	given_name: string;
 	surname: string;
 } {
-	const metadata = (user.user_metadata ?? {}) as Record<string, unknown>;
+	const metadata = (userMetadata ?? {}) as Record<string, unknown>;
 	const getString = (key: string): string => {
 		const value = metadata[key];
 		return typeof value === "string" ? value.trim() : "";
@@ -45,4 +47,11 @@ export function extractSlackProfile(user: User): {
 	}
 
 	return { given_name: given, surname: family };
+}
+
+export function extractSlackProfile(user: User): {
+	given_name: string;
+	surname: string;
+} {
+	return extractSlackProfileFromMetadata(user.user_metadata);
 }
