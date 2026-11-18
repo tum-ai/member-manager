@@ -284,4 +284,37 @@ describe("ProfilePage (render)", () => {
 		// chip) instead of the Slack-derived "Ada Lovelace".
 		expect(screen.queryByText("Ada Lovelace")).not.toBeInTheDocument();
 	});
+
+	it("flags unsaved edits next to the completeness meter and above the save button", async () => {
+		memberData = {
+			given_name: "Ada",
+			surname: "Lovelace",
+			department: "Venture",
+			batch: "WS25",
+		};
+		render(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
+		const firstName = await screen.findByLabelText(/first name/i);
+		await waitFor(() => expect(firstName).toHaveValue("Ada"));
+
+		await userEvent.clear(firstName);
+		await userEvent.type(firstName, "Luca");
+
+		// One notice in the sidebar, under the completeness meter, which also
+		// says the percentage counts unsaved values, and one above the mobile
+		// save button. (Not asserted before typing: in jsdom Radix Select
+		// reports a blank value on mount, which marks the batch field dirty.)
+		const notices = (await screen.findAllByRole("status")).filter((element) =>
+			element.textContent?.includes("Unsaved changes"),
+		);
+		expect(notices).toHaveLength(2);
+		expect(
+			notices.some((notice) =>
+				/the percentage above includes them/i.test(notice.textContent ?? ""),
+			),
+		).toBe(true);
+	});
 });

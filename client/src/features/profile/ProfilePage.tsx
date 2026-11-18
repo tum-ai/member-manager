@@ -117,6 +117,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 						activeSection={activeSection}
 						onNavClick={handleNavClick}
 						isUpdating={isUpdating}
+						hasUnsavedChanges={isDirty}
 					/>
 
 					<div className="flex flex-col gap-6 lg:col-span-8">
