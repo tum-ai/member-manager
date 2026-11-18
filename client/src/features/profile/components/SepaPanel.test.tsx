@@ -1,6 +1,7 @@
 import type { MemberConsents } from "@member-manager/shared";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
@@ -29,7 +30,8 @@ function Harness({
 	memberConsents,
 	openSepaModal = vi.fn(),
 	openPrivacyModal = vi.fn(),
-}: Partial<React.ComponentProps<typeof SepaPanel>>) {
+	ibanError,
+}: Partial<React.ComponentProps<typeof SepaPanel>> & { ibanError?: string }) {
 	const sepaForm = useForm<ProfileSepaInput>({
 		defaultValues: {
 			iban: "",
@@ -39,6 +41,11 @@ function Harness({
 			privacy_agreed: privacyAgreed,
 		},
 	});
+	useEffect(() => {
+		if (ibanError) {
+			sepaForm.setError("iban", { type: "manual", message: ibanError });
+		}
+	}, [ibanError, sepaForm]);
 	return (
 		<MemoryRouter>
 			<SepaPanel
@@ -50,6 +57,7 @@ function Harness({
 				openPrivacyModal={openPrivacyModal}
 				ids={ids}
 			/>
+			<output data-testid="iban-form-value">{sepaForm.watch("iban")}</output>
 		</MemoryRouter>
 	);
 }
@@ -76,6 +84,42 @@ describe("SepaPanel", () => {
 			expect(input).not.toBeRequired();
 		}
 		expect(screen.getByText(/bank details are optional/i)).toBeInTheDocument();
+	});
+
+	it("turns off autocorrect and capitalizes the IBAN and BIC keyboards", () => {
+		render(<Harness />);
+
+		const iban = screen.getByLabelText(/iban/i);
+		expect(iban).toHaveAttribute("autocapitalize", "characters");
+		expect(iban).toHaveAttribute("autocorrect", "off");
+		expect(iban).toHaveAttribute("spellcheck", "false");
+		const bic = screen.getByLabelText(/^bic$/i);
+		expect(bic).toHaveAttribute("autocapitalize", "characters");
+		expect(bic).toHaveAttribute("autocorrect", "off");
+		expect(bic).toHaveAttribute("spellcheck", "false");
+	});
+
+	it("shows the IBAN grouped while storing the cleaned value in the form", async () => {
+		const user = userEvent.setup();
+		render(<Harness />);
+
+		await user.type(screen.getByLabelText(/iban/i), "de89370400440532013000");
+
+		expect(screen.getByLabelText(/iban/i)).toHaveValue(
+			"DE89 3704 0044 0532 0130 00",
+		);
+		expect(screen.getByTestId("iban-form-value")).toHaveTextContent(
+			"DE89370400440532013000",
+		);
+	});
+
+	it("shows the form's IBAN error as the field hint", async () => {
+		render(<Harness ibanError="Invalid IBAN" />);
+
+		const iban = await screen.findByLabelText(/iban/i);
+		expect(await screen.findByText("Invalid IBAN")).toBeInTheDocument();
+		expect(iban).toHaveAttribute("aria-invalid", "true");
+		expect(screen.getAllByText("Invalid IBAN")).toHaveLength(1);
 	});
 
 	it("opens the SEPA modal when checking the unchecked mandate box", async () => {

@@ -1,6 +1,7 @@
 import type { MemberConsents } from "@member-manager/shared";
 import { Landmark } from "lucide-react";
-import type { UseFormReturn } from "react-hook-form";
+import { Controller, type UseFormReturn } from "react-hook-form";
+import { IbanInput } from "@/components/IbanInput";
 import { CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field } from "@/components/ui/field";
@@ -47,20 +48,31 @@ export function SepaPanel({
 				/>
 
 				<div className="mb-6 grid gap-4">
-					<Field
-						label="IBAN"
-						htmlFor={ids.iban}
-						error={sepaForm.formState.errors.iban?.message}
-					>
-						<Input
-							id={ids.iban}
-							{...sepaForm.register("iban")}
-							aria-invalid={!!sepaForm.formState.errors.iban}
-							className="font-mono"
+					<Field label="IBAN" htmlFor={ids.iban}>
+						<Controller
+							control={sepaForm.control}
+							name="iban"
+							render={({ field }) => (
+								<IbanInput
+									id={ids.iban}
+									name={field.name}
+									value={field.value}
+									onValueChange={field.onChange}
+									onBlur={field.onBlur}
+									error={sepaForm.formState.errors.iban?.message}
+								/>
+							)}
 						/>
 					</Field>
 					<Field label="BIC" htmlFor={ids.bic}>
-						<Input id={ids.bic} {...sepaForm.register("bic")} />
+						<Input
+							id={ids.bic}
+							{...sepaForm.register("bic")}
+							autoCapitalize="characters"
+							autoComplete="off"
+							autoCorrect="off"
+							spellCheck={false}
+						/>
 					</Field>
 					<Field
 						label="Bank Name"
