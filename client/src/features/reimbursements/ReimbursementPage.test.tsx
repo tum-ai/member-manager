@@ -27,6 +27,7 @@ const {
 	downloadReceiptAsync,
 	showToast,
 	adminState,
+	departmentState,
 	hookState,
 	memberState,
 	sepaState,
@@ -40,6 +41,12 @@ const {
 	adminState: {
 		isAdmin: false,
 		isLoading: false,
+	},
+	departmentState: {
+		department: null as string | null,
+		requests: [] as unknown[],
+		isLoading: false,
+		error: null as Error | null,
 	},
 	hookState: {
 		requests: [] as unknown[],
@@ -91,6 +98,10 @@ vi.mock("../../hooks/useReimbursementRequests", () => ({
 		downloadReceiptAsync,
 		isDownloadingReceipt: false,
 	}),
+}));
+
+vi.mock("./hooks/useDepartmentReimbursements", () => ({
+	useDepartmentReimbursements: () => departmentState,
 }));
 
 vi.mock("../../contexts/ToastContext", () => ({
@@ -172,6 +183,10 @@ describe("ReimbursementPage", () => {
 		hookState.isCreating = false;
 		hookState.isUploadingReceipt = false;
 		hookState.isParsingReceipt = false;
+		departmentState.department = null;
+		departmentState.requests = [];
+		departmentState.isLoading = false;
+		departmentState.error = null;
 		memberState.member = {
 			user_id: "user-123",
 			department: "Software Development",
@@ -559,6 +574,49 @@ describe("ReimbursementPage", () => {
 				.compareDocumentPosition(screen.getByText("20 Apr 2026")) &
 				Node.DOCUMENT_POSITION_FOLLOWING,
 		).toBeTruthy();
+	});
+
+	it("lists what the member's department already submitted, below the form", () => {
+		departmentState.department = "Makeathon";
+		departmentState.requests = [
+			{
+				id: "department-1",
+				requester_name: "Ada Lovelace",
+				is_own: false,
+				amount: 480,
+				date: "2026-04-18",
+				description: "Venue deposit",
+				submission_type: "invoice",
+				status: "requested",
+				approval_status: "pending",
+				first_approved_at: null,
+				payment_status: "to_be_paid",
+				created_at: "2026-04-18T10:00:00Z",
+			},
+		];
+
+		renderPage();
+
+		const heading = screen.getByRole("heading", { name: "Makeathon requests" });
+		const section = heading.closest("div") as HTMLElement;
+		expect(within(section).getByText("Venue deposit")).toBeInTheDocument();
+		expect(
+			within(section).getByText("Ada Lovelace · 18 Apr 2026"),
+		).toBeInTheDocument();
+		expect(
+			screen
+				.getByRole("button", { name: /submit request/i })
+				.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
+		).toBeTruthy();
+	});
+
+	it("shows no department list to a member without a department", () => {
+		renderPage();
+
+		// Only the member's own list remains.
+		expect(screen.getAllByRole("heading", { name: /requests$/ })).toHaveLength(
+			1,
+		);
 	});
 
 	it("opens a request to show everything the member submitted, with a masked IBAN", async () => {

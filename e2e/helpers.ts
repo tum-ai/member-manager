@@ -38,6 +38,7 @@ export const SEED_EDUCATION_ADMIN_EMAIL = "innovation-lead@example.com";
 export const SEED_LEGAL_FINANCE_MEMBER_EMAIL =
 	"legal-finance-member@example.com";
 export const SEED_MAKEATHON_LEAD_EMAIL = "makeathon-lead@example.com";
+export const SEED_MAKEATHON_MEMBER_EMAIL = "makeathon-member@example.com";
 // The one seeded member without a `sepa` row (never saved bank details).
 export const SEED_NO_BANK_DETAILS_MEMBER_EMAIL = "no-bank-details@example.com";
 // The one seeded member with no `member_agreements` row (consents undecided),

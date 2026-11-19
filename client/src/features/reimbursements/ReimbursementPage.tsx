@@ -1,9 +1,11 @@
 import type { User } from "@supabase/supabase-js";
 import type React from "react";
 import { ToolPageShell } from "@/features/tools/ToolPageShell";
+import { DepartmentReimbursementsSection } from "./components/DepartmentReimbursementsSection";
 import { ReimbursementFormSection } from "./components/ReimbursementFormSection";
 import { ReimbursementRequestDetailDialog } from "./components/ReimbursementRequestDetailDialog";
 import { ReimbursementRequestsSection } from "./components/ReimbursementRequestsSection";
+import { useDepartmentReimbursements } from "./hooks/useDepartmentReimbursements";
 import { useReimbursementForm } from "./hooks/useReimbursementForm";
 import { useReimbursementRequestDetail } from "./hooks/useReimbursementRequestDetail";
 
@@ -38,38 +40,48 @@ export default function ReimbursementPage({
 		handleSubmit,
 	} = useReimbursementForm(user.id);
 	const detail = useReimbursementRequestDetail(user.id);
+	const departmentRequests = useDepartmentReimbursements(user.id);
 
 	return (
 		<ToolPageShell
 			title="Reimbursements"
 			description="Submit reimbursements or vendor invoices to the Legal and Finance department."
 		>
-			<div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(380px,0.9fr)_minmax(0,1.35fr)]">
-				<ReimbursementRequestsSection
-					isLoading={isLoading}
-					error={error}
-					requests={sortedRequests}
-					onSelectRequest={detail.openDetail}
-				/>
+			<div className="space-y-6">
+				<div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(380px,0.9fr)_minmax(0,1.35fr)]">
+					<ReimbursementRequestsSection
+						isLoading={isLoading}
+						error={error}
+						requests={sortedRequests}
+						onSelectRequest={detail.openDetail}
+					/>
 
-				<ReimbursementFormSection
-					values={values}
-					errors={errors}
-					isCreating={isCreating}
-					isResubmitting={isResubmitting}
-					editingRequest={editingRequest}
-					onCancelEdit={cancelEditing}
-					isReceiptBusy={isReceiptBusy}
-					isDraggingReceipt={isDraggingReceipt}
-					isSubmitDisabled={isSubmitDisabled}
-					canSubmitVivid={canSubmitVivid}
-					showDepartmentWarning={showDepartmentWarning}
-					onDraggingChange={setIsDraggingReceipt}
-					onReceiptDrop={handleReceiptDrop}
-					onReceiptChange={handleReceiptChange}
-					onSubmissionTypeChange={handleSubmissionTypeChange}
-					onFieldChange={setField}
-					onSubmit={handleSubmit}
+					<ReimbursementFormSection
+						values={values}
+						errors={errors}
+						isCreating={isCreating}
+						isResubmitting={isResubmitting}
+						editingRequest={editingRequest}
+						onCancelEdit={cancelEditing}
+						isReceiptBusy={isReceiptBusy}
+						isDraggingReceipt={isDraggingReceipt}
+						isSubmitDisabled={isSubmitDisabled}
+						canSubmitVivid={canSubmitVivid}
+						showDepartmentWarning={showDepartmentWarning}
+						onDraggingChange={setIsDraggingReceipt}
+						onReceiptDrop={handleReceiptDrop}
+						onReceiptChange={handleReceiptChange}
+						onSubmissionTypeChange={handleSubmissionTypeChange}
+						onFieldChange={setField}
+						onSubmit={handleSubmit}
+					/>
+				</div>
+
+				<DepartmentReimbursementsSection
+					department={departmentRequests.department}
+					requests={departmentRequests.requests}
+					isLoading={departmentRequests.isLoading}
+					error={departmentRequests.error}
 				/>
 			</div>
 

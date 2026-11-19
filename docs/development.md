@@ -89,6 +89,10 @@ The reimbursement tool can pre-fill amount, date, description, IBAN, and BIC fro
 
 Receipt files are uploaded directly from the browser to the private `reimbursement-receipts` Supabase Storage bucket through `POST /api/reimbursements/receipt-upload-url`; the request stores only the storage reference. `POST /api/reimbursements/process-receipt` normalizes uploaded receipts: PDFs are returned as raw base64, JPG/PNG images are wrapped into a single-page PDF, and filenames follow `DDMMYY_Name_Identifier.pdf` with `Expense` as the no-OpenAI fallback identifier.
 
+### Department requests
+
+Below the form, the reimbursement page lists every request filed for the member's own department (`GET /api/reimbursements/department`), so two members don't submit the same invoice. Active members see requester name, date, amount, description, type and status. The receipt, IBAN/BIC and rejection reason are not part of that response; they stay with the requester and the reviewers. The scope is the department on the caller's member row, which only admins can change. Requests are not grouped per event yet.
+
 ### Slack notifications and interactions
 
 Submitted reimbursement and invoice requests appear in the Finance Review queue for active Legal & Finance members and admins. Approval takes two clicks: the first "Approve" only records a first approval (`first_approved_at`, shown as "First approved"; the request stays `pending`), and the second, "Final approval", makes it `approved` as before. The same applies to the Slack approve buttons; a first approval never syncs to BuchhaltungsButler. If `SLACK_BOT_TOKEN` is set, eligible reviewers who enabled reimbursement Slack DMs in their profile receive a DM, and approval, rejection, and paid status changes DM the requester. Without Slack configuration, the queues and in-app statuses remain the source of truth.

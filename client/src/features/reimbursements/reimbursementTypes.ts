@@ -1,4 +1,6 @@
 export type {
+	DepartmentReimbursementRequest,
+	DepartmentReimbursementsResponse,
 	ReimbursementApprovalStatus,
 	ReimbursementBuchhaltungsButlerSyncStatus,
 	ReimbursementPaymentStatus,
