@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, within } from "storybook/test";
+import { expect, fn, userEvent, within } from "storybook/test";
 import type { DepartmentReimbursementRequest } from "@/features/reimbursements/reimbursementTypes";
 import { DepartmentReimbursementsSection } from "./DepartmentReimbursementsSection";
 
@@ -58,6 +58,10 @@ const meta = {
 	args: {
 		department: "Makeathon",
 		requests,
+		page: 1,
+		pageCount: 1,
+		onPageChange: fn(),
+		isChangingPage: false,
 		isLoading: false,
 		error: null,
 	},
@@ -84,6 +88,26 @@ export const ListsDepartmentRequests: Story = {
 		await expect(within(second).getByText("You · 28 May 2026")).toBeVisible();
 		await expect(within(third).getByText("Not approved")).toBeVisible();
 		await expect(canvas.queryByRole("button")).not.toBeInTheDocument();
+	},
+};
+
+// With more than one page, Previous and Next appear; Previous is disabled on
+// the first page.
+export const Paged: Story = {
+	args: { page: 1, pageCount: 3 },
+	play: async ({ canvasElement, args }) => {
+		const canvas = within(canvasElement);
+		const pages = within(
+			canvas.getByRole("navigation", { name: "Department requests pages" }),
+		);
+
+		await expect(pages.getByText("Page 1 of 3")).toBeVisible();
+		await expect(
+			pages.getByRole("link", { name: "Go to previous page" }),
+		).toHaveAttribute("aria-disabled", "true");
+
+		await userEvent.click(pages.getByRole("link", { name: "Go to next page" }));
+		await expect(args.onPageChange).toHaveBeenLastCalledWith(2);
 	},
 };
 

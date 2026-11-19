@@ -1,5 +1,6 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 import type { DepartmentReimbursementRequest } from "@/features/reimbursements/reimbursementTypes";
 import { DepartmentReimbursementsSection } from "./DepartmentReimbursementsSection";
 
@@ -23,10 +24,18 @@ function request(
 	};
 }
 
+const singlePage = {
+	page: 1,
+	pageCount: 1,
+	onPageChange: () => {},
+	isChangingPage: false,
+};
+
 describe("DepartmentReimbursementsSection", () => {
 	it("lists each request with requester, date, amount, type and status", () => {
 		render(
 			<DepartmentReimbursementsSection
+				{...singlePage}
 				department="Makeathon"
 				requests={[
 					request(),
@@ -69,6 +78,7 @@ describe("DepartmentReimbursementsSection", () => {
 	it("falls back when the requester's name is unknown", () => {
 		render(
 			<DepartmentReimbursementsSection
+				{...singlePage}
 				department="Makeathon"
 				requests={[request({ requester_name: null })]}
 				isLoading={false}
@@ -84,6 +94,7 @@ describe("DepartmentReimbursementsSection", () => {
 	it("offers no way to open a request, its receipt or its payment details", () => {
 		render(
 			<DepartmentReimbursementsSection
+				{...singlePage}
 				department="Makeathon"
 				requests={[request()]}
 				isLoading={false}
@@ -95,9 +106,106 @@ describe("DepartmentReimbursementsSection", () => {
 		expect(screen.queryByRole("link")).not.toBeInTheDocument();
 	});
 
+	it("shows no page controls for a single page", () => {
+		render(
+			<DepartmentReimbursementsSection
+				{...singlePage}
+				department="Makeathon"
+				requests={[request()]}
+				isLoading={false}
+				error={null}
+			/>,
+		);
+
+		expect(screen.queryByRole("navigation")).not.toBeInTheDocument();
+	});
+
+	it("pages forwards and backwards", async () => {
+		const user = userEvent.setup();
+		const onPageChange = vi.fn();
+		render(
+			<DepartmentReimbursementsSection
+				department="Makeathon"
+				requests={[request()]}
+				page={2}
+				pageCount={3}
+				onPageChange={onPageChange}
+				isChangingPage={false}
+				isLoading={false}
+				error={null}
+			/>,
+		);
+
+		const pages = within(
+			screen.getByRole("navigation", { name: "Department requests pages" }),
+		);
+		expect(pages.getByText("Page 2 of 3")).toBeInTheDocument();
+
+		await user.click(pages.getByRole("link", { name: "Go to next page" }));
+		expect(onPageChange).toHaveBeenLastCalledWith(3);
+		await user.click(pages.getByRole("link", { name: "Go to previous page" }));
+		expect(onPageChange).toHaveBeenLastCalledWith(1);
+	});
+
+	it("disables Previous on the first page and Next on the last", () => {
+		const { rerender } = render(
+			<DepartmentReimbursementsSection
+				department="Makeathon"
+				requests={[request()]}
+				page={1}
+				pageCount={2}
+				onPageChange={() => {}}
+				isChangingPage={false}
+				isLoading={false}
+				error={null}
+			/>,
+		);
+
+		const previous = () =>
+			screen.getByRole("link", { name: "Go to previous page" });
+		const next = () => screen.getByRole("link", { name: "Go to next page" });
+		expect(previous()).toHaveAttribute("aria-disabled", "true");
+		expect(previous()).not.toHaveAttribute("href");
+		expect(next()).not.toHaveAttribute("aria-disabled");
+
+		rerender(
+			<DepartmentReimbursementsSection
+				department="Makeathon"
+				requests={[request()]}
+				page={2}
+				pageCount={2}
+				onPageChange={() => {}}
+				isChangingPage={false}
+				isLoading={false}
+				error={null}
+			/>,
+		);
+
+		expect(next()).toHaveAttribute("aria-disabled", "true");
+		expect(previous()).not.toHaveAttribute("aria-disabled");
+	});
+
+	it("marks the list busy while another page loads", () => {
+		render(
+			<DepartmentReimbursementsSection
+				department="Makeathon"
+				requests={[request()]}
+				page={1}
+				pageCount={2}
+				onPageChange={() => {}}
+				isChangingPage
+				isLoading={false}
+				error={null}
+			/>,
+		);
+
+		expect(screen.getByRole("list", { busy: true })).toBeInTheDocument();
+	});
+
 	it("says when the department has no requests yet", () => {
 		render(
 			<DepartmentReimbursementsSection
+				{...singlePage}
 				department="Makeathon"
 				requests={[]}
 				isLoading={false}
@@ -113,6 +221,7 @@ describe("DepartmentReimbursementsSection", () => {
 	it("shows a loading state before the department is known", () => {
 		render(
 			<DepartmentReimbursementsSection
+				{...singlePage}
 				department={null}
 				requests={[]}
 				isLoading
@@ -130,6 +239,7 @@ describe("DepartmentReimbursementsSection", () => {
 	it("reports a failed load", () => {
 		render(
 			<DepartmentReimbursementsSection
+				{...singlePage}
 				department={null}
 				requests={[]}
 				isLoading={false}
@@ -147,6 +257,7 @@ describe("DepartmentReimbursementsSection", () => {
 	it("renders nothing for a member without a department", () => {
 		const { container } = render(
 			<DepartmentReimbursementsSection
+				{...singlePage}
 				department={null}
 				requests={[]}
 				isLoading={false}

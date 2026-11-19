@@ -196,7 +196,13 @@ export interface DepartmentReimbursementRequest {
 export interface DepartmentReimbursementsResponse {
 	/** The caller's department; `null` (and no requests) without one. */
 	department: string | null;
+	/** One page of the department's requests, newest first. */
 	requests: DepartmentReimbursementRequest[];
+	/** Number of requests across all pages. */
+	total: number;
+	/** The page returned, starting at 1. A page past the end returns the last one. */
+	page: number;
+	page_size: number;
 }
 
 export interface BuchhaltungsButlerSyncStatus {

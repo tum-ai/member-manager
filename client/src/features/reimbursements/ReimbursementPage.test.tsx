@@ -45,6 +45,10 @@ const {
 	departmentState: {
 		department: null as string | null,
 		requests: [] as unknown[],
+		page: 1,
+		pageCount: 1,
+		goToPage: vi.fn(),
+		isChangingPage: false,
 		isLoading: false,
 		error: null as Error | null,
 	},

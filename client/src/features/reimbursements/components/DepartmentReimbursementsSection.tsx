@@ -1,7 +1,14 @@
-import type { ReactElement } from "react";
+import type { MouseEvent, ReactElement } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { GlassCard } from "@/components/ui/GlassCard";
+import {
+	Pagination,
+	PaginationContent,
+	PaginationItem,
+	PaginationNext,
+	PaginationPrevious,
+} from "@/components/ui/pagination";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SkeletonRegion } from "@/components/ui/skeleton-blocks";
 import {
@@ -12,13 +19,45 @@ import {
 	getStatusLabel,
 } from "@/features/reimbursements/reimbursementSubmitUtils";
 import type { DepartmentReimbursementRequest } from "@/features/reimbursements/reimbursementTypes";
+import { cn } from "@/lib/utils";
 
 interface DepartmentReimbursementsSectionProps {
 	/** The member's department; `null` while loading or when they have none. */
 	department: string | null;
+	/** The requests on the current page. */
 	requests: DepartmentReimbursementRequest[];
+	page: number;
+	pageCount: number;
+	onPageChange: (page: number) => void;
+	/** The next page is loading; the current one stays visible meanwhile. */
+	isChangingPage: boolean;
 	isLoading: boolean;
 	error: unknown;
+}
+
+/**
+ * Props for a Previous/Next link. The links change state instead of
+ * navigating, and at either end they stay in place but are disabled.
+ */
+function pageLinkProps(
+	target: number,
+	enabled: boolean,
+	go: (page: number) => void,
+) {
+	if (!enabled) {
+		return {
+			role: "link",
+			"aria-disabled": true,
+			className: "pointer-events-none opacity-50",
+		} as const;
+	}
+	return {
+		href: "#",
+		onClick: (event: MouseEvent<HTMLAnchorElement>) => {
+			event.preventDefault();
+			go(target);
+		},
+	};
 }
 
 function getRequesterLabel(request: DepartmentReimbursementRequest): string {
@@ -34,6 +73,10 @@ function getRequesterLabel(request: DepartmentReimbursementRequest): string {
 export function DepartmentReimbursementsSection({
 	department,
 	requests,
+	page,
+	pageCount,
+	onPageChange,
+	isChangingPage,
 	isLoading,
 	error,
 }: DepartmentReimbursementsSectionProps): ReactElement | null {
@@ -49,9 +92,9 @@ export function DepartmentReimbursementsSection({
 					{department ? `${department} requests` : "Department requests"}
 				</h2>
 				<p className="mt-1 mb-4 text-sm text-muted-foreground">
-					Everything submitted for your department. Check here before you
-					submit, so the same invoice isn't handed in twice. Receipts and
-					payment details stay private.
+					Everything submitted for your department, newest first. Check here
+					before you submit, so the same invoice isn't handed in twice. Receipts
+					and payment details stay private.
 				</p>
 
 				{isLoading && (
@@ -92,7 +135,13 @@ export function DepartmentReimbursementsSection({
 				)}
 
 				{!isLoading && !error && requests.length > 0 && (
-					<ul className="divide-y divide-border">
+					<ul
+						aria-busy={isChangingPage}
+						className={cn(
+							"divide-y divide-border transition-opacity",
+							isChangingPage && "opacity-60",
+						)}
+					>
 						{requests.map((request) => (
 							<li
 								key={request.id}
@@ -118,6 +167,34 @@ export function DepartmentReimbursementsSection({
 							</li>
 						))}
 					</ul>
+				)}
+
+				{!isLoading && !error && pageCount > 1 && (
+					<Pagination
+						aria-label="Department requests pages"
+						className="mt-4 border-t border-border pt-4"
+					>
+						<PaginationContent>
+							<PaginationItem>
+								<PaginationPrevious
+									{...pageLinkProps(page - 1, page > 1, onPageChange)}
+								/>
+							</PaginationItem>
+							<PaginationItem>
+								<span
+									aria-live="polite"
+									className="px-2 text-sm whitespace-nowrap text-muted-foreground"
+								>
+									Page {page} of {pageCount}
+								</span>
+							</PaginationItem>
+							<PaginationItem>
+								<PaginationNext
+									{...pageLinkProps(page + 1, page < pageCount, onPageChange)}
+								/>
+							</PaginationItem>
+						</PaginationContent>
+					</Pagination>
 				)}
 			</div>
 		</GlassCard>

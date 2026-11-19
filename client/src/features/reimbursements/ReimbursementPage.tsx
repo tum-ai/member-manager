@@ -80,6 +80,10 @@ export default function ReimbursementPage({
 				<DepartmentReimbursementsSection
 					department={departmentRequests.department}
 					requests={departmentRequests.requests}
+					page={departmentRequests.page}
+					pageCount={departmentRequests.pageCount}
+					onPageChange={departmentRequests.goToPage}
+					isChangingPage={departmentRequests.isChangingPage}
 					isLoading={departmentRequests.isLoading}
 					error={departmentRequests.error}
 				/>

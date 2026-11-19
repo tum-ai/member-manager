@@ -2,6 +2,7 @@ import type {
 	DepartmentReimbursementRequest,
 	DepartmentReimbursementsResponse,
 } from "@member-manager/shared";
+import { z } from "zod";
 import { getActiveMemberDepartment } from "./auth.js";
 import { DatabaseError } from "./errors.js";
 import { getSupabase } from "./supabase.js";
@@ -11,6 +12,13 @@ import { getSupabase } from "./supabase.js";
 // never loaded here.
 const DEPARTMENT_REQUEST_COLUMNS =
 	"id, user_id, amount, date, description, submission_type, status, approval_status, first_approved_at, payment_status, created_at";
+
+export const DEPARTMENT_REIMBURSEMENTS_PAGE_SIZE = 10;
+
+// Not `.strict()`: on Vercel every request carries an extra `path` parameter.
+export const DepartmentReimbursementsQuerySchema = z.object({
+	page: z.coerce.number().int().min(1).default(1),
+});
 
 type Row = Record<string, unknown>;
 
@@ -46,26 +54,54 @@ async function loadRequesterNames(
 }
 
 /**
- * Lists the requests filed for the caller's department, newest first, so its
- * members can see what was already submitted (#367).
+ * Lists one page of the requests filed for the caller's department, newest
+ * first, so its members can see what was already submitted (#367).
  *
  * The scope is the caller's own department, taken from their member row. That
  * department is admin-controlled, so the caller can't widen it, and a member
  * who is inactive or has no department gets an empty list.
+ *
+ * A page past the end returns the last page instead, so a list that shrank
+ * while the member was paging never comes back empty.
  */
 export async function listDepartmentReimbursements(
 	userId: string,
+	requestedPage: number,
 ): Promise<DepartmentReimbursementsResponse> {
+	const pageSize = DEPARTMENT_REIMBURSEMENTS_PAGE_SIZE;
 	const department = await getActiveMemberDepartment(userId);
 	if (!department) {
-		return { department: null, requests: [] };
+		return {
+			department: null,
+			requests: [],
+			total: 0,
+			page: 1,
+			page_size: pageSize,
+		};
 	}
+
+	// Counted first: asking PostgREST for a range past the last row is an error.
+	const { count, error: countError } = await getSupabase()
+		.from("reimbursements")
+		.select("id", { count: "exact", head: true })
+		.eq("department", department);
+	if (countError) {
+		throw new DatabaseError("Failed to load department reimbursements");
+	}
+
+	const total = count ?? 0;
+	const page = Math.min(
+		requestedPage,
+		Math.max(1, Math.ceil(total / pageSize)),
+	);
+	const from = (page - 1) * pageSize;
 
 	const { data, error } = await getSupabase()
 		.from("reimbursements")
 		.select(DEPARTMENT_REQUEST_COLUMNS)
 		.eq("department", department)
-		.order("created_at", { ascending: false });
+		.order("created_at", { ascending: false })
+		.range(from, from + pageSize - 1);
 	if (error) {
 		throw new DatabaseError("Failed to load department reimbursements");
 	}
@@ -97,5 +133,5 @@ export async function listDepartmentReimbursements(
 		}),
 	);
 
-	return { department, requests };
+	return { department, requests, total, page, page_size: pageSize };
 }
