@@ -49,6 +49,23 @@ export class ConflictError extends AppError {
 	}
 }
 
+/**
+ * A write carried an out-of-date version of the resource (optimistic
+ * concurrency). `body` is merged into the 412 response so the client can
+ * show what changed instead of guessing.
+ */
+export class PreconditionFailedError extends AppError {
+	public readonly body: Record<string, unknown>;
+
+	constructor(
+		message = "The resource changed since it was loaded",
+		body: Record<string, unknown> = {},
+	) {
+		super(message, 412);
+		this.body = body;
+	}
+}
+
 export class DatabaseError extends AppError {
 	constructor(message = "A database error occurred") {
 		super(message, 500);

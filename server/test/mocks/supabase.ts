@@ -158,6 +158,7 @@ export const mockDatabase: MockData = {
 			linkedin_profile_url: null,
 			public_location: null,
 			educational_course_role: null,
+			version: 1,
 		},
 		{
 			user_id: MOCK_ADMIN_ID,
@@ -185,6 +186,7 @@ export const mockDatabase: MockData = {
 			linkedin_profile_url: null,
 			public_location: null,
 			educational_course_role: null,
+			version: 1,
 		},
 	],
 	sepa: [
@@ -911,6 +913,131 @@ function moveUserIdRows(
 		}
 	}
 	return count;
+}
+
+// Mirrors the save_member_profile RPC (20261120120000): optimistic version
+// check, partial merge of the member row, optional sepa upsert, agreements
+// upsert (with the consent-sync trigger), and the version bumps the real
+// triggers perform. Returns the new profile version.
+const SAVE_PROFILE_MEMBER_COLUMNS = [
+	"given_name",
+	"surname",
+	"date_of_birth",
+	"street",
+	"number",
+	"postal_code",
+	"city",
+	"country",
+	"salutation",
+	"title",
+	"batch",
+	"department",
+	"member_role",
+	"degree",
+	"school",
+	"research_project_id",
+	"reimbursement_slack_notifications_enabled",
+	"linkedin_profile_url",
+	"public_location",
+] as const;
+
+function saveMockMemberProfile(params: Record<string, unknown>) {
+	const userId = params.p_user_id as string;
+	const expected = Number(params.p_expected_version);
+	const member = (params.p_member ?? {}) as Record<string, unknown>;
+	const sepa = params.p_sepa as Record<string, unknown> | null;
+	const agreements = params.p_agreements as Record<string, unknown> | null;
+	const conflict = {
+		data: null,
+		error: { code: "40001", message: "profile version conflict" },
+	};
+
+	let row = mockDatabase.members.find((m) => m.user_id === userId);
+	let expectedVersion = expected;
+	if (expected === 0) {
+		if (row) return Promise.resolve(conflict);
+		row = {
+			user_id: userId,
+			given_name: "",
+			surname: "",
+			date_of_birth: "",
+			street: "",
+			number: "",
+			postal_code: "",
+			city: "",
+			country: "",
+			salutation: "",
+			member_role: "Member",
+			member_status: "active",
+			active: true,
+			version: 1,
+		};
+		mockDatabase.members.push(row);
+		expectedVersion = 1;
+	}
+	if (!row || Number(row.version ?? 1) !== expectedVersion) {
+		return Promise.resolve(conflict);
+	}
+
+	for (const column of SAVE_PROFILE_MEMBER_COLUMNS) {
+		if (Object.hasOwn(member, column)) {
+			row[column] = member[column];
+		}
+	}
+	let version = Number(row.version ?? 1) + 1;
+
+	if (sepa) {
+		const existing = mockDatabase.sepa.find((r) => r.user_id === userId);
+		const next = {
+			iban: sepa.iban,
+			bic: sepa.bic,
+			bank_name: sepa.bank_name ?? "",
+			mandate_agreed: Boolean(sepa.mandate_agreed),
+			privacy_agreed: Boolean(sepa.privacy_agreed),
+		};
+		if (existing) Object.assign(existing, next);
+		else
+			mockDatabase.sepa.push({
+				id_uuid: `sepa-${userId}`,
+				user_id: userId,
+				created_at: new Date().toISOString(),
+				...next,
+			});
+		version += 1;
+	}
+
+	if (agreements) {
+		let stored = mockDatabase.member_agreements.find(
+			(r) => r.user_id === userId,
+		);
+		if (!stored) {
+			stored = {
+				user_id: userId,
+				data_privacy_notice_agreed: false,
+				website_profile_consent: false,
+				event_photos_consent: false,
+				partner_sharing_consent: false,
+				consents_decided_at: null,
+			};
+			mockDatabase.member_agreements.push(stored);
+		}
+		stored.sepa_mandate_agreed = Boolean(agreements.sepa_mandate_agreed);
+		stored.privacy_policy_agreed = Boolean(agreements.privacy_policy_agreed);
+		stored.updated_at = new Date().toISOString();
+		if (Object.hasOwn(agreements, "data_privacy_notice_agreed")) {
+			const granted = Boolean(agreements.data_privacy_notice_agreed);
+			// sync_member_agreement_consents trigger.
+			stored.data_privacy_notice_agreed = granted;
+			stored.website_profile_consent = granted;
+			stored.event_photos_consent = granted;
+			stored.partner_sharing_consent = granted;
+			if (granted) stored.consents_decided_at = stored.updated_at;
+		}
+		version += 1;
+	}
+
+	row.version = version;
+	return Promise.resolve({ data: version, error: null });
 }
 
 function mergeDuplicateMember(params: Record<string, unknown>) {
@@ -2301,6 +2428,9 @@ export function createMockSupabaseClient(): SupabaseClient {
 						error: mockSupabaseErrors.rpc[fnName],
 					});
 				}
+				if (fnName === "save_member_profile") {
+					return saveMockMemberProfile(params);
+				}
 				if (fnName === "merge_duplicate_member") {
 					return mergeDuplicateMember(params);
 				}
@@ -2702,6 +2832,7 @@ export function resetMockDatabase(): void {
 			linkedin_profile_url: null,
 			public_location: null,
 			educational_course_role: null,
+			version: 1,
 		},
 		{
 			user_id: MOCK_ADMIN_ID,
@@ -2729,6 +2860,7 @@ export function resetMockDatabase(): void {
 			linkedin_profile_url: null,
 			public_location: null,
 			educational_course_role: null,
+			version: 1,
 		},
 	];
 

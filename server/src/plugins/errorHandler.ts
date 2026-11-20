@@ -6,7 +6,11 @@ import type {
 } from "fastify";
 import fp from "fastify-plugin";
 import { ZodError } from "zod";
-import { AppError, ValidationError } from "../lib/errors.js";
+import {
+	AppError,
+	PreconditionFailedError,
+	ValidationError,
+} from "../lib/errors.js";
 
 /**
  * Formats Zod validation errors into user-friendly messages.
@@ -75,6 +79,12 @@ async function errorHandlerPlugin(server: FastifyInstance) {
 			}
 
 			// Handle custom application errors
+			if (error instanceof PreconditionFailedError) {
+				return reply
+					.status(error.statusCode)
+					.send({ error: error.message, ...error.body });
+			}
+
 			if (error instanceof AppError) {
 				const response: { error: string; details?: unknown } = {
 					error: error.message,

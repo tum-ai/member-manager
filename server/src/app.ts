@@ -24,6 +24,7 @@ import { mcpAccessRoutes } from "./routes/mcpAccess.js";
 import { memberRoutes } from "./routes/members.js";
 import { partnerRoutes } from "./routes/partners.js";
 import { permissionRoutes } from "./routes/permissions.js";
+import { profileRoutes } from "./routes/profile.js";
 import { reimbursementRoutes } from "./routes/reimbursements.js";
 import { researchProjectRoutes } from "./routes/researchProjects.js";
 import { sepaRoutes } from "./routes/sepa.js";
@@ -113,6 +114,7 @@ export const buildApp = async (): Promise<FastifyInstance> => {
 			}
 			await api.register(bugReportRoutes);
 			await api.register(memberRoutes);
+			await api.register(profileRoutes);
 			await api.register(cvRoutes);
 			await api.register(consentRoutes);
 			await api.register(doorPinRoutes);
