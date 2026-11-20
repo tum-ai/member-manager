@@ -12,5 +12,6 @@ export * from "./mcpAccess.js";
 export * from "./member.js";
 export * from "./partners.js";
 export * from "./permissions.js";
+export * from "./profile.js";
 export * from "./reimbursements.js";
 export * from "./sepa.js";
