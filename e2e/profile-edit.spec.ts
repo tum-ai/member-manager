@@ -61,15 +61,9 @@ test("member without bank details saves a degree change", async ({ page }) => {
 	await page.getByRole("option", { name: nextDegree, exact: true }).click();
 	await expect(degree).toContainText(nextDegree);
 
-	let sepaPutCount = 0;
-	page.on("request", (request) => {
-		if (request.url().includes("/api/sepa/") && request.method() === "PUT") {
-			sepaPutCount += 1;
-		}
-	});
-	const memberSaved = page.waitForResponse(
+	const profileSaved = page.waitForResponse(
 		(response) =>
-			response.url().includes("/api/members/") &&
+			response.url().includes("/api/profile/") &&
 			response.request().method() === "PUT" &&
 			response.ok(),
 	);
@@ -77,10 +71,11 @@ test("member without bank details saves a degree change", async ({ page }) => {
 		.getByRole("button", { name: /save changes/i })
 		.first()
 		.click();
-	await memberSaved;
+	const saved = await profileSaved;
 	await expectToast(page, /profile saved successfully/i);
-	// Nothing in the banking section changed, so no SEPA request is sent.
-	expect(sepaPutCount).toBe(0);
+	// One request saves everything; with no bank details typed, no bank row
+	// is written.
+	expect(saved.request().postDataJSON().sepa.iban).toBe("");
 
 	await page.reload();
 	await expect(page.getByRole("combobox", { name: "Degree" })).toContainText(

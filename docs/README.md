@@ -18,6 +18,7 @@ links to. This folder holds everything else.
 | Doc | What it covers |
 | --- | --- |
 | [contracts.md](./contracts.md) | Contract generator: DOCX templates, review statuses, signing, OpenSign, finalization |
+| [profile.md](./profile.md) | Profile saving: the versioned, atomic profile contract, the server-backed form, and the #397 root causes |
 | [member-cvs.md](./member-cvs.md) | Member CV storage, updates, and the Partner Portal export |
 | [door-pins.md](./door-pins.md) | Office key cabinet PINs: storage, the /welcome gate, importing the Traka21 sheet |
 | [finance-cost-location-mapping.md](./finance-cost-location-mapping.md) | Decoding BuchhaltungsButler cost-location codes into departments and categories |

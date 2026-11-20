@@ -122,11 +122,11 @@ test.describe("SEPA mandate setup", () => {
 		await privacyDialog.getByRole("button", { name: "Confirm" }).click();
 		await expect(privacyDialog).toBeHidden();
 
-		// Save the profile and wait on the actual SEPA PUT so the assertion does
-		// not race the network. The member save fires a member PUT + a sepa PUT.
+		// Save the profile and wait on the actual profile PUT so the assertion does
+		// not race the network. One request saves the member row and bank details.
 		const sepaSaved = page.waitForResponse(
 			(r) =>
-				r.url().includes("/api/sepa/") &&
+				r.url().includes("/api/profile/") &&
 				r.request().method() === "PUT" &&
 				r.ok(),
 		);
@@ -194,10 +194,13 @@ test.describe("SEPA mandate setup", () => {
 		// Satisfy all three agreements so IBAN validation is the only blocker.
 		await agreeAllAgreements(page);
 
-		let sepaPutCount = 0;
+		let profilePutCount = 0;
 		page.on("request", (request) => {
-			if (request.url().includes("/api/sepa/") && request.method() === "PUT") {
-				sepaPutCount += 1;
+			if (
+				request.url().includes("/api/profile/") &&
+				request.method() === "PUT"
+			) {
+				profilePutCount += 1;
 			}
 		});
 		await page
@@ -207,7 +210,7 @@ test.describe("SEPA mandate setup", () => {
 
 		await expect(page.getByText("Invalid IBAN")).toBeVisible();
 		await expectToast(page, /complete all required fields/i);
-		expect(sepaPutCount).toBe(0);
+		expect(profilePutCount).toBe(0);
 		await expect(page.getByText(/profile saved successfully/i)).toHaveCount(0);
 	});
 

@@ -8,6 +8,13 @@ In production it runs as one Vercel function (`api/[...path].ts` imports `server
 - `src/routes/*.ts` — one Fastify plugin per domain, e.g. `export async function tumaiDaysRoutes(server)`.
   Registered in `src/app.ts`. Exemplar: `routes/tumaiDays.ts`. Contracts are split into
   `routes/contracts.ts` + `routes/contracts/`.
+- `src/routes/profile.ts` + `src/lib/profile/` — the profile page's contract: `GET/PUT
+  /api/profile/:userId`. One read model and one atomic save of the member row, bank details and
+  agreements through the `save_member_profile` RPC, guarded by `members.version` (stale write →
+  412 with the current profile). `memberUpdatePolicy.ts` holds the admin vs member rules (pure),
+  `profileRepository.ts` is the only Supabase access, `profileService.ts` orchestrates and computes
+  completeness from stored data (`shared/src/profile.ts`). Any writer of `members`, `sepa` or
+  `member_agreements` bumps the version through triggers.
 - `src/lib/`
   - `auth.ts` — `checkAdminRole`, `checkDepartmentPermission` (department-scoped RBAC).
   - `departmentPermissions.ts` — department→permission mapping.

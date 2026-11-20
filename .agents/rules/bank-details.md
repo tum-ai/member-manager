@@ -1,5 +1,5 @@
 ---
-paths: ["shared/src/iban.ts", "shared/src/sepa.ts", "shared/src/consents.ts", "server/src/routes/consents.ts", "client/src/features/welcome/**", "shared/src/reimbursements.ts", "client/src/features/profile/**", "client/src/features/sepa/**", "client/src/features/reimbursements/**", "client/src/hooks/useSepaData.ts", "server/src/routes/sepa.ts", "server/src/routes/reimbursements.ts", "server/src/lib/reimbursement*.ts", "server/src/lib/receiptProcessing.ts", "server/src/lib/sensitiveData*.ts", "server/test/routes/sepa.test.ts", "server/test/routes/reimbursement*.test.ts", "e2e/sepa.spec.ts", "e2e/*reimbursement*.spec.ts"]
+paths: ["shared/src/iban.ts", "shared/src/sepa.ts", "shared/src/consents.ts", "server/src/routes/consents.ts", "client/src/features/welcome/**", "shared/src/reimbursements.ts", "client/src/features/profile/**", "client/src/features/sepa/**", "client/src/features/reimbursements/**", "client/src/hooks/useSepaData.ts", "server/src/routes/sepa.ts", "server/src/routes/profile.ts", "server/src/lib/profile/**", "shared/src/profile.ts", "server/src/routes/reimbursements.ts", "server/src/lib/reimbursement*.ts", "server/src/lib/receiptProcessing.ts", "server/src/lib/sensitiveData*.ts", "server/test/routes/sepa.test.ts", "server/test/routes/reimbursement*.test.ts", "e2e/sepa.spec.ts", "e2e/*reimbursement*.spec.ts"]
 ---
 
 # Bank details: SEPA, IBANs, reimbursement payments
@@ -10,7 +10,8 @@ changing behaviour, and add a regression test for every fix.
 - **Two separate accounts.**
   - A member's **SEPA mandate** (`sepa` table: `iban`, `bic`, `bank_name`) is the account TUM.ai
     debits. Schemas in `shared/src/sepa.ts`: `sepaSchema` (`POST /api/sepa`, full details
-    required) and `profileSepaSchema` (`PUT /api/sepa/:userId`, used by the profile page).
+    required) and `profileSepaSchema`, the bank part of the profile save (`PUT /api/profile/:userId`,
+    `profileUpdateSchema`; the standalone `PUT /api/sepa/:userId` stays).
   - A **reimbursement request's** `payment_iban` / `payment_bic` is where TUM.ai pays out. It is
     required for reimbursement and invoice requests and forbidden for Vivid requests
     (`server/src/routes/reimbursements.ts`).

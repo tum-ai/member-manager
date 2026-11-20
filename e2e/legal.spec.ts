@@ -34,14 +34,14 @@ function panelCheckbox(page: Page, name: RegExp): Locator {
 	return page.getByRole("checkbox", { name });
 }
 
-// Saves the profile (the SEPA/agreements save) and waits on the PUT /api/sepa
+// Saves the profile (the SEPA/agreements save) and waits on the PUT /api/profile
 // network call so the assertion reflects server-side persistence, not just form
 // state. The "Save Changes" button exists twice (sidebar + mobile); the first
 // visible one submits the same form.
 async function saveProfile(page: Page): Promise<void> {
 	const saved = page.waitForResponse(
 		(response) =>
-			response.url().includes("/api/sepa/") &&
+			response.url().includes("/api/profile/") &&
 			response.request().method() === "PUT",
 	);
 	await page
