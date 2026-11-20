@@ -7,7 +7,11 @@ import {
 import type { User } from "@supabase/supabase-js";
 import { useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo, useState } from "react";
-import type { FieldErrors, UseFormReturn } from "react-hook-form";
+import {
+	type FieldErrors,
+	type UseFormReturn,
+	useWatch,
+} from "react-hook-form";
 import { useToast } from "@/contexts/ToastContext";
 import { useProfileDerived } from "@/features/profile/hooks/useProfileDerived";
 import {
@@ -167,10 +171,10 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		setConflict(null);
 	}, [conflict, queryClient, userId]);
 
-	const values = form.watch();
+	const values = useWatch({ control: form.control });
 	const derived = useProfileDerived({
-		role: values.member_role,
-		department: values.department,
+		role: values.member_role ?? "",
+		department: values.department ?? "",
 		researchProjectId: values.research_project_id,
 		researchProjects,
 	});

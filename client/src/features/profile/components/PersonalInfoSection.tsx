@@ -1,5 +1,5 @@
 import { UserRound } from "lucide-react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -48,6 +48,8 @@ export function PersonalInfoSection({
 	ids,
 }: PersonalInfoSectionProps): JSX.Element {
 	const form = useFormContext<ProfileFormValues>();
+	const salutation = useWatch({ control: form.control, name: "salutation" });
+	const title = useWatch({ control: form.control, name: "title" });
 	const errors = form.formState.errors;
 
 	return (
@@ -67,7 +69,7 @@ export function PersonalInfoSection({
 						error={errors.salutation?.message}
 					>
 						<Select
-							value={toSelectValue(form.watch("salutation") || "")}
+							value={toSelectValue(salutation || "")}
 							onValueChange={(value) =>
 								form.setValue("salutation", fromSelectValue(value), {
 									shouldDirty: true,
@@ -92,7 +94,7 @@ export function PersonalInfoSection({
 					</Field>
 					<Field className="sm:col-span-8" label="Title" htmlFor={ids.title}>
 						<Select
-							value={toSelectValue(form.watch("title") || "")}
+							value={toSelectValue(title || "")}
 							onValueChange={(value) =>
 								form.setValue("title", fromSelectValue(value), {
 									shouldDirty: true,

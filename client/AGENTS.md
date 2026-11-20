@@ -38,7 +38,9 @@ Package: `@member-manager/client`.
   `hooks/useServerBackedForm` (RHF `values` + `keepDirtyValues`). Never `reset()` from an effect
   that depends on query data or on the auth `user` object: supabase-js re-emits `SIGNED_IN` with a
   new user object on every tab refocus and `refetchOnWindowFocus` refetches, so that pattern wipes
-  unsaved input (#397).
+  unsaved input (#397). Read controlled values (Radix `Select`, checkboxes) with `useWatch` or
+  `Controller`, not `form.watch()`: a form hydrated from cached data resets after the first render
+  and `watch()` keeps showing the empty defaults, which is how saved Batch/Salutation vanished.
 - **Forms** — react-hook-form + Zod. When `@member-manager/shared` has the schema, use it (API
   contract schemas are never redefined here). UI-only form schemas go in `src/lib/schemas.ts`.
 - **UI** — shadcn/ui + radix primitives; Tailwind utility classes. Don't hand-roll dialogs, menus,

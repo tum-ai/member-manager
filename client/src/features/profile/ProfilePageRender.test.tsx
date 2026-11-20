@@ -4,7 +4,10 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { HttpResponse, http, server } from "@/test/mswServer";
-import { renderWithClient } from "@/test/renderWithClient";
+import {
+	createTestQueryClient,
+	renderWithClient,
+} from "@/test/renderWithClient";
 import ProfilePage from "./ProfilePage";
 
 const showToast = vi.fn();
@@ -280,6 +283,45 @@ describe("ProfilePage (render)", () => {
 			"Profile saved successfully!",
 			"success",
 		);
+	});
+
+	it("shows stored selects (salutation, batch) when the profile is already cached (#397)", async () => {
+		// Coming back to the profile page: the cached profile hydrates the form
+		// on the first render. The Radix selects must follow it.
+		memberData = {
+			given_name: "Ada",
+			surname: "Lovelace",
+			salutation: "Ms.",
+			batch: "WS25",
+		};
+		const queryClient = createTestQueryClient();
+		queryClient.setQueryData(["profile", "user-1"], {
+			version: 2,
+			member: { user_id: "user-1", email: "ada@tum.ai", ...memberData },
+			sepa: {
+				iban: "",
+				bic: "",
+				bank_name: "",
+				mandate_agreed: false,
+				privacy_agreed: false,
+				data_privacy_notice_agreed: false,
+			},
+			completeness: { percent: 35, missing: ["IBAN"] },
+		});
+
+		renderWithClient(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+			{ queryClient },
+		);
+
+		expect(
+			await screen.findByRole("combobox", { name: "Batch" }),
+		).toHaveTextContent("WS25");
+		expect(
+			screen.getByRole("combobox", { name: /salutation/i }),
+		).toHaveTextContent("Ms.");
 	});
 
 	it("shows the completeness the server computed", async () => {

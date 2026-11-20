@@ -1,6 +1,6 @@
 import { Save } from "lucide-react";
 import { useId } from "react";
-import { FormProvider } from "react-hook-form";
+import { FormProvider, useWatch } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import type { Member } from "@/types";
@@ -71,7 +71,7 @@ function ProfileFormView({
 	const doorPin = useDoorPin(user.id);
 	const agreementModals = useAgreementModals(form);
 
-	const header = getProfileHeader(form.watch());
+	const header = getProfileHeader(useWatch({ control: form.control }));
 
 	return (
 		<FormProvider {...form}>

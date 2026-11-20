@@ -1,5 +1,5 @@
 import { GraduationCap } from "lucide-react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -59,6 +59,15 @@ export function TumaiProfileSection({
 	ids,
 }: TumaiProfileSectionProps): JSX.Element {
 	const form = useFormContext<ProfileFormValues>();
+	// useWatch (not form.watch) so the controlled selects follow a reset that
+	// hydrates the form after the first render, e.g. when the profile is cached.
+	const batch = useWatch({ control: form.control, name: "batch" });
+	const degree = useWatch({ control: form.control, name: "degree" });
+	const school = useWatch({ control: form.control, name: "school" });
+	const reimbursementNotifications = useWatch({
+		control: form.control,
+		name: "reimbursement_slack_notifications_enabled",
+	});
 	const errors = form.formState.errors;
 
 	return (
@@ -78,7 +87,7 @@ export function TumaiProfileSection({
 						error={errors.batch?.message}
 					>
 						<Select
-							value={toSelectValue(form.watch("batch") || "")}
+							value={toSelectValue(batch || "")}
 							onValueChange={(value) =>
 								form.setValue("batch", fromSelectValue(value), {
 									shouldDirty: true,
@@ -239,8 +248,8 @@ export function TumaiProfileSection({
 						</Field>
 					)}
 					<EducationFields
-						degreeValue={form.watch("degree")}
-						schoolValue={form.watch("school")}
+						degreeValue={degree}
+						schoolValue={school}
 						onChange={(values) => {
 							form.setValue("degree", values.degree, {
 								shouldDirty: true,
@@ -266,9 +275,7 @@ export function TumaiProfileSection({
 							</div>
 							<Switch
 								id={ids.reimbursementNotifications}
-								checked={Boolean(
-									form.watch("reimbursement_slack_notifications_enabled"),
-								)}
+								checked={Boolean(reimbursementNotifications)}
 								onCheckedChange={(checked) =>
 									form.setValue(
 										"reimbursement_slack_notifications_enabled",

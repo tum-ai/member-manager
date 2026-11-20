@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { UseFormReturn } from "react-hook-form";
+import { type UseFormReturn, useWatch } from "react-hook-form";
 import type { ProfileFormValues } from "@/features/profile/profileFormModel";
 
 /**
@@ -13,8 +13,14 @@ export function useAgreementModals(form: UseFormReturn<ProfileFormValues>) {
 	const [pendingMandateAgreed, setPendingMandateAgreed] = useState(false);
 	const [pendingPrivacyAgreed, setPendingPrivacyAgreed] = useState(false);
 
-	const mandateAgreed = form.watch("mandate_agreed");
-	const privacyAgreed = form.watch("privacy_agreed");
+	const mandateAgreed = useWatch({
+		control: form.control,
+		name: "mandate_agreed",
+	});
+	const privacyAgreed = useWatch({
+		control: form.control,
+		name: "privacy_agreed",
+	});
 
 	return {
 		mandateAgreed,

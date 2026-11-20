@@ -1,5 +1,5 @@
 import { Link } from "lucide-react";
-import { useFormContext } from "react-hook-form";
+import { useFormContext, useWatch } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
@@ -22,7 +22,10 @@ interface LinksSectionProps {
 
 export function LinksSection({ ids }: LinksSectionProps): JSX.Element {
 	const form = useFormContext<ProfileFormValues>();
-	const linkedinUrl = form.watch("linkedin_profile_url");
+	const linkedinUrl = useWatch({
+		control: form.control,
+		name: "linkedin_profile_url",
+	});
 	const normalizedLinkedinUrl = normalizeLinkedinProfileUrl(linkedinUrl);
 	const isLinkedinUrlValid = isLinkedinProfileUrl(linkedinUrl);
 	return (
