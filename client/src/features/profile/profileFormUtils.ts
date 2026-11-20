@@ -1,4 +1,11 @@
-import type { MemberSchema } from "@/lib/schemas";
+import type { User } from "@supabase/supabase-js";
+import { extractSlackProfile } from "@/features/profile/profileUtils";
+import { getCurrentBatch } from "@/lib/constants";
+import type {
+	LinkedinSchema,
+	MemberSchema,
+	ProfileSepaInput,
+} from "@/lib/schemas";
 
 interface BuildSelfServiceMemberUpdatePayloadOptions {
 	includeAdminManagedFields?: boolean;
@@ -116,4 +123,62 @@ export function getMissingProfileFields(
 	return getCompletenessFields(input)
 		.filter((field) => !field.filled)
 		.map((field) => field.label);
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: member and sepa rows are untyped API data
+type ApiRecord = Record<string, any>;
+
+/** Form values for a member row, falling back to Slack data for new members. */
+export function toMemberFormValues(
+	existing: ApiRecord | undefined,
+	user: User,
+): MemberSchema {
+	const member = existing ?? {};
+	const slackProfile = extractSlackProfile(user);
+
+	return {
+		active: member.active ?? true,
+		member_status:
+			member.member_status || (member.active ? "active" : "inactive"),
+		salutation: member.salutation || "",
+		title: member.title || "",
+		surname: member.surname || slackProfile.surname,
+		given_name: member.given_name || slackProfile.given_name,
+		date_of_birth: member.date_of_birth || "",
+		street: member.street || "",
+		number: member.number || "",
+		postal_code: member.postal_code || "",
+		city: member.city || "",
+		country: member.country || "Germany",
+		user_id: user.id,
+		batch: member.batch || getCurrentBatch(),
+		department: member.department || "",
+		member_role: member.member_role || "",
+		research_project_id: member.research_project_id || "",
+		degree: member.degree || "",
+		school: member.school || "",
+		reimbursement_slack_notifications_enabled:
+			member.reimbursement_slack_notifications_enabled ?? false,
+	};
+}
+
+export function toLinkedinFormValues(
+	existing: ApiRecord | undefined,
+): LinkedinSchema {
+	return {
+		linkedin_profile_url: existing?.linkedin_profile_url || "",
+		public_location: existing?.public_location || "",
+	};
+}
+
+export function toSepaFormValues(
+	existing: ApiRecord | undefined,
+): ProfileSepaInput {
+	return {
+		iban: existing?.iban || "",
+		bic: existing?.bic || "",
+		bank_name: existing?.bank_name || "",
+		mandate_agreed: existing?.mandate_agreed || false,
+		privacy_agreed: existing?.privacy_agreed || false,
+	};
 }

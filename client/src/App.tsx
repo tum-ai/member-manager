@@ -9,6 +9,7 @@ import {
 	Routes,
 	useLocation,
 } from "react-router-dom";
+import { keepSameUser } from "@/lib/authUser";
 import { MainLayout } from "./components/layout/MainLayout";
 import { Skeleton } from "./components/ui/skeleton";
 import { SkeletonRegion } from "./components/ui/skeleton-blocks";
@@ -96,7 +97,11 @@ export default function App(): JSX.Element {
 				if (!session) {
 					queryClient.clear();
 				}
-				setUser(session?.user ?? null);
+				// supabase-js re-emits SIGNED_IN with a fresh session object whenever
+				// a tab regains focus. Keep the previous reference for the same user
+				// so the whole tree does not re-render for nothing.
+				const nextUser = session?.user ?? null;
+				setUser((current) => keepSameUser(current, nextUser));
 			},
 		);
 

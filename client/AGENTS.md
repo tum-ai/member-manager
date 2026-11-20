@@ -34,6 +34,11 @@ Package: `@member-manager/client`.
 - **Default exports** — only where `biome.json` allows them: `features/**/*Page.tsx`, `*.stories.tsx`,
   `App.tsx`, `main.tsx`, config files, `.storybook/**`.
 - **Data layer** — fetch through `lib/apiClient`; co-locate query keys; invalidate on mutation success.
+- **Server-synced forms** — a form that edits a record loaded through a query uses
+  `hooks/useServerBackedForm` (RHF `values` + `keepDirtyValues`). Never `reset()` from an effect
+  that depends on query data or on the auth `user` object: supabase-js re-emits `SIGNED_IN` with a
+  new user object on every tab refocus and `refetchOnWindowFocus` refetches, so that pattern wipes
+  unsaved input (#397).
 - **Forms** — react-hook-form + Zod. When `@member-manager/shared` has the schema, use it (API
   contract schemas are never redefined here). UI-only form schemas go in `src/lib/schemas.ts`.
 - **UI** — shadcn/ui + radix primitives; Tailwind utility classes. Don't hand-roll dialogs, menus,

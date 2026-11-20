@@ -5,16 +5,18 @@ import {
 	type MemberConsents,
 } from "@member-manager/shared";
 import type { User } from "@supabase/supabase-js";
-import { useEffect } from "react";
-import { type UseFormReturn, useForm } from "react-hook-form";
+import { useMemo } from "react";
+import type { UseFormReturn } from "react-hook-form";
 import { useToast } from "@/contexts/ToastContext";
 import {
 	buildSelfServiceMemberUpdatePayload,
 	computeProfileCompleteness,
 	getMissingProfileFields,
+	toLinkedinFormValues,
+	toMemberFormValues,
+	toSepaFormValues,
 } from "@/features/profile/profileFormUtils";
 import {
-	extractSlackProfile,
 	normalizeSerializedTextValue,
 	normalizeTextValue,
 } from "@/features/profile/profileUtils";
@@ -23,7 +25,7 @@ import { useMemberConsents } from "@/hooks/useMemberConsents";
 import { useMemberData } from "@/hooks/useMemberData";
 import { useResearchProjects } from "@/hooks/useResearchProjects";
 import { useSepaData } from "@/hooks/useSepaData";
-import { getCurrentBatch } from "@/lib/constants";
+import { useServerBackedForm } from "@/hooks/useServerBackedForm";
 import {
 	isLinkedinProfileUrl,
 	normalizeLinkedinProfileUrl,
@@ -92,114 +94,59 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		isUpdating: isUpdatingSepa,
 	} = useSepaData(user.id);
 
-	const linkedinForm = useForm<LinkedinSchema>({
-		resolver: zodResolver(linkedinSchema),
-		defaultValues: {
-			linkedin_profile_url: "",
-			public_location: "",
-		},
-	});
+	// Server snapshots feed the forms through useServerBackedForm: a refetch
+	// (window focus, invalidation) or a re-created auth user never overwrites
+	// what the member has typed (#397).
+	const memberServerValues = useMemo(
+		() => (isLoadingMember ? undefined : toMemberFormValues(memberData, user)),
+		[memberData, isLoadingMember, user],
+	);
+	const linkedinServerValues = useMemo(
+		() => (isLoadingMember ? undefined : toLinkedinFormValues(memberData)),
+		[memberData, isLoadingMember],
+	);
+	const sepaServerValues = useMemo(
+		() => (sepaData ? toSepaFormValues(sepaData) : undefined),
+		[sepaData],
+	);
+
+	const { form: linkedinForm, markSaved: markLinkedinSaved } =
+		useServerBackedForm<LinkedinSchema>({
+			resolver: zodResolver(linkedinSchema),
+			defaultValues: toLinkedinFormValues(undefined),
+			serverValues: linkedinServerValues,
+		});
 
 	const linkedinUrl = linkedinForm.watch("linkedin_profile_url");
 	const normalizedLinkedinUrl = normalizeLinkedinProfileUrl(linkedinUrl);
 	const isLinkedinUrlValid = isLinkedinProfileUrl(linkedinUrl);
 
-	const memberForm = useForm<MemberSchema>({
-		resolver: zodResolver(memberSchema),
-		defaultValues: {
-			active: true,
-			member_status: "active",
-			salutation: "",
-			title: "",
-			surname: "",
-			given_name: "",
-			date_of_birth: "",
-			street: "",
-			number: "",
-			postal_code: "",
-			city: "",
-			country: "Germany",
-			user_id: user.id,
-			batch: "",
-			department: "",
-			member_role: "",
-			degree: "",
-			school: "",
-			reimbursement_slack_notifications_enabled: false,
-		},
-	});
+	const { form: memberForm, markSaved: markMemberSaved } =
+		useServerBackedForm<MemberSchema>({
+			resolver: zodResolver(memberSchema),
+			defaultValues: {
+				...toMemberFormValues(undefined, user),
+				member_status: "active",
+				surname: "",
+				given_name: "",
+				batch: "",
+			},
+			serverValues: memberServerValues,
+		});
 
 	// Bank details are optional as a group. Once a bank field is filled,
 	// profileSepaSchema requires a valid IBAN, a bank name and all three
 	// agreements; without bank details the agreements can be saved alone.
-	const sepaForm = useForm<ProfileSepaInput>({
-		resolver: zodResolver(profileSepaSchema),
-		defaultValues: {
-			iban: "",
-			bic: "",
-			bank_name: "",
-			mandate_agreed: false,
-			privacy_agreed: false,
-		},
-	});
+	const { form: sepaForm, markSaved: markSepaSaved } =
+		useServerBackedForm<ProfileSepaInput>({
+			resolver: zodResolver(profileSepaSchema),
+			defaultValues: toSepaFormValues(undefined),
+			serverValues: sepaServerValues,
+		});
 
 	// Once bank details are stored they can be edited but not cleared; the
 	// server enforces the same rule.
 	const hasSavedBankDetails = hasBankDetailsInput(sepaData ?? {});
-
-	useEffect(() => {
-		if (isLoadingMember) return;
-
-		const slackProfile = extractSlackProfile(user);
-		const slackBatch = getCurrentBatch();
-		const existing = memberData ?? {};
-
-		memberForm.reset({
-			active: existing.active ?? true,
-			member_status:
-				existing.member_status || (existing.active ? "active" : "inactive"),
-			salutation: existing.salutation || "",
-			title: existing.title || "",
-			surname: existing.surname || slackProfile.surname,
-			given_name: existing.given_name || slackProfile.given_name,
-			date_of_birth: existing.date_of_birth || "",
-			street: existing.street || "",
-			number: existing.number || "",
-			postal_code: existing.postal_code || "",
-			city: existing.city || "",
-			country: existing.country || "Germany",
-			user_id: user.id,
-			batch: existing.batch || slackBatch,
-			department: existing.department || "",
-			member_role: existing.member_role || "",
-			research_project_id: existing.research_project_id || "",
-			degree: existing.degree || "",
-			school: existing.school || "",
-			reimbursement_slack_notifications_enabled:
-				existing.reimbursement_slack_notifications_enabled ?? false,
-		});
-
-		// Populate LinkedIn form from DB data
-		linkedinForm.reset({
-			linkedin_profile_url:
-				((existing as Record<string, unknown>)
-					.linkedin_profile_url as string) || "",
-			public_location:
-				((existing as Record<string, unknown>).public_location as string) || "",
-		});
-	}, [memberData, isLoadingMember, memberForm, linkedinForm, user]);
-
-	useEffect(() => {
-		if (sepaData) {
-			sepaForm.reset({
-				iban: sepaData.iban || "",
-				bic: sepaData.bic || "",
-				bank_name: sepaData.bank_name || "",
-				mandate_agreed: sepaData.mandate_agreed || false,
-				privacy_agreed: sepaData.privacy_agreed || false,
-			});
-		}
-	}, [sepaData, sepaForm]);
 
 	const onSubmit = async (): Promise<void> => {
 		try {
@@ -289,6 +236,9 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			}
 
 			await Promise.all(promises);
+			markMemberSaved();
+			markLinkedinSaved();
+			markSepaSaved();
 			showToast("Profile saved successfully!", "success");
 		} catch (error: unknown) {
 			const errorMessage =

@@ -138,6 +138,54 @@ describe("useProfileForm", () => {
 		expect(result.current.isLinkedinUrlValid).toBe(true);
 	});
 
+	describe("unsaved edits survive background updates (#397)", () => {
+		it("keeps a typed value when the auth user object is re-created on tab refocus", async () => {
+			memberData = { given_name: "Grace", surname: "Hopper", batch: "WS25" };
+			const { result, rerender } = renderHook(
+				({ currentUser }) => useProfileForm(currentUser),
+				{ initialProps: { currentUser: user } },
+			);
+			await waitFor(() =>
+				expect(result.current.memberForm.getValues("given_name")).toBe("Grace"),
+			);
+
+			act(() => {
+				result.current.memberForm.setValue("salutation", "Mrs", {
+					shouldDirty: true,
+				});
+				result.current.memberForm.setValue("batch", "SS26", {
+					shouldDirty: true,
+				});
+			});
+			// supabase-js re-emits SIGNED_IN with a fresh user object on focus.
+			rerender({ currentUser: { ...user } as User });
+
+			expect(result.current.memberForm.getValues("salutation")).toBe("Mrs");
+			expect(result.current.memberForm.getValues("batch")).toBe("SS26");
+		});
+
+		it("keeps edited fields but refreshes untouched ones when a refetch returns new data", async () => {
+			memberData = { given_name: "Grace", surname: "Hopper", city: "Munich" };
+			const { result, rerender } = renderHook(() => useProfileForm(user));
+			await waitFor(() =>
+				expect(result.current.memberForm.getValues("city")).toBe("Munich"),
+			);
+
+			act(() => {
+				result.current.memberForm.setValue("given_name", "Gracie", {
+					shouldDirty: true,
+				});
+			});
+			memberData = { given_name: "Grace", surname: "Hopper", city: "Berlin" };
+			rerender();
+
+			await waitFor(() =>
+				expect(result.current.memberForm.getValues("city")).toBe("Berlin"),
+			);
+			expect(result.current.memberForm.getValues("given_name")).toBe("Gracie");
+		});
+	});
+
 	it("blocks submit and toasts when required member fields are missing", async () => {
 		const { result } = renderHook(() => useProfileForm(user));
 		await waitFor(() => expect(result.current.isLoading).toBe(false));
