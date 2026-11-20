@@ -5,9 +5,10 @@ import {
 	type MemberConsents,
 } from "@member-manager/shared";
 import type { User } from "@supabase/supabase-js";
-import { useEffect } from "react";
+import { useMemo } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { useToast } from "@/contexts/ToastContext";
+import { rebaselineForm } from "@/features/profile/hooks/rebaselineForm";
 import {
 	buildSelfServiceMemberUpdatePayload,
 	computeProfileCompleteness,
@@ -92,17 +93,65 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		isUpdating: isUpdatingSepa,
 	} = useSepaData(user.id);
 
+	// Server data is the baseline of every form below (`values`), and
+	// `keepDirtyValues` makes a refetch update only the fields the member has not
+	// touched. A refetch (window focus, invalidation after a save) therefore
+	// never discards unsaved edits (#397).
+	const resetOptions = { keepDirtyValues: true } as const;
+
+	const linkedinBaseline = useMemo<LinkedinSchema | undefined>(() => {
+		if (isLoadingMember) return undefined;
+		const existing = (memberData ?? {}) as Record<string, unknown>;
+		return {
+			linkedin_profile_url: (existing.linkedin_profile_url as string) || "",
+			public_location: (existing.public_location as string) || "",
+		};
+	}, [memberData, isLoadingMember]);
+
 	const linkedinForm = useForm<LinkedinSchema>({
 		resolver: zodResolver(linkedinSchema),
 		defaultValues: {
 			linkedin_profile_url: "",
 			public_location: "",
 		},
+		values: linkedinBaseline,
+		resetOptions,
 	});
 
 	const linkedinUrl = linkedinForm.watch("linkedin_profile_url");
 	const normalizedLinkedinUrl = normalizeLinkedinProfileUrl(linkedinUrl);
 	const isLinkedinUrlValid = isLinkedinProfileUrl(linkedinUrl);
+
+	const memberBaseline = useMemo<MemberSchema | undefined>(() => {
+		if (isLoadingMember) return undefined;
+		const slackProfile = extractSlackProfile(user);
+		const slackBatch = getCurrentBatch();
+		const existing = memberData ?? {};
+		return {
+			active: existing.active ?? true,
+			member_status:
+				existing.member_status || (existing.active ? "active" : "inactive"),
+			salutation: existing.salutation || "",
+			title: existing.title || "",
+			surname: existing.surname || slackProfile.surname,
+			given_name: existing.given_name || slackProfile.given_name,
+			date_of_birth: existing.date_of_birth || "",
+			street: existing.street || "",
+			number: existing.number || "",
+			postal_code: existing.postal_code || "",
+			city: existing.city || "",
+			country: existing.country || "Germany",
+			user_id: user.id,
+			batch: existing.batch || slackBatch,
+			department: existing.department || "",
+			member_role: existing.member_role || "",
+			research_project_id: existing.research_project_id || "",
+			degree: existing.degree || "",
+			school: existing.school || "",
+			reimbursement_slack_notifications_enabled:
+				existing.reimbursement_slack_notifications_enabled ?? false,
+		};
+	}, [memberData, isLoadingMember, user]);
 
 	const memberForm = useForm<MemberSchema>({
 		resolver: zodResolver(memberSchema),
@@ -127,11 +176,27 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			school: "",
 			reimbursement_slack_notifications_enabled: false,
 		},
+		values: memberBaseline,
+		resetOptions,
 	});
 
 	// Bank details are optional as a group. Once a bank field is filled,
 	// profileSepaSchema requires a valid IBAN, a bank name and all three
 	// agreements; without bank details the agreements can be saved alone.
+	const sepaBaseline = useMemo<ProfileSepaInput | undefined>(
+		() =>
+			sepaData
+				? {
+						iban: sepaData.iban || "",
+						bic: sepaData.bic || "",
+						bank_name: sepaData.bank_name || "",
+						mandate_agreed: sepaData.mandate_agreed || false,
+						privacy_agreed: sepaData.privacy_agreed || false,
+					}
+				: undefined,
+		[sepaData],
+	);
+
 	const sepaForm = useForm<ProfileSepaInput>({
 		resolver: zodResolver(profileSepaSchema),
 		defaultValues: {
@@ -141,65 +206,21 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			mandate_agreed: false,
 			privacy_agreed: false,
 		},
+		values: sepaBaseline,
+		resetOptions,
 	});
+
+	// react-hook-form only keeps `dirtyFields` current (and so only lets a reset
+	// to the saved values clear it) while something subscribes to it. Without
+	// this a saved field would stay "dirty" and shield itself from later
+	// server updates.
+	void memberForm.formState.dirtyFields;
+	void linkedinForm.formState.dirtyFields;
+	void sepaForm.formState.dirtyFields;
 
 	// Once bank details are stored they can be edited but not cleared; the
 	// server enforces the same rule.
 	const hasSavedBankDetails = hasBankDetailsInput(sepaData ?? {});
-
-	useEffect(() => {
-		if (isLoadingMember) return;
-
-		const slackProfile = extractSlackProfile(user);
-		const slackBatch = getCurrentBatch();
-		const existing = memberData ?? {};
-
-		memberForm.reset({
-			active: existing.active ?? true,
-			member_status:
-				existing.member_status || (existing.active ? "active" : "inactive"),
-			salutation: existing.salutation || "",
-			title: existing.title || "",
-			surname: existing.surname || slackProfile.surname,
-			given_name: existing.given_name || slackProfile.given_name,
-			date_of_birth: existing.date_of_birth || "",
-			street: existing.street || "",
-			number: existing.number || "",
-			postal_code: existing.postal_code || "",
-			city: existing.city || "",
-			country: existing.country || "Germany",
-			user_id: user.id,
-			batch: existing.batch || slackBatch,
-			department: existing.department || "",
-			member_role: existing.member_role || "",
-			research_project_id: existing.research_project_id || "",
-			degree: existing.degree || "",
-			school: existing.school || "",
-			reimbursement_slack_notifications_enabled:
-				existing.reimbursement_slack_notifications_enabled ?? false,
-		});
-
-		// Populate LinkedIn form from DB data
-		linkedinForm.reset({
-			linkedin_profile_url:
-				((existing as Record<string, unknown>)
-					.linkedin_profile_url as string) || "",
-			public_location:
-				((existing as Record<string, unknown>).public_location as string) || "",
-		});
-	}, [memberData, isLoadingMember, memberForm, linkedinForm, user]);
-
-	useEffect(() => {
-		if (sepaData) {
-			sepaForm.reset({
-				iban: sepaData.iban || "",
-				bic: sepaData.bic || "",
-				bank_name: sepaData.bank_name || "",
-				mandate_agreed: sepaData.mandate_agreed || false,
-				privacy_agreed: sepaData.privacy_agreed || false,
-			});
-		}
-	}, [sepaData, sepaForm]);
 
 	const onSubmit = async (): Promise<void> => {
 		try {
@@ -289,6 +310,13 @@ export function useProfileForm(user: User): UseProfileFormResult {
 			}
 
 			await Promise.all(promises);
+			// The saved values are the new baseline: without this the edited
+			// fields stay dirty and would shield themselves from server updates.
+			rebaselineForm(memberForm, memberValues);
+			rebaselineForm(linkedinForm, linkedinValues);
+			if (includeBankDetails || agreementsChanged) {
+				rebaselineForm(sepaForm, sepaValues);
+			}
 			showToast("Profile saved successfully!", "success");
 		} catch (error: unknown) {
 			const errorMessage =

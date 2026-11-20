@@ -50,6 +50,7 @@ import TumaiDaysPage from "./features/tools/TumaiDaysPage";
 import WelcomePage from "./features/welcome/WelcomePage";
 import { useIsAdmin } from "./hooks/useIsAdmin";
 import { useToolAccess } from "./hooks/useToolAccess";
+import { keepSameUser } from "./lib/keepSameUser";
 import { rememberPostLoginPath } from "./lib/postLoginRedirect";
 import { queryClient } from "./lib/queryClient";
 import { supabase } from "./lib/supabaseClient";
@@ -96,7 +97,11 @@ export default function App(): JSX.Element {
 				if (!session) {
 					queryClient.clear();
 				}
-				setUser(session?.user ?? null);
+				// supabase-js re-emits SIGNED_IN with a brand-new user object every
+				// time the browser tab regains focus. Keep the previous reference for
+				// the same user so the whole app (and every form keyed on it) does
+				// not see a change that did not happen.
+				setUser((previous) => keepSameUser(previous, session?.user ?? null));
 			},
 		);
 
