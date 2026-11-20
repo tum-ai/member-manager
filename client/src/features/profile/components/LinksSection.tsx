@@ -1,30 +1,30 @@
 import { Link } from "lucide-react";
-import type { UseFormReturn } from "react-hook-form";
+import { useFormContext } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
-import type { LinkedinSchema } from "@/lib/schemas";
+import type { ProfileFormValues } from "@/features/profile/profileFormModel";
+import {
+	isLinkedinProfileUrl,
+	normalizeLinkedinProfileUrl,
+} from "@/lib/linkedin";
 import { cn } from "@/lib/utils";
 import { SectionHeading } from "./SectionHeading";
 
 interface LinksSectionProps {
-	linkedinForm: UseFormReturn<LinkedinSchema>;
-	isLinkedinUrlValid: boolean;
-	normalizedLinkedinUrl: string;
 	ids: {
 		linkedinUrl: string;
 		publicLocation: string;
 	};
 }
 
-export function LinksSection({
-	linkedinForm,
-	isLinkedinUrlValid,
-	normalizedLinkedinUrl,
-	ids,
-}: LinksSectionProps): JSX.Element {
+export function LinksSection({ ids }: LinksSectionProps): JSX.Element {
+	const form = useFormContext<ProfileFormValues>();
+	const linkedinUrl = form.watch("linkedin_profile_url");
+	const normalizedLinkedinUrl = normalizeLinkedinProfileUrl(linkedinUrl);
+	const isLinkedinUrlValid = isLinkedinProfileUrl(linkedinUrl);
 	return (
 		<GlassCard id="links" variant="elevated" className="scroll-mt-20">
 			<CardContent className="p-6">
@@ -39,16 +39,14 @@ export function LinksSection({
 						className="sm:col-span-2"
 						label="LinkedIn Profile URL"
 						htmlFor={ids.linkedinUrl}
-						error={linkedinForm.formState.errors.linkedin_profile_url?.message}
+						error={form.formState.errors.linkedin_profile_url?.message}
 					>
 						<div className="relative">
 							<Input
 								id={ids.linkedinUrl}
 								placeholder="https://linkedin.com/in/your-profile"
-								{...linkedinForm.register("linkedin_profile_url")}
-								aria-invalid={
-									!!linkedinForm.formState.errors.linkedin_profile_url
-								}
+								{...form.register("linkedin_profile_url")}
+								aria-invalid={!!form.formState.errors.linkedin_profile_url}
 								className={cn(isLinkedinUrlValid && "pr-10")}
 							/>
 							{isLinkedinUrlValid && (
@@ -80,7 +78,7 @@ export function LinksSection({
 						<Input
 							id={ids.publicLocation}
 							placeholder="Munich, Germany"
-							{...linkedinForm.register("public_location")}
+							{...form.register("public_location")}
 						/>
 					</Field>
 				</div>

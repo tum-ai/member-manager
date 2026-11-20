@@ -1,5 +1,5 @@
 import { UserRound } from "lucide-react";
-import type { UseFormReturn } from "react-hook-form";
+import { useFormContext } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -11,17 +11,22 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import type {
+	ProfileFormValues,
+	SuggestedField,
+} from "@/features/profile/profileFormModel";
 import {
 	fromSelectValue,
 	NONE_VALUE,
 	toSelectValue,
 } from "@/features/profile/profileUtils";
-import type { MemberSchema } from "@/lib/schemas";
 import { SectionHeading } from "./SectionHeading";
+import { suggestionHint } from "./suggestionHint";
 
 interface PersonalInfoSectionProps {
-	memberForm: UseFormReturn<MemberSchema>;
 	email: string;
+	/** Fields that are prefilled from a suggestion, not from stored data. */
+	suggestedFields?: readonly SuggestedField[];
 	ids: {
 		salutation: string;
 		title: string;
@@ -38,11 +43,12 @@ interface PersonalInfoSectionProps {
 }
 
 export function PersonalInfoSection({
-	memberForm,
 	email,
+	suggestedFields = [],
 	ids,
 }: PersonalInfoSectionProps): JSX.Element {
-	const errors = memberForm.formState.errors;
+	const form = useFormContext<ProfileFormValues>();
+	const errors = form.formState.errors;
 
 	return (
 		<GlassCard id="personal" variant="elevated" className="scroll-mt-20">
@@ -61,9 +67,9 @@ export function PersonalInfoSection({
 						error={errors.salutation?.message}
 					>
 						<Select
-							value={toSelectValue(memberForm.watch("salutation") || "")}
+							value={toSelectValue(form.watch("salutation") || "")}
 							onValueChange={(value) =>
-								memberForm.setValue("salutation", fromSelectValue(value), {
+								form.setValue("salutation", fromSelectValue(value), {
 									shouldDirty: true,
 								})
 							}
@@ -86,9 +92,9 @@ export function PersonalInfoSection({
 					</Field>
 					<Field className="sm:col-span-8" label="Title" htmlFor={ids.title}>
 						<Select
-							value={toSelectValue(memberForm.watch("title") || "")}
+							value={toSelectValue(form.watch("title") || "")}
 							onValueChange={(value) =>
-								memberForm.setValue("title", fromSelectValue(value), {
+								form.setValue("title", fromSelectValue(value), {
 									shouldDirty: true,
 								})
 							}
@@ -113,11 +119,12 @@ export function PersonalInfoSection({
 						label="First Name"
 						htmlFor={ids.givenName}
 						required
+						description={suggestionHint(suggestedFields, "given_name")}
 						error={errors.given_name?.message}
 					>
 						<Input
 							id={ids.givenName}
-							{...memberForm.register("given_name")}
+							{...form.register("given_name")}
 							aria-invalid={!!errors.given_name}
 							required
 						/>
@@ -127,11 +134,12 @@ export function PersonalInfoSection({
 						label="Last Name"
 						htmlFor={ids.surname}
 						required
+						description={suggestionHint(suggestedFields, "surname")}
 						error={errors.surname?.message}
 					>
 						<Input
 							id={ids.surname}
-							{...memberForm.register("surname")}
+							{...form.register("surname")}
 							aria-invalid={!!errors.surname}
 							required
 						/>
@@ -160,7 +168,7 @@ export function PersonalInfoSection({
 						<Input
 							id={ids.dob}
 							type="date"
-							{...memberForm.register("date_of_birth")}
+							{...form.register("date_of_birth")}
 							aria-invalid={!!errors.date_of_birth}
 						/>
 					</Field>
@@ -179,7 +187,7 @@ export function PersonalInfoSection({
 					>
 						<Input
 							id={ids.street}
-							{...memberForm.register("street")}
+							{...form.register("street")}
 							aria-invalid={!!errors.street}
 						/>
 					</Field>
@@ -191,7 +199,7 @@ export function PersonalInfoSection({
 					>
 						<Input
 							id={ids.number}
-							{...memberForm.register("number")}
+							{...form.register("number")}
 							aria-invalid={!!errors.number}
 						/>
 					</Field>
@@ -204,7 +212,7 @@ export function PersonalInfoSection({
 					>
 						<Input
 							id={ids.postalCode}
-							{...memberForm.register("postal_code")}
+							{...form.register("postal_code")}
 							aria-invalid={!!errors.postal_code}
 						/>
 					</Field>
@@ -216,7 +224,7 @@ export function PersonalInfoSection({
 					>
 						<Input
 							id={ids.city}
-							{...memberForm.register("city")}
+							{...form.register("city")}
 							aria-invalid={!!errors.city}
 						/>
 					</Field>
@@ -229,7 +237,7 @@ export function PersonalInfoSection({
 					>
 						<Input
 							id={ids.country}
-							{...memberForm.register("country")}
+							{...form.register("country")}
 							aria-invalid={!!errors.country}
 						/>
 					</Field>

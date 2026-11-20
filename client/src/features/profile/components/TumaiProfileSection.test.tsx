@@ -1,9 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useForm } from "react-hook-form";
 import { describe, expect, it } from "vitest";
+import { ProfileFormHarness } from "@/features/profile/test/ProfileFormHarness";
 import { BATCH_OPTIONS } from "@/lib/constants";
-import type { MemberSchema } from "@/lib/schemas";
 import type { ResearchProject } from "@/types";
 import { TumaiProfileSection } from "./TumaiProfileSection";
 
@@ -30,30 +29,24 @@ function Harness({
 	currentDepartment = "Software Development",
 	isResearchDepartmentSelected = false,
 	researchProjectSelectValue = "",
+	suggestedFields,
 }: Partial<React.ComponentProps<typeof TumaiProfileSection>>) {
-	const memberForm = useForm<MemberSchema>({
-		defaultValues: {
-			active: true,
-			member_role: currentRole,
-			department: currentDepartment,
-			batch: "",
-			degree: "",
-			school: "",
-			research_project_id: "",
-		} as Partial<MemberSchema> as MemberSchema,
-	});
 	return (
-		<TumaiProfileSection
-			memberForm={memberForm}
-			isAdmin={isAdmin}
-			currentRole={currentRole}
-			currentDepartment={currentDepartment}
-			isResearchDepartmentSelected={isResearchDepartmentSelected}
-			isLoadingResearchProjects={false}
-			researchProjectOptions={researchProjects}
-			researchProjectSelectValue={researchProjectSelectValue}
-			ids={ids}
-		/>
+		<ProfileFormHarness
+			values={{ member_role: currentRole, department: currentDepartment }}
+		>
+			<TumaiProfileSection
+				isAdmin={isAdmin}
+				currentRole={currentRole}
+				currentDepartment={currentDepartment}
+				isResearchDepartmentSelected={isResearchDepartmentSelected}
+				isLoadingResearchProjects={false}
+				researchProjectOptions={researchProjects}
+				researchProjectSelectValue={researchProjectSelectValue}
+				suggestedFields={suggestedFields}
+				ids={ids}
+			/>
+		</ProfileFormHarness>
 	);
 }
 

@@ -1,5 +1,5 @@
 import { GraduationCap } from "lucide-react";
-import type { UseFormReturn } from "react-hook-form";
+import { useFormContext } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -13,6 +13,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { EducationFields } from "@/features/profile/EducationFields";
+import type {
+	ProfileFormValues,
+	SuggestedField,
+} from "@/features/profile/profileFormModel";
 import {
 	fromSelectValue,
 	NONE_VALUE,
@@ -20,13 +24,14 @@ import {
 } from "@/features/profile/profileUtils";
 import { BATCH_OPTIONS, DEPARTMENTS, MEMBER_ROLES } from "@/lib/constants";
 import { resolveDepartmentForMemberRole } from "@/lib/memberMetadata";
-import type { MemberSchema } from "@/lib/schemas";
 import type { ResearchProject } from "@/types";
 import { SectionHeading } from "./SectionHeading";
+import { suggestionHint } from "./suggestionHint";
 
 interface TumaiProfileSectionProps {
-	memberForm: UseFormReturn<MemberSchema>;
 	isAdmin: boolean;
+	/** Fields that are prefilled from a suggestion, not from stored data. */
+	suggestedFields?: readonly SuggestedField[];
 	currentRole: string;
 	currentDepartment: string;
 	isResearchDepartmentSelected: boolean;
@@ -43,8 +48,8 @@ interface TumaiProfileSectionProps {
 }
 
 export function TumaiProfileSection({
-	memberForm,
 	isAdmin,
+	suggestedFields = [],
 	currentRole,
 	currentDepartment,
 	isResearchDepartmentSelected,
@@ -53,7 +58,8 @@ export function TumaiProfileSection({
 	researchProjectSelectValue,
 	ids,
 }: TumaiProfileSectionProps): JSX.Element {
-	const errors = memberForm.formState.errors;
+	const form = useFormContext<ProfileFormValues>();
+	const errors = form.formState.errors;
 
 	return (
 		<GlassCard id="tumai" variant="elevated" className="scroll-mt-20">
@@ -68,12 +74,13 @@ export function TumaiProfileSection({
 					<Field
 						label="Batch"
 						htmlFor={ids.batch}
+						description={suggestionHint(suggestedFields, "batch")}
 						error={errors.batch?.message}
 					>
 						<Select
-							value={toSelectValue(memberForm.watch("batch") || "")}
+							value={toSelectValue(form.watch("batch") || "")}
 							onValueChange={(value) =>
-								memberForm.setValue("batch", fromSelectValue(value), {
+								form.setValue("batch", fromSelectValue(value), {
 									shouldDirty: true,
 								})
 							}
@@ -102,11 +109,11 @@ export function TumaiProfileSection({
 								value={toSelectValue(currentDepartment)}
 								onValueChange={(rawValue) => {
 									const value = fromSelectValue(rawValue);
-									memberForm.setValue("department", value, {
+									form.setValue("department", value, {
 										shouldDirty: true,
 									});
 									if (value !== "Research") {
-										memberForm.setValue("research_project_id", "", {
+										form.setValue("research_project_id", "", {
 											shouldDirty: true,
 										});
 									}
@@ -149,7 +156,7 @@ export function TumaiProfileSection({
 								<Select
 									value={currentRole}
 									onValueChange={(value) => {
-										memberForm.setValue("member_role", value, {
+										form.setValue("member_role", value, {
 											shouldDirty: true,
 										});
 										const nextDepartment = resolveDepartmentForMemberRole(
@@ -157,12 +164,12 @@ export function TumaiProfileSection({
 											currentDepartment,
 										);
 										if (nextDepartment !== currentDepartment) {
-											memberForm.setValue("department", nextDepartment || "", {
+											form.setValue("department", nextDepartment || "", {
 												shouldDirty: true,
 											});
 										}
 										if (nextDepartment !== "Research") {
-											memberForm.setValue("research_project_id", "", {
+											form.setValue("research_project_id", "", {
 												shouldDirty: true,
 											});
 										}
@@ -205,11 +212,9 @@ export function TumaiProfileSection({
 							<Select
 								value={toSelectValue(researchProjectSelectValue)}
 								onValueChange={(value) =>
-									memberForm.setValue(
-										"research_project_id",
-										fromSelectValue(value),
-										{ shouldDirty: true },
-									)
+									form.setValue("research_project_id", fromSelectValue(value), {
+										shouldDirty: true,
+									})
 								}
 								disabled={isLoadingResearchProjects}
 							>
@@ -234,13 +239,13 @@ export function TumaiProfileSection({
 						</Field>
 					)}
 					<EducationFields
-						degreeValue={memberForm.watch("degree")}
-						schoolValue={memberForm.watch("school")}
+						degreeValue={form.watch("degree")}
+						schoolValue={form.watch("school")}
 						onChange={(values) => {
-							memberForm.setValue("degree", values.degree, {
+							form.setValue("degree", values.degree, {
 								shouldDirty: true,
 							});
-							memberForm.setValue("school", values.school, {
+							form.setValue("school", values.school, {
 								shouldDirty: true,
 							});
 						}}
@@ -262,10 +267,10 @@ export function TumaiProfileSection({
 							<Switch
 								id={ids.reimbursementNotifications}
 								checked={Boolean(
-									memberForm.watch("reimbursement_slack_notifications_enabled"),
+									form.watch("reimbursement_slack_notifications_enabled"),
 								)}
 								onCheckedChange={(checked) =>
-									memberForm.setValue(
+									form.setValue(
 										"reimbursement_slack_notifications_enabled",
 										checked,
 										{ shouldDirty: true },

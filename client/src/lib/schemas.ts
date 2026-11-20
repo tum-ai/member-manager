@@ -7,7 +7,6 @@ export { profileSepaSchema, sepaSchema } from "@member-manager/shared";
 
 import { z } from "zod";
 import { ENGAGEMENT_SPECIAL_ROLES } from "./constants";
-import { LINKEDIN_PROFILE_URL_REGEX } from "./linkedin";
 
 function isValidDate(dateString: string): boolean {
 	const regex = /^\d{4}-\d{2}-\d{2}$/;
@@ -16,8 +15,6 @@ function isValidDate(dateString: string): boolean {
 	if (Number.isNaN(date.getTime())) return false;
 	return date.toISOString().slice(0, 10) === dateString;
 }
-
-const BATCH_REGEX = /^(WS|SS)(2\d|[3-9]\d)$/;
 
 function isValidEngagementSpecialRole(role: string | undefined): boolean {
 	return (
@@ -28,45 +25,6 @@ function isValidEngagementSpecialRole(role: string | undefined): boolean {
 		)
 	);
 }
-
-export const memberSchema = z.object({
-	active: z.boolean(),
-	member_status: z.string().optional(),
-	salutation: z.string(),
-	title: z.string().optional(),
-	surname: z.string().min(1, "Surname is required"),
-	given_name: z.string().min(1, "Given Name is required"),
-	date_of_birth: z
-		.string()
-		.refine(
-			(value) => value.trim() === "" || isValidDate(value),
-			"Invalid date",
-		),
-	street: z.string(),
-	number: z.string(),
-	postal_code: z.string(),
-	city: z.string(),
-	country: z.string(),
-	user_id: z.string(),
-	batch: z
-		.string()
-		.nullish()
-		.refine(
-			(value) =>
-				value === null ||
-				value === undefined ||
-				value === "" ||
-				BATCH_REGEX.test(value),
-			"Choose a valid batch",
-		),
-	department: z.string().nullish(),
-	member_role: z.string().nullish(),
-	board_role: z.string().nullish(),
-	research_project_id: z.string().nullish(),
-	degree: z.string().nullish(),
-	school: z.string().nullish(),
-	reimbursement_slack_notifications_enabled: z.boolean().optional(),
-});
 
 export const engagementSchema = z
 	.object({
@@ -121,18 +79,5 @@ export const engagementFormSchema = z.object({
 		.max(5, "Maximum 5 engagements allowed"),
 });
 
-export const linkedinSchema = z.object({
-	linkedin_profile_url: z
-		.string()
-		.optional()
-		.refine(
-			(v) => !v || v.trim() === "" || LINKEDIN_PROFILE_URL_REGEX.test(v.trim()),
-			"Must be a valid LinkedIn profile URL (https://linkedin.com/in/…)",
-		),
-	public_location: z.string().optional(),
-});
-
-export type MemberSchema = z.infer<typeof memberSchema>;
-export type LinkedinSchema = z.infer<typeof linkedinSchema>;
 export type EngagementSchema = z.infer<typeof engagementSchema>;
 export type EngagementFormSchema = z.infer<typeof engagementFormSchema>;

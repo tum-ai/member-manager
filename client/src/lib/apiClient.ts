@@ -1,6 +1,7 @@
 import { SLACK_WORKSPACE_NOT_ALLOWED_ERROR } from "@member-manager/shared";
+import { ApiError } from "./apiError";
 import { rememberAuthNotice, WORKSPACE_NOT_ALLOWED_NOTICE } from "./authNotice";
-import { readJsonErrorMessage } from "./httpErrors";
+import { readJsonErrorDetails } from "./httpErrors";
 import { supabase } from "./supabaseClient";
 
 function isSecurePageContext(): boolean {
@@ -23,14 +24,14 @@ function isSecurePageContext(): boolean {
  * that sends the user's token should fail through here.
  */
 export async function throwApiError(response: Response): Promise<never> {
-	const message = await readJsonErrorMessage(response);
+	const { message, body } = await readJsonErrorDetails(response);
 	if (response.status === 401) {
 		if (message === SLACK_WORKSPACE_NOT_ALLOWED_ERROR) {
 			rememberAuthNotice(WORKSPACE_NOT_ALLOWED_NOTICE);
 		}
 		await supabase.auth.signOut();
 	}
-	throw new Error(message);
+	throw new ApiError(message, response.status, body);
 }
 
 // biome-ignore lint/suspicious/noExplicitAny: Generic API response

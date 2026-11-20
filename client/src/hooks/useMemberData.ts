@@ -1,10 +1,12 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/apiClient";
-import type { MemberSchema } from "@/lib/schemas";
 
+/**
+ * Read-only view of the member row. Profile edits go through the profile
+ * contract (`useProfileQuery` / `useSaveProfile`); admins edit members through
+ * `useAdminData`.
+ */
 export function useMemberData(userId: string) {
-	const queryClient = useQueryClient();
-
 	const {
 		data: member,
 		isLoading,
@@ -18,26 +20,5 @@ export function useMemberData(userId: string) {
 		},
 	});
 
-	const mutation = useMutation({
-		mutationFn: async (data: Partial<MemberSchema>) => {
-			await apiClient(`/api/members/${userId}`, {
-				method: "PUT",
-				body: JSON.stringify(data),
-			});
-		},
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["member", userId] });
-			queryClient.invalidateQueries({ queryKey: ["members-list"] });
-		},
-	});
-
-	return {
-		member,
-		isLoading,
-		error,
-		updateMember: mutation.mutate,
-		updateMemberAsync: mutation.mutateAsync,
-		isUpdating: mutation.isPending,
-		updateError: mutation.error,
-	};
+	return { member, isLoading, error };
 }

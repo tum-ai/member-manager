@@ -16,12 +16,20 @@ interface UseServerBackedFormOptions<TValues extends FieldValues>
 
 export interface UseServerBackedFormResult<TValues extends FieldValues> {
 	form: UseFormReturn<TValues>;
+	/** True while the member has unsaved edits. */
+	isDirty: boolean;
 	/**
 	 * Call after a successful save: the current values become the new baseline,
 	 * so the form is pristine again and the refetch that follows the save does
 	 * not look like an external change.
 	 */
 	markSaved: () => void;
+	/**
+	 * Replace everything, edits included, with these values (e.g. "discard my
+	 * changes and reload"). A plain `form.reset(values)` would not do: this
+	 * hook configures `keepDirtyValues` for every reset.
+	 */
+	resetTo: (values: TValues) => void;
 }
 
 /**
@@ -53,9 +61,17 @@ export function useServerBackedForm<TValues extends FieldValues>({
 		resetOptions: { keepDirtyValues: true },
 	});
 
-	const markSaved = () => {
-		form.reset(form.getValues(), { keepDirtyValues: false });
-	};
+	// react-hook-form only applies the dirty-state updates of reset() while
+	// `isDirty`/`dirtyFields` are subscribed (read during render). Without
+	// this, a stale dirty flag survives a save and later pins the field to its
+	// old value, so fresher server data would never reach it again.
+	const { isDirty } = form.formState;
+	void form.formState.dirtyFields;
 
-	return { form, markSaved };
+	const resetTo = (values: TValues) => {
+		form.reset(values, { keepDirtyValues: false });
+	};
+	const markSaved = () => resetTo(form.getValues());
+
+	return { form, isDirty, markSaved, resetTo };
 }

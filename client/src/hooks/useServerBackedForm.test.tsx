@@ -14,8 +14,7 @@ function setup(initial: Values | undefined) {
 				serverValues,
 				defaultValues: { name: "", city: "" },
 			});
-			// formState is a subscription proxy: read it during render.
-			return { ...backed, isDirty: backed.form.formState.isDirty };
+			return backed;
 		},
 		{ initialProps: { serverValues: initial } },
 	);
@@ -57,6 +56,38 @@ describe("useServerBackedForm", () => {
 
 		expect(result.current.form.getValues("name")).toBe("Grace");
 		expect(result.current.form.getValues("city")).toBe("Berlin");
+	});
+
+	it("lets fresher server data reach a field again after it was saved", () => {
+		const { result, rerender } = setup({ name: "Ada", city: "Munich" });
+
+		act(() => {
+			result.current.form.setValue("name", "Grace", { shouldDirty: true });
+		});
+		act(() => {
+			result.current.markSaved();
+		});
+		// Someone else renames the member after the save.
+		rerender({ serverValues: { name: "Margaret", city: "Munich" } });
+
+		expect(result.current.form.getValues("name")).toBe("Margaret");
+	});
+
+	it("resetTo discards edits and takes the given values", () => {
+		const { result } = setup({ name: "Ada", city: "Munich" });
+
+		act(() => {
+			result.current.form.setValue("name", "Grace", { shouldDirty: true });
+		});
+		act(() => {
+			result.current.resetTo({ name: "Margaret", city: "Berlin" });
+		});
+
+		expect(result.current.form.getValues()).toEqual({
+			name: "Margaret",
+			city: "Berlin",
+		});
+		expect(result.current.isDirty).toBe(false);
 	});
 
 	it("markSaved makes the current values the pristine baseline", () => {

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { apiBlob, apiClient } from "./apiClient";
+import { ApiError } from "./apiError";
 import { takeAuthNotice, WORKSPACE_NOT_ALLOWED_NOTICE } from "./authNotice";
 import { supabase } from "./supabaseClient";
 
@@ -17,6 +18,27 @@ vi.mock("./supabaseClient", () => ({
 describe("apiClient", () => {
 	afterEach(() => {
 		vi.restoreAllMocks();
+	});
+
+	it("throws an ApiError carrying the status and the JSON body", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi
+				.fn()
+				.mockResolvedValue(
+					new Response(
+						JSON.stringify({ error: "Changed elsewhere", code: "stale" }),
+						{ status: 412, headers: { "content-type": "application/json" } },
+					),
+				),
+		);
+
+		const error = await apiClient("/api/example").catch((e) => e);
+
+		expect(error).toBeInstanceOf(ApiError);
+		expect(error.message).toBe("Changed elsewhere");
+		expect(error.status).toBe(412);
+		expect(error.body).toEqual({ error: "Changed elsewhere", code: "stale" });
 	});
 
 	it("does not send a JSON content-type for empty requests", async () => {

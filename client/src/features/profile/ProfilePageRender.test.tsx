@@ -1,33 +1,35 @@
 import type { User } from "@supabase/supabase-js";
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { HttpResponse, http, server } from "@/test/mswServer";
+import { renderWithClient } from "@/test/renderWithClient";
 import ProfilePage from "./ProfilePage";
 
 const showToast = vi.fn();
 const onSubmit = vi.fn();
 const handleDownloadMembershipProof = vi.fn();
 
-let memberData: Record<string, unknown> | undefined;
+let memberData: Record<string, unknown> = {};
 let isAdmin = false;
 let isLoadingMember = false;
-const updateMemberAsync = vi.fn();
+let sepaData: Record<string, unknown> = {};
+let putBodies: Array<Record<string, unknown>> = [];
 
-let sepaData: Record<string, unknown> | undefined;
-const updateSepaAsync = vi.fn();
+vi.mock("@/lib/supabaseClient", () => ({
+	supabase: {
+		auth: {
+			getSession: vi.fn().mockResolvedValue({
+				data: { session: { access_token: "test-token" } },
+			}),
+			signOut: vi.fn(),
+		},
+	},
+}));
 
 vi.mock("../../contexts/ToastContext", () => ({
 	useToast: () => ({ showToast }),
-}));
-
-vi.mock("../../hooks/useMemberData", () => ({
-	useMemberData: () => ({
-		member: memberData,
-		isLoading: isLoadingMember,
-		updateMemberAsync,
-		isUpdating: false,
-	}),
 }));
 
 vi.mock("../../hooks/useIsAdmin", () => ({
@@ -40,15 +42,6 @@ vi.mock("../../hooks/useResearchProjects", () => ({
 
 vi.mock("../../hooks/useMemberConsents", () => ({
 	useMemberConsents: () => ({ consents: undefined }),
-}));
-
-vi.mock("../../hooks/useSepaData", () => ({
-	useSepaData: () => ({
-		sepa: sepaData,
-		isLoading: false,
-		updateSepaAsync,
-		isUpdating: false,
-	}),
 }));
 
 vi.mock("./hooks/useMembershipProof", () => ({
@@ -105,14 +98,40 @@ beforeEach(() => {
 	};
 	isAdmin = false;
 	isLoadingMember = false;
-	sepaData = undefined;
+	sepaData = {};
+	putBodies = [];
 	onSubmit.mockResolvedValue(undefined);
+	const profile = () => ({
+		version: 2,
+		member: { user_id: "user-1", email: "ada@tum.ai", ...memberData },
+		sepa: {
+			iban: "",
+			bic: "",
+			bank_name: "",
+			mandate_agreed: false,
+			privacy_agreed: false,
+			data_privacy_notice_agreed: false,
+			...sepaData,
+		},
+		completeness: { percent: 35, missing: ["IBAN"] },
+	});
+	server.use(
+		http.get("/api/profile/user-1", () =>
+			isLoadingMember
+				? new Promise<never>(() => {})
+				: HttpResponse.json(profile()),
+		),
+		http.put("/api/profile/user-1", async ({ request }) => {
+			putBodies.push((await request.json()) as Record<string, unknown>);
+			return HttpResponse.json(profile());
+		}),
+	);
 });
 
 describe("ProfilePage (render)", () => {
 	it("renders the loading skeleton while data is loading", () => {
 		isLoadingMember = true;
-		render(
+		renderWithClient(
 			<MemoryRouter>
 				<ProfilePage user={user} />
 			</MemoryRouter>,
@@ -123,7 +142,7 @@ describe("ProfilePage (render)", () => {
 	});
 
 	it("renders the profile shell and derives the header from member data", async () => {
-		render(
+		renderWithClient(
 			<MemoryRouter>
 				<ProfilePage user={user} />
 			</MemoryRouter>,
@@ -142,7 +161,7 @@ describe("ProfilePage (render)", () => {
 
 	it("shows the request-changes section for non-admin members", async () => {
 		isAdmin = false;
-		render(
+		renderWithClient(
 			<MemoryRouter>
 				<ProfilePage user={user} />
 			</MemoryRouter>,
@@ -158,7 +177,7 @@ describe("ProfilePage (render)", () => {
 
 	it("hides the request-changes section for admins", async () => {
 		isAdmin = true;
-		render(
+		renderWithClient(
 			<MemoryRouter>
 				<ProfilePage user={user} />
 			</MemoryRouter>,
@@ -177,7 +196,7 @@ describe("ProfilePage (render)", () => {
 
 	it("shows the door PIN card masked, and revealing it doesn't submit the profile", async () => {
 		const userEv = userEvent.setup();
-		render(
+		renderWithClient(
 			<MemoryRouter>
 				<ProfilePage user={user} />
 			</MemoryRouter>,
@@ -192,12 +211,12 @@ describe("ProfilePage (render)", () => {
 		await userEv.click(screen.getByRole("button", { name: /show pin/i }));
 
 		expect(toggleDoorPin).toHaveBeenCalledTimes(1);
-		expect(updateMemberAsync).not.toHaveBeenCalled();
+		expect(putBodies).toHaveLength(0);
 	});
 
 	it("opens the SEPA mandate modal from the banking section", async () => {
 		const userEv = userEvent.setup();
-		render(
+		renderWithClient(
 			<MemoryRouter>
 				<ProfilePage user={user} />
 			</MemoryRouter>,
@@ -233,9 +252,8 @@ describe("ProfilePage (render)", () => {
 			privacy_agreed: false,
 			data_privacy_notice_agreed: false,
 		};
-		updateMemberAsync.mockResolvedValue(undefined);
 		const userEv = userEvent.setup();
-		render(
+		renderWithClient(
 			<MemoryRouter>
 				<ProfilePage user={user} />
 			</MemoryRouter>,
@@ -252,15 +270,57 @@ describe("ProfilePage (render)", () => {
 		});
 		await userEv.click(saveButton);
 
-		await waitFor(() => expect(updateMemberAsync).toHaveBeenCalledTimes(1));
-		expect(updateMemberAsync.mock.calls[0][0].degree).toBe(
+		await waitFor(() => expect(putBodies).toHaveLength(1));
+		expect(putBodies[0].version).toBe(2);
+		expect((putBodies[0].member as Record<string, unknown>).degree).toBe(
 			"Bachelor Informatics",
 		);
-		expect(updateSepaAsync).not.toHaveBeenCalled();
+		expect((putBodies[0].sepa as Record<string, unknown>).iban).toBe("");
 		expect(showToast).toHaveBeenCalledWith(
 			"Profile saved successfully!",
 			"success",
 		);
+	});
+
+	it("shows the completeness the server computed", async () => {
+		renderWithClient(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
+		await waitFor(() => expect(screen.getByText(/35\s?%/)).toBeInTheDocument());
+	});
+
+	it("marks a prefilled batch as a suggestion, not a stored value (#397)", async () => {
+		renderWithClient(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
+		await waitFor(() =>
+			expect(screen.getAllByText(/suggested for you/i).length).toBeGreaterThan(
+				0,
+			),
+		);
+	});
+
+	it("shows an error instead of an editable form when the profile cannot load", async () => {
+		server.use(
+			http.get("/api/profile/user-1", () =>
+				HttpResponse.json({ error: "Boom" }, { status: 500 }),
+			),
+		);
+		renderWithClient(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
+		expect(
+			await screen.findByText(/couldn't load your profile/i),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("heading", { name: /personal information/i }),
+		).not.toBeInTheDocument();
 	});
 
 	it("derives an empty header when there is no name or department", async () => {
@@ -270,7 +330,7 @@ describe("ProfilePage (render)", () => {
 			email: "ada@tum.ai",
 			user_metadata: {},
 		} as unknown as User;
-		render(
+		renderWithClient(
 			<MemoryRouter>
 				<ProfilePage user={namelessUser} />
 			</MemoryRouter>,

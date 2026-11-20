@@ -1,8 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useForm } from "react-hook-form";
 import { describe, expect, it } from "vitest";
-import type { MemberSchema } from "@/lib/schemas";
+import { ProfileFormHarness } from "@/features/profile/test/ProfileFormHarness";
 import { PersonalInfoSection } from "./PersonalInfoSection";
 
 const ids = {
@@ -19,27 +18,21 @@ const ids = {
 	country: "country",
 };
 
-function Harness() {
-	const memberForm = useForm<MemberSchema>({
-		defaultValues: {
-			active: true,
-			salutation: "",
-			given_name: "",
-			surname: "",
-			date_of_birth: "",
-			street: "",
-			number: "",
-			postal_code: "",
-			city: "",
-			country: "",
-		} as Partial<MemberSchema> as MemberSchema,
-	});
+function Harness({
+	suggestedFields,
+}: {
+	suggestedFields?: React.ComponentProps<
+		typeof PersonalInfoSection
+	>["suggestedFields"];
+}) {
 	return (
-		<PersonalInfoSection
-			memberForm={memberForm}
-			email="alice@example.com"
-			ids={ids}
-		/>
+		<ProfileFormHarness values={{ country: "" }}>
+			<PersonalInfoSection
+				email="alice@example.com"
+				suggestedFields={suggestedFields}
+				ids={ids}
+			/>
+		</ProfileFormHarness>
 	);
 }
 

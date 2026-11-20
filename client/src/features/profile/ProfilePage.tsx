@@ -1,108 +1,97 @@
 import { Save } from "lucide-react";
-import { useId, useState } from "react";
+import { useId } from "react";
+import { FormProvider } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import type { Member } from "@/types";
 import { CvPanel } from "./CvPanel";
 import { DoorPinSection } from "./components/DoorPinSection";
 import { LinksSection } from "./components/LinksSection";
 import { PersonalInfoSection } from "./components/PersonalInfoSection";
 import { ProfileAgreementModals } from "./components/ProfileAgreementModals";
+import { ProfileConflictBanner } from "./components/ProfileConflictBanner";
+import { ProfileLoadError } from "./components/ProfileLoadError";
 import { ProfilePageSkeleton } from "./components/ProfilePageSkeleton";
 import { ProfileSidebar } from "./components/ProfileSidebar";
 import { RoleChangeRequestSection } from "./components/RoleChangeRequestSection";
 import { SepaPanel } from "./components/SepaPanel";
 import { TumaiProfileSection } from "./components/TumaiProfileSection";
+import { useAgreementModals } from "./hooks/useAgreementModals";
 import { useDoorPin } from "./hooks/useDoorPin";
 import { useMemberChangeRequestForm } from "./hooks/useMemberChangeRequestForm";
 import { useMembershipProof } from "./hooks/useMembershipProof";
-import { useProfileForm } from "./hooks/useProfileForm";
+import {
+	type UseProfileFormResult,
+	useProfileForm,
+} from "./hooks/useProfileForm";
 import { useProfileNavigation } from "./hooks/useProfileNavigation";
+import { getProfileHeader } from "./profileHeader";
 import type { ProfilePageProps } from "./profileTypes";
 
 export { ProfilePageSkeleton };
 
-export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
-	const fieldId = useId();
-	const [showSepaModal, setShowSepaModal] = useState(false);
-	const [showPrivacyModal, setShowPrivacyModal] = useState(false);
-	const [pendingMandateAgreed, setPendingMandateAgreed] = useState(false);
-	const [pendingPrivacyAgreed, setPendingPrivacyAgreed] = useState(false);
+interface ProfileFormViewProps extends ProfilePageProps {
+	profileForm: UseProfileFormResult;
+	navigation: ReturnType<typeof useProfileNavigation>;
+}
 
+function ProfileFormView({
+	user,
+	profileForm,
+	navigation,
+}: ProfileFormViewProps): JSX.Element {
+	const fieldId = useId();
+	const { activeSection, navItems, handleNavClick } = navigation;
 	const {
-		memberForm,
-		linkedinForm,
-		sepaForm,
-		memberData,
+		form,
+		profile,
 		memberConsents,
 		isAdmin,
-		isLoading,
 		isUpdating,
 		isLoadingResearchProjects,
 		onSubmit,
 		completeness,
 		missingProfileFields,
-		normalizedLinkedinUrl,
-		isLinkedinUrlValid,
+		suggestedFields,
+		conflict,
+		reloadLatest,
+		keepMyChanges,
 		currentRole,
 		currentDepartment,
 		isResearchDepartmentSelected,
 		researchProjectOptions,
 		researchProjectSelectValue,
-	} = useProfileForm(user);
+	} = profileForm;
+	const memberData = profile?.member;
 
-	const { isGeneratingPdf, handleDownloadMembershipProof } =
-		useMembershipProof(memberData);
-
+	const { isGeneratingPdf, handleDownloadMembershipProof } = useMembershipProof(
+		memberData as unknown as Member | undefined,
+	);
 	const changeRequestForm = useMemberChangeRequestForm(user.id);
-
 	const doorPin = useDoorPin(user.id);
+	const agreementModals = useAgreementModals(form);
 
-	const { activeSection, navItems, handleNavClick } = useProfileNavigation({
-		isLoading,
-		isAdmin,
-	});
-
-	const mandateAgreed = sepaForm.watch("mandate_agreed");
-	const privacyAgreed = sepaForm.watch("privacy_agreed");
-	const isActive = memberForm.watch("active");
-
-	const openSepaModal = () => {
-		setPendingMandateAgreed(mandateAgreed);
-		setShowSepaModal(true);
-	};
-
-	const openPrivacyModal = () => {
-		setPendingPrivacyAgreed(privacyAgreed);
-		setShowPrivacyModal(true);
-	};
-
-	if (isLoading) {
-		return <ProfilePageSkeleton />;
-	}
-
-	const headerGivenName = memberForm.watch("given_name") ?? "";
-	const headerSurname = memberForm.watch("surname") ?? "";
-	const headerFullName = `${headerGivenName} ${headerSurname}`.trim();
-	const headerInitials =
-		`${headerGivenName.charAt(0)}${headerSurname.charAt(0)}`.toUpperCase() ||
-		"?";
-	const headerDepartment = memberForm.watch("department");
-	const headerRole = memberForm.watch("member_role") || "Member";
-	const headerMeta = [headerDepartment, headerRole].filter(Boolean).join(" · ");
+	const header = getProfileHeader(form.watch());
 
 	return (
-		<div>
+		<FormProvider {...form}>
 			{/* noValidate: the Zod schemas own validation. Native `required`
 			    checks would block submit before onSubmit could run (#304). */}
-			<form onSubmit={memberForm.handleSubmit(onSubmit)} noValidate>
+			<form onSubmit={onSubmit} noValidate>
 				<div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-start">
+					{conflict && (
+						<ProfileConflictBanner
+							onReloadLatest={reloadLatest}
+							onKeepMyChanges={keepMyChanges}
+						/>
+					)}
 					<ProfileSidebar
 						avatarUrl={memberData?.avatar_url}
-						headerFullName={headerFullName}
-						headerInitials={headerInitials}
-						headerMeta={headerMeta}
-						isActive={isActive}
-						memberStatus={memberForm.watch("member_status")}
+						headerFullName={header.fullName}
+						headerInitials={header.initials}
+						headerMeta={header.meta}
+						isActive={memberData?.active ?? true}
+						memberStatus={memberData?.member_status ?? undefined}
 						completeness={completeness}
 						missingProfileFields={missingProfileFields}
 						isGeneratingPdf={isGeneratingPdf}
@@ -116,8 +105,8 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 
 					<div className="flex flex-col gap-6 lg:col-span-8">
 						<PersonalInfoSection
-							memberForm={memberForm}
 							email={memberData?.email || user.email || ""}
+							suggestedFields={suggestedFields}
 							ids={{
 								salutation: `${fieldId}-salutation`,
 								title: `${fieldId}-title`,
@@ -134,7 +123,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 						/>
 
 						<TumaiProfileSection
-							memberForm={memberForm}
 							isAdmin={isAdmin}
 							currentRole={currentRole}
 							currentDepartment={currentDepartment}
@@ -142,6 +130,7 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 							isLoadingResearchProjects={isLoadingResearchProjects}
 							researchProjectOptions={researchProjectOptions}
 							researchProjectSelectValue={researchProjectSelectValue}
+							suggestedFields={suggestedFields}
 							ids={{
 								batch: `${fieldId}-batch`,
 								department: `${fieldId}-department`,
@@ -160,9 +149,6 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 						/>
 
 						<LinksSection
-							linkedinForm={linkedinForm}
-							isLinkedinUrlValid={isLinkedinUrlValid}
-							normalizedLinkedinUrl={normalizedLinkedinUrl}
 							ids={{
 								linkedinUrl: `${fieldId}-linkedin-url`,
 								publicLocation: `${fieldId}-public-location`,
@@ -206,12 +192,11 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 						)}
 
 						<SepaPanel
-							sepaForm={sepaForm}
-							mandateAgreed={mandateAgreed}
-							privacyAgreed={privacyAgreed}
+							mandateAgreed={agreementModals.mandateAgreed}
+							privacyAgreed={agreementModals.privacyAgreed}
 							memberConsents={memberConsents}
-							openSepaModal={openSepaModal}
-							openPrivacyModal={openPrivacyModal}
+							openSepaModal={agreementModals.openSepaModal}
+							openPrivacyModal={agreementModals.openPrivacyModal}
 							ids={{
 								iban: `${fieldId}-iban`,
 								bic: `${fieldId}-bic`,
@@ -238,17 +223,30 @@ export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
 				</div>
 			</form>
 
-			<ProfileAgreementModals
-				sepaForm={sepaForm}
-				showSepaModal={showSepaModal}
-				setShowSepaModal={setShowSepaModal}
-				showPrivacyModal={showPrivacyModal}
-				setShowPrivacyModal={setShowPrivacyModal}
-				pendingMandateAgreed={pendingMandateAgreed}
-				setPendingMandateAgreed={setPendingMandateAgreed}
-				pendingPrivacyAgreed={pendingPrivacyAgreed}
-				setPendingPrivacyAgreed={setPendingPrivacyAgreed}
-			/>
-		</div>
+			<ProfileAgreementModals {...agreementModals.modalProps} />
+		</FormProvider>
+	);
+}
+
+export default function ProfilePage({ user }: ProfilePageProps): JSX.Element {
+	const profileForm = useProfileForm(user);
+	const navigation = useProfileNavigation({
+		isLoading: profileForm.isLoading,
+		isAdmin: profileForm.isAdmin,
+	});
+
+	if (profileForm.isLoading) {
+		return <ProfilePageSkeleton />;
+	}
+	if (profileForm.loadError) {
+		return <ProfileLoadError message={profileForm.loadError.message} />;
+	}
+
+	return (
+		<ProfileFormView
+			user={user}
+			profileForm={profileForm}
+			navigation={navigation}
+		/>
 	);
 }

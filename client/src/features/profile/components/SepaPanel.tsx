@@ -1,6 +1,6 @@
 import type { MemberConsents } from "@member-manager/shared";
 import { Landmark } from "lucide-react";
-import { Controller, type UseFormReturn } from "react-hook-form";
+import { Controller, useFormContext } from "react-hook-form";
 import { IbanInput } from "@/components/IbanInput";
 import { CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -9,12 +9,11 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LinkButton } from "@/components/ui/link-button";
-import type { ProfileSepaInput } from "@/lib/schemas";
+import type { ProfileFormValues } from "@/features/profile/profileFormModel";
 import { DataPrivacyConsentSummary } from "./DataPrivacyConsentSummary";
 import { SectionHeading } from "./SectionHeading";
 
 interface SepaPanelProps {
-	sepaForm: UseFormReturn<ProfileSepaInput>;
 	mandateAgreed: boolean;
 	privacyAgreed: boolean;
 	memberConsents: MemberConsents | undefined;
@@ -30,7 +29,6 @@ interface SepaPanelProps {
 }
 
 export function SepaPanel({
-	sepaForm,
 	mandateAgreed,
 	privacyAgreed,
 	memberConsents,
@@ -38,6 +36,7 @@ export function SepaPanel({
 	openPrivacyModal,
 	ids,
 }: SepaPanelProps): JSX.Element {
+	const form = useFormContext<ProfileFormValues>();
 	return (
 		<GlassCard id="banking" variant="elevated" className="scroll-mt-20">
 			<CardContent className="p-6">
@@ -50,7 +49,7 @@ export function SepaPanel({
 				<div className="mb-6 grid gap-4">
 					<Field label="IBAN" htmlFor={ids.iban}>
 						<Controller
-							control={sepaForm.control}
+							control={form.control}
 							name="iban"
 							render={({ field }) => (
 								<IbanInput
@@ -59,7 +58,7 @@ export function SepaPanel({
 									value={field.value}
 									onValueChange={field.onChange}
 									onBlur={field.onBlur}
-									error={sepaForm.formState.errors.iban?.message}
+									error={form.formState.errors.iban?.message}
 								/>
 							)}
 						/>
@@ -67,7 +66,7 @@ export function SepaPanel({
 					<Field label="BIC" htmlFor={ids.bic}>
 						<Input
 							id={ids.bic}
-							{...sepaForm.register("bic")}
+							{...form.register("bic")}
 							autoCapitalize="characters"
 							autoComplete="off"
 							autoCorrect="off"
@@ -77,12 +76,12 @@ export function SepaPanel({
 					<Field
 						label="Bank Name"
 						htmlFor={ids.bankName}
-						error={sepaForm.formState.errors.bank_name?.message}
+						error={form.formState.errors.bank_name?.message}
 					>
 						<Input
 							id={ids.bankName}
-							{...sepaForm.register("bank_name")}
-							aria-invalid={!!sepaForm.formState.errors.bank_name}
+							{...form.register("bank_name")}
+							aria-invalid={!!form.formState.errors.bank_name}
 						/>
 					</Field>
 				</div>
@@ -97,7 +96,7 @@ export function SepaPanel({
 									openSepaModal();
 									return;
 								}
-								sepaForm.setValue("mandate_agreed", false, {
+								form.setValue("mandate_agreed", false, {
 									shouldDirty: true,
 									shouldValidate: true,
 								});
@@ -118,9 +117,9 @@ export function SepaPanel({
 							</span>
 						</Label>
 					</div>
-					{sepaForm.formState.errors.mandate_agreed && (
+					{form.formState.errors.mandate_agreed && (
 						<p className="mb-1 block text-xs text-destructive">
-							{sepaForm.formState.errors.mandate_agreed.message}
+							{form.formState.errors.mandate_agreed.message}
 						</p>
 					)}
 
@@ -133,7 +132,7 @@ export function SepaPanel({
 									openPrivacyModal();
 									return;
 								}
-								sepaForm.setValue("privacy_agreed", false, {
+								form.setValue("privacy_agreed", false, {
 									shouldDirty: true,
 									shouldValidate: true,
 								});
@@ -155,9 +154,9 @@ export function SepaPanel({
 							</span>
 						</Label>
 					</div>
-					{sepaForm.formState.errors.privacy_agreed && (
+					{form.formState.errors.privacy_agreed && (
 						<p className="mb-1 block text-xs text-destructive">
-							{sepaForm.formState.errors.privacy_agreed.message}
+							{form.formState.errors.privacy_agreed.message}
 						</p>
 					)}
 

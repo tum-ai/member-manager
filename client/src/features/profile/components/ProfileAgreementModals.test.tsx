@@ -1,24 +1,13 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { useForm } from "react-hook-form";
 import { describe, expect, it, vi } from "vitest";
-import type { ProfileSepaInput } from "@/lib/schemas";
+import { ProfileFormHarness } from "@/features/profile/test/ProfileFormHarness";
 import { ProfileAgreementModals } from "./ProfileAgreementModals";
 
 function Harness(
 	overrides: Partial<React.ComponentProps<typeof ProfileAgreementModals>> = {},
 ) {
-	const sepaForm = useForm<ProfileSepaInput>({
-		defaultValues: {
-			iban: "",
-			bic: "",
-			bank_name: "",
-			mandate_agreed: false,
-			privacy_agreed: false,
-		},
-	});
 	const props: React.ComponentProps<typeof ProfileAgreementModals> = {
-		sepaForm,
 		showSepaModal: false,
 		setShowSepaModal: vi.fn(),
 		showPrivacyModal: false,
@@ -29,7 +18,21 @@ function Harness(
 		setPendingPrivacyAgreed: vi.fn(),
 		...overrides,
 	};
-	return <ProfileAgreementModals {...props} />;
+	return (
+		<ProfileFormHarness>
+			{(form) => (
+				<>
+					<ProfileAgreementModals {...props} />
+					<output data-testid="mandate">
+						{String(form.watch("mandate_agreed"))}
+					</output>
+					<output data-testid="privacy">
+						{String(form.watch("privacy_agreed"))}
+					</output>
+				</>
+			)}
+		</ProfileFormHarness>
+	);
 }
 
 describe("ProfileAgreementModals", () => {

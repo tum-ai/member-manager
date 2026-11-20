@@ -1,11 +1,10 @@
-import type { UseFormReturn } from "react-hook-form";
+import { useFormContext } from "react-hook-form";
 import { Modal } from "@/components/ui/Modal";
 import { PrivacyPolicy } from "@/features/legal/PrivacyPolicy";
+import type { ProfileFormValues } from "@/features/profile/profileFormModel";
 import { SepaMandate } from "@/features/sepa/SepaMandate";
-import type { ProfileSepaInput } from "@/lib/schemas";
 
 interface ProfileAgreementModalsProps {
-	sepaForm: UseFormReturn<ProfileSepaInput>;
 	showSepaModal: boolean;
 	setShowSepaModal: (value: boolean) => void;
 	showPrivacyModal: boolean;
@@ -17,7 +16,6 @@ interface ProfileAgreementModalsProps {
 }
 
 export function ProfileAgreementModals({
-	sepaForm,
 	showSepaModal,
 	setShowSepaModal,
 	showPrivacyModal,
@@ -27,6 +25,7 @@ export function ProfileAgreementModals({
 	pendingPrivacyAgreed,
 	setPendingPrivacyAgreed,
 }: ProfileAgreementModalsProps): JSX.Element {
+	const form = useFormContext<ProfileFormValues>();
 	return (
 		<>
 			{showSepaModal && (
@@ -35,7 +34,7 @@ export function ProfileAgreementModals({
 					onClose={() => setShowSepaModal(false)}
 					confirmDisabled={!pendingMandateAgreed}
 					onConfirm={() => {
-						sepaForm.setValue("mandate_agreed", true, {
+						form.setValue("mandate_agreed", true, {
 							shouldDirty: true,
 							shouldValidate: true,
 						});
@@ -55,7 +54,7 @@ export function ProfileAgreementModals({
 					onClose={() => setShowPrivacyModal(false)}
 					confirmDisabled={!pendingPrivacyAgreed}
 					onConfirm={() => {
-						sepaForm.setValue("privacy_agreed", true, {
+						form.setValue("privacy_agreed", true, {
 							shouldDirty: true,
 							shouldValidate: true,
 						});

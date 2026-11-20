@@ -1,60 +1,36 @@
+import type { ProfileResponse } from "@member-manager/shared";
 import type { User } from "@supabase/supabase-js";
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ProfileSepaInput } from "@/lib/schemas";
+import { HttpResponse, http, server } from "@/test/mswServer";
+import { renderHookWithClient } from "@/test/renderWithClient";
 import { type UseProfileFormResult, useProfileForm } from "./useProfileForm";
 
 const showToast = vi.fn();
-
-let memberData: Record<string, unknown> | undefined;
-let isLoadingMember = false;
-const updateMemberAsync = vi.fn();
-
 let isAdmin = false;
-let isLoadingAdminRole = false;
+let researchProjects: unknown[] = [];
 
-let researchProjects: unknown[] | undefined = [];
-let isLoadingResearchProjects = false;
-
-let sepaData: Record<string, unknown> | undefined;
-let isLoadingSepa = false;
-const updateSepaAsync = vi.fn();
-
-vi.mock("../../../contexts/ToastContext", () => ({
+vi.mock("@/contexts/ToastContext", () => ({
 	useToast: () => ({ showToast }),
 }));
-
-vi.mock("../../../hooks/useMemberData", () => ({
-	useMemberData: () => ({
-		member: memberData,
-		isLoading: isLoadingMember,
-		updateMemberAsync,
-		isUpdating: false,
-	}),
+vi.mock("@/hooks/useIsAdmin", () => ({
+	useIsAdmin: () => ({ isAdmin, isLoading: false }),
 }));
-
-vi.mock("../../../hooks/useIsAdmin", () => ({
-	useIsAdmin: () => ({ isAdmin, isLoading: isLoadingAdminRole }),
+vi.mock("@/hooks/useResearchProjects", () => ({
+	useResearchProjects: () => ({ researchProjects, isLoading: false }),
 }));
-
-vi.mock("../../../hooks/useResearchProjects", () => ({
-	useResearchProjects: () => ({
-		researchProjects,
-		isLoading: isLoadingResearchProjects,
-	}),
-}));
-
-vi.mock("../../../hooks/useMemberConsents", () => ({
+vi.mock("@/hooks/useMemberConsents", () => ({
 	useMemberConsents: () => ({ consents: undefined }),
 }));
-
-vi.mock("../../../hooks/useSepaData", () => ({
-	useSepaData: () => ({
-		sepa: sepaData,
-		isLoading: isLoadingSepa,
-		updateSepaAsync,
-		isUpdating: false,
-	}),
+vi.mock("@/lib/supabaseClient", () => ({
+	supabase: {
+		auth: {
+			getSession: vi.fn().mockResolvedValue({
+				data: { session: { access_token: "test-token" } },
+			}),
+			signOut: vi.fn(),
+		},
+	},
 }));
 
 const user = {
@@ -63,246 +39,203 @@ const user = {
 	user_metadata: { given_name: "Ada", family_name: "Lovelace" },
 } as unknown as User;
 
+const noBank = {
+	iban: "",
+	bic: "",
+	bank_name: "",
+	mandate_agreed: false,
+	privacy_agreed: false,
+	data_privacy_notice_agreed: false,
+};
+const savedBank = {
+	iban: "DE89370400440532013000",
+	bic: "COBADEFFXXX",
+	bank_name: "Test Bank",
+	mandate_agreed: true,
+	privacy_agreed: true,
+	data_privacy_notice_agreed: true,
+};
+
+function makeProfile(
+	overrides: {
+		version?: number;
+		member?: Record<string, unknown>;
+		sepa?: Partial<ProfileResponse["sepa"]>;
+		completeness?: ProfileResponse["completeness"];
+	} = {},
+): ProfileResponse {
+	return {
+		version: overrides.version ?? 4,
+		member: {
+			user_id: "user-1",
+			email: "ada@tum.ai",
+			given_name: "Ada",
+			surname: "Lovelace",
+			batch: "WS25",
+			city: "Munich",
+			...overrides.member,
+		},
+		sepa: { ...noBank, ...overrides.sepa },
+		completeness: overrides.completeness ?? {
+			percent: 40,
+			missing: ["IBAN"],
+		},
+	};
+}
+
+type PutBody = {
+	version: number;
+	member: Record<string, unknown>;
+	sepa: Record<string, unknown>;
+};
+
+let currentProfile: ProfileResponse;
+let putBodies: PutBody[];
+let putResponse: () => Response;
+
 beforeEach(() => {
 	vi.clearAllMocks();
-	memberData = undefined;
-	isLoadingMember = false;
 	isAdmin = false;
-	isLoadingAdminRole = false;
 	researchProjects = [];
-	isLoadingResearchProjects = false;
-	sepaData = undefined;
-	isLoadingSepa = false;
-	updateMemberAsync.mockResolvedValue(undefined);
-	updateSepaAsync.mockResolvedValue(undefined);
+	currentProfile = makeProfile();
+	putBodies = [];
+	putResponse = () => HttpResponse.json(currentProfile);
+	server.use(
+		http.get("/api/profile/user-1", () => HttpResponse.json(currentProfile)),
+		http.put("/api/profile/user-1", async ({ request }) => {
+			putBodies.push((await request.json()) as PutBody);
+			return putResponse();
+		}),
+	);
 });
 
+async function renderLoaded(currentUser: User = user) {
+	const rendered = renderHookWithClient(
+		({ u }: { u: User }) => useProfileForm(u),
+		{ initialProps: { u: currentUser } },
+	);
+	await waitFor(() => expect(rendered.result.current.isLoading).toBe(false));
+	await waitFor(() =>
+		expect(rendered.result.current.form.getValues("given_name")).not.toBe(""),
+	);
+	return rendered;
+}
+
+async function submit(result: { current: UseProfileFormResult }) {
+	await act(async () => {
+		await result.current.onSubmit();
+	});
+}
+
+function dirty(
+	result: { current: UseProfileFormResult },
+	changes: Record<string, string | boolean>,
+) {
+	act(() => {
+		for (const [name, value] of Object.entries(changes)) {
+			result.current.form.setValue(name as never, value as never, {
+				shouldDirty: true,
+			});
+		}
+	});
+}
+
 describe("useProfileForm", () => {
-	it("stays loading until member, sepa and role queries settle", () => {
-		isLoadingMember = true;
-		const { result } = renderHook(() => useProfileForm(user));
+	it("stays loading until the profile has loaded", async () => {
+		const { result } = renderHookWithClient(() => useProfileForm(user));
 		expect(result.current.isLoading).toBe(true);
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
 	});
 
-	it("hydrates the member form from Slack metadata when no member exists", async () => {
-		const { result } = renderHook(() => useProfileForm(user));
+	it("hydrates the form and the completeness from the stored profile", async () => {
+		currentProfile = makeProfile({
+			member: { linkedin_profile_url: "https://linkedin.com/in/ada" },
+			sepa: savedBank,
+			completeness: { percent: 88, missing: ["TUM.ai batch"] },
+		});
+		const { result } = await renderLoaded();
 
-		await waitFor(() =>
-			expect(result.current.memberForm.getValues("given_name")).toBe("Ada"),
-		);
-		expect(result.current.memberForm.getValues("surname")).toBe("Lovelace");
-		expect(result.current.isLoading).toBe(false);
-	});
-
-	it("hydrates member, linkedin and sepa forms from fetched data", async () => {
-		memberData = {
-			given_name: "Grace",
-			surname: "Hopper",
-			active: false,
-			batch: "WS25",
-			linkedin_profile_url: "https://linkedin.com/in/grace",
-			public_location: "Munich",
-			reimbursement_slack_notifications_enabled: true,
-		};
-		sepaData = {
-			iban: "DE89370400440532013000",
-			bic: "COBADEFFXXX",
-			bank_name: "Test Bank",
-			mandate_agreed: true,
-			privacy_agreed: true,
-			data_privacy_notice_agreed: true,
-		};
-
-		const { result } = renderHook(() => useProfileForm(user));
-
-		await waitFor(() =>
-			expect(result.current.memberForm.getValues("given_name")).toBe("Grace"),
-		);
-		expect(result.current.memberForm.getValues("member_status")).toBe(
-			"inactive",
-		);
-		expect(result.current.linkedinForm.getValues("linkedin_profile_url")).toBe(
-			"https://linkedin.com/in/grace",
-		);
-		expect(result.current.sepaForm.getValues("iban")).toBe(
+		expect(result.current.form.getValues("city")).toBe("Munich");
+		expect(result.current.form.getValues("iban")).toBe(
 			"DE89370400440532013000",
 		);
-		expect(
-			result.current.memberForm.getValues(
-				"reimbursement_slack_notifications_enabled",
-			),
-		).toBe(true);
-		expect(result.current.normalizedLinkedinUrl).toBe(
-			"https://linkedin.com/in/grace",
+		expect(result.current.form.getValues("linkedin_profile_url")).toBe(
+			"https://linkedin.com/in/ada",
 		);
-		expect(result.current.isLinkedinUrlValid).toBe(true);
+		expect(result.current.completeness).toBe(88);
+		expect(result.current.missingProfileFields).toEqual(["TUM.ai batch"]);
+	});
+
+	it("offers Slack and batch suggestions only where nothing is stored", async () => {
+		currentProfile = makeProfile({
+			member: { given_name: "", surname: "", batch: null },
+		});
+		const { result } = await renderLoaded();
+
+		expect(result.current.form.getValues("given_name")).toBe("Ada");
+		expect(result.current.form.getValues("surname")).toBe("Lovelace");
+		expect(result.current.suggestedFields).toEqual([
+			"given_name",
+			"surname",
+			"batch",
+		]);
+		// Suggestions do not raise the stored completeness.
+		expect(result.current.completeness).toBe(40);
 	});
 
 	describe("unsaved edits survive background updates (#397)", () => {
-		it("keeps a typed value when the auth user object is re-created on tab refocus", async () => {
-			memberData = { given_name: "Grace", surname: "Hopper", batch: "WS25" };
-			const { result, rerender } = renderHook(
-				({ currentUser }) => useProfileForm(currentUser),
-				{ initialProps: { currentUser: user } },
-			);
-			await waitFor(() =>
-				expect(result.current.memberForm.getValues("given_name")).toBe("Grace"),
-			);
+		it("keeps typed values when the auth user object is re-created on tab refocus", async () => {
+			const { result, rerender } = await renderLoaded();
 
-			act(() => {
-				result.current.memberForm.setValue("salutation", "Mrs", {
-					shouldDirty: true,
-				});
-				result.current.memberForm.setValue("batch", "SS26", {
-					shouldDirty: true,
-				});
-			});
+			dirty(result, { salutation: "Mrs", batch: "SS26" });
 			// supabase-js re-emits SIGNED_IN with a fresh user object on focus.
-			rerender({ currentUser: { ...user } as User });
+			rerender({ u: { ...user } as User });
 
-			expect(result.current.memberForm.getValues("salutation")).toBe("Mrs");
-			expect(result.current.memberForm.getValues("batch")).toBe("SS26");
+			expect(result.current.form.getValues("salutation")).toBe("Mrs");
+			expect(result.current.form.getValues("batch")).toBe("SS26");
 		});
 
 		it("keeps edited fields but refreshes untouched ones when a refetch returns new data", async () => {
-			memberData = { given_name: "Grace", surname: "Hopper", city: "Munich" };
-			const { result, rerender } = renderHook(() => useProfileForm(user));
-			await waitFor(() =>
-				expect(result.current.memberForm.getValues("city")).toBe("Munich"),
-			);
+			const { result, queryClient } = await renderLoaded();
 
-			act(() => {
-				result.current.memberForm.setValue("given_name", "Gracie", {
-					shouldDirty: true,
-				});
+			dirty(result, { given_name: "Gracie" });
+			currentProfile = makeProfile({
+				version: 5,
+				member: { given_name: "Grace", city: "Berlin" },
 			});
-			memberData = { given_name: "Grace", surname: "Hopper", city: "Berlin" };
-			rerender();
-
-			await waitFor(() =>
-				expect(result.current.memberForm.getValues("city")).toBe("Berlin"),
-			);
-			expect(result.current.memberForm.getValues("given_name")).toBe("Gracie");
-		});
-	});
-
-	it("blocks submit and toasts when required member fields are missing", async () => {
-		const { result } = renderHook(() => useProfileForm(user));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-		act(() => {
-			result.current.memberForm.setValue("given_name", "");
-			result.current.memberForm.setValue("surname", "");
-		});
-
-		await act(async () => {
-			await result.current.onSubmit();
-		});
-
-		expect(updateMemberAsync).not.toHaveBeenCalled();
-		expect(showToast).toHaveBeenCalledWith(
-			"Please complete all required profile fields before saving.",
-			"error",
-		);
-	});
-
-	describe("optional bank details (#304)", () => {
-		// GET /api/sepa/:userId for a member who never saved bank details.
-		const noBankDetails = {
-			user_id: "user-1",
-			iban: "",
-			bic: "",
-			bank_name: "",
-			mandate_agreed: false,
-			privacy_agreed: false,
-			data_privacy_notice_agreed: false,
-		};
-		const savedBankDetails = {
-			user_id: "user-1",
-			iban: "DE89370400440532013000",
-			bic: "COBADEFFXXX",
-			bank_name: "Test Bank",
-			mandate_agreed: true,
-			privacy_agreed: true,
-			data_privacy_notice_agreed: true,
-		};
-
-		async function renderLoaded() {
-			const rendered = renderHook(() => useProfileForm(user));
-			await waitFor(() =>
-				expect(rendered.result.current.isLoading).toBe(false),
-			);
-			await waitFor(() =>
-				expect(rendered.result.current.memberForm.getValues("given_name")).toBe(
-					"Ada",
-				),
-			);
-			return rendered;
-		}
-
-		// getFieldState reads the form's live errors; formState.errors is a
-		// render snapshot that only updates when a component subscribes to it.
-		function fieldError(
-			result: { current: UseProfileFormResult },
-			name: keyof ProfileSepaInput,
-		): string | undefined {
-			return result.current.sepaForm.getFieldState(name).error?.message;
-		}
-
-		async function submit(result: {
-			current: { onSubmit: () => Promise<void> };
-		}) {
 			await act(async () => {
-				await result.current.onSubmit();
-			});
-		}
-
-		beforeEach(() => {
-			memberData = { given_name: "Ada", surname: "Lovelace", degree: "" };
-		});
-
-		it("saves a degree change without bank details and without a SEPA request", async () => {
-			sepaData = { ...noBankDetails };
-			const { result } = await renderLoaded();
-
-			act(() => {
-				result.current.memberForm.setValue("degree", "Bachelor Informatics");
-			});
-			await submit(result);
-
-			expect(updateMemberAsync).toHaveBeenCalledTimes(1);
-			expect(updateMemberAsync.mock.calls[0][0].degree).toBe(
-				"Bachelor Informatics",
-			);
-			expect(updateSepaAsync).not.toHaveBeenCalled();
-			expect(showToast).toHaveBeenCalledWith(
-				"Profile saved successfully!",
-				"success",
-			);
-		});
-
-		it("saves agreements alone when no bank details are entered", async () => {
-			sepaData = { ...noBankDetails };
-			const { result } = await renderLoaded();
-
-			act(() => {
-				result.current.sepaForm.setValue("privacy_agreed", true, {
-					shouldDirty: true,
-				});
-				result.current.sepaForm.setValue("data_privacy_notice_agreed", true, {
-					shouldDirty: true,
+				await queryClient.invalidateQueries({
+					queryKey: ["profile", "user-1"],
 				});
 			});
+
+			await waitFor(() =>
+				expect(result.current.form.getValues("city")).toBe("Berlin"),
+			);
+			expect(result.current.form.getValues("given_name")).toBe("Gracie");
+		});
+	});
+
+	describe("saving", () => {
+		it("sends one request with the version, member data and bank group", async () => {
+			const { result } = await renderLoaded();
+
+			dirty(result, { salutation: "Mrs", batch: "SS26" });
 			await submit(result);
 
-			expect(updateMemberAsync).toHaveBeenCalledTimes(1);
-			expect(updateSepaAsync).toHaveBeenCalledWith({
+			expect(putBodies).toHaveLength(1);
+			expect(putBodies[0].version).toBe(4);
+			expect(putBodies[0].member).toMatchObject({
+				salutation: "Mrs",
+				batch: "SS26",
+			});
+			expect(putBodies[0].member).not.toHaveProperty("member_role");
+			expect(putBodies[0].sepa).toEqual({
 				iban: "",
 				bic: "",
 				bank_name: "",
 				mandate_agreed: false,
-				privacy_agreed: true,
-				data_privacy_notice_agreed: true,
+				privacy_agreed: false,
 			});
 			expect(showToast).toHaveBeenCalledWith(
 				"Profile saved successfully!",
@@ -310,387 +243,218 @@ describe("useProfileForm", () => {
 			);
 		});
 
-		function agreeToAll(result: { current: UseProfileFormResult }) {
-			result.current.sepaForm.setValue("mandate_agreed", true);
-			result.current.sepaForm.setValue("privacy_agreed", true);
-			result.current.sepaForm.setValue("data_privacy_notice_agreed", true);
-		}
-
-		it("sends normalized bank details once all three agreements are given", async () => {
-			sepaData = { ...noBankDetails };
+		it("adopts the response: new version, completeness, and a pristine form", async () => {
 			const { result } = await renderLoaded();
-
-			act(() => {
-				result.current.sepaForm.setValue("iban", "de89 3704 0044 0532 0130 00");
-				result.current.sepaForm.setValue("bank_name", "Test Bank");
-				agreeToAll(result);
+			dirty(result, { batch: "SS26" });
+			currentProfile = makeProfile({
+				version: 9,
+				member: { batch: "SS26" },
+				completeness: { percent: 100, missing: [] },
 			});
+
 			await submit(result);
 
-			expect(updateMemberAsync).toHaveBeenCalledTimes(1);
-			expect(updateSepaAsync).toHaveBeenCalledWith({
-				iban: "DE89370400440532013000",
-				bic: "",
-				bank_name: "Test Bank",
-				mandate_agreed: true,
+			await waitFor(() => expect(result.current.completeness).toBe(100));
+			expect(result.current.form.getValues("batch")).toBe("SS26");
+
+			// The next save carries the version from the response.
+			await submit(result);
+			expect(putBodies[1].version).toBe(9);
+		});
+
+		it("includes role and department for admins", async () => {
+			isAdmin = true;
+			const { result } = await renderLoaded();
+
+			dirty(result, { member_role: "Member", department: "Venture" });
+			await submit(result);
+
+			expect(putBodies[0].member).toMatchObject({
+				member_role: "Member",
+				department: "Venture",
+				research_project_id: null,
+			});
+		});
+
+		it("surfaces the server error in a toast", async () => {
+			putResponse = () =>
+				HttpResponse.json({ error: "Database is down" }, { status: 500 });
+			const { result } = await renderLoaded();
+
+			dirty(result, { city: "Berlin" });
+			await submit(result);
+
+			expect(showToast).toHaveBeenCalledWith(
+				"Error saving: Database is down",
+				"error",
+			);
+		});
+	});
+
+	describe("validation", () => {
+		it("blocks the save and toasts when required fields are missing", async () => {
+			const { result } = await renderLoaded();
+
+			dirty(result, { given_name: "", surname: "" });
+			await submit(result);
+
+			expect(putBodies).toHaveLength(0);
+			expect(showToast).toHaveBeenCalledWith(
+				"Please complete all required profile fields before saving.",
+				"error",
+			);
+		});
+
+		it("requires the whole bank group once one bank field is filled", async () => {
+			const { result } = await renderLoaded();
+
+			dirty(result, { bic: "COBADEFFXXX" });
+			await submit(result);
+
+			expect(putBodies).toHaveLength(0);
+			expect(result.current.form.getFieldState("iban").error?.message).toBe(
+				"Invalid IBAN",
+			);
+			expect(showToast).toHaveBeenCalledWith(
+				"Please complete all required fields and agreements before saving.",
+				"error",
+			);
+		});
+
+		it("saves agreements alone when no bank details are entered", async () => {
+			const { result } = await renderLoaded();
+
+			dirty(result, { privacy_agreed: true });
+			await submit(result);
+
+			expect(putBodies[0].sepa).toMatchObject({
+				iban: "",
 				privacy_agreed: true,
-				data_privacy_notice_agreed: true,
+				mandate_agreed: false,
 			});
-			expect(showToast).toHaveBeenCalledWith(
-				"Profile saved successfully!",
-				"success",
-			);
-		});
-
-		it("blocks bank details agreed to the SEPA mandate only", async () => {
-			sepaData = { ...noBankDetails };
-			const { result } = await renderLoaded();
-
-			act(() => {
-				result.current.sepaForm.setValue("iban", "DE89370400440532013000");
-				result.current.sepaForm.setValue("bank_name", "Test Bank");
-				result.current.sepaForm.setValue("mandate_agreed", true);
-			});
-			await submit(result);
-
-			expect(updateMemberAsync).not.toHaveBeenCalled();
-			expect(updateSepaAsync).not.toHaveBeenCalled();
-			expect(fieldError(result, "mandate_agreed")).toBeUndefined();
-			expect(fieldError(result, "privacy_agreed")).toBe(
-				"You must agree to the Privacy Policy",
-			);
-			// The Data Privacy Notice is optional consent, never required for
-			// bank details.
-			expect(fieldError(result, "data_privacy_notice_agreed")).toBeUndefined();
-			expect(showToast).toHaveBeenCalledWith(
-				"Please complete all required fields and agreements before saving.",
-				"error",
-			);
-		});
-
-		it.each([
-			["a partial IBAN", "DE8937"],
-			["an IBAN with a bad checksum", "DE89370400440532013001"],
-		])("blocks the whole save for %s", async (_label, iban) => {
-			sepaData = { ...noBankDetails };
-			const { result } = await renderLoaded();
-
-			act(() => {
-				result.current.sepaForm.setValue("iban", iban);
-				result.current.sepaForm.setValue("bank_name", "Test Bank");
-				agreeToAll(result);
-			});
-			await submit(result);
-
-			expect(updateMemberAsync).not.toHaveBeenCalled();
-			expect(updateSepaAsync).not.toHaveBeenCalled();
-			expect(fieldError(result, "iban")).toBe("Invalid IBAN");
-			expect(showToast).toHaveBeenCalledWith(
-				"Please complete all required fields and agreements before saving.",
-				"error",
-			);
-		});
-
-		it("requires IBAN, bank name, mandate and privacy policy once any bank field is filled", async () => {
-			sepaData = { ...noBankDetails };
-			const { result } = await renderLoaded();
-
-			act(() => {
-				result.current.sepaForm.setValue("bic", "COBADEFFXXX");
-			});
-			await submit(result);
-
-			expect(updateMemberAsync).not.toHaveBeenCalled();
-			expect(fieldError(result, "iban")).toBe("Invalid IBAN");
-			expect(fieldError(result, "bank_name")).toBe("Bank name is required");
-			expect(fieldError(result, "mandate_agreed")).toBe(
-				"You must agree to the SEPA mandate",
-			);
-			expect(fieldError(result, "privacy_agreed")).toBe(
-				"You must agree to the Privacy Policy",
-			);
-			expect(fieldError(result, "data_privacy_notice_agreed")).toBeUndefined();
-		});
-
-		it("saves bank details without touching the Data Privacy Notice consents", async () => {
-			sepaData = { ...noBankDetails };
-			const { result } = await renderLoaded();
-
-			act(() => {
-				result.current.sepaForm.setValue("iban", "DE89370400440532013000");
-				result.current.sepaForm.setValue("bank_name", "Test Bank");
-				result.current.sepaForm.setValue("mandate_agreed", true);
-				result.current.sepaForm.setValue("privacy_agreed", true);
-			});
-			await submit(result);
-
-			expect(updateSepaAsync).toHaveBeenCalledWith(
-				expect.objectContaining({
-					iban: "DE89370400440532013000",
-					mandate_agreed: true,
-					privacy_agreed: true,
-				}),
-			);
-			// Consents are managed per purpose on /welcome; writing the summary
-			// from here would grant or revoke all three (review on #368).
-			expect(updateSepaAsync.mock.calls[0][0]).not.toHaveProperty(
-				"data_privacy_notice_agreed",
-			);
 		});
 
 		it("refuses to clear bank details that are already saved", async () => {
-			sepaData = { ...savedBankDetails };
+			currentProfile = makeProfile({ sepa: savedBank });
 			const { result } = await renderLoaded();
-			await waitFor(() =>
-				expect(result.current.sepaForm.getValues("iban")).toBe(
-					"DE89370400440532013000",
-				),
-			);
 
-			act(() => {
-				result.current.sepaForm.setValue("iban", "");
-				result.current.sepaForm.setValue("bic", "");
-				result.current.sepaForm.setValue("bank_name", "");
-			});
+			dirty(result, { iban: "", bic: "", bank_name: "" });
 			await submit(result);
 
-			const removalMessage =
+			const message =
 				"Bank details can't be removed once saved — edit them instead";
-			expect(updateMemberAsync).not.toHaveBeenCalled();
-			expect(updateSepaAsync).not.toHaveBeenCalled();
-			expect(fieldError(result, "iban")).toBe(removalMessage);
-			expect(showToast).toHaveBeenCalledWith(removalMessage, "error");
+			expect(putBodies).toHaveLength(0);
+			expect(result.current.form.getFieldState("iban").error?.message).toBe(
+				message,
+			);
+			expect(showToast).toHaveBeenCalledWith(message, "error");
 		});
 
 		it("still lets members edit saved bank details", async () => {
-			sepaData = { ...savedBankDetails };
+			currentProfile = makeProfile({ sepa: savedBank });
 			const { result } = await renderLoaded();
-			await waitFor(() =>
-				expect(result.current.sepaForm.getValues("bank_name")).toBe(
-					"Test Bank",
-				),
-			);
 
-			act(() => {
-				result.current.sepaForm.setValue("iban", "GB82WEST12345698765432");
-				result.current.sepaForm.setValue("bank_name", "New Bank");
-			});
+			dirty(result, { iban: "GB82WEST12345698765432", bank_name: "New Bank" });
 			await submit(result);
 
-			expect(updateSepaAsync).toHaveBeenCalledWith(
-				expect.objectContaining({
-					iban: "GB82WEST12345698765432",
-					bank_name: "New Bank",
-				}),
-			);
+			expect(putBodies[0].sepa).toMatchObject({
+				iban: "GB82WEST12345698765432",
+				bank_name: "New Bank",
+			});
+		});
+	});
+
+	describe("a stale version (412)", () => {
+		const changedElsewhere = () =>
+			makeProfile({
+				version: 8,
+				member: { given_name: "Changed", city: "Hamburg" },
+			});
+
+		beforeEach(() => {
+			putResponse = () =>
+				HttpResponse.json(
+					{
+						error: "Your profile was changed elsewhere.",
+						code: "profile_version_conflict",
+						current: changedElsewhere(),
+					},
+					{ status: 412 },
+				);
 		});
 
-		it("blocks withdrawing an agreement while bank details are saved", async () => {
-			sepaData = { ...savedBankDetails };
+		it("keeps the edits, raises a conflict and shows no error toast", async () => {
 			const { result } = await renderLoaded();
-			await waitFor(() =>
-				expect(result.current.sepaForm.getValues("privacy_agreed")).toBe(true),
-			);
 
-			act(() => {
-				result.current.sepaForm.setValue("privacy_agreed", false, {
-					shouldDirty: true,
-				});
-			});
+			dirty(result, { given_name: "My Edit" });
 			await submit(result);
 
-			expect(updateMemberAsync).not.toHaveBeenCalled();
-			expect(updateSepaAsync).not.toHaveBeenCalled();
-			expect(fieldError(result, "privacy_agreed")).toBe(
-				"You must agree to the Privacy Policy",
+			expect(result.current.conflict?.current.version).toBe(8);
+			expect(result.current.form.getValues("given_name")).toBe("My Edit");
+			expect(showToast).not.toHaveBeenCalled();
+		});
+
+		it("keepMyChanges adopts the new version without losing edits, and the next save uses it", async () => {
+			const { result } = await renderLoaded();
+			dirty(result, { given_name: "My Edit" });
+			await submit(result);
+
+			act(() => result.current.keepMyChanges());
+
+			await waitFor(() => expect(result.current.conflict).toBeNull());
+			expect(result.current.form.getValues("given_name")).toBe("My Edit");
+			// Fields the member did not touch follow the latest stored version.
+			await waitFor(() =>
+				expect(result.current.form.getValues("city")).toBe("Hamburg"),
 			);
+
+			putResponse = () => HttpResponse.json(currentProfile);
+			await submit(result);
+			expect(putBodies.at(-1)?.version).toBe(8);
+		});
+
+		it("reloadLatest discards the edits and shows what is stored", async () => {
+			const { result } = await renderLoaded();
+			dirty(result, { given_name: "My Edit" });
+			await submit(result);
+
+			act(() => result.current.reloadLatest());
+
+			await waitFor(() => expect(result.current.conflict).toBeNull());
+			expect(result.current.form.getValues("given_name")).toBe("Changed");
+			expect(result.current.form.getValues("city")).toBe("Hamburg");
 		});
 	});
 
-	it("submits only the member payload for a self-service member without sepa", async () => {
-		const { result } = renderHook(() => useProfileForm(user));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-		act(() => {
-			result.current.memberForm.setValue("given_name", "Ada");
-			result.current.memberForm.setValue("surname", "Lovelace");
-			// Admin-managed fields must be stripped from the self-service payload.
-			result.current.memberForm.setValue("department", "Venture");
-			result.current.memberForm.setValue("member_role", "Team Lead");
-			result.current.memberForm.setValue("research_project_id", "rp-1");
-			result.current.memberForm.setValue(
-				"reimbursement_slack_notifications_enabled",
-				true,
-			);
-		});
-
-		await act(async () => {
-			await result.current.onSubmit();
-		});
-
-		await waitFor(() => expect(updateMemberAsync).toHaveBeenCalledTimes(1));
-		expect(updateSepaAsync).not.toHaveBeenCalled();
-		const payload = updateMemberAsync.mock.calls[0][0];
-		expect(payload).not.toHaveProperty("department");
-		expect(payload).not.toHaveProperty("member_role");
-		// Non-admin, non-research effective department drops research_project_id.
-		expect(payload).not.toHaveProperty("research_project_id");
-		expect(payload.reimbursement_slack_notifications_enabled).toBe(true);
-		expect(showToast).toHaveBeenCalledWith(
-			"Profile saved successfully!",
-			"success",
-		);
-	});
-
-	it("includes admin-managed fields and resolves research department for admins", async () => {
-		isAdmin = true;
-		const { result } = renderHook(() => useProfileForm(user));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-		act(() => {
-			result.current.memberForm.setValue("given_name", "Ada");
-			result.current.memberForm.setValue("surname", "Lovelace");
-			result.current.memberForm.setValue("batch", "SS25");
-			result.current.memberForm.setValue("member_role", "Member");
-			result.current.memberForm.setValue("department", "Research");
-			result.current.memberForm.setValue("research_project_id", "rp-99");
-		});
-
-		await act(async () => {
-			await result.current.onSubmit();
-		});
-
-		await waitFor(() => expect(updateMemberAsync).toHaveBeenCalledTimes(1));
-		const payload = updateMemberAsync.mock.calls[0][0];
-		expect(payload.batch).toBe("SS25");
-		expect(payload.member_role).toBe("Member");
-		expect(payload.department).toBe("Research");
-		expect(payload.research_project_id).toBe("rp-99");
-	});
-
-	it("nulls research_project_id for admins outside the research department", async () => {
-		isAdmin = true;
-		const { result } = renderHook(() => useProfileForm(user));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-		act(() => {
-			result.current.memberForm.setValue("given_name", "Ada");
-			result.current.memberForm.setValue("surname", "Lovelace");
-			result.current.memberForm.setValue("member_role", "Member");
-			result.current.memberForm.setValue("department", "Venture");
-		});
-
-		await act(async () => {
-			await result.current.onSubmit();
-		});
-
-		await waitFor(() => expect(updateMemberAsync).toHaveBeenCalledTimes(1));
-		const payload = updateMemberAsync.mock.calls[0][0];
-		expect(payload.research_project_id).toBeNull();
-	});
-
-	it("submits both member and sepa updates when sepa data exists and is valid", async () => {
-		sepaData = {
-			iban: "DE89370400440532013000",
-			bic: "COBADEFFXXX",
-			bank_name: "Test Bank",
-			mandate_agreed: true,
-			privacy_agreed: true,
-			data_privacy_notice_agreed: true,
-		};
-		memberData = { given_name: "Ada", surname: "Lovelace" };
-
-		const { result } = renderHook(() => useProfileForm(user));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
-		await waitFor(() =>
-			expect(result.current.sepaForm.getValues("iban")).toBe(
-				"DE89370400440532013000",
-			),
-		);
-
-		await act(async () => {
-			await result.current.onSubmit();
-		});
-
-		await waitFor(() => expect(updateMemberAsync).toHaveBeenCalledTimes(1));
-		expect(updateSepaAsync).toHaveBeenCalledTimes(1);
-		expect(showToast).toHaveBeenCalledWith(
-			"Profile saved successfully!",
-			"success",
-		);
-	});
-
-	it("surfaces a toast when a mutation rejects", async () => {
-		updateMemberAsync.mockRejectedValue(new Error("network down"));
-		const { result } = renderHook(() => useProfileForm(user));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-		act(() => {
-			result.current.memberForm.setValue("given_name", "Ada");
-			result.current.memberForm.setValue("surname", "Lovelace");
-		});
-
-		await act(async () => {
-			await result.current.onSubmit();
-		});
-
-		await waitFor(() =>
-			expect(showToast).toHaveBeenCalledWith(
-				"Error saving: network down",
-				"error",
-			),
-		);
-	});
-
-	it("falls back to Unknown error when the rejection is not an Error", async () => {
-		updateMemberAsync.mockRejectedValue("boom");
-		const { result } = renderHook(() => useProfileForm(user));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-		act(() => {
-			result.current.memberForm.setValue("given_name", "Ada");
-			result.current.memberForm.setValue("surname", "Lovelace");
-		});
-
-		await act(async () => {
-			await result.current.onSubmit();
-		});
-
-		await waitFor(() =>
-			expect(showToast).toHaveBeenCalledWith(
-				"Error saving: Unknown error",
-				"error",
-			),
-		);
-	});
-
-	it("filters research project options by active status and computes completeness", async () => {
+	it("derives the research department state from the live form", async () => {
 		researchProjects = [
 			{ id: "rp-active", title: "Active", status: "ongoing" },
 			{ id: "rp-done", title: "Done", status: "completed" },
 			{ id: "rp-blank", title: "Blank", status: "" },
 		];
-		const { result } = renderHook(() => useProfileForm(user));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
+		const { result } = await renderLoaded();
 
 		expect(result.current.researchProjectOptions.map((p) => p.id)).toEqual([
 			"rp-active",
 			"rp-blank",
 		]);
-		expect(typeof result.current.completeness).toBe("number");
-		expect(Array.isArray(result.current.missingProfileFields)).toBe(true);
-	});
+		expect(result.current.isResearchDepartmentSelected).toBe(false);
 
-	it("flags the research department when the current role resolves to research", async () => {
-		const { result } = renderHook(() => useProfileForm(user));
-		await waitFor(() => expect(result.current.isLoading).toBe(false));
-
-		act(() => {
-			result.current.memberForm.setValue("department", "Research");
-		});
-
+		dirty(result, { department: "Research" });
 		await waitFor(() =>
 			expect(result.current.isResearchDepartmentSelected).toBe(true),
 		);
+	});
+
+	it("exposes a load error instead of an editable empty form", async () => {
+		server.use(
+			http.get("/api/profile/user-1", () =>
+				HttpResponse.json({ error: "Boom" }, { status: 500 }),
+			),
+		);
+		const { result } = renderHookWithClient(() => useProfileForm(user));
+
+		await waitFor(() => expect(result.current.loadError).not.toBeNull());
+		expect(result.current.loadError?.message).toBe("Boom");
 	});
 });

@@ -2,10 +2,11 @@ import type { MemberConsents } from "@member-manager/shared";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useEffect } from "react";
-import { useForm } from "react-hook-form";
+import type { UseFormReturn } from "react-hook-form";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it, vi } from "vitest";
-import type { ProfileSepaInput } from "@/lib/schemas";
+import type { ProfileFormValues } from "@/features/profile/profileFormModel";
+import { ProfileFormHarness } from "@/features/profile/test/ProfileFormHarness";
 import { SepaPanel } from "./SepaPanel";
 
 const ids = {
@@ -24,6 +25,21 @@ const partnerOnly: MemberConsents = {
 	consents_decided_at: "2026-10-01T00:00:00Z",
 };
 
+function IbanError({
+	form,
+	message,
+}: {
+	form: UseFormReturn<ProfileFormValues>;
+	message?: string;
+}) {
+	useEffect(() => {
+		if (message) {
+			form.setError("iban", { type: "manual", message });
+		}
+	}, [message, form]);
+	return null;
+}
+
 function Harness({
 	mandateAgreed = false,
 	privacyAgreed = false,
@@ -32,32 +48,29 @@ function Harness({
 	openPrivacyModal = vi.fn(),
 	ibanError,
 }: Partial<React.ComponentProps<typeof SepaPanel>> & { ibanError?: string }) {
-	const sepaForm = useForm<ProfileSepaInput>({
-		defaultValues: {
-			iban: "",
-			bic: "",
-			bank_name: "",
-			mandate_agreed: mandateAgreed,
-			privacy_agreed: privacyAgreed,
-		},
-	});
-	useEffect(() => {
-		if (ibanError) {
-			sepaForm.setError("iban", { type: "manual", message: ibanError });
-		}
-	}, [ibanError, sepaForm]);
 	return (
 		<MemoryRouter>
-			<SepaPanel
-				sepaForm={sepaForm}
-				mandateAgreed={mandateAgreed}
-				privacyAgreed={privacyAgreed}
-				memberConsents={memberConsents}
-				openSepaModal={openSepaModal}
-				openPrivacyModal={openPrivacyModal}
-				ids={ids}
-			/>
-			<output data-testid="iban-form-value">{sepaForm.watch("iban")}</output>
+			<ProfileFormHarness
+				values={{
+					mandate_agreed: mandateAgreed,
+					privacy_agreed: privacyAgreed,
+				}}
+			>
+				{(form) => (
+					<>
+						<IbanError form={form} message={ibanError} />
+						<SepaPanel
+							mandateAgreed={mandateAgreed}
+							privacyAgreed={privacyAgreed}
+							memberConsents={memberConsents}
+							openSepaModal={openSepaModal}
+							openPrivacyModal={openPrivacyModal}
+							ids={ids}
+						/>
+						<output data-testid="iban-form-value">{form.watch("iban")}</output>
+					</>
+				)}
+			</ProfileFormHarness>
 		</MemoryRouter>
 	);
 }
