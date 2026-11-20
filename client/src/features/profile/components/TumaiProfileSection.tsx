@@ -1,5 +1,5 @@
 import { GraduationCap } from "lucide-react";
-import type { UseFormReturn } from "react-hook-form";
+import { type UseFormReturn, useWatch } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -54,6 +54,17 @@ export function TumaiProfileSection({
 	ids,
 }: TumaiProfileSectionProps): JSX.Element {
 	const errors = memberForm.formState.errors;
+	// useWatch, not watch(): the form is hydrated from server data after the first
+	// render, and watch() would keep returning the empty defaults (#397).
+	const [batch, degree, school, slackNotificationsEnabled] = useWatch({
+		control: memberForm.control,
+		name: [
+			"batch",
+			"degree",
+			"school",
+			"reimbursement_slack_notifications_enabled",
+		],
+	});
 
 	return (
 		<GlassCard id="tumai" variant="elevated" className="scroll-mt-20">
@@ -71,7 +82,7 @@ export function TumaiProfileSection({
 						error={errors.batch?.message}
 					>
 						<Select
-							value={toSelectValue(memberForm.watch("batch") || "")}
+							value={toSelectValue(batch || "")}
 							onValueChange={(value) =>
 								memberForm.setValue("batch", fromSelectValue(value), {
 									shouldDirty: true,
@@ -234,8 +245,8 @@ export function TumaiProfileSection({
 						</Field>
 					)}
 					<EducationFields
-						degreeValue={memberForm.watch("degree")}
-						schoolValue={memberForm.watch("school")}
+						degreeValue={degree}
+						schoolValue={school}
 						onChange={(values) => {
 							memberForm.setValue("degree", values.degree, {
 								shouldDirty: true,
@@ -261,9 +272,7 @@ export function TumaiProfileSection({
 							</div>
 							<Switch
 								id={ids.reimbursementNotifications}
-								checked={Boolean(
-									memberForm.watch("reimbursement_slack_notifications_enabled"),
-								)}
+								checked={Boolean(slackNotificationsEnabled)}
 								onCheckedChange={(checked) =>
 									memberForm.setValue(
 										"reimbursement_slack_notifications_enabled",
