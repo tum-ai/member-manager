@@ -128,10 +128,15 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		}
 
 		try {
-			await saveProfile.mutateAsync(
+			const saved = await saveProfile.mutateAsync(
 				toUpdatePayload(values, { version: profile.version, isAdmin }),
 			);
-			markSaved();
+			// Re-baseline from the response, but keep anything typed while the
+			// request was in flight.
+			markSaved({
+				saved: toFormValues(saved, suggestions),
+				submitted: values,
+			});
 			setConflict(null);
 			showToast("Profile saved successfully!", "success");
 		} catch (error: unknown) {

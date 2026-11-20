@@ -1,6 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
-import { checkAdminRole, ensureOwnerOrAdmin } from "../lib/auth.js";
+import { ensureOwnerOrAdmin } from "../lib/auth.js";
 import { getAuthProfiles } from "../lib/authEmails.js";
 import {
 	DatabaseError,
@@ -16,11 +16,8 @@ import { decryptMemberForResponse } from "../lib/memberDecryption.js";
 import {
 	DEFAULT_MEMBER_ROLE,
 	DEFAULT_MEMBER_STATUS,
-	memberRoleSchema,
 	normalizeMemberBatch,
 	normalizeOperationalDepartment,
-	requiresDepartmentForMemberRole,
-	resolveDepartmentForMemberRole,
 } from "../lib/memberMetadata.js";
 import {
 	encryptRecord,
@@ -44,28 +41,6 @@ function isValidDate(dateString: string): boolean {
 
 	return date.toISOString().slice(0, 10) === dateString;
 }
-
-const LINKEDIN_PROFILE_URL_REGEX =
-	/^https:\/\/(www\.)?linkedin\.com\/in\/[^/?#]+\/?([?#].*)?$/i;
-
-const optionalTrimmedTextSchema = z
-	.string()
-	.nullish()
-	.transform((v) => (v === undefined ? undefined : v?.trim() || null));
-
-const optionalLinkedInProfileUrlSchema = z
-	.union([
-		z.string().trim().regex(LINKEDIN_PROFILE_URL_REGEX, {
-			message: "Must be a valid LinkedIn profile URL",
-		}),
-		z.literal(""),
-		z.null(),
-		z.undefined(),
-	])
-	.transform((v) => (v === undefined ? undefined : v || null))
-	// zod v4: a transform defeats the object's optional-key inference, so an
-	// absent key would be rejected without an explicit .optional().
-	.optional();
 
 const MemberSchema = z.object({
 	user_id: z.string(),
@@ -125,50 +100,6 @@ const MemberSchema = z.object({
 		.boolean()
 		.optional()
 		.default(false),
-});
-
-const UpdateMemberSchema = z.object({
-	given_name: z.string().optional(),
-	surname: z.string().optional(),
-	date_of_birth: z
-		.string()
-		.refine(
-			(value) => value.trim() === "" || isValidDate(value),
-			"Invalid date_of_birth",
-		)
-		.optional(),
-	street: z.string().optional(),
-	number: z.string().optional(),
-	postal_code: z.string().optional(),
-	city: z.string().optional(),
-	country: z.string().optional(),
-	salutation: z.string().optional(),
-	title: z.string().optional(),
-	batch: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : normalizeMemberBatch(v))),
-	department: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v || null)),
-	member_role: memberRoleSchema.optional(),
-	degree: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v || null)),
-	school: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v || null)),
-	research_project_id: z
-		.string()
-		.nullish()
-		.transform((v) => (v === undefined ? undefined : v || null)),
-	reimbursement_slack_notifications_enabled: z.boolean().optional(),
-	// LinkedIn fields — member-editable
-	linkedin_profile_url: optionalLinkedInProfileUrlSchema,
-	public_location: optionalTrimmedTextSchema,
 });
 
 const LOCAL_ADMIN_BANK_DETAILS = {
@@ -531,175 +462,6 @@ export async function memberRoutes(server: FastifyInstance) {
 			}
 			if (error) {
 				request.log.error({ err: error }, "Failed to fetch member");
-				throw new DatabaseError();
-			}
-
-			try {
-				const profile = (await getAuthProfiles([userId])).get(userId);
-
-				return {
-					...decryptMemberForResponse(data, userId, request),
-					email: profile?.email ?? "",
-					// Slack profile picture (from auth metadata) so the profile page
-					// can render the member's avatar.
-					avatar_url: profile?.avatar_url ?? "",
-				};
-			} catch (authError) {
-				request.log.error({ err: authError }, "Failed to fetch auth profile");
-				throw new DatabaseError();
-			}
-		},
-	);
-
-	server.put<{ Params: { userId: string } }>(
-		"/members/:userId",
-		{ preHandler: authenticate },
-		async (request, reply) => {
-			const { userId } = request.params;
-			const user = (request as AuthenticatedRequest).user;
-
-			await ensureOwnerOrAdmin(
-				user.id,
-				userId,
-				"You can only update your own profile",
-			);
-
-			const body = UpdateMemberSchema.parse(request.body);
-			let isAdmin = false;
-			try {
-				isAdmin = await checkAdminRole(user.id);
-			} catch (roleError) {
-				request.log.error(
-					{ err: roleError, userId: user.id },
-					"Failed to determine admin role for profile update",
-				);
-				throw new DatabaseError();
-			}
-
-			const updatePayload: Record<string, unknown> = {
-				...body,
-				user_id: userId,
-			};
-			const hasResearchProjectUpdate = Object.hasOwn(
-				body,
-				"research_project_id",
-			);
-			let existingMemberForManagedFields: {
-				member_role?: string | null;
-				department?: string | null;
-			} | null = null;
-			const fetchExistingMemberForManagedFields = async () => {
-				if (existingMemberForManagedFields) {
-					return existingMemberForManagedFields;
-				}
-
-				const { data: existingMember, error: existingMemberError } =
-					await getSupabase()
-						.from("members")
-						.select("member_role, department")
-						.eq("user_id", userId)
-						.single();
-
-				if (existingMemberError && !isNotFoundError(existingMemberError)) {
-					request.log.error(
-						{ err: existingMemberError, userId },
-						"Failed to fetch existing member before profile update",
-					);
-					throw new DatabaseError();
-				}
-
-				existingMemberForManagedFields =
-					(existingMember as {
-						member_role?: string | null;
-						department?: string | null;
-					} | null) ?? null;
-				return existingMemberForManagedFields;
-			};
-
-			if (!isAdmin) {
-				// member_role and department are admin-managed; members request
-				// changes through member_change_requests rather than editing them
-				// directly. Silently drop any attempt to set them here. The research
-				// project is resolved against the member's existing department.
-				delete updatePayload.member_role;
-				delete updatePayload.department;
-				if (hasResearchProjectUpdate) {
-					const existingMember = await fetchExistingMemberForManagedFields();
-					const currentRole = String(
-						existingMember?.member_role ?? DEFAULT_MEMBER_ROLE,
-					);
-					const effectiveDepartment = resolveDepartmentForMemberRole(
-						currentRole,
-						existingMember?.department,
-					);
-					updatePayload.research_project_id =
-						effectiveDepartment === "Research"
-							? (body.research_project_id ?? null)
-							: null;
-				}
-			} else if (
-				Object.hasOwn(body, "department") ||
-				Object.hasOwn(body, "member_role") ||
-				hasResearchProjectUpdate
-			) {
-				const existingMember = await fetchExistingMemberForManagedFields();
-				const updatesRoleOrDepartment =
-					Object.hasOwn(body, "department") ||
-					Object.hasOwn(body, "member_role");
-				let effectiveDepartment = normalizeOperationalDepartment(
-					existingMember?.department,
-				);
-
-				if (updatesRoleOrDepartment) {
-					const nextRole =
-						body.member_role ??
-						String(existingMember?.member_role ?? DEFAULT_MEMBER_ROLE);
-					const requestedDepartment = Object.hasOwn(body, "department")
-						? body.department
-						: existingMember?.department;
-					effectiveDepartment = resolveDepartmentForMemberRole(
-						nextRole,
-						requestedDepartment,
-					);
-					if (
-						requiresDepartmentForMemberRole(nextRole) &&
-						!effectiveDepartment
-					) {
-						return reply.status(400).send({
-							error: "Department is required for Member and Team Lead roles",
-						});
-					}
-
-					updatePayload.member_role = nextRole;
-					updatePayload.department = effectiveDepartment;
-				}
-
-				if (hasResearchProjectUpdate) {
-					updatePayload.research_project_id =
-						effectiveDepartment === "Research"
-							? (body.research_project_id ?? null)
-							: null;
-				} else if (
-					updatesRoleOrDepartment &&
-					effectiveDepartment !== "Research"
-				) {
-					updatePayload.research_project_id = null;
-				}
-			}
-
-			const memberData = encryptRecord(updatePayload, SENSITIVE_MEMBER_FIELDS);
-
-			const { data, error } = await getSupabase()
-				.from("members")
-				.upsert(memberData, { onConflict: "user_id" })
-				.select()
-				.single();
-
-			if (isNotFoundError(error)) {
-				throw new NotFoundError("Member not found");
-			}
-			if (error) {
-				request.log.error({ err: error }, "Failed to upsert member");
 				throw new DatabaseError();
 			}
 

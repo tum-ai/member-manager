@@ -12,7 +12,7 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 // encrypted fixture bank details except the no-bank-details persona (…0023,
 // covered in profile-edit.spec.ts). So the banking fields load pre-filled here,
 // and because bank details are present every profile save includes a
-// PUT /api/sepa/<member>. Bank details are optional as a group, but once any
+// PUT /api/profile/<member>. Bank details are optional as a group, but once any
 // bank field is filled the shared schema requires a valid IBAN (checksum
 // checked on client and server), a bank name and all three agreements. These
 // tests overwrite the fields and assert via reload rather than a pristine

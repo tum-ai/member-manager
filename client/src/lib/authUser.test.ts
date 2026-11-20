@@ -9,6 +9,16 @@ describe("keepSameUser", () => {
 		expect(keepSameUser(ada, { ...ada } as User)).toBe(ada);
 	});
 
+	it("takes the new object when the user was updated", () => {
+		const updated = { ...ada, updated_at: "2026-11-21T00:00:00Z" } as User;
+		expect(
+			keepSameUser(
+				{ ...ada, updated_at: "2026-11-20T00:00:00Z" } as User,
+				updated,
+			),
+		).toBe(updated);
+	});
+
 	it("switches to a different user", () => {
 		const grace = { id: "u2" } as User;
 		expect(keepSameUser(ada, grace)).toBe(grace);

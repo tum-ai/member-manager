@@ -6,7 +6,7 @@ import { expectToast, loginAsLocalMember } from "./helpers";
 // The profile page ("/") renders a "Banking & agreements" panel (SepaPanel)
 // whose SEPA Mandate and Privacy Policy checkboxes each launch a modal that
 // gates its Confirm button on a consent checkbox; the accepted state is
-// persisted via PUT /api/sepa/:id (legacy `sepa` columns + the
+// persisted via PUT /api/profile/:id (legacy `sepa` columns + the
 // `member_agreements` table). The Data Privacy Notice purposes are shown there
 // read-only and edited per purpose on /welcome. This spec covers the Privacy
 // Policy modal and the Data Privacy Notice consents; the IBAN/SEPA banking +

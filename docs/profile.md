@@ -15,7 +15,8 @@ explains the design and why it looks like this (#397).
 | `profileMemberInputSchema` | Member fields of a save. Omitted keys stay as stored (merge), `""`/`null` clear |
 | `computeProfileCompleteness` | Completeness. Counts stored values only: a Slack name or current batch merely suggested by the form never counts until saved |
 
-The old `GET/PUT /api/members/:id` and `/api/sepa/:id` stay for admin and reimbursement use.
+`GET /api/members/:id` and `/api/sepa/:id` stay for other screens (reimbursements, certificates, the
+welcome page). The old `PUT /api/members/:id` is gone; admins edit members through `/api/admin/members`.
 
 ## Atomic and versioned
 

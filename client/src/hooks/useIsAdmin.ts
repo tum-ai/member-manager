@@ -36,6 +36,7 @@ export function useIsAdmin(userId: string | undefined): {
 					await Promise.all([
 						queryClient.invalidateQueries({ queryKey: ["member", userId] }),
 						queryClient.invalidateQueries({ queryKey: ["sepa", userId] }),
+						queryClient.invalidateQueries({ queryKey: ["profile", userId] }),
 					]);
 				} catch (error) {
 					if (

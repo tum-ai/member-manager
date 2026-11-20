@@ -19,11 +19,15 @@ export interface UseServerBackedFormResult<TValues extends FieldValues> {
 	/** True while the member has unsaved edits. */
 	isDirty: boolean;
 	/**
-	 * Call after a successful save: the current values become the new baseline,
-	 * so the form is pristine again and the refetch that follows the save does
-	 * not look like an external change.
+	 * Call after a successful save. `saved` (what the server stored) becomes the
+	 * new baseline, so the form is pristine again and the refetch that follows
+	 * the save does not look like an external change.
+	 *
+	 * Pass `submitted` (the values the save sent) too: anything the member
+	 * typed while the request was in flight differs from it, is kept, and stays
+	 * dirty instead of being reverted to the baseline.
 	 */
-	markSaved: () => void;
+	markSaved: (result?: { saved?: TValues; submitted?: TValues }) => void;
 	/**
 	 * Replace everything, edits included, with these values (e.g. "discard my
 	 * changes and reload"). A plain `form.reset(values)` would not do: this
@@ -71,7 +75,22 @@ export function useServerBackedForm<TValues extends FieldValues>({
 	const resetTo = (values: TValues) => {
 		form.reset(values, { keepDirtyValues: false });
 	};
-	const markSaved = () => resetTo(form.getValues());
+	const markSaved: UseServerBackedFormResult<TValues>["markSaved"] = ({
+		saved,
+		submitted,
+	} = {}) => {
+		const current = form.getValues();
+		resetTo(saved ?? submitted ?? current);
+		if (!submitted) return;
+		// Keep what was typed after the save was submitted (flat model).
+		for (const name of Object.keys(current) as Array<keyof TValues & string>) {
+			if (!Object.is(current[name], submitted[name])) {
+				form.setValue(name as never, current[name] as never, {
+					shouldDirty: true,
+				});
+			}
+		}
+	};
 
 	return { form, isDirty, markSaved, resetTo };
 }

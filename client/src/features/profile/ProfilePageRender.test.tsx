@@ -156,9 +156,11 @@ describe("ProfilePage (render)", () => {
 				screen.getByRole("heading", { name: /personal information/i }),
 			).toBeInTheDocument(),
 		);
-		expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
+		// The header follows the hydrated form, which applies right after the
+		// first render of the loaded page.
+		expect(await screen.findByText("Ada Lovelace")).toBeInTheDocument();
 		// department + role joined with a middot.
-		expect(screen.getByText(/Venture · Member/)).toBeInTheDocument();
+		expect(await screen.findByText(/Venture · Member/)).toBeInTheDocument();
 		expect(screen.getByTestId("cv-panel")).toBeInTheDocument();
 	});
 

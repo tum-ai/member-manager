@@ -362,6 +362,74 @@ describe("Profile routes", async () => {
 			assert.strictEqual(missingVersion.statusCode, 400);
 		});
 
+		test("the first save of a member without a row creates it (version 0)", async () => {
+			resetDatabase();
+			const userId = testUserIds.otherUser;
+			assert.strictEqual(
+				mockDatabase.members.some((m) => m.user_id === userId),
+				false,
+			);
+
+			const initial = JSON.parse(
+				(await get(userId, testTokens.otherUser)).payload,
+			);
+			assert.strictEqual(initial.version, 0);
+
+			const created = await put(userId, testTokens.otherUser, {
+				version: 0,
+				member: { given_name: "New", surname: "Joiner", batch: "SS25" },
+				sepa: noBank,
+			});
+			assert.strictEqual(created.statusCode, 200);
+			const saved = JSON.parse(created.payload);
+			assert.ok(saved.version >= 1);
+			assert.strictEqual(saved.member.given_name, "New");
+			assert.strictEqual(saved.member.batch, "SS25");
+
+			// A second "first save" is stale: the row exists now.
+			const again = await put(userId, testTokens.otherUser, {
+				version: 0,
+				member: { given_name: "Twice" },
+				sepa: noBank,
+			});
+			assert.strictEqual(again.statusCode, 412);
+			const stored = mockDatabase.members.find((m) => m.user_id === userId);
+			assert.strictEqual(stored?.given_name, "New");
+		});
+
+		test("a committed save still answers 200 when the email lookup fails", async () => {
+			resetDatabase();
+			// An id the auth lookup has not cached, so it really calls listUsers.
+			const userId = "00000000-0000-4000-8000-0000000000aa";
+			mockSupabaseErrors.authListUsers = { message: "auth is down" };
+			try {
+				const response = await put(userId, testTokens.admin, {
+					version: 0,
+					member: { given_name: "Saved" },
+					sepa: noBank,
+				});
+				assert.strictEqual(response.statusCode, 200);
+				const saved = JSON.parse(response.payload);
+				assert.strictEqual(saved.member.given_name, "Saved");
+				assert.strictEqual(saved.member.email, "");
+			} finally {
+				mockSupabaseErrors.authListUsers = null;
+			}
+			assert.ok(mockDatabase.members.some((m) => m.user_id === userId));
+		});
+
+		test("a plain read still fails when the email lookup fails", async () => {
+			resetDatabase();
+			const userId = "00000000-0000-4000-8000-0000000000bb";
+			mockSupabaseErrors.authListUsers = { message: "auth is down" };
+			try {
+				const response = await get(userId, testTokens.admin);
+				assert.strictEqual(response.statusCode, 500);
+			} finally {
+				mockSupabaseErrors.authListUsers = null;
+			}
+		});
+
 		test("members cannot save someone else's profile", async () => {
 			resetDatabase();
 			const response = await put(testUserIds.admin, testTokens.user, {

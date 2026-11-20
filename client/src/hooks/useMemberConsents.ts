@@ -40,6 +40,8 @@ export function useMemberConsents(userId: string) {
 				queryKey: ["member-cv-consent", userId],
 			});
 			queryClient.invalidateQueries({ queryKey: ["sepa", userId] });
+			// The profile carries the agreements, its version and the completeness.
+			queryClient.invalidateQueries({ queryKey: ["profile", userId] });
 			// A first decision unlocks the member's door PIN on the profile.
 			queryClient.invalidateQueries({
 				queryKey: memberDoorPinQueryKey(userId),

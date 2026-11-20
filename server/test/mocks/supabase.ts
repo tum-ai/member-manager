@@ -128,6 +128,8 @@ export const mockSupabaseErrors = {
 	tables: {} as Record<string, unknown>,
 	// Forces a specific RPC to fail, keyed by function name.
 	rpc: {} as Record<string, unknown>,
+	// Makes auth.admin.listUsers fail (the email/avatar lookup).
+	authListUsers: null as unknown,
 };
 
 export const mockDatabase: MockData = {
@@ -2403,6 +2405,12 @@ export function createMockSupabaseClient(): SupabaseClient {
 					page?: number;
 					perPage?: number;
 				} = {}) => {
+					if (mockSupabaseErrors.authListUsers) {
+						return {
+							data: null,
+							error: mockSupabaseErrors.authListUsers as { message: string },
+						};
+					}
 					const allUsers = Object.values(mockUsers);
 					const from = (page - 1) * perPage;
 					const to = from + perPage;
@@ -2805,6 +2813,7 @@ export function resetMockDatabase(): void {
 	mockSupabaseErrors.userRolesUpsert = null;
 	mockSupabaseErrors.tables = {};
 	mockSupabaseErrors.rpc = {};
+	mockSupabaseErrors.authListUsers = null;
 	mockDatabase.members = [
 		{
 			user_id: MOCK_USER_ID,

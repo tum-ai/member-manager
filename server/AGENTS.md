@@ -23,8 +23,8 @@ In production it runs as one Vercel function (`api/[...path].ts` imports `server
     (`lib/doorPins.ts`, `docs/door-pins.md`). Key rotation uses
     `FIELD_ENCRYPTION_KEY_FALLBACKS` plus `rotate:encryption` (runbook: `docs/deployment.md`).
   - `errors.ts` — typed errors: `AppError`, `ValidationError`, `NotFoundError`, `ForbiddenError`,
-    `UnauthorizedError`, `ConflictError`, `DatabaseError`, `BadGatewayError`,
-    `ServiceUnavailableError`, plus `isNotFoundError`.
+    `UnauthorizedError`, `ConflictError`, `PreconditionFailedError` (412), `DatabaseError`,
+    `BadGatewayError`, `ServiceUnavailableError`, plus `isNotFoundError`.
   - `supabase.ts` — `getSupabase()` (service client). The only Supabase entry point.
 - `src/plugins/errorHandler.ts` — central handler mapping typed errors → HTTP responses.
 - `src/middleware/auth.ts` — `authenticate` + `require*` preHandlers (`requireAdmin`,

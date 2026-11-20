@@ -90,6 +90,32 @@ describe("useServerBackedForm", () => {
 		expect(result.current.isDirty).toBe(false);
 	});
 
+	it("markSaved keeps what was typed after the save was submitted, and keeps it dirty", () => {
+		const { result } = setup({ name: "Ada", city: "Munich" });
+
+		act(() => {
+			result.current.form.setValue("name", "Grace", { shouldDirty: true });
+		});
+		const submitted = result.current.form.getValues();
+		// Typed while the request was in flight.
+		act(() => {
+			result.current.form.setValue("city", "Berlin", { shouldDirty: true });
+		});
+		act(() => {
+			result.current.markSaved({
+				saved: { name: "Grace (stored)", city: "Munich" },
+				submitted,
+			});
+		});
+
+		expect(result.current.form.getValues()).toEqual({
+			name: "Grace (stored)",
+			city: "Berlin",
+		});
+		expect(result.current.form.getFieldState("city").isDirty).toBe(true);
+		expect(result.current.form.getFieldState("name").isDirty).toBe(false);
+	});
+
 	it("markSaved makes the current values the pristine baseline", () => {
 		const { result } = setup({ name: "Ada", city: "Munich" });
 

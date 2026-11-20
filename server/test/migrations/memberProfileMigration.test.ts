@@ -258,6 +258,32 @@ describe("save_member_profile against the local database", {
 		assert.ok((await versionOf(userId)) > before);
 	});
 
+	test("version 0 creates the member row, and a second version-0 save conflicts", async () => {
+		const userId = await createMember();
+		// A legacy account without a member row (signup normally creates it).
+		for (const table of ["sepa", "member_agreements", "members"]) {
+			assert.ifError(
+				(await service().from(table).delete().eq("user_id", userId)).error,
+			);
+		}
+
+		const created = await save(userId, 0, {
+			given_name: "Legacy",
+			city: encryptValue("Munich"),
+		});
+		assert.ifError(created.error);
+		const { data } = await service()
+			.from("members")
+			.select("given_name, version")
+			.eq("user_id", userId)
+			.single();
+		assert.equal(data?.given_name, "Legacy");
+		assert.equal(Number(data?.version), Number(created.data));
+
+		const again = await save(userId, 0, { given_name: "Twice" });
+		assert.equal(again.error?.code, "40001");
+	});
+
 	test("anon and authenticated roles cannot execute the function", async () => {
 		const userId = await createMember();
 		environment = environment ?? localSupabaseEnvironment();

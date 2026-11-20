@@ -262,6 +262,43 @@ describe("useProfileForm", () => {
 			expect(putBodies[1].version).toBe(9);
 		});
 
+		it("keeps text typed while the save is in flight instead of reverting it", async () => {
+			let release: () => void = () => {};
+			const gate = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			server.use(
+				http.put("/api/profile/user-1", async ({ request }) => {
+					putBodies.push((await request.json()) as PutBody);
+					await gate;
+					return HttpResponse.json(
+						makeProfile({
+							version: 5,
+							member: { city: "Munich", salutation: "Ms." },
+						}),
+					);
+				}),
+			);
+			const { result } = await renderLoaded();
+
+			dirty(result, { salutation: "Ms." });
+			let saving: Promise<void> = Promise.resolve();
+			act(() => {
+				saving = result.current.onSubmit();
+			});
+			await waitFor(() => expect(putBodies).toHaveLength(1));
+			// The member keeps typing while the request runs.
+			dirty(result, { city: "Typed during save" });
+			await act(async () => {
+				release();
+				await saving;
+			});
+
+			expect(result.current.form.getValues("city")).toBe("Typed during save");
+			expect(result.current.form.getFieldState("city").isDirty).toBe(true);
+			expect(result.current.form.getValues("salutation")).toBe("Ms.");
+		});
+
 		it("includes role and department for admins", async () => {
 			isAdmin = true;
 			const { result } = await renderLoaded();

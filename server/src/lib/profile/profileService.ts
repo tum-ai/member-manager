@@ -45,11 +45,16 @@ function decryptingLogger(
 	};
 }
 
-async function loadAuthProfile(userId: string, log: FastifyBaseLogger) {
+async function loadAuthProfile(
+	userId: string,
+	log: FastifyBaseLogger,
+	{ tolerateFailure }: { tolerateFailure: boolean },
+) {
 	try {
 		return (await getAuthProfiles([userId])).get(userId);
 	} catch (error) {
 		log.error({ err: error }, "Failed to fetch auth profile");
+		if (tolerateFailure) return undefined;
 		throw new DatabaseError();
 	}
 }
@@ -110,6 +115,7 @@ function toResponse(
 export async function loadProfile(
 	userId: string,
 	log: FastifyBaseLogger,
+	{ afterWrite = false }: { afterWrite?: boolean } = {},
 ): Promise<ProfileResponse> {
 	let stored: StoredProfile;
 	try {
@@ -118,7 +124,12 @@ export async function loadProfile(
 		log.error({ err: error, userId }, "Failed to load profile");
 		throw error instanceof DatabaseError ? error : new DatabaseError();
 	}
-	const authProfile = await loadAuthProfile(userId, log);
+	// After a committed save the answer must not fail because the (cosmetic)
+	// email/avatar lookup did: the client would report an error for saved data
+	// and hold a stale version.
+	const authProfile = await loadAuthProfile(userId, log, {
+		tolerateFailure: afterWrite,
+	});
 	return toResponse(userId, stored, authProfile, log);
 }
 
@@ -205,7 +216,7 @@ export async function saveProfile(
 				"Your profile was changed elsewhere. Reload to see the latest version.",
 				{
 					code: PROFILE_VERSION_CONFLICT_CODE,
-					current: await loadProfile(userId, log),
+					current: await loadProfile(userId, log, { afterWrite: true }),
 				},
 			);
 		}
@@ -213,5 +224,5 @@ export async function saveProfile(
 		throw new DatabaseError();
 	}
 
-	return loadProfile(userId, log);
+	return loadProfile(userId, log, { afterWrite: true });
 }
