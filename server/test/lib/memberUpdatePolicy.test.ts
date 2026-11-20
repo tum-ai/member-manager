@@ -15,6 +15,16 @@ describe("resolveMemberUpdate", () => {
 		assert.deepStrictEqual(patch, { city: "Munich" });
 	});
 
+	test("never copies keys that are not profile member fields", () => {
+		const hostile = JSON.parse(
+			'{"city":"x","__proto__":{"polluted":true},"user_id":"someone-else","version":9,"constructor":"x"}',
+		);
+		const patch = resolveMemberUpdate(hostile, { isAdmin: true, ...member });
+		assert.deepStrictEqual(patch, { city: "x" });
+		assert.strictEqual(Object.hasOwn(patch, "user_id"), false);
+		assert.strictEqual(({} as Record<string, unknown>).polluted, undefined);
+	});
+
 	test("members cannot write role or department", () => {
 		const patch = resolveMemberUpdate(
 			{ member_role: "President", department: "Marketing", city: "x" },

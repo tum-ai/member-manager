@@ -107,6 +107,15 @@ export const profileMemberInputSchema = z.object({
 	public_location: trimmedClearableTextSchema,
 });
 
+/**
+ * The member keys a profile save can carry, derived from the schema so the list
+ * cannot drift. Consumers iterate this allowlist instead of the request
+ * object's own keys.
+ */
+export const PROFILE_MEMBER_FIELDS = Object.keys(
+	profileMemberInputSchema.shape,
+) as Array<keyof z.output<typeof profileMemberInputSchema>>;
+
 export type ProfileMemberInput = z.input<typeof profileMemberInputSchema>;
 export type ProfileMemberUpdate = z.output<typeof profileMemberInputSchema>;
 

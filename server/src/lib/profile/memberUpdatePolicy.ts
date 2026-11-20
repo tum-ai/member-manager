@@ -1,6 +1,7 @@
 import {
 	DEFAULT_MEMBER_ROLE,
 	normalizeOperationalDepartment,
+	PROFILE_MEMBER_FIELDS,
 	type ProfileMemberUpdate,
 	requiresDepartmentForMemberRole,
 	resolveDepartmentForMemberRole,
@@ -37,10 +38,13 @@ export function resolveMemberUpdate(
 	input: ProfileMemberUpdate,
 	{ isAdmin, existing }: MemberUpdateContext,
 ): Record<string, unknown> {
+	// Walk the schema's allowlist, never the request object's own keys: a column
+	// name must not come from user input.
 	const patch: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(input)) {
+	for (const field of PROFILE_MEMBER_FIELDS) {
+		const value = input[field];
 		if (value !== undefined) {
-			patch[key] = value;
+			patch[field] = value;
 		}
 	}
 
