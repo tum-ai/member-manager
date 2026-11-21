@@ -5,7 +5,7 @@ import {
 	type MemberConsents,
 } from "@member-manager/shared";
 import type { User } from "@supabase/supabase-js";
-import { useEffect } from "react";
+import { type BaseSyntheticEvent, useEffect } from "react";
 import { type UseFormReturn, useForm } from "react-hook-form";
 import { useToast } from "@/contexts/ToastContext";
 import {
@@ -49,6 +49,19 @@ import type { ResearchProject } from "@/types";
 // summarises them. Leaving them out keeps a profile save from touching them.
 const AGREEMENT_FIELDS = ["mandate_agreed", "privacy_agreed"] as const;
 
+// A date typed only partly (say, without the year) reads as "" in the browser,
+// the same as an empty field, so the schema let the save through and the date
+// was dropped (#398). Only the input itself knows, through validity.badInput.
+function isDateInputIncomplete(
+	event: BaseSyntheticEvent | undefined,
+	name: string,
+): boolean {
+	const form = event?.target;
+	if (!(form instanceof HTMLFormElement)) return false;
+	const input = form.elements.namedItem(name);
+	return input instanceof HTMLInputElement && input.validity.badInput;
+}
+
 export interface UseProfileFormResult {
 	memberForm: UseFormReturn<MemberSchema>;
 	linkedinForm: UseFormReturn<LinkedinSchema>;
@@ -59,7 +72,8 @@ export interface UseProfileFormResult {
 	isLoading: boolean;
 	isUpdating: boolean;
 	isLoadingResearchProjects: boolean;
-	onSubmit: () => Promise<void>;
+	/** Pass the form's submit event so a half-typed date can be detected. */
+	onSubmit: (event?: BaseSyntheticEvent) => Promise<void>;
 	completeness: number;
 	missingProfileFields: string[];
 	normalizedLinkedinUrl: string;
@@ -201,11 +215,28 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		}
 	}, [sepaData, sepaForm]);
 
-	const onSubmit = async (): Promise<void> => {
+	const onSubmit = async (event?: BaseSyntheticEvent): Promise<void> => {
 		try {
-			const memberValid = await memberForm.trigger();
+			const memberSchemaValid = await memberForm.trigger();
 			const linkedinValid = await linkedinForm.trigger();
 			const sepaSchemaValid = await sepaForm.trigger();
+
+			// After trigger(), which would clear this error again.
+			const isDateOfBirthIncomplete = isDateInputIncomplete(
+				event,
+				"date_of_birth",
+			);
+			if (isDateOfBirthIncomplete) {
+				memberForm.setError(
+					"date_of_birth",
+					{
+						type: "manual",
+						message: "Enter the full date: day, month and year",
+					},
+					{ shouldFocus: true },
+				);
+			}
+			const memberValid = memberSchemaValid && !isDateOfBirthIncomplete;
 
 			const sepaValues = sepaForm.getValues();
 			const includeBankDetails = hasBankDetailsInput(sepaValues);
