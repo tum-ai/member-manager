@@ -11,21 +11,6 @@ interface UseProfileNavigationResult {
 	) => void;
 }
 
-// One list for both the sidebar links and the scroll spy, in the order the
-// sections render on ProfilePage. The scroll spy picks the last crossed id in
-// this order, so it must match the page (#412).
-function getNavItems(isAdmin: boolean): NavItem[] {
-	return [
-		{ id: "personal", label: "Personal information" },
-		{ id: "tumai", label: "TUM.ai profile" },
-		{ id: "door-pin", label: "Door PIN" },
-		{ id: "links", label: "LinkedIn & location" },
-		{ id: "cv", label: "CV" },
-		...(isAdmin ? [] : [{ id: "requests", label: "Request changes" }]),
-		{ id: "banking", label: "Banking & agreements" },
-	];
-}
-
 export function useProfileNavigation({
 	isLoading,
 	isAdmin,
@@ -38,7 +23,15 @@ export function useProfileNavigation({
 	// Highlight the sidebar nav link for whichever section is currently in view.
 	useEffect(() => {
 		if (isLoading) return;
-		const ids = getNavItems(isAdmin).map((item) => item.id);
+		const ids = [
+			"personal",
+			"tumai",
+			"door-pin",
+			"links",
+			"cv",
+			...(isAdmin ? [] : ["requests"]),
+			"banking",
+		];
 
 		let frame = 0;
 		const update = () => {
@@ -91,5 +84,15 @@ export function useProfileNavigation({
 			?.scrollIntoView({ behavior: "smooth", block: "start" });
 	};
 
-	return { activeSection, navItems: getNavItems(isAdmin), handleNavClick };
+	const navItems: NavItem[] = [
+		{ id: "personal", label: "Personal information" },
+		{ id: "tumai", label: "TUM.ai profile" },
+		{ id: "door-pin", label: "Door PIN" },
+		{ id: "links", label: "LinkedIn & location" },
+		{ id: "cv", label: "CV" },
+		...(isAdmin ? [] : [{ id: "requests", label: "Request changes" }]),
+		{ id: "banking", label: "Banking & agreements" },
+	];
+
+	return { activeSection, navItems, handleNavClick };
 }

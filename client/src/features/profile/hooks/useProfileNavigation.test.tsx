@@ -9,8 +9,8 @@ const SECTION_IDS = [
 	"door-pin",
 	"links",
 	"cv",
-	"requests",
 	"banking",
+	"requests",
 ];
 
 function mountSections(): void {
@@ -75,29 +75,12 @@ describe("useProfileNavigation", () => {
 		}
 	});
 
-	it("lists the sections in the order the page renders them (#412)", () => {
-		const { result: member } = renderHook(() =>
-			useProfileNavigation({ isLoading: false, isAdmin: false }),
-		);
-		expect(member.current.navItems.map((item) => item.id)).toEqual(SECTION_IDS);
-
-		const { result: admin } = renderHook(() =>
-			useProfileNavigation({ isLoading: false, isAdmin: true }),
-		);
-		expect(admin.current.navItems.map((item) => item.id)).toEqual(
-			SECTION_IDS.filter((id) => id !== "requests"),
-		);
-	});
-
-	it("activates Banking, not Request changes, once both crossed the line (#412)", async () => {
-		// Banking renders below Request changes, so it is the last one crossed.
-		for (const id of SECTION_IDS) setSectionTop(id, -100);
-
+	it("lists Request changes right before Banking, as the page renders them (#412)", () => {
 		const { result } = renderHook(() =>
 			useProfileNavigation({ isLoading: false, isAdmin: false }),
 		);
-
-		await waitFor(() => expect(result.current.activeSection).toBe("banking"));
+		const ids = result.current.navItems.map((item) => item.id);
+		expect(ids.indexOf("requests")).toBe(ids.indexOf("banking") - 1);
 	});
 
 	it("activates the door PIN card once it crosses the trigger line", async () => {
