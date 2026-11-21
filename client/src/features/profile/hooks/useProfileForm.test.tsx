@@ -182,7 +182,7 @@ describe("useProfileForm", () => {
 		expect(updateMemberAsync).not.toHaveBeenCalled();
 		expect(
 			result.current.memberForm.getFieldState("date_of_birth").error?.message,
-		).toBe("Enter the full date: day, month and year");
+		).toBe("Enter a complete, valid date");
 		expect(showToast).toHaveBeenCalledWith(
 			"Please complete all required profile fields before saving.",
 			"error",

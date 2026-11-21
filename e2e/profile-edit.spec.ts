@@ -45,7 +45,7 @@ test("a half-typed date of birth blocks the save", async ({ page }) => {
 	const dateOfBirth = page.getByLabel("Date of Birth");
 	await dateOfBirth.fill("");
 	await dateOfBirth.focus();
-	// Four digits fill two of the three date parts in any locale.
+	// Four digits fill only part of the date in any locale.
 	await page.keyboard.type("0314");
 
 	let memberPutCount = 0;
@@ -59,9 +59,7 @@ test("a half-typed date of birth blocks the save", async ({ page }) => {
 		.first()
 		.click();
 
-	await expect(
-		page.getByText("Enter the full date: day, month and year"),
-	).toBeVisible();
+	await expect(page.getByText("Enter a complete, valid date")).toBeVisible();
 	await expect(dateOfBirth).toBeFocused();
 	expect(memberPutCount).toBe(0);
 });
