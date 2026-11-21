@@ -9,8 +9,8 @@ const SECTION_IDS = [
 	"door-pin",
 	"links",
 	"cv",
-	"banking",
 	"requests",
+	"banking",
 ];
 
 function mountSections(): void {
@@ -73,6 +73,31 @@ describe("useProfileNavigation", () => {
 				"Door PIN",
 			);
 		}
+	});
+
+	it("lists the sections in the order the page renders them (#412)", () => {
+		const { result: member } = renderHook(() =>
+			useProfileNavigation({ isLoading: false, isAdmin: false }),
+		);
+		expect(member.current.navItems.map((item) => item.id)).toEqual(SECTION_IDS);
+
+		const { result: admin } = renderHook(() =>
+			useProfileNavigation({ isLoading: false, isAdmin: true }),
+		);
+		expect(admin.current.navItems.map((item) => item.id)).toEqual(
+			SECTION_IDS.filter((id) => id !== "requests"),
+		);
+	});
+
+	it("activates Banking, not Request changes, once both crossed the line (#412)", async () => {
+		// Banking renders below Request changes, so it is the last one crossed.
+		for (const id of SECTION_IDS) setSectionTop(id, -100);
+
+		const { result } = renderHook(() =>
+			useProfileNavigation({ isLoading: false, isAdmin: false }),
+		);
+
+		await waitFor(() => expect(result.current.activeSection).toBe("banking"));
 	});
 
 	it("activates the door PIN card once it crosses the trigger line", async () => {
