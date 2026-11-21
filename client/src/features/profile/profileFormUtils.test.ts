@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
 	computeProfileCompleteness,
+	getMissingOptionalProfileFields,
 	getMissingProfileFields,
 } from "./profileFormUtils";
+
+const noBankDetails = {
+	iban: "",
+	bank_name: "",
+	mandate_agreed: false,
+	privacy_agreed: false,
+};
 
 const completeInput = {
 	member: {
@@ -46,6 +54,12 @@ describe("computeProfileCompleteness", () => {
 		).toBe(0);
 	});
 
+	it("reaches 100 without any bank details (#361)", () => {
+		expect(
+			computeProfileCompleteness({ ...completeInput, sepa: noBankDetails }),
+		).toBe(100);
+	});
+
 	it("ignores whitespace-only values as unfilled", () => {
 		expect(
 			computeProfileCompleteness({
@@ -65,9 +79,15 @@ describe("getMissingProfileFields", () => {
 		expect(
 			getMissingProfileFields({
 				...completeInput,
-				sepa: { ...completeInput.sepa, iban: undefined, bank_name: "" },
+				member: { ...completeInput.member, street: undefined, city: "" },
 			}),
-		).toEqual(["IBAN", "Bank name"]);
+		).toEqual(["Street", "City"]);
+	});
+
+	it("never lists bank details as missing (#361)", () => {
+		expect(
+			getMissingProfileFields({ ...completeInput, sepa: noBankDetails }),
+		).toEqual([]);
 	});
 
 	it("counts the consent item once a decision is saved, whatever the answers", () => {
@@ -79,5 +99,25 @@ describe("getMissingProfileFields", () => {
 		expect(
 			getMissingProfileFields({ ...completeInput, consentsDecided: false }),
 		).toEqual(["Data privacy consent choices"]);
+	});
+});
+
+describe("getMissingOptionalProfileFields", () => {
+	it("lists the bank details and their agreements while they are empty", () => {
+		expect(
+			getMissingOptionalProfileFields({
+				...completeInput,
+				sepa: noBankDetails,
+			}),
+		).toEqual([
+			"IBAN",
+			"Bank name",
+			"SEPA mandate agreement",
+			"Privacy agreement",
+		]);
+	});
+
+	it("returns an empty list once bank details are complete", () => {
+		expect(getMissingOptionalProfileFields(completeInput)).toEqual([]);
 	});
 });

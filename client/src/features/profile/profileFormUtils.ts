@@ -46,11 +46,13 @@ interface ProfileCompletenessInput {
 interface CompletenessField {
 	label: string;
 	filled: boolean;
+	/** Shown separately as optional; never counts toward the percentage. */
+	optional?: boolean;
 }
 
 // Single source of truth for which fields count toward completeness, shared
-// by computeProfileCompleteness (the percentage) and getMissingProfileFields
-// (the breakdown of what's still needed to reach 100%).
+// by computeProfileCompleteness (the percentage), getMissingProfileFields
+// (what's still needed to reach 100%) and getMissingOptionalProfileFields.
 function getCompletenessFields({
 	member,
 	linkedin,
@@ -85,13 +87,25 @@ function getCompletenessFields({
 			label: "Public location",
 			filled: isFilledText(linkedin.public_location),
 		},
-		{ label: "IBAN", filled: isFilledText(sepa.iban) },
-		{ label: "Bank name", filled: isFilledText(sepa.bank_name) },
+		// Bank details are optional as a group (#304): profileSepaSchema only
+		// requires the two agreements once bank details are entered. So all four
+		// are listed separately and a member without them can still reach 100%.
+		{ label: "IBAN", filled: isFilledText(sepa.iban), optional: true },
+		{
+			label: "Bank name",
+			filled: isFilledText(sepa.bank_name),
+			optional: true,
+		},
 		{
 			label: "SEPA mandate agreement",
 			filled: Boolean(sepa.mandate_agreed),
+			optional: true,
 		},
-		{ label: "Privacy agreement", filled: Boolean(sepa.privacy_agreed) },
+		{
+			label: "Privacy agreement",
+			filled: Boolean(sepa.privacy_agreed),
+			optional: true,
+		},
 		// Each purpose is optional, so a refusal still completes this item.
 		{ label: "Data privacy consent choices", filled: consentsDecided },
 	];
@@ -102,7 +116,9 @@ function getCompletenessFields({
 export function computeProfileCompleteness(
 	input: ProfileCompletenessInput,
 ): number {
-	const fields = getCompletenessFields(input);
+	const fields = getCompletenessFields(input).filter(
+		(field) => !field.optional,
+	);
 	const filled = fields.filter((field) => field.filled).length;
 
 	return Math.round((filled / fields.length) * 100);
@@ -114,6 +130,16 @@ export function getMissingProfileFields(
 	input: ProfileCompletenessInput,
 ): string[] {
 	return getCompletenessFields(input)
-		.filter((field) => !field.filled)
+		.filter((field) => !field.optional && !field.filled)
+		.map((field) => field.label);
+}
+
+// Labels of optional fields not filled yet, listed separately below the
+// required ones and outside the percentage.
+export function getMissingOptionalProfileFields(
+	input: ProfileCompletenessInput,
+): string[] {
+	return getCompletenessFields(input)
+		.filter((field) => field.optional && !field.filled)
 		.map((field) => field.label);
 }

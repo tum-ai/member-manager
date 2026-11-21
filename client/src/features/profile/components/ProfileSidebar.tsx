@@ -21,6 +21,8 @@ interface ProfileSidebarProps {
 	memberStatus?: string;
 	completeness: number;
 	missingProfileFields: string[];
+	/** Optional fields (bank details) not filled yet; outside the percentage. */
+	missingOptionalProfileFields: string[];
 	isGeneratingPdf: boolean;
 	canDownloadProof: boolean;
 	onDownloadMembershipProof: () => void;
@@ -28,6 +30,26 @@ interface ProfileSidebarProps {
 	activeSection: string;
 	onNavClick: (event: React.MouseEvent<HTMLAnchorElement>, id: string) => void;
 	isUpdating: boolean;
+}
+
+function FieldList({
+	title,
+	fields,
+}: {
+	title: string;
+	fields: string[];
+}): JSX.Element | null {
+	if (fields.length === 0) return null;
+	return (
+		<div className="mt-2 text-xs text-muted-foreground">
+			<p>{title}</p>
+			<ul className="mt-1 list-inside list-disc">
+				{fields.map((field) => (
+					<li key={field}>{field}</li>
+				))}
+			</ul>
+		</div>
+	);
 }
 
 export function ProfileSidebar({
@@ -39,6 +61,7 @@ export function ProfileSidebar({
 	memberStatus,
 	completeness,
 	missingProfileFields,
+	missingOptionalProfileFields,
 	isGeneratingPdf,
 	canDownloadProof,
 	onDownloadMembershipProof,
@@ -93,16 +116,11 @@ export function ProfileSidebar({
 							<span className="font-medium">{completeness}%</span>
 						</div>
 						<Progress value={completeness} />
-						{missingProfileFields.length > 0 && (
-							<div className="mt-2 text-xs text-muted-foreground">
-								<p>Still missing:</p>
-								<ul className="mt-1 list-inside list-disc">
-									{missingProfileFields.map((field) => (
-										<li key={field}>{field}</li>
-									))}
-								</ul>
-							</div>
-						)}
+						<FieldList title="Still missing:" fields={missingProfileFields} />
+						<FieldList
+							title="Optional, for the SEPA mandate:"
+							fields={missingOptionalProfileFields}
+						/>
 					</div>
 
 					<div className="my-5 border-t border-border" />

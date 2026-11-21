@@ -14,7 +14,8 @@ function renderSidebar(
 		isActive: true,
 		memberStatus: "active",
 		completeness: 80,
-		missingProfileFields: ["IBAN", "Bank name"],
+		missingProfileFields: ["Street", "City"],
+		missingOptionalProfileFields: [],
 		isGeneratingPdf: false,
 		canDownloadProof: true,
 		onDownloadMembershipProof: vi.fn(),
@@ -47,14 +48,36 @@ describe("ProfileSidebar", () => {
 		renderSidebar();
 
 		expect(screen.getByText("Still missing:")).toBeInTheDocument();
+		expect(screen.getByText("Street")).toBeInTheDocument();
+		expect(screen.getByText("City")).toBeInTheDocument();
+	});
+
+	it("lists optional bank details separately, even at 100%", () => {
+		renderSidebar({
+			completeness: 100,
+			missingProfileFields: [],
+			missingOptionalProfileFields: ["IBAN", "Bank name"],
+		});
+
+		expect(screen.queryByText("Still missing:")).not.toBeInTheDocument();
+		expect(
+			screen.getByText("Optional, for the SEPA mandate:"),
+		).toBeInTheDocument();
 		expect(screen.getByText("IBAN")).toBeInTheDocument();
 		expect(screen.getByText("Bank name")).toBeInTheDocument();
 	});
 
 	it("hides the missing-fields breakdown at 100% completeness", () => {
-		renderSidebar({ completeness: 100, missingProfileFields: [] });
+		renderSidebar({
+			completeness: 100,
+			missingProfileFields: [],
+			missingOptionalProfileFields: [],
+		});
 
 		expect(screen.queryByText("Still missing:")).not.toBeInTheDocument();
+		expect(
+			screen.queryByText("Optional, for the SEPA mandate:"),
+		).not.toBeInTheDocument();
 	});
 
 	it("downloads the membership proof", async () => {
