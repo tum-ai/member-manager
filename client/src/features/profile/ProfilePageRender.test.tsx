@@ -110,6 +110,26 @@ beforeEach(() => {
 });
 
 describe("ProfilePage (render)", () => {
+	it("shows the stored salutation and batch in their selects (#397)", async () => {
+		memberData = {
+			given_name: "Ada",
+			surname: "Lovelace",
+			salutation: "Ms.",
+			batch: "WS24",
+		};
+		render(
+			<MemoryRouter>
+				<ProfilePage user={user} />
+			</MemoryRouter>,
+		);
+		await waitFor(() =>
+			expect(screen.getByLabelText("Salutation (optional)")).toHaveTextContent(
+				"Ms.",
+			),
+		);
+		expect(screen.getByLabelText("Batch")).toHaveTextContent("WS24");
+	});
+
 	it("renders the loading skeleton while data is loading", () => {
 		isLoadingMember = true;
 		render(

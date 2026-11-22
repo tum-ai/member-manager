@@ -1,5 +1,5 @@
 import { UserRound } from "lucide-react";
-import type { UseFormReturn } from "react-hook-form";
+import { type UseFormReturn, useWatch } from "react-hook-form";
 import { CardContent } from "@/components/ui/card";
 import { Field } from "@/components/ui/field";
 import { GlassCard } from "@/components/ui/GlassCard";
@@ -43,6 +43,13 @@ export function PersonalInfoSection({
 	ids,
 }: PersonalInfoSectionProps): JSX.Element {
 	const errors = memberForm.formState.errors;
+	// useWatch, not watch(): the form is hydrated from server data after the first
+	// render, and watch() would keep returning the empty defaults (#397).
+	const salutation = useWatch({
+		control: memberForm.control,
+		name: "salutation",
+	});
+	const title = useWatch({ control: memberForm.control, name: "title" });
 
 	return (
 		<GlassCard id="personal" variant="elevated" className="scroll-mt-20">
@@ -61,7 +68,7 @@ export function PersonalInfoSection({
 						error={errors.salutation?.message}
 					>
 						<Select
-							value={toSelectValue(memberForm.watch("salutation") || "")}
+							value={toSelectValue(salutation || "")}
 							onValueChange={(value) =>
 								memberForm.setValue("salutation", fromSelectValue(value), {
 									shouldDirty: true,
@@ -86,7 +93,7 @@ export function PersonalInfoSection({
 					</Field>
 					<Field className="sm:col-span-8" label="Title" htmlFor={ids.title}>
 						<Select
-							value={toSelectValue(memberForm.watch("title") || "")}
+							value={toSelectValue(title || "")}
 							onValueChange={(value) =>
 								memberForm.setValue("title", fromSelectValue(value), {
 									shouldDirty: true,
