@@ -75,6 +75,14 @@ describe("useProfileNavigation", () => {
 		}
 	});
 
+	it("lists Request changes right before Banking, as the page renders them (#412)", () => {
+		const { result } = renderHook(() =>
+			useProfileNavigation({ isLoading: false, isAdmin: false }),
+		);
+		const ids = result.current.navItems.map((item) => item.id);
+		expect(ids.indexOf("requests")).toBe(ids.indexOf("banking") - 1);
+	});
+
 	it("activates the door PIN card once it crosses the trigger line", async () => {
 		setSectionTop("personal", -300);
 		setSectionTop("tumai", -200);
