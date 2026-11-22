@@ -121,3 +121,26 @@ describe("getMissingOptionalProfileFields", () => {
 		expect(getMissingOptionalProfileFields(completeInput)).toEqual([]);
 	});
 });
+
+describe("partly filled bank details", () => {
+	// Saving then requires all four (profileSepaSchema), so they are no longer
+	// optional: listed as missing and counted in the percentage.
+	const onlyBic = {
+		...completeInput,
+		sepa: { ...noBankDetails, bic: "COBADEFFXXX" },
+	};
+
+	it("lists the rest as missing instead of optional", () => {
+		expect(getMissingOptionalProfileFields(onlyBic)).toEqual([]);
+		expect(getMissingProfileFields(onlyBic)).toEqual([
+			"IBAN",
+			"Bank name",
+			"SEPA mandate agreement",
+			"Privacy agreement",
+		]);
+	});
+
+	it("counts them toward completeness", () => {
+		expect(computeProfileCompleteness(onlyBic)).toBeLessThan(100);
+	});
+});

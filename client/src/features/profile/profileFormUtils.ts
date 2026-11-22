@@ -1,3 +1,4 @@
+import { hasBankDetailsInput } from "@member-manager/shared";
 import type { MemberSchema } from "@/lib/schemas";
 
 interface BuildSelfServiceMemberUpdatePayloadOptions {
@@ -35,6 +36,7 @@ interface ProfileCompletenessInput {
 	linkedin: { linkedin_profile_url?: string; public_location?: string };
 	sepa: {
 		iban?: string;
+		bic?: string;
 		bank_name?: string;
 		mandate_agreed?: boolean;
 		privacy_agreed?: boolean;
@@ -61,6 +63,9 @@ function getCompletenessFields({
 }: ProfileCompletenessInput): CompletenessField[] {
 	const isFilledText = (value: string | null | undefined) =>
 		Boolean(value?.trim());
+	// Bank details are optional as a group (#304), but once any bank field is
+	// filled profileSepaSchema requires all four below to save, so they count.
+	const bankDetailsOptional = !hasBankDetailsInput(sepa);
 
 	return [
 		{ label: "First name", filled: isFilledText(member.given_name) },
@@ -87,24 +92,27 @@ function getCompletenessFields({
 			label: "Public location",
 			filled: isFilledText(linkedin.public_location),
 		},
-		// Bank details are optional as a group (#304): profileSepaSchema only
-		// requires the two agreements once bank details are entered. So all four
-		// are listed separately and a member without them can still reach 100%.
-		{ label: "IBAN", filled: isFilledText(sepa.iban), optional: true },
+		// While no bank field is filled, all four are listed separately and a
+		// member without them can still reach 100%.
+		{
+			label: "IBAN",
+			filled: isFilledText(sepa.iban),
+			optional: bankDetailsOptional,
+		},
 		{
 			label: "Bank name",
 			filled: isFilledText(sepa.bank_name),
-			optional: true,
+			optional: bankDetailsOptional,
 		},
 		{
 			label: "SEPA mandate agreement",
 			filled: Boolean(sepa.mandate_agreed),
-			optional: true,
+			optional: bankDetailsOptional,
 		},
 		{
 			label: "Privacy agreement",
 			filled: Boolean(sepa.privacy_agreed),
-			optional: true,
+			optional: bankDetailsOptional,
 		},
 		// Each purpose is optional, so a refusal still completes this item.
 		{ label: "Data privacy consent choices", filled: consentsDecided },
