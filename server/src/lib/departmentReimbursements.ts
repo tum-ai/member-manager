@@ -101,6 +101,10 @@ export async function listDepartmentReimbursements(
 		.select(DEPARTMENT_REQUEST_COLUMNS)
 		.eq("department", department)
 		.order("created_at", { ascending: false })
+		// Rows inserted in one transaction share `created_at`. Without a second
+		// key their order could differ between two page requests, which would
+		// show one request twice and skip another.
+		.order("id", { ascending: false })
 		.range(from, from + pageSize - 1);
 	if (error) {
 		throw new DatabaseError("Failed to load department reimbursements");

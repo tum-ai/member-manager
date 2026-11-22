@@ -198,6 +198,7 @@ export function ReimbursementFormSection({
 									id="reimbursement-department"
 									className="w-full"
 									aria-label="Department"
+									aria-describedby="reimbursement-department-note"
 									aria-invalid={Boolean(errors.department)}
 								>
 									<SelectValue placeholder="Department" />
@@ -213,6 +214,14 @@ export function ReimbursementFormSection({
 							{errors.department && (
 								<p className="text-xs text-destructive">{errors.department}</p>
 							)}
+							{/* The department list shows these three fields to its members. */}
+							<p
+								id="reimbursement-department-note"
+								className="text-xs text-muted-foreground"
+							>
+								Members of this department can see your name, the amount and the
+								description.
+							</p>
 						</div>
 						{showDepartmentWarning && (
 							<Alert className="col-span-full">

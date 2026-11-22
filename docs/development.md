@@ -91,7 +91,7 @@ Receipt files are uploaded directly from the browser to the private `reimburseme
 
 ### Department requests
 
-Below the form, the reimbursement page lists every request filed for the member's own department (`GET /api/reimbursements/department`), so two members don't submit the same invoice. Active members see requester name, date, amount, description, type and status, newest first and ten per page (`?page=`). The receipt, IBAN/BIC and rejection reason are not part of that response; they stay with the requester and the reviewers. The scope is the department on the caller's member row, which only admins can change. Requests are not grouped per event yet.
+Below the form, the reimbursement page lists every request filed for the member's own department (`GET /api/reimbursements/department`), so two members don't submit the same invoice. Active members see requester name, date, amount, description, type and status, newest first and ten per page (`?page=`). The receipt, IBAN/BIC and rejection reason are not part of that response; they stay with the requester and the reviewers. The scope is the department on the caller's member row, which only admins can change. A note under the form's department picker tells the requester that. Requests are not grouped per event yet.
 
 ### Slack notifications and interactions
 

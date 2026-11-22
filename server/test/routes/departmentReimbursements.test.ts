@@ -204,6 +204,36 @@ describe("GET /api/reimbursements/department", async () => {
 		assert.strictEqual(body.page, 2);
 	});
 
+	test("orders requests created at the same moment by id, so pages never overlap", async () => {
+		seedMakeathonRequests(12);
+		// Every extra request shares one timestamp, as rows inserted in a single
+		// transaction do. They straddle the page boundary.
+		const extras = mockDatabase.reimbursements.filter((row) =>
+			String(row.description).startsWith("Extra request"),
+		);
+		for (const row of extras) {
+			row.created_at = "2026-01-01T00:00:00.000Z";
+		}
+
+		const ids: string[] = [];
+		for (const page of [1, 2]) {
+			const response = await app.inject({
+				method: "GET",
+				url: `${URL}?page=${page}`,
+				headers: authHeaders(testTokens.user),
+			});
+			ids.push(
+				...JSON.parse(response.payload).requests.map(
+					(request: { id: string }) => request.id,
+				),
+			);
+		}
+
+		const extraIds = extras.map((row) => String(row.id));
+		assert.deepStrictEqual(ids.slice(2), [...extraIds].sort().reverse());
+		assert.strictEqual(new Set(ids).size, 12);
+	});
+
 	test("returns the last page for a page past the end", async () => {
 		seedMakeathonRequests(12);
 

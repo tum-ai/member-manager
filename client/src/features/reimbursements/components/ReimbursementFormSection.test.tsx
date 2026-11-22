@@ -115,6 +115,16 @@ describe("ReimbursementFormSection", () => {
 		expect(onSubmissionTypeChange).toHaveBeenCalledWith("invoice");
 	});
 
+	it("says who can see a request filed for the chosen department", () => {
+		renderSection();
+
+		expect(
+			screen.getByRole("combobox", { name: "Department" }),
+		).toHaveAccessibleDescription(
+			"Members of this department can see your name, the amount and the description.",
+		);
+	});
+
 	it("renders the department override warning when flagged", () => {
 		renderSection({ props: { showDepartmentWarning: true } });
 
