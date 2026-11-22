@@ -36,6 +36,34 @@ test("member edits a profile field and the change persists", async ({
 	await expect(page.getByLabel("Public location")).toHaveValue(nextLocation);
 });
 
+// Issue #398: a date of birth typed without its year reads as "" in the
+// browser, the same as an empty field. The save used to succeed and silently
+// drop it; now the field shows an error and nothing is sent.
+test("a half-typed date of birth blocks the save", async ({ page }) => {
+	await loginAsLocalMember(page);
+
+	const dateOfBirth = page.getByLabel("Date of Birth");
+	await dateOfBirth.fill("");
+	await dateOfBirth.focus();
+	// Four digits fill only part of the date in any locale.
+	await page.keyboard.type("0314");
+
+	let memberPutCount = 0;
+	page.on("request", (request) => {
+		if (request.url().includes("/api/members/") && request.method() === "PUT") {
+			memberPutCount += 1;
+		}
+	});
+	await page
+		.getByRole("button", { name: /save changes/i })
+		.first()
+		.click();
+
+	await expect(page.getByText("Enter a complete, valid date")).toBeVisible();
+	await expect(dateOfBirth).toBeFocused();
+	expect(memberPutCount).toBe(0);
+});
+
 // Issue #304: members could only save their profile after entering bank
 // details. The seeded no-bank-details persona has no `sepa` row (it is skipped
 // by the catch-all SEPA insert in supabase/seed.sql) but does have stored
