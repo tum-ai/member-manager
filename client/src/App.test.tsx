@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppRouter, AuthenticatedApp } from "./App";
@@ -50,7 +51,12 @@ vi.mock("./features/admin/AdminMcpAccessPage", () => ({
 }));
 
 vi.mock("./features/profile/ProfilePage", () => ({
-	default: () => <div>Profile route</div>,
+	default: () => (
+		<div>
+			Profile route
+			<input aria-label="Profile draft" />
+		</div>
+	),
 }));
 
 vi.mock("./features/members/MemberList", () => ({
@@ -267,6 +273,46 @@ describe("AuthenticatedApp permission-gated routes", () => {
 		toolAccessState.educationalCourseRole = "administrator";
 		renderAuthenticatedApp("/education/courses");
 		expect(screen.getByText("Educational courses route")).toBeInTheDocument();
+	});
+});
+
+describe("AuthenticatedApp profile route", () => {
+	beforeEach(() => {
+		adminState.isAdmin = false;
+		adminState.isLoading = false;
+		welcomeState.status = "complete";
+	});
+
+	function renderProfileFor(user: User) {
+		return (
+			<ToastProvider>
+				<MemoryRouter initialEntries={["/"]}>
+					<AuthenticatedApp user={user} onLogout={vi.fn()} />
+				</MemoryRouter>
+			</ToastProvider>
+		);
+	}
+
+	it("keeps unsaved input when the user object is re-created for the same id", async () => {
+		const { rerender } = render(renderProfileFor(mockUser));
+		const input = await screen.findByLabelText("Profile draft");
+		await userEvent.type(input, "draft");
+
+		rerender(renderProfileFor({ ...mockUser } as User));
+
+		expect(screen.getByLabelText("Profile draft")).toHaveValue("draft");
+	});
+
+	it("drops unsaved input when a different user signs in", async () => {
+		const { rerender } = render(renderProfileFor(mockUser));
+		await userEvent.type(
+			await screen.findByLabelText("Profile draft"),
+			"draft",
+		);
+
+		rerender(renderProfileFor({ ...mockUser, id: "user-456" } as User));
+
+		expect(screen.getByLabelText("Profile draft")).toHaveValue("");
 	});
 });
 

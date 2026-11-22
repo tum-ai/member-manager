@@ -232,7 +232,7 @@ export function AuthenticatedApp({
 		>
 			<WelcomeRedirect userId={user.id} />
 			<Routes>
-				<Route path="/" element={<ProfilePage user={user} />} />
+				<Route path="/" element={<ProfilePage key={user.id} user={user} />} />
 				<Route path="/welcome" element={<WelcomePage user={user} />} />
 				<Route path="/profile" element={<Navigate to="/" replace />} />
 				<Route path="/members" element={<MemberList />} />
