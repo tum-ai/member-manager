@@ -29,8 +29,8 @@ export function useProfileNavigation({
 			"door-pin",
 			"links",
 			"cv",
-			"banking",
 			...(isAdmin ? [] : ["requests"]),
+			"banking",
 		];
 
 		let frame = 0;
@@ -90,8 +90,8 @@ export function useProfileNavigation({
 		{ id: "door-pin", label: "Door PIN" },
 		{ id: "links", label: "LinkedIn & location" },
 		{ id: "cv", label: "CV" },
-		{ id: "banking", label: "Banking & agreements" },
 		...(isAdmin ? [] : [{ id: "requests", label: "Request changes" }]),
+		{ id: "banking", label: "Banking & agreements" },
 	];
 
 	return { activeSection, navItems, handleNavClick };

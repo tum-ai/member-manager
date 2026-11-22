@@ -95,6 +95,62 @@ describe("useProfileForm", () => {
 		expect(result.current.isLoading).toBe(false);
 	});
 
+	describe("unsaved edits survive a refetch or a re-created auth user (#397)", () => {
+		it("keeps a dirty field when the server data is refetched and the user object changes", async () => {
+			memberData = { given_name: "Ada", surname: "Lovelace", batch: "WS24" };
+			const { result, rerender } = renderHook(
+				({ u }: { u: User }) => useProfileForm(u),
+				{ initialProps: { u: user } },
+			);
+			await waitFor(() =>
+				expect(result.current.memberForm.getValues("batch")).toBe("WS24"),
+			);
+
+			act(() => {
+				result.current.memberForm.setValue("surname", "Byron", {
+					shouldDirty: true,
+				});
+			});
+
+			// Window refocus: new query data object, new auth user object.
+			memberData = { given_name: "Ada", surname: "Lovelace", batch: "SS25" };
+			rerender({ u: { ...user } as User });
+
+			await waitFor(() =>
+				expect(result.current.memberForm.getValues("batch")).toBe("SS25"),
+			);
+			expect(result.current.memberForm.getValues("surname")).toBe("Byron");
+		});
+
+		it("treats a saved field as clean, so later server updates reach it", async () => {
+			memberData = { given_name: "Ada", surname: "Lovelace" };
+			const { result, rerender } = renderHook(() => useProfileForm(user));
+			await waitFor(() =>
+				expect(result.current.memberForm.getValues("surname")).toBe("Lovelace"),
+			);
+
+			act(() => {
+				result.current.memberForm.setValue("surname", "Byron", {
+					shouldDirty: true,
+				});
+			});
+			await act(async () => {
+				await result.current.onSubmit();
+			});
+			expect(updateMemberAsync).toHaveBeenCalledTimes(1);
+			expect(
+				Object.keys(result.current.memberForm.formState.dirtyFields),
+			).toHaveLength(0);
+
+			// Changed elsewhere (e.g. by an admin) after the save.
+			memberData = { given_name: "Ada", surname: "King" };
+			rerender();
+			await waitFor(() =>
+				expect(result.current.memberForm.getValues("surname")).toBe("King"),
+			);
+		});
+	});
+
 	it("hydrates member, linkedin and sepa forms from fetched data", async () => {
 		memberData = {
 			given_name: "Grace",
