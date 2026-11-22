@@ -1,5 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import { act, renderHook, waitFor } from "@testing-library/react";
+import type { BaseSyntheticEvent } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProfileSepaInput } from "@/lib/schemas";
 import { type UseProfileFormResult, useProfileForm } from "./useProfileForm";
@@ -208,6 +209,36 @@ describe("useProfileForm", () => {
 		});
 
 		expect(updateMemberAsync).not.toHaveBeenCalled();
+		expect(showToast).toHaveBeenCalledWith(
+			"Please complete all required profile fields before saving.",
+			"error",
+		);
+	});
+
+	// #398: the browser reports a date typed without its year as "", which the
+	// schema accepts, so the save succeeded and silently dropped the date.
+	it("blocks submit when the date of birth is only partly typed", async () => {
+		const { result } = renderHook(() => useProfileForm(user));
+		await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+		const form = document.createElement("form");
+		const dateInput = document.createElement("input");
+		dateInput.type = "date";
+		dateInput.name = "date_of_birth";
+		// jsdom does not implement badInput for date inputs.
+		Object.defineProperty(dateInput, "validity", {
+			value: { badInput: true },
+		});
+		form.append(dateInput);
+
+		await act(async () => {
+			await result.current.onSubmit({ target: form } as BaseSyntheticEvent);
+		});
+
+		expect(updateMemberAsync).not.toHaveBeenCalled();
+		expect(
+			result.current.memberForm.getFieldState("date_of_birth").error?.message,
+		).toBe("Enter a complete, valid date");
 		expect(showToast).toHaveBeenCalledWith(
 			"Please complete all required profile fields before saving.",
 			"error",
