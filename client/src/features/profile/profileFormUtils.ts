@@ -1,3 +1,4 @@
+import { hasBankDetailsInput } from "@member-manager/shared";
 import type { MemberSchema } from "@/lib/schemas";
 
 interface BuildSelfServiceMemberUpdatePayloadOptions {
@@ -35,6 +36,7 @@ interface ProfileCompletenessInput {
 	linkedin: { linkedin_profile_url?: string; public_location?: string };
 	sepa: {
 		iban?: string;
+		bic?: string;
 		bank_name?: string;
 		mandate_agreed?: boolean;
 		privacy_agreed?: boolean;
@@ -46,11 +48,13 @@ interface ProfileCompletenessInput {
 interface CompletenessField {
 	label: string;
 	filled: boolean;
+	/** Shown separately as optional; never counts toward the percentage. */
+	optional?: boolean;
 }
 
 // Single source of truth for which fields count toward completeness, shared
-// by computeProfileCompleteness (the percentage) and getMissingProfileFields
-// (the breakdown of what's still needed to reach 100%).
+// by computeProfileCompleteness (the percentage), getMissingProfileFields
+// (what's still needed to reach 100%) and getMissingOptionalProfileFields.
 function getCompletenessFields({
 	member,
 	linkedin,
@@ -59,6 +63,9 @@ function getCompletenessFields({
 }: ProfileCompletenessInput): CompletenessField[] {
 	const isFilledText = (value: string | null | undefined) =>
 		Boolean(value?.trim());
+	// Bank details are optional as a group (#304), but once any bank field is
+	// filled profileSepaSchema requires all four below to save, so they count.
+	const bankDetailsOptional = !hasBankDetailsInput(sepa);
 
 	return [
 		{ label: "First name", filled: isFilledText(member.given_name) },
@@ -85,13 +92,28 @@ function getCompletenessFields({
 			label: "Public location",
 			filled: isFilledText(linkedin.public_location),
 		},
-		{ label: "IBAN", filled: isFilledText(sepa.iban) },
-		{ label: "Bank name", filled: isFilledText(sepa.bank_name) },
+		// While no bank field is filled, all four are listed separately and a
+		// member without them can still reach 100%.
+		{
+			label: "IBAN",
+			filled: isFilledText(sepa.iban),
+			optional: bankDetailsOptional,
+		},
+		{
+			label: "Bank name",
+			filled: isFilledText(sepa.bank_name),
+			optional: bankDetailsOptional,
+		},
 		{
 			label: "SEPA mandate agreement",
 			filled: Boolean(sepa.mandate_agreed),
+			optional: bankDetailsOptional,
 		},
-		{ label: "Privacy agreement", filled: Boolean(sepa.privacy_agreed) },
+		{
+			label: "Privacy agreement",
+			filled: Boolean(sepa.privacy_agreed),
+			optional: bankDetailsOptional,
+		},
 		// Each purpose is optional, so a refusal still completes this item.
 		{ label: "Data privacy consent choices", filled: consentsDecided },
 	];
@@ -102,7 +124,9 @@ function getCompletenessFields({
 export function computeProfileCompleteness(
 	input: ProfileCompletenessInput,
 ): number {
-	const fields = getCompletenessFields(input);
+	const fields = getCompletenessFields(input).filter(
+		(field) => !field.optional,
+	);
 	const filled = fields.filter((field) => field.filled).length;
 
 	return Math.round((filled / fields.length) * 100);
@@ -114,6 +138,16 @@ export function getMissingProfileFields(
 	input: ProfileCompletenessInput,
 ): string[] {
 	return getCompletenessFields(input)
-		.filter((field) => !field.filled)
+		.filter((field) => !field.optional && !field.filled)
+		.map((field) => field.label);
+}
+
+// Labels of optional fields not filled yet, listed separately below the
+// required ones and outside the percentage.
+export function getMissingOptionalProfileFields(
+	input: ProfileCompletenessInput,
+): string[] {
+	return getCompletenessFields(input)
+		.filter((field) => field.optional && !field.filled)
 		.map((field) => field.label);
 }

@@ -12,6 +12,7 @@ import { rebaselineForm } from "@/features/profile/hooks/rebaselineForm";
 import {
 	buildSelfServiceMemberUpdatePayload,
 	computeProfileCompleteness,
+	getMissingOptionalProfileFields,
 	getMissingProfileFields,
 } from "@/features/profile/profileFormUtils";
 import {
@@ -64,6 +65,7 @@ export interface UseProfileFormResult {
 	onSubmit: (event?: BaseSyntheticEvent) => Promise<void>;
 	completeness: number;
 	missingProfileFields: string[];
+	missingOptionalProfileFields: string[];
 	normalizedLinkedinUrl: string;
 	isLinkedinUrlValid: boolean;
 	currentRole: string;
@@ -357,6 +359,8 @@ export function useProfileForm(user: User): UseProfileFormResult {
 	};
 	const completeness = computeProfileCompleteness(completenessInput);
 	const missingProfileFields = getMissingProfileFields(completenessInput);
+	const missingOptionalProfileFields =
+		getMissingOptionalProfileFields(completenessInput);
 	const currentRole = memberForm.watch("member_role") || "Member";
 	const currentDepartment = memberForm.watch("department") || "";
 	const effectiveProfileDepartment = resolveDepartmentForMemberRole(
@@ -386,6 +390,7 @@ export function useProfileForm(user: User): UseProfileFormResult {
 		onSubmit,
 		completeness,
 		missingProfileFields,
+		missingOptionalProfileFields,
 		normalizedLinkedinUrl,
 		isLinkedinUrlValid,
 		currentRole,
