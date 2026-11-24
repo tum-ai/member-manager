@@ -171,6 +171,40 @@ export interface ReimbursementRequest {
 	updated_at?: string;
 }
 
+/**
+ * A request as the other members of its department see it: enough to notice
+ * that an invoice was already submitted, and nothing more. It deliberately has
+ * no receipt, payment details or rejection reason.
+ */
+export interface DepartmentReimbursementRequest {
+	id: string;
+	requester_name: string | null;
+	/** Whether the caller submitted this request. */
+	is_own: boolean;
+	amount: number;
+	date: string;
+	description: string;
+	submission_type: ReimbursementSubmissionType;
+	status: ReimbursementStatus;
+	approval_status: ReimbursementApprovalStatus;
+	first_approved_at: string | null;
+	payment_status: ReimbursementPaymentStatus;
+	created_at: string;
+}
+
+/** Response of `GET /reimbursements/department`. */
+export interface DepartmentReimbursementsResponse {
+	/** The caller's department; `null` (and no requests) without one. */
+	department: string | null;
+	/** One page of the department's requests, newest first. */
+	requests: DepartmentReimbursementRequest[];
+	/** Number of requests across all pages. */
+	total: number;
+	/** The page returned, starting at 1. A page past the end returns the last one. */
+	page: number;
+	page_size: number;
+}
+
 export interface BuchhaltungsButlerSyncStatus {
 	sync_enabled: boolean;
 	configured: boolean;

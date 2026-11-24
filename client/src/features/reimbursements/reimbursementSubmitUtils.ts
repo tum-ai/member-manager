@@ -75,7 +75,12 @@ export function formatAmount(value: number): string {
 	}).format(Number(value));
 }
 
-export function getStatusLabel(request: ReimbursementRequest): string {
+export function getStatusLabel(
+	request: Pick<
+		ReimbursementRequest,
+		"approval_status" | "payment_status" | "status" | "first_approved_at"
+	>,
+): string {
 	if (request.approval_status === "not_approved") return "Not approved";
 	if (
 		request.payment_status === "not_required" &&
@@ -89,7 +94,9 @@ export function getStatusLabel(request: ReimbursementRequest): string {
 	return "Pending";
 }
 
-export function getRequestTypeLabel(request: ReimbursementRequest): string {
+export function getRequestTypeLabel(
+	request: Pick<ReimbursementRequest, "submission_type">,
+): string {
 	return getReimbursementSubmissionTypeLabel(request.submission_type);
 }
 

@@ -19,6 +19,10 @@ import {
 	getBuchhaltungsButlerSyncStatus,
 	uploadBuchhaltungsButlerReceipt,
 } from "../lib/buchhaltungsbutler.js";
+import {
+	DepartmentReimbursementsQuerySchema,
+	listDepartmentReimbursements,
+} from "../lib/departmentReimbursements.js";
 import { DatabaseError } from "../lib/errors.js";
 import { fetchWithTimeout } from "../lib/fetchWithTimeout.js";
 import {
@@ -1190,6 +1194,19 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 					),
 				),
 			);
+		},
+	);
+
+	// One page of what the caller's department has already submitted, without
+	// receipts or payment details. Scoped and reduced in
+	// `lib/departmentReimbursements.ts`.
+	server.get(
+		"/reimbursements/department",
+		{ preHandler: authenticate },
+		async (request, _reply) => {
+			const user = (request as AuthenticatedRequest).user;
+			const { page } = DepartmentReimbursementsQuerySchema.parse(request.query);
+			return await listDepartmentReimbursements(user.id, page);
 		},
 	);
 
