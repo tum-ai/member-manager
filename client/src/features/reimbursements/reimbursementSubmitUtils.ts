@@ -3,6 +3,7 @@ import {
 	isValidIban,
 } from "@member-manager/shared";
 import type {
+	ParsedReimbursementReceipt,
 	ReimbursementRequest,
 	ReimbursementSubmissionType,
 } from "./reimbursementTypes";
@@ -185,4 +186,37 @@ export function validateForm(values: FormValues): FormErrors {
 	}
 
 	return errors;
+}
+
+export interface ParsedReceiptAmount {
+	/** Value for the EUR amount field, or null to leave the field as it is. */
+	amount: string | null;
+	/** Warning toast for the member, or null when the normal success toast fits. */
+	notice: string | null;
+}
+
+/**
+ * Decides whether the amount read off a receipt may prefill the form. The form
+ * has a single EUR amount, while `parsed.currency` is whatever the receipt
+ * printed (or null/undefined when the model found none, and older servers
+ * omit the field entirely).
+ */
+export function resolveParsedReceiptAmount(
+	parsed: Pick<ParsedReimbursementReceipt, "amount" | "currency">,
+): ParsedReceiptAmount {
+	const { amount, currency } = parsed;
+	if (amount === null || amount === undefined) {
+		return { amount: null, notice: null };
+	}
+	// No currency found: almost every receipt submitted here is in EUR, so the
+	// amount still prefills; the member reviews every prefilled field anyway.
+	if (!currency || currency === "EUR") {
+		return { amount: String(amount), notice: null };
+	}
+	// The EUR amount depends on the bank's exchange rate, which is not on the
+	// receipt, so only the member can fill it in.
+	return {
+		amount: null,
+		notice: `Receipt details extracted, but the receipt is in ${currency}. Enter the amount in EUR as charged on your bank statement.`,
+	};
 }

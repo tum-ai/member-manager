@@ -319,6 +319,135 @@ describe("useReimbursementForm", () => {
 		);
 	});
 
+	it("keeps the amount empty and warns for a receipt in a foreign currency", async () => {
+		server.use(
+			http.post("/api/reimbursements/parse-receipt", () =>
+				HttpResponse.json({
+					amount: 30,
+					currency: "USD",
+					date: "2026-04-12",
+					description: "Conference ticket",
+					payment_iban: null,
+					payment_bic: null,
+				}),
+			),
+		);
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+
+		await waitFor(() =>
+			expect(result.current.values.description).toBe("Conference ticket"),
+		);
+		expect(result.current.values.amount).toBe("");
+		expect(showToast).toHaveBeenCalledWith(
+			expect.stringContaining("USD"),
+			"warning",
+		);
+	});
+
+	it("clears an amount a replaced receipt prefilled when the new one has none in EUR", async () => {
+		const responses = [
+			{ amount: 42.5, currency: "EUR", description: "Snacks" },
+			{ amount: 30, currency: "USD", description: "Conference ticket" },
+		];
+		server.use(
+			http.post("/api/reimbursements/parse-receipt", () =>
+				HttpResponse.json({
+					date: null,
+					payment_iban: null,
+					payment_bic: null,
+					...responses.shift(),
+				}),
+			),
+		);
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+		await waitFor(() => expect(result.current.values.amount).toBe("42.5"));
+
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+		await waitFor(() =>
+			expect(result.current.values.description).toBe("Conference ticket"),
+		);
+		expect(result.current.values.amount).toBe("");
+	});
+
+	it("keeps a prefilled amount the member retyped when a foreign-currency receipt replaces it", async () => {
+		const responses = [
+			{ amount: 42.5, currency: "EUR", description: "Snacks" },
+			{ amount: 30, currency: "USD", description: "Conference ticket" },
+		];
+		server.use(
+			http.post("/api/reimbursements/parse-receipt", () =>
+				HttpResponse.json({
+					date: null,
+					payment_iban: null,
+					payment_bic: null,
+					...responses.shift(),
+				}),
+			),
+		);
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+		await waitFor(() => expect(result.current.values.amount).toBe("42.5"));
+		act(() => {
+			result.current.setField("amount", "42.5");
+		});
+
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+		await waitFor(() =>
+			expect(result.current.values.description).toBe("Conference ticket"),
+		);
+		expect(result.current.values.amount).toBe("42.5");
+	});
+
+	it("keeps an amount the member typed when a foreign-currency receipt arrives", async () => {
+		server.use(
+			http.post("/api/reimbursements/parse-receipt", () =>
+				HttpResponse.json({
+					amount: 30,
+					currency: "USD",
+					date: null,
+					description: "Conference ticket",
+					payment_iban: null,
+					payment_bic: null,
+				}),
+			),
+		);
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+		act(() => {
+			result.current.setField("amount", "27.80");
+		});
+
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+		await waitFor(() =>
+			expect(result.current.values.description).toBe("Conference ticket"),
+		);
+		expect(result.current.values.amount).toBe("27.80");
+	});
+
 	it("does not apply parsed bank details while a Vivid draft is active", async () => {
 		server.use(
 			http.post("/api/reimbursements/parse-receipt", () =>

@@ -1,6 +1,7 @@
 export type {
 	DepartmentReimbursementRequest,
 	DepartmentReimbursementsResponse,
+	ParsedReimbursementReceipt,
 	ReimbursementApprovalStatus,
 	ReimbursementBuchhaltungsButlerSyncStatus,
 	ReimbursementPaymentStatus,
@@ -73,14 +74,6 @@ export interface ReceiptUploadResult {
 	path: string;
 	token: string;
 	signed_url: string;
-}
-
-export interface ParsedReimbursementReceipt {
-	amount: number | null;
-	date: string | null;
-	description: string | null;
-	payment_iban: string | null;
-	payment_bic: string | null;
 }
 
 export interface ReviewReimbursementRequestPayload {

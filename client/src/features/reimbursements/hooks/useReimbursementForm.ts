@@ -14,6 +14,7 @@ import {
 	type FormValues,
 	getErrorMessage,
 	MAX_RECEIPT_BYTES,
+	resolveParsedReceiptAmount,
 	sortRequestsByDateDesc,
 	validateForm,
 } from "@/features/reimbursements/reimbursementSubmitUtils";
@@ -54,6 +55,12 @@ export function useReimbursementForm(userId: string) {
 	// Bumped whenever the form switches to another request or resets, so
 	// receipt work started for the previous form can tell it is stale.
 	const formSession = useRef(0);
+	// True while the amount field holds what the last receipt parse put there
+	// and the member has not edited it since. A later parse with no usable
+	// amount (none found, or a foreign currency) clears only such an amount,
+	// so a replaced receipt never leaves its amount behind but an amount the
+	// member typed always survives.
+	const amountIsExtracted = useRef(false);
 	const [isReadingReceipt, setIsReadingReceipt] = useState(false);
 	const [isDraggingReceipt, setIsDraggingReceipt] = useState(false);
 	const memberDepartment =
@@ -124,6 +131,7 @@ export function useReimbursementForm(userId: string) {
 		field: Key,
 		value: FormValues[Key],
 	): void => {
+		if (field === "amount") amountIsExtracted.current = false;
 		setValues((current) => ({ ...current, [field]: value }));
 		setErrors((current) => ({ ...current, [field]: undefined }));
 	};
@@ -254,20 +262,25 @@ export function useReimbursementForm(userId: string) {
 					parsedReceipt.payment_iban || null,
 					parsedReceipt.payment_bic || null,
 				);
+				const parsedAmount = resolveParsedReceiptAmount(parsedReceipt);
+				const clearStaleAmount = amountIsExtracted.current;
+				amountIsExtracted.current = parsedAmount.amount !== null;
 				setValues((current) => ({
 					...current,
 					amount:
-						parsedReceipt.amount !== null && parsedReceipt.amount !== undefined
-							? String(parsedReceipt.amount)
-							: current.amount,
+						parsedAmount.amount ?? (clearStaleAmount ? "" : current.amount),
 					date: parsedReceipt.date ?? current.date,
 					description: parsedReceipt.description ?? current.description,
 					...payeeDetails,
 				}));
-				showToast(
-					"Receipt details extracted. Please review and correct them.",
-					"success",
-				);
+				if (parsedAmount.notice) {
+					showToast(parsedAmount.notice, "warning");
+				} else {
+					showToast(
+						"Receipt details extracted. Please review and correct them.",
+						"success",
+					);
+				}
 			} catch (parseError) {
 				if (isStale()) return;
 				showToast(
@@ -388,6 +401,7 @@ export function useReimbursementForm(userId: string) {
 	const resetForm = (): void => {
 		reimbursementDraft.current = { iban: null, bic: null };
 		invoiceDraft.current = { iban: null, bic: null };
+		amountIsExtracted.current = false;
 		formSession.current += 1;
 		setEditingRequest(null);
 		setValues({
@@ -416,6 +430,7 @@ export function useReimbursementForm(userId: string) {
 			nextValues.submissionType === "invoice"
 				? submittedAccount
 				: { iban: null, bic: null };
+		amountIsExtracted.current = false;
 		formSession.current += 1;
 		setEditingRequest(request);
 		setValues(nextValues);
