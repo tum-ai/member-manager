@@ -277,6 +277,11 @@ export interface ReceiptUploadResult {
 
 export interface ParsedReimbursementReceipt {
 	amount: number | null;
+	/**
+	 * ISO 4217 code printed on the receipt, or null when none was found.
+	 * `amount` is in this currency, not necessarily EUR.
+	 */
+	currency: string | null;
 	date: string | null;
 	description: string | null;
 	payment_iban: string | null;

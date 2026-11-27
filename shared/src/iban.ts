@@ -1,4 +1,4 @@
-import { friendlyFormatIBAN, isValidIBAN } from "ibantools";
+import { friendlyFormatIBAN, isValidBIC, isValidIBAN } from "ibantools";
 import { z } from "zod";
 
 export const INVALID_IBAN_MESSAGE = "Invalid IBAN";
@@ -38,6 +38,32 @@ export function formatIban(value: string): string {
 
 export function isValidIban(value: string): boolean {
 	return isValidIBAN(normalizeIban(value));
+}
+
+const BIC_LABEL_WORDS = new Set(["BIC", "SWIFT", "CODE"]);
+
+/**
+ * Reduces free-form BIC text (any case, spacing, a "BIC:" or "SWIFT/BIC"
+ * label) to its bare form and checks its structure with `ibantools`, the same
+ * library behind `isValidIban`. Returns the uppercase BIC, or null when it is
+ * not a structurally valid 8- or 11-character BIC.
+ *
+ * A label is only dropped when it is a separate word. Stripping punctuation
+ * first would glue "BIC: AUSXDEFF" into "BICAUSXDEFF", which is itself a
+ * structurally valid BIC, and peeling "BIC" off the front of a word would
+ * shorten a real BIC whose bank code starts with those letters.
+ */
+export function normalizeBic(value: string): string | null {
+	const words = value
+		.normalize("NFKC")
+		.toUpperCase()
+		.split(/[^A-Z0-9]+/u)
+		.filter(Boolean);
+	while (words.length > 0 && BIC_LABEL_WORDS.has(words[0])) {
+		words.shift();
+	}
+	const bic = words.join("");
+	return isValidBIC(bic) ? bic : null;
 }
 
 export const ibanSchema = z

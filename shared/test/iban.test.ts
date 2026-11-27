@@ -5,6 +5,7 @@ import {
 	formatIban,
 	isValidIban,
 	maskIban,
+	normalizeBic,
 	normalizeIban,
 	sepaSchema,
 } from "../dist/index.js";
@@ -108,5 +109,33 @@ describe("IBAN masking", () => {
 	test("fully masks values too short to be an IBAN", () => {
 		assert.equal(maskIban("DE891234"), "••••");
 		assert.equal(maskIban("DE8912345"), "••••");
+	});
+});
+
+describe("normalizeBic", () => {
+	test("returns an 8- or 11-character BIC in uppercase", () => {
+		assert.equal(normalizeBic("COBADEFFXXX"), "COBADEFFXXX");
+		assert.equal(normalizeBic("cobadeff"), "COBADEFF");
+	});
+
+	test("drops spacing and a BIC or SWIFT label", () => {
+		assert.equal(normalizeBic("BIC: COBA DE FF XXX"), "COBADEFFXXX");
+		assert.equal(normalizeBic("SWIFT/BIC COBADEFFXXX"), "COBADEFFXXX");
+	});
+
+	test("keeps the printed BIC when a label precedes it", () => {
+		// Gluing the label on would give "BICAUSXDEFF", also a valid BIC.
+		assert.equal(normalizeBic("BIC: AUSXDEFF"), "AUSXDEFF");
+		assert.equal(normalizeBic("SWIFT code: AUSXDEFF"), "AUSXDEFF");
+	});
+
+	test("never shortens a BIC whose bank code starts with BIC", () => {
+		assert.equal(normalizeBic("BICADEFFXXX"), "BICADEFFXXX");
+	});
+
+	test("rejects values that are not structurally a BIC", () => {
+		for (const value of ["", "n/a", "COBADE", "COBADEFFXX", "ABN4NL2A"]) {
+			assert.equal(normalizeBic(value), null, JSON.stringify(value));
+		}
 	});
 });
