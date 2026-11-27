@@ -1,5 +1,6 @@
 import { fetchWithTimeout } from "./fetchWithTimeout.js";
 import { imageDataForPdf } from "./pdfImage.js";
+import { RECEIPT_MODEL } from "./receiptExtraction.js";
 
 const OPENAI_CHAT_COMPLETIONS_URL =
 	"https://api.openai.com/v1/chat/completions";
@@ -64,7 +65,8 @@ async function generateIdentifier(description: string): Promise<string> {
 				Authorization: `Bearer ${apiKey}`,
 			},
 			body: JSON.stringify({
-				model: "gpt-4o-mini",
+				model: RECEIPT_MODEL,
+				reasoning_effort: "none",
 				messages: [
 					{
 						role: "system",
@@ -76,8 +78,7 @@ async function generateIdentifier(description: string): Promise<string> {
 						content: `Use one descriptive word, no punctuation: "${description}"`,
 					},
 				],
-				max_tokens: 10,
-				temperature: 0.3,
+				max_completion_tokens: 10,
 			}),
 		});
 

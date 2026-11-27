@@ -1,5 +1,4 @@
 import {
-	cleanIbanInput,
 	FinanceReimbursementLinkSchema,
 	isValidIban,
 	normalizeIban,
@@ -23,8 +22,8 @@ import {
 	DepartmentReimbursementsQuerySchema,
 	listDepartmentReimbursements,
 } from "../lib/departmentReimbursements.js";
-import { DatabaseError } from "../lib/errors.js";
-import { fetchWithTimeout } from "../lib/fetchWithTimeout.js";
+import { DatabaseError, ServiceUnavailableError } from "../lib/errors.js";
+import { extractReceiptFields } from "../lib/receiptExtraction.js";
 import {
 	processReceiptFile,
 	sanitizeReceiptFilename,
@@ -66,38 +65,6 @@ import {
 import type { AuthenticatedRequest } from "../types/index.js";
 
 const BB_PENDING_SYNC_FRESHNESS_MS = 10 * 60 * 1000;
-const OPENAI_CHAT_COMPLETIONS_URL =
-	"https://api.openai.com/v1/chat/completions";
-// Vision/document extraction on a receipt or multi-page invoice routinely takes
-// longer than the default external-fetch timeout; a short timeout here reliably
-// aborts the request before OpenAI responds.
-const RECEIPT_PARSE_TIMEOUT_MS = 45_000;
-
-const RECEIPT_PARSE_PROMPT = `Analyze this receipt or invoice and return only valid JSON.
-Extract:
-- amount: total amount in EUR as a number, without currency symbols
-- date: receipt or invoice date in YYYY-MM-DD format
-- description: concise merchant/vendor and purchase description
-- payment_iban: IBAN of the account this invoice should be paid to, i.e. the payee (vendor or issuer). Ignore the customer's or buyer's own IBAN, such as one printed for a SEPA direct debit. Return only the IBAN itself, without an "IBAN" label.
-- payment_bic: BIC/SWIFT of that payee account
-
-If a field cannot be determined, use null.`;
-
-/**
- * Reduces the model's `payment_iban` to a checksum-valid electronic IBAN, or
- * null. The model regularly adds an "IBAN:" label, dashes, or lowercase, and
- * can misread a digit; passing such a value through would prefill the form
- * with an IBAN that only fails later, at submit.
- */
-function normalizeParsedIban(value: unknown): string | null {
-	const raw = normalizeMaybeString(value);
-	if (!raw) {
-		return null;
-	}
-
-	const iban = cleanIbanInput(raw);
-	return isValidIban(iban) ? iban : null;
-}
 
 function buildFinanceReviewUrl(): string | undefined {
 	const baseUrl = process.env.APP_BASE_URL?.trim();
@@ -150,14 +117,6 @@ function validateOptionalIban(value: string | null | undefined): string | null {
 	return normalized;
 }
 
-function buildDataUrl(base64: string, mimeType: string): string {
-	return `data:${mimeType};base64,${stripReceiptDataUrlPrefix(base64)}`;
-}
-
-function isPdfMimeType(mimeType: string): boolean {
-	return mimeType === "application/pdf";
-}
-
 function normalizeMaybeString(value: unknown): string | null {
 	if (typeof value !== "string") {
 		return null;
@@ -165,41 +124,6 @@ function normalizeMaybeString(value: unknown): string | null {
 
 	const trimmed = value.trim();
 	return trimmed ? trimmed : null;
-}
-
-function normalizeMaybeDate(value: unknown): string | null {
-	const raw = normalizeMaybeString(value);
-	if (!raw) {
-		return null;
-	}
-
-	return isValidDate(raw) ? raw : null;
-}
-
-function normalizeMaybeAmount(value: unknown): number | null {
-	if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-		return value;
-	}
-	if (typeof value !== "string") {
-		return null;
-	}
-
-	const parsed = Number.parseFloat(value.replace(",", "."));
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
-}
-
-function extractJsonObject(rawContent: string): Record<string, unknown> {
-	let text = rawContent.trim();
-	if (text.startsWith("```json")) {
-		text = text.slice(7);
-	} else if (text.startsWith("```")) {
-		text = text.slice(3);
-	}
-	if (text.endsWith("```")) {
-		text = text.slice(0, -3);
-	}
-
-	return JSON.parse(text.trim()) as Record<string, unknown>;
 }
 
 function isMissingReimbursementsTable(error: unknown): boolean {
@@ -1284,10 +1208,9 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 			const apiKey = process.env.OPENAI_API_KEY?.trim();
 
 			if (!apiKey) {
-				return reply.status(503).send({
-					error:
-						"Receipt extraction is not configured. Add OPENAI_API_KEY to enable automatic parsing.",
-				});
+				throw new ServiceUnavailableError(
+					"Receipt extraction is not configured. Add OPENAI_API_KEY to enable automatic parsing.",
+				);
 			}
 
 			if (
@@ -1327,94 +1250,13 @@ export async function reimbursementRoutes(server: FastifyInstance) {
 				return reply.status(400).send({ error: "Receipt file is too large" });
 			}
 
-			const dataUrl = buildDataUrl(receiptBase64, body.receipt_mime_type);
-			const documentContent = isPdfMimeType(body.receipt_mime_type)
-				? {
-						type: "file",
-						file: {
-							filename: body.receipt_filename,
-							file_data: dataUrl,
-						},
-					}
-				: {
-						type: "image_url",
-						image_url: { url: dataUrl },
-					};
-
-			let openaiResponse: Response;
-			try {
-				openaiResponse = await fetchWithTimeout(
-					OPENAI_CHAT_COMPLETIONS_URL,
-					{
-						method: "POST",
-						headers: {
-							"Content-Type": "application/json",
-							Authorization: `Bearer ${apiKey}`,
-						},
-						body: JSON.stringify({
-							model: "gpt-4o-mini",
-							messages: [
-								{
-									role: "user",
-									content: [
-										{ type: "text", text: RECEIPT_PARSE_PROMPT },
-										documentContent,
-									],
-								},
-							],
-							response_format: { type: "json_object" },
-							temperature: 0.1,
-							max_tokens: 500,
-						}),
-					},
-					RECEIPT_PARSE_TIMEOUT_MS,
-				);
-			} catch (error) {
-				request.log.warn(
-					{ err: error },
-					"OpenAI receipt extraction request failed",
-				);
-				return reply.status(502).send({
-					error: "Receipt extraction failed. Fill the fields manually.",
-				});
-			}
-
-			if (!openaiResponse.ok) {
-				const errorText = await openaiResponse.text();
-				request.log.warn(
-					{ status: openaiResponse.status, errorText },
-					"OpenAI receipt extraction failed",
-				);
-				return reply.status(502).send({
-					error: "Receipt extraction failed. Fill the fields manually.",
-				});
-			}
-
-			const openaiResult = (await openaiResponse.json()) as {
-				choices?: Array<{ message?: { content?: string } }>;
-			};
-			const content = openaiResult.choices?.[0]?.message?.content;
-			if (!content) {
-				return reply
-					.status(502)
-					.send({ error: "Receipt extraction returned no data." });
-			}
-
-			try {
-				const parsed = extractJsonObject(content);
-				return {
-					amount: normalizeMaybeAmount(parsed.amount),
-					date: normalizeMaybeDate(parsed.date),
-					description: normalizeMaybeString(parsed.description),
-					payment_iban: normalizeParsedIban(parsed.payment_iban),
-					payment_bic: normalizeMaybeString(parsed.payment_bic)?.toUpperCase(),
-				};
-			} catch (error) {
-				request.log.warn({ err: error }, "Failed to parse OpenAI receipt JSON");
-				return reply
-					.status(502)
-					.send({ error: "Receipt extraction returned unreadable data." });
-			}
+			return await extractReceiptFields({
+				base64: receiptBase64,
+				mimeType: body.receipt_mime_type,
+				filename: body.receipt_filename,
+				apiKey,
+				log: request.log,
+			});
 		},
 	);
 
