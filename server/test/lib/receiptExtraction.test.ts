@@ -93,6 +93,7 @@ describe("normalizeExtractedReceipt", () => {
 			{
 				amount: 42.51,
 				currency: "EUR",
+				currency_unrecognized: false,
 				date: "2026-11-20",
 				description: "Workshop snacks",
 				payment_iban: VALID_IBAN,
@@ -132,14 +133,17 @@ describe("normalizeExtractedReceipt", () => {
 			NOW,
 		);
 		assert.strictEqual(parsed.currency, null);
+		assert.strictEqual(parsed.currency_unrecognized, false);
 		assert.strictEqual(parsed.amount, 10);
 	});
 
-	test("drops the amount next to a currency it cannot name", () => {
-		// A null currency would let the client prefill "US$ 30" as 30 EUR.
+	test("drops the amount next to a currency it cannot name and flags it", () => {
+		// A null currency would let the client prefill "US$ 30" as 30 EUR; the
+		// flag lets it warn instead of showing the plain success toast.
 		for (const currency of ["US$", "$", "EU"]) {
 			const parsed = normalizeExtractedReceipt({ amount: 30, currency }, NOW);
 			assert.strictEqual(parsed.currency, null, currency);
+			assert.strictEqual(parsed.currency_unrecognized, true, currency);
 			assert.strictEqual(parsed.amount, null, currency);
 		}
 	});
@@ -177,6 +181,7 @@ describe("normalizeExtractedReceipt", () => {
 		assert.deepStrictEqual(normalizeExtractedReceipt({}, NOW), {
 			amount: null,
 			currency: null,
+			currency_unrecognized: false,
 			date: null,
 			description: null,
 			payment_iban: null,

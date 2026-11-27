@@ -282,6 +282,12 @@ export interface ParsedReimbursementReceipt {
 	 * `amount` is in this currency, not necessarily EUR.
 	 */
 	currency: string | null;
+	/**
+	 * True when the receipt names a currency that is not an ISO 4217 code (say
+	 * "US$"). `currency` and `amount` are then null, and the client warns
+	 * instead of treating the receipt as one without a currency.
+	 */
+	currency_unrecognized: boolean;
 	date: string | null;
 	description: string | null;
 	payment_iban: string | null;

@@ -367,6 +367,17 @@ describe("resolveParsedReceiptAmount", () => {
 		expect(result.notice).toMatch(/EUR/);
 	});
 
+	it("warns about a currency the server could not name", () => {
+		const result = resolveParsedReceiptAmount({
+			amount: null,
+			currency: null,
+			currency_unrecognized: true,
+		});
+		expect(result.amount).toBeNull();
+		expect(result.notice).toMatch(/currency is unclear/);
+		expect(result.notice).toMatch(/EUR/);
+	});
+
 	it("prefills nothing when no amount was found", () => {
 		expect(
 			resolveParsedReceiptAmount({ amount: null, currency: "USD" }),
