@@ -10,6 +10,7 @@ import {
 	getRequestTypeLabel,
 	getStatusLabel,
 	readFileAsBase64,
+	resolveParsedReceiptAmount,
 	sortRequestsByDateDesc,
 	validateForm,
 } from "./reimbursementSubmitUtils";
@@ -343,4 +344,32 @@ it("keeps a pending Vivid expense pending in member history", () => {
 			}),
 		),
 	).toBe("Pending");
+});
+
+describe("resolveParsedReceiptAmount", () => {
+	it("prefills a EUR amount without a notice", () => {
+		expect(
+			resolveParsedReceiptAmount({ amount: 42.5, currency: "EUR" }),
+		).toEqual({ amount: "42.5", notice: null });
+	});
+
+	it("prefills when no currency was found", () => {
+		expect(resolveParsedReceiptAmount({ amount: 12, currency: null })).toEqual({
+			amount: "12",
+			notice: null,
+		});
+	});
+
+	it("leaves the amount empty and explains a foreign currency", () => {
+		const result = resolveParsedReceiptAmount({ amount: 30, currency: "USD" });
+		expect(result.amount).toBeNull();
+		expect(result.notice).toMatch(/USD/);
+		expect(result.notice).toMatch(/EUR/);
+	});
+
+	it("prefills nothing when no amount was found", () => {
+		expect(
+			resolveParsedReceiptAmount({ amount: null, currency: "USD" }),
+		).toEqual({ amount: null, notice: null });
+	});
 });
