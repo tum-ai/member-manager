@@ -383,6 +383,102 @@ describe("useReimbursementForm", () => {
 		expect(result.current.values.amount).toBe("");
 	});
 
+	it("warns instead of the success toast when the receipt's currency is unrecognized", async () => {
+		server.use(
+			http.post("/api/reimbursements/parse-receipt", () =>
+				HttpResponse.json({
+					amount: null,
+					currency: null,
+					currency_unrecognized: true,
+					date: null,
+					description: "Conference ticket",
+					payment_iban: null,
+					payment_bic: null,
+				}),
+			),
+		);
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+
+		await waitFor(() =>
+			expect(result.current.values.description).toBe("Conference ticket"),
+		);
+		expect(result.current.values.amount).toBe("");
+		expect(showToast).toHaveBeenCalledWith(
+			expect.stringContaining("currency is unclear"),
+			"warning",
+		);
+		expect(showToast).not.toHaveBeenCalledWith(expect.anything(), "success");
+	});
+
+	it("clears an amount a replaced receipt prefilled when extraction fails for the new one", async () => {
+		let parseCalls = 0;
+		server.use(
+			http.post("/api/reimbursements/parse-receipt", () => {
+				parseCalls += 1;
+				return parseCalls === 1
+					? HttpResponse.json({
+							amount: 42.5,
+							currency: "EUR",
+							date: null,
+							description: "Snacks",
+							payment_iban: null,
+							payment_bic: null,
+						})
+					: HttpResponse.json({ message: "parse failed" }, { status: 500 });
+			}),
+		);
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+		await waitFor(() => expect(result.current.values.amount).toBe("42.5"));
+
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+		await waitFor(() =>
+			expect(showToast).toHaveBeenCalledWith(
+				expect.stringContaining("automatic extraction failed"),
+				"warning",
+			),
+		);
+		expect(result.current.values.amount).toBe("");
+	});
+
+	it("keeps an amount the member typed when extraction fails", async () => {
+		server.use(
+			http.post("/api/reimbursements/parse-receipt", () =>
+				HttpResponse.json({ message: "parse failed" }, { status: 500 }),
+			),
+		);
+		const { result } = renderHookWithClient(() =>
+			useReimbursementForm("user-123"),
+		);
+		act(() => {
+			result.current.setField("amount", "27.80");
+		});
+
+		await act(async () => {
+			await result.current.handleReceiptDrop(dropEvent(pdfReceipt));
+		});
+		await waitFor(() =>
+			expect(showToast).toHaveBeenCalledWith(
+				expect.stringContaining("automatic extraction failed"),
+				"warning",
+			),
+		);
+		expect(result.current.values.amount).toBe("27.80");
+	});
+
 	it("keeps a prefilled amount the member retyped when a foreign-currency receipt replaces it", async () => {
 		const responses = [
 			{ amount: 42.5, currency: "EUR", description: "Snacks" },

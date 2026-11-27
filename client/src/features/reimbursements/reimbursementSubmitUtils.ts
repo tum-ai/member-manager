@@ -202,9 +202,20 @@ export interface ParsedReceiptAmount {
  * omit the field entirely).
  */
 export function resolveParsedReceiptAmount(
-	parsed: Pick<ParsedReimbursementReceipt, "amount" | "currency">,
+	parsed: Pick<ParsedReimbursementReceipt, "amount" | "currency"> &
+		Partial<Pick<ParsedReimbursementReceipt, "currency_unrecognized">>,
 ): ParsedReceiptAmount {
 	const { amount, currency } = parsed;
+	// The server drops the amount next to a currency it cannot name ("US$"),
+	// so this has to come before the empty-amount check or the member gets
+	// the plain success toast with an empty amount.
+	if (parsed.currency_unrecognized) {
+		return {
+			amount: null,
+			notice:
+				"Receipt details extracted, but the receipt's currency is unclear. Enter the amount in EUR as charged on your bank statement.",
+		};
+	}
 	if (amount === null || amount === undefined) {
 		return { amount: null, notice: null };
 	}

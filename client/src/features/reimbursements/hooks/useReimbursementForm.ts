@@ -283,6 +283,12 @@ export function useReimbursementForm(userId: string) {
 				}
 			} catch (parseError) {
 				if (isStale()) return;
+				// The new receipt replaced the one that prefilled the amount, so
+				// that amount no longer belongs to the attachment.
+				if (amountIsExtracted.current) {
+					amountIsExtracted.current = false;
+					setValues((current) => ({ ...current, amount: "" }));
+				}
 				showToast(
 					`Receipt attached, but automatic extraction failed: ${getErrorMessage(
 						parseError,

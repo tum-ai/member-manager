@@ -209,6 +209,7 @@ export function normalizeExtractedReceipt(
 				? null
 				: normalizeMaybeAmount(raw.amount),
 		currency: currency.kind === "code" ? currency.code : null,
+		currency_unrecognized: currency.kind === "unrecognized",
 		date: normalizeMaybeDate(raw.date, now),
 		description: normalizeMaybeString(raw.description),
 		payment_iban: normalizeParsedIban(raw.payment_iban),
@@ -327,6 +328,7 @@ export async function extractReceiptFields({
 			mimeType,
 			latencyMs: Date.now() - startedAt,
 			currency: parsed.currency,
+			currencyUnrecognized: parsed.currency_unrecognized,
 			missingFields: RECEIPT_FIELD_NAMES.filter(
 				(field) => parsed[field] === null,
 			),
