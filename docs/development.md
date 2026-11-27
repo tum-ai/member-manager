@@ -87,6 +87,8 @@ Every integration below is off unless its env vars are set in `server/.env.local
 
 The reimbursement tool can pre-fill amount, date, description, IBAN, and BIC from an uploaded receipt. Set `OPENAI_API_KEY` to enable it. Without it, uploads still work and the user fills the fields manually.
 
+`server/src/lib/receiptExtraction.ts` sends the file to `RECEIPT_MODEL` (`gpt-6-luna`) with a strict JSON schema (amount, currency, date, description, payee IBAN, BIC) and then validates every value in code: amounts are rounded to cents, dates must be at most one day in the future and at most two years old, IBANs must pass the checksum and BICs the `ibantools` structure check. Anything that fails becomes `null`, so the member types it. The form only takes EUR, so a receipt in another currency does not prefill the amount. Each parse logs one line with the model, latency and which fields came back empty, never the values.
+
 Receipt files are uploaded directly from the browser to the private `reimbursement-receipts` Supabase Storage bucket through `POST /api/reimbursements/receipt-upload-url`; the request stores only the storage reference. `POST /api/reimbursements/process-receipt` normalizes uploaded receipts: PDFs are returned as raw base64, JPG/PNG images are wrapped into a single-page PDF, and filenames follow `DDMMYY_Name_Identifier.pdf` with `Expense` as the no-OpenAI fallback identifier.
 
 ### Department requests

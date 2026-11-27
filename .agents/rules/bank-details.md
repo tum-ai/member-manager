@@ -1,5 +1,5 @@
 ---
-paths: ["shared/src/iban.ts", "shared/src/sepa.ts", "shared/src/consents.ts", "server/src/routes/consents.ts", "client/src/features/welcome/**", "shared/src/reimbursements.ts", "client/src/features/profile/**", "client/src/features/sepa/**", "client/src/features/reimbursements/**", "client/src/hooks/useSepaData.ts", "server/src/routes/sepa.ts", "server/src/routes/reimbursements.ts", "server/src/lib/reimbursement*.ts", "server/src/lib/receiptProcessing.ts", "server/src/lib/sensitiveData*.ts", "server/test/routes/sepa.test.ts", "server/test/routes/reimbursement*.test.ts", "e2e/sepa.spec.ts", "e2e/*reimbursement*.spec.ts"]
+paths: ["shared/src/iban.ts", "shared/src/sepa.ts", "shared/src/consents.ts", "server/src/routes/consents.ts", "client/src/features/welcome/**", "shared/src/reimbursements.ts", "client/src/features/profile/**", "client/src/features/sepa/**", "client/src/features/reimbursements/**", "client/src/hooks/useSepaData.ts", "server/src/routes/sepa.ts", "server/src/routes/reimbursements.ts", "server/src/lib/reimbursement*.ts", "server/src/lib/receiptProcessing.ts", "server/src/lib/receiptExtraction.ts", "server/src/lib/sensitiveData*.ts", "server/test/routes/sepa.test.ts", "server/test/routes/reimbursement*.test.ts", "e2e/sepa.spec.ts", "e2e/*reimbursement*.spec.ts"]
 ---
 
 # Bank details: SEPA, IBANs, reimbursement payments
@@ -19,14 +19,15 @@ changing behaviour, and add a regression test for every fix.
 - **One IBAN implementation.** Validate and normalize with `ibanSchema` / `normalizeIban` /
   `isValidIban` from `shared/src/iban.ts` (NFKC, strip spaces and hyphens, uppercase, `ibantools`
   checksum). No hand-written IBAN regexes on either side.
-- **Receipt extraction only suggests.** Values parsed from a receipt (`lib/receiptProcessing.ts`)
+- **Receipt extraction only suggests.** Values parsed from a receipt (`lib/receiptExtraction.ts`)
   prefill the form for the member to review. A parsed IBAN/BIC is the payee's account, so it only
   ever fills the **invoice** slot (`applyParsedPayeeDetails` in `useReimbursementForm.ts`): the
   visible fields if Invoice is selected when the parse resolves, otherwise the stashed invoice
   draft that selecting Invoice restores. It must survive a type switch, including one made while
   the parse is in flight, and must never touch the member's reimbursement payout slot or a Vivid
   request (#267, #282). The server returns a parsed IBAN only if it is checksum-valid
-  (`normalizeParsedIban` → `cleanIbanInput` + `isValidIban`), otherwise `null`.
+  (`normalizeParsedIban` → `cleanIbanInput` + `isValidIban`), otherwise `null`; a parsed BIC
+  likewise only if `normalizeBic` accepts it.
 - **Bank details on the profile are optional as a group.** Under `profileSepaSchema` a member may
   leave IBAN, BIC and bank name all blank and still save the rest of the profile; only the
   agreements are stored then. Once any bank field is filled (`hasBankDetailsInput`), the group is
