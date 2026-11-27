@@ -753,6 +753,12 @@ describe("Reimbursement Routes", async () => {
 	});
 
 	describe("POST /api/reimbursements/parse-receipt", () => {
+		// Extraction drops dates older than two years, so a fixed date here
+		// would start failing as time passes.
+		const recentReceiptDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+			.toISOString()
+			.slice(0, 10);
+
 		async function parseReceiptWithModelIban(
 			modelIban: string | null,
 		): Promise<{ payment_iban: unknown; payment_bic: unknown }> {
@@ -766,7 +772,7 @@ describe("Reimbursement Routes", async () => {
 								message: {
 									content: JSON.stringify({
 										amount: 12,
-										date: "2026-04-12",
+										date: recentReceiptDate,
 										description: "Venue invoice",
 										payment_iban: modelIban,
 										payment_bic: "COBADEFFXXX",
@@ -885,7 +891,7 @@ describe("Reimbursement Routes", async () => {
 								message: {
 									content: JSON.stringify({
 										amount: "42,50",
-										date: "2026-04-12",
+										date: recentReceiptDate,
 										description: "Workshop snacks",
 										payment_iban: "DE89 3704 0044 0532 0130 00",
 										payment_bic: "cobadeffxxx",
@@ -915,7 +921,7 @@ describe("Reimbursement Routes", async () => {
 			assert.strictEqual(response.statusCode, 200);
 			const data = JSON.parse(response.payload);
 			assert.strictEqual(data.amount, 42.5);
-			assert.strictEqual(data.date, "2026-04-12");
+			assert.strictEqual(data.date, recentReceiptDate);
 			assert.strictEqual(data.description, "Workshop snacks");
 			assert.strictEqual(data.payment_iban, "DE89370400440532013000");
 			assert.strictEqual(data.payment_bic, "COBADEFFXXX");
