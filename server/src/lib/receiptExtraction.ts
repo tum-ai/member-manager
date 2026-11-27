@@ -22,9 +22,13 @@ export const RECEIPT_MODEL = "gpt-6-luna";
 // aborts the request before OpenAI responds.
 export const RECEIPT_PARSE_TIMEOUT_MS = 45_000;
 
-/** Messages the member sees in the extraction-failed toast. */
+/**
+ * Reasons the member sees in the extraction-failed toast. The client wraps
+ * them in "automatic extraction failed: <reason> Fill the fields manually.",
+ * so they state only the reason (#416 showed the instruction twice).
+ */
 export const RECEIPT_EXTRACTION_FAILED_MESSAGE =
-	"Receipt extraction failed. Fill the fields manually.";
+	"The extraction service is unavailable.";
 const RECEIPT_EXTRACTION_EMPTY_MESSAGE = "Receipt extraction returned no data.";
 const RECEIPT_EXTRACTION_UNREADABLE_MESSAGE =
 	"Receipt extraction returned unreadable data.";
@@ -240,8 +244,8 @@ function parseModelJson(content: string): Record<string, unknown> | null {
 /**
  * Asks the model for the reimbursement fields on a receipt and returns them
  * validated. Throws `BadGatewayError` when the provider fails or answers with
- * something unusable; the route turns that into the "fill the fields manually"
- * toast.
+ * something unusable; the client shows its message in the "fill the fields
+ * manually" toast.
  *
  * Logs one line per call with which fields came back empty, but never a field
  * value: amounts, IBANs and BICs on a receipt are member payment data.

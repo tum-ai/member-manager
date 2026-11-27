@@ -951,7 +951,10 @@ describe("Reimbursement Routes", async () => {
 
 			assert.strictEqual(response.statusCode, 502);
 			const data = JSON.parse(response.payload);
-			assert.match(data.error, /fill the fields manually/i);
+			assert.match(data.error, /extraction service is unavailable/i);
+			// The client adds "Fill the fields manually." itself; repeating it
+			// here showed the instruction twice in the toast (#416).
+			assert.doesNotMatch(data.error, /fill the fields manually/i);
 		});
 
 		test("requires receipt extraction to be configured", async () => {

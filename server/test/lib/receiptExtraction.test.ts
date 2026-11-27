@@ -6,6 +6,7 @@ import {
 	type ExtractReceiptFieldsInput,
 	extractReceiptFields,
 	normalizeExtractedReceipt,
+	RECEIPT_EXTRACTION_FAILED_MESSAGE,
 	RECEIPT_MODEL,
 } from "../../src/lib/receiptExtraction.js";
 
@@ -270,7 +271,7 @@ describe("extractReceiptFields", () => {
 			}),
 			(error) =>
 				error instanceof BadGatewayError &&
-				/fill the fields manually/i.test(error.message),
+				error.message === RECEIPT_EXTRACTION_FAILED_MESSAGE,
 		);
 	});
 
