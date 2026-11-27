@@ -38,7 +38,7 @@ In production it runs as one Vercel function (`api/[...path].ts` imports `server
 | Contracts | `routes/contracts*`, `lib/contracts/`, `lib/openSign.ts`, `lib/contractEmails.ts` (Resend) | DOCX → PDF via the LibreOffice sandbox (`infra/libreoffice/`); `docs/contracts.md` |
 | Slack | `lib/slackNotifier.ts`, `routes/slackInteractions.ts` | DMs and interactive buttons |
 | Bug reports | `lib/githubIssues.ts`, `routes/bugReports.ts` | GitHub App creates issues |
-| Receipts | `lib/receiptProcessing.ts`, `lib/reimbursementReceipts.ts` | OpenAI extraction; files in Supabase Storage |
+| Receipts | `lib/receiptExtraction.ts`, `lib/receiptProcessing.ts`, `lib/reimbursementReceipts.ts` | OpenAI field extraction (`RECEIPT_MODEL`); PDF normalization; files in Supabase Storage |
 | Partner portal / jobs | `lib/partnerPortal.ts`, `routes/partners.ts`, `routes/jobs.ts` | CV export for partners |
 | Crons | `vercel.json` `crons` | `/api/tum-ai-days/send-pending` (10 min), `/api/contracts/render-jobs` (1 min); authorized by `CRON_SECRET` |
 
