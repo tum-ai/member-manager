@@ -325,10 +325,10 @@ test.describe("Finance Analytics tool", () => {
 		).toBeVisible({ timeout: 20000 });
 
 		// The match moved the status on its own: planned → committed (FR-M4).
+		// The row keeps its key across the refetch and so stays open. Clicking it
+		// again closed it, and the click below raced the closing animation.
 		await expandAllFolders(page);
-		await page
-			.getByRole("button", { name: new RegExp(`^${planLabel}`) })
-			.click();
+		await expect(planRow).toHaveAttribute("aria-expanded", "true");
 		await expect(page.getByText("Zugesagt").first()).toBeVisible();
 
 		// Plan 5.000 vs Ist 600 — correcting sets the plan to what arrived (FR-M6).
